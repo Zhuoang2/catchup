@@ -30,7 +30,9 @@ These follow directly from the research and accepted decisions, so they don't di
   - Data model: `sources`, `items` (identity key, title, link, published_at, content excerpt, cached summary, `state`: pending | delivered | baseline), `source_checks` (per run and source: ok_new | ok_empty | failed, error, HTTP status, item counts), `digest_runs` (queued | collecting | summarizing | succeeded | failed, progress, error), `digests`, `digest_items`, `model_config`.
   - Semantics of "since the last successful request" (`docs/handoff.md:40`): each source is checked on every run. Items a failed source couldn't fetch are simply collected on its next successful check, so no global timestamp can hide them (`docs/handoff.md:68`). Publish dates are used only for ordering, display and the first-add lookback, so missing or untrustworthy dates don't lose items (`docs/handoff.md:67`).
   - First add: entries in the feed at confirm time become `pending` if published in the last 7 days (at most 5 per source). The rest become `baseline` and are never digested. Both values are settings.
-  - Backlog: each run digests at most N pending items (default 50), oldest first. The rest stay pending, and the UI says how many remain (`docs/handoff.md:69`).
+  - How new vs old is decided: an item is **new the first time its identity key is seen for that source** (identity key, with link as a secondary match in case a site changes its id scheme). Known keys are skipped, and publish dates play no part. A run digests every `pending` item, and the items become `delivered` only once the digest is saved. An entry edited after publication keeps its id, so it counts as old (page-change detection is out of scope).
+  - Feed-gap warning: feeds keep only their latest N entries. If a successful check finds no previously seen key among the entries (for a source that already has items), the check is flagged "possible gap", meaning older entries may have dropped off the feed between checks. The UI shows this flag.
+  - Backlog (updated 2026-10-02 after user feedback): **no per-run cap.** Every pending item is digested. The UI shows progress as "item x of y". Stage 2 receives only short per-item summaries; if they exceed a safe input size, they are grouped in batches and then merged. Choosing only the most important items is a later feature (`docs/process/requirements-changes.md`).
   - Execution: `POST /api/digest-runs` returns a run ID. Work happens in an in-process background thread, one run at a time. `GET /api/digest-runs/{id}` reports progress and per-source check status. On startup, any run left unfinished is marked failed. Items are marked `delivered` only after the digest is saved, so a failed run leaves them pending for the retry.
   - Summarization: stage 1 summarizes each item and caches the result, so a retry doesn't pay again. Stage 2 sends the item summaries and IDs and gets back topics with overviews and item IDs. The server rejects unknown IDs, and any item the model leaves out goes under "Other".
   - API: `/api/settings/model` (GET, PUT, POST test); `/api/sources` (POST preview, POST confirm, GET, DELETE); `/api/digest-runs` (POST, GET by ID); `/api/digests` (GET list, GET by ID).
@@ -38,7 +40,7 @@ These follow directly from the research and accepted decisions, so they don't di
 - Trade-offs:
   - Benefits:
     - Partial failures, retries and missing dates are handled by construction, which directly covers the acceptance scenarios: no repeats, failure shown separately from no-updates, retry neither misses nor duplicates (`docs/handoff.md:113`).
-    - Progress display and a backlog cap make long gaps manageable.
+    - Progress display keeps long gaps understandable, and per-item summaries prepare for a later "most important items" feature.
     - Cached per-item summaries cut retry cost.
     - The run and check records are good material for the tech spec and the demo.
   - Costs:
@@ -49,6 +51,8 @@ These follow directly from the research and accepted decisions, so they don't di
   - Unit tests: item identity fallbacks; SSRF guard (private, loopback, metadata and redirect cases); feed discovery from fixture HTML.
   - Collection tests with fixtures:
     - a second run with no new entries produces no new digest items
+    - a feed whose entries are all unseen (after earlier items exist) is flagged "possible gap"
+    - a site that changes an entry's id but keeps its link does not produce a duplicate
     - a failing source shows `failed`, not `ok_empty`
     - after a failed run, the retry delivers exactly the previously pending items once
     - an entry with a missing or old publish date added later is still collected
@@ -57,7 +61,7 @@ These follow directly from the research and accepted decisions, so they don't di
   - Manual end-to-end run against a real feed and DeepSeek; record the result in the change's review notes.
 - Open Questions:
   - Do you accept the ledger meaning of "since the last successful request"?
-  - First-add defaults (7 days, 5 per source) and backlog cap (50): OK as starting values?
+  - First-add defaults (7 days, 5 per source): OK as starting values? (The backlog cap was dropped at the user's request.)
 
 ---
 

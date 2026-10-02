@@ -40,3 +40,15 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - `<podcast:transcript>` adoption is low: a small 2026 sample found it on 8.8% of episodes across 8 AI podcasts. Apple's transcripts have no public API. An Apple Podcasts URL resolves to its RSS feed via the no-auth iTunes Lookup API (verified live).
   - feedparser 6.0.14 and trafilatura 2.2.0 are both released July 2026 and maintained. trafilatura includes feed autodiscovery.
 - Lesson: Verifying first changed the plan. Blogs/RSS become the reliable first source type. YouTube is best-effort, likely to fail on a cloud-hosted demo. Podcast coverage will be thin unless transcription is added later. The prompt's demand for URLs and "unverified" markers made the report easy to check.
+
+## 2026-10-02 — First RePPIT cycle for `add-core-digest-flow` (Claude Code, Opus 5.5)
+
+- Purpose: Research → two proposals → plan for the core flow, run through the OpenSpec-aware RePPIT skills.
+- Research: Two parallel subagents verified current DeepSeek API facts and library behavior. Findings that shaped the design:
+  - DeepSeek retired and renamed models in September 2026, so model IDs are not hard-coded.
+  - JSON mode can return empty content, so empty responses are retried.
+  - feedparser has no entry-id fallback and no timeout.
+  - `trafilatura.find_feed_urls` returns article links, not feed URLs.
+- Proposals: Proposal 1 (item ledger) vs Proposal 2 (per-source time checkpoints). The user asked how "new vs old" is decided, so Claude explained it with a worked table of runs, and the explanation went into `design.md`. The user then rejected a proposed 50-item cap and asked for a future "top N" feature; both changes are logged in `requirements-changes.md`. The user chose Proposal 1.
+- Plan: proposal.md, five spec deltas (model-settings, source-management, content-collection, digest-generation, digest-history), the final design.md, and 22 tasks in tasks.md. `openspec validate --strict` passes.
+- Lesson: The user's clarifying question exposed that "new content" was explained only abstractly. A concrete run-by-run example made the semantics reviewable, and it became a spec requirement with scenarios.

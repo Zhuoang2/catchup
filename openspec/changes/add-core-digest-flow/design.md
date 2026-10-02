@@ -1,100 +1,202 @@
-# Design: add-core-digest-flow
+# Design
 
-Status: awaiting user choice
+Status: Proposal 1 chosen by the user on 2026-10-02 (item ledger + background run + two-stage summarization). Defaults accepted: first add keeps entries from the last 7 days, at most 5 per source; no per-run item cap.
 
-## Solution Proposals
+## Context
 
-Context:
-- Request: Build the first working slice of CatchUp: configure a DeepSeek model (OpenAI-compatible), add one RSS/Atom source with preview and confirm, click Generate Digest, collect what is new since the last successful check, produce a topic-grouped digest with source names and original links, then save it and reopen it later.
-- Research Source: `research.md` sections "Required core flow", "Open items that touch the core flow", "External facts" (DeepSeek, RSS/Atom, stack libraries, SSRF).
+This is the first code in the repository (`research.md`, "Repository state"). See `proposal.md` for the motivation. The hard parts of the confirmed requirements are:
+- no duplicates
+- failure shown separately from "no updates"
+- no lost items when a source fails
+- correct behavior when publish dates are missing or untrustworthy
 
-### Shared by both proposals
+Sources: `docs/handoff.md:40`, `docs/handoff.md:67-68`, `docs/handoff.md:113`.
 
-These follow directly from the research and accepted decisions, so they don't differ between options:
+External constraints from research:
+- DeepSeek is OpenAI-compatible, offers only `json_object` JSON mode, may return empty content, and recently renamed and retired models.
+- feedparser has no entry-id fallback and no timeout, and warns against untrusted strings.
+- `trafilatura.find_feed_urls` returns article links, not feed URLs.
+- SQLAlchemy 2.1 needs Python ≥3.11. Its async SQLite driver isn't truly non-blocking, and SQLite needs WAL to avoid lock errors.
+- User-supplied URLs need SSRF protection.
 
-- Layout: `backend/` (FastAPI, sync SQLAlchemy 2.1 + Alembic, SQLite in WAL mode, managed with uv) and `frontend/` (React + Vite + TypeScript, built into static files that FastAPI serves). One process and one container (D-006, `docs/process/decision-log.md:35-40`). Sync endpoints, because SQLAlchemy's SQLite async driver isn't truly non-blocking (research: stack libraries).
-- Fetching: httpx with explicit timeouts and a size cap. feedparser parses the downloaded bytes, because it has no timeout and its docstring warns against passing untrusted strings (research: feedparser). An SSRF guard on every user-supplied URL resolves DNS, rejects private, loopback, link-local and metadata IPs, and follows redirects manually with re-checks (research: SSRF).
-- Feed discovery on add: if the URL is a feed, use it. If it is an HTML page, read `<link rel="alternate" type="application/rss+xml|atom+xml">`. `trafilatura.find_feed_urls` returns article links, not feed URLs, so it can't be used here (research: trafilatura). A page with no feed is reported as unsupported. When the pasted URL looks like a single article, the preview states that CatchUp will follow the whole site's feed (`docs/handoff.md:46`).
-- Item identity for dedupe: `entry.id`, else `link`, else a hash of title + date, unique per source. feedparser has no id fallback (research: feedparser).
-- Model config: one stored config with base URL, model ID and API key. The key is encrypted at rest with a key from the `CATCHUP_SECRET_KEY` env var and never returned by the API (only its last 4 characters). "Test connection" calls `GET /models`, which also fills the model picker. Model IDs are never hard-coded, because DeepSeek renamed and retired models in September 2026 (research: DeepSeek).
-- LLM calls: `openai` SDK with `base_url`; JSON mode (`json_object`) with "json" plus an example in the prompt. Retry on empty content, 429, 500 and 503 with backoff; 401 and 402 are shown to the user as configuration or balance errors (research: DeepSeek errors). The model returns item IDs only. Links and source names are always rendered from the database, so citations cannot be invented.
-- UI pages (minimal styling in this change): Settings, Sources (add → preview → confirm, list, delete), Generate, Digest view, History.
-- Tests: pytest with recorded feed fixtures, a fake LLM client and frozen time; Vitest for a few components; GitHub Actions CI running both.
+## Goals / Non-Goals
 
----
+**Goals:**
+- A runnable app, both as a dev setup and as one built process, covering: model settings → add an RSS/Atom source → Generate Digest → saved digest → reopen from history.
+- Every scenario in the five spec deltas covered by automated tests that run without network access or a real API key.
+- A structure that later source types (podcasts, YouTube) plug into without changing the ledger or run model.
 
-### Proposal 1 — Item ledger + background run with progress, two-stage summarization
+**Non-Goals:**
+- Podcasts, YouTube, and pages without feeds.
+- Deployment and Docker. These belong to a later change; this one only makes FastAPI able to serve the built frontend.
+- Authentication and multi-user support. The instance is single-user and local.
+- Bookmarks, likes, feedback, "top N" selection, scheduling.
+- Visual polish beyond clean, usable layouts.
 
-- Overview: Every check stores the feed's entries as items, deduped by identity. "New content" means confirmed items that no saved digest has included yet. Generation runs as a background task that the UI polls for progress. It summarizes each item once (cached), then makes one call to group the summaries into topics.
-- Key Changes:
-  - Data model: `sources`, `items` (identity key, title, link, published_at, content excerpt, cached summary, `state`: pending | delivered | baseline), `source_checks` (per run and source: ok_new | ok_empty | failed, error, HTTP status, item counts), `digest_runs` (queued | collecting | summarizing | succeeded | failed, progress, error), `digests`, `digest_items`, `model_config`.
-  - Semantics of "since the last successful request" (`docs/handoff.md:40`): each source is checked on every run. Items a failed source couldn't fetch are simply collected on its next successful check, so no global timestamp can hide them (`docs/handoff.md:68`). Publish dates are used only for ordering, display and the first-add lookback, so missing or untrustworthy dates don't lose items (`docs/handoff.md:67`).
-  - First add: entries in the feed at confirm time become `pending` if published in the last 7 days (at most 5 per source). The rest become `baseline` and are never digested. Both values are settings.
-  - How new vs old is decided: an item is **new the first time its identity key is seen for that source** (identity key, with link as a secondary match in case a site changes its id scheme). Known keys are skipped, and publish dates play no part. A run digests every `pending` item, and the items become `delivered` only once the digest is saved. An entry edited after publication keeps its id, so it counts as old (page-change detection is out of scope).
-  - Feed-gap warning: feeds keep only their latest N entries. If a successful check finds no previously seen key among the entries (for a source that already has items), the check is flagged "possible gap", meaning older entries may have dropped off the feed between checks. The UI shows this flag.
-  - Backlog (updated 2026-10-02 after user feedback): **no per-run cap.** Every pending item is digested. The UI shows progress as "item x of y". Stage 2 receives only short per-item summaries; if they exceed a safe input size, they are grouped in batches and then merged. Choosing only the most important items is a later feature (`docs/process/requirements-changes.md`).
-  - Execution: `POST /api/digest-runs` returns a run ID. Work happens in an in-process background thread, one run at a time. `GET /api/digest-runs/{id}` reports progress and per-source check status. On startup, any run left unfinished is marked failed. Items are marked `delivered` only after the digest is saved, so a failed run leaves them pending for the retry.
-  - Summarization: stage 1 summarizes each item and caches the result, so a retry doesn't pay again. Stage 2 sends the item summaries and IDs and gets back topics with overviews and item IDs. The server rejects unknown IDs, and any item the model leaves out goes under "Other".
-  - API: `/api/settings/model` (GET, PUT, POST test); `/api/sources` (POST preview, POST confirm, GET, DELETE); `/api/digest-runs` (POST, GET by ID); `/api/digests` (GET list, GET by ID).
-  - Spec capabilities (new): `model-settings`, `source-management`, `content-collection`, `digest-generation`, `digest-history`.
-- Trade-offs:
-  - Benefits:
-    - Partial failures, retries and missing dates are handled by construction, which directly covers the acceptance scenarios: no repeats, failure shown separately from no-updates, retry neither misses nor duplicates (`docs/handoff.md:113`).
-    - Progress display keeps long gaps understandable, and per-item summaries prepare for a later "most important items" feature.
-    - Cached per-item summaries cut retry cost.
-    - The run and check records are good material for the tech spec and the demo.
-  - Costs:
-    - More tables and states, and a background thread whose state must be recovered on restart.
-    - N+1 model calls per run, so it is slower than one call (mitigated by caching and by running stage-1 calls with small concurrency).
-    - "Since the last successful request" becomes "everything not yet delivered since each source's last successful check". The meaning is the same, but the wording shifts from a time window to a ledger. See Open Questions.
-- Validation:
-  - Unit tests: item identity fallbacks; SSRF guard (private, loopback, metadata and redirect cases); feed discovery from fixture HTML.
-  - Collection tests with fixtures:
-    - a second run with no new entries produces no new digest items
-    - a feed whose entries are all unseen (after earlier items exist) is flagged "possible gap"
-    - a site that changes an entry's id but keeps its link does not produce a duplicate
-    - a failing source shows `failed`, not `ok_empty`
-    - after a failed run, the retry delivers exactly the previously pending items once
-    - an entry with a missing or old publish date added later is still collected
-  - LLM tests with a fake client: empty-content retry; unknown IDs rejected; omitted items appear under "Other".
-  - Restart test: a run left "summarizing" is marked failed on startup, and its items are still pending.
-  - Manual end-to-end run against a real feed and DeepSeek; record the result in the change's review notes.
-- Open Questions:
-  - Do you accept the ledger meaning of "since the last successful request"?
-  - First-add defaults (7 days, 5 per source): OK as starting values? (The backlog cap was dropped at the user's request.)
+## Decisions
 
----
+### D1. Item ledger decides what is new (chosen over per-source time checkpoints)
+- An entry is new the first time its identity key is seen for its source. The identity key is the feed id, else the link, else sha256(title + date). A secondary link match catches sites that change their id scheme.
+- Items carry `state`: `pending`, `delivered`, or `baseline`. A run digests every `pending` item. Items become `delivered` in the same transaction that saves the digest.
+- **Alternative considered (Proposal 2):** a `last_success_at` checkpoint per source, collecting entries whose publish dates fall in `(checkpoint, run_start]`. It was rejected because it depends on publish dates and misses backdated or late entries (`docs/handoff.md:67`). It also runs generation synchronously, with no progress and a single failure point, and would need rework once slower source types arrive.
 
-### Proposal 2 — Per-source time checkpoints + synchronous generation, single-pass summarization
+### D2. Background run in-process (chosen over synchronous request or a job queue)
+- `POST /api/digest-runs` creates a `digest_runs` row and starts a daemon thread.
+- A module-level lock enforces a single active run; a second request gets a 409 response that names the active run.
+- The UI polls the run once per second.
+- On startup, runs in `queued`, `collecting`, `summarizing`, or `grouping` are marked `failed` with error kind `interrupted`.
+- **Alternatives:** a synchronous request (timeouts, no progress), or Celery/RQ (needs Redis, which is out of proportion for a single-user app, `docs/handoff.md:73`).
 
-- Overview: Each source keeps a `last_success_at` checkpoint. Generate Digest runs inside the HTTP request. For each source it collects entries published after the checkpoint and up to the run start, advancing the checkpoint only if that source succeeded. One model call turns all collected items into the topic-grouped digest.
-- Key Changes:
-  - Data model: `sources` (with `last_success_at`), `items` (unique identity key, to guard against duplicates), `digests` (with per-source check results stored as JSON), `digest_items`, `model_config`.
-  - Semantics: a literal time window `(last_success_at, run_started_at]` per source, using `published_parsed` or `updated_parsed` (UTC per feedparser). Entries with no date are treated as new if their identity is unseen. First add sets the checkpoint to confirm time minus 7 days.
-  - Execution: `POST /api/digests` blocks until done. The UI shows a spinner, and there is no run resource or progress.
-  - Summarization: one JSON-mode call with all items (truncated content) returns topics, item summaries and item IDs. DeepSeek's 1M context makes this possible (research: DeepSeek models), but `max_tokens` must be raised well above the 8K default.
-  - API: `/api/settings/model`, `/api/sources` (same as Proposal 1); `/api/digests` (POST generate, GET list, GET by ID).
-  - Spec capabilities (new): `model-settings`, `source-management`, `digest-generation`, `digest-history`. Collection rules live inside `digest-generation`.
-- Trade-offs:
-  - Benefits:
-    - Fewer tables and no background-execution or restart-recovery logic, so it is faster to build.
-    - Matches the proposal's wording literally (`docs/proposal.md:24`).
-    - One model call per run.
-  - Costs:
-    - Correctness depends on publish dates: an entry backdated or published late, after the checkpoint already moved past its date, is missed (`docs/handoff.md:67`).
-    - A long request (many sources, long content) risks browser or proxy timeouts and gives no progress.
-    - One model failure loses the whole run, and the retry pays the full cost again.
-    - A large single output risks truncated JSON, and there is no natural backlog cap.
-    - It would likely need reworking into Proposal 1's shape once podcasts or videos (slow transcript fetches) arrive in P2.
-- Validation:
-  - Unit tests: window boundaries (exactly at the checkpoint, timezone offsets, missing dates); checkpoint advances only for successful sources.
-  - Same fixture tests for "no new entries → nothing new" and "failed vs empty".
-  - Fake-LLM tests for truncated or empty JSON.
-  - Manual end-to-end run with a real feed and DeepSeek, timing a run with several sources.
-- Open Questions:
-  - What request timeout is acceptable before the UI should show an error?
-  - How should a backdated entry be handled (accept misses, or add an identity-based catch-up, which moves this toward Proposal 1)?
+### D3. Two-stage summarization
+- **Stage 1:** one JSON call per item that does not yet have a summary. Input text is truncated to `CATCHUP_MAX_ITEM_CHARS` (default 20000). Up to 4 calls run concurrently. The summary is stored on the item and reused by later runs. If an item still fails after retries, it is marked `summary_unavailable` for that run.
+- **Stage 2:** one JSON call groups items into topics. The input is short refs (`i1`, `i2`, ...), titles, source names, and summaries. The output is `{"topics": [{"title", "overview", "item_refs": [...]}]}`.
+- Validation of the stage 2 output:
+  - Unknown refs are discarded.
+  - An item listed twice keeps its first placement.
+  - Unplaced items go to "Other".
+- Batching: if the stage 2 input exceeds `CATCHUP_GROUPING_BATCH_CHARS` (default 200000), items are grouped in batches. A merge call then combines the batch topics, using topic titles and overviews only, into a final list that maps batch topics to final topics.
+- Prompts always contain the word "json" and an example output, as DeepSeek requires. Empty content is retried.
+- **Alternative:** a single call for everything. It was rejected because the retry cost and the truncation risk are both higher, and it gives no per-item reuse for a later "most important items" feature.
 
----
+### D4. Fetching and SSRF guard
+- All user-supplied URLs go through `safe_fetch`, which works as follows:
+  - Allow only the `http` and `https` schemes.
+  - Resolve the host with `getaddrinfo`.
+  - Reject the request if any resolved address is private, loopback, link-local (including 169.254.169.254), reserved, multicast, or unspecified.
+  - Follow at most 5 redirects manually, re-checking each hop.
+  - Apply timeouts of 5 s to connect and 15 s to read.
+  - Stop reading after 5 MB.
+- feedparser always receives bytes, never a URL or an untrusted string.
+- **Alternative:** letting feedparser fetch. It was rejected because it has no timeout and its own docstring warns against untrusted strings.
 
-Recommendation: **Proposal 1.** The hardest confirmed requirements are no duplicates, failure shown separately from no updates, partial failure without lost items, and missing or untrustworthy dates (`docs/handoff.md:40`, `docs/handoff.md:67-68`, `docs/handoff.md:113`). Proposal 1 meets these by construction, while Proposal 2 depends on publish dates and would need rework when slower source types arrive in the next phase. The extra complexity (run state, two-stage summarization) is modest and well covered by tests.
+### D5. Feed discovery
+- If the response parses as a feed with entries, or is served with an RSS/Atom content type, it is used as the feed.
+- Otherwise, the HTML is searched for `<link rel="alternate" type="application/rss+xml|application/atom+xml">`. Relative URLs are resolved, and the first candidate that parses is used.
+- "Single article" detection (`docs/handoff.md:46`):
+  - The page has `og:type=article`.
+  - Or the page's path is not the site root and the page declares a feed.
+  - If either holds, the preview shows a notice that the whole site's feed will be followed.
+
+### D6. Synchronous SQLAlchemy with SQLite WAL
+- Connection setup: `PRAGMA journal_mode=WAL`, `busy_timeout=5000`, `foreign_keys=ON` on connect.
+- Each thread uses its own session, and writes are kept short.
+- Endpoints are plain `def`, so FastAPI runs them in its threadpool.
+- Alembic manages the schema from the first migration.
+
+### D7. API key protection
+- The key is encrypted with Fernet, using a key derived from `CATCHUP_SECRET_KEY`. Only `key_set` and `api_key_last4` are ever returned.
+- The key is never logged. HTTP client logging is configured so that it doesn't log headers.
+- Saving a key without `CATCHUP_SECRET_KEY` fails with instructions for generating one.
+
+### D8. Digest content is snapshotted
+- Digest items copy the title, link, source name, publish date, and summary at save time.
+- This lets a saved digest reopen unchanged even after its source is deleted, as the source-management spec requires.
+
+## Architecture
+
+```
+React SPA (Settings · Sources · Generate · History · Digest)
+        │  JSON over /api (polling for runs)
+FastAPI app ── api/ (settings, sources, runs, digests)
+        │
+        ├── services: sources (discovery, feeds) · collection · digest (runner, summarize, group)
+        ├── net/safe_fetch (httpx + SSRF guard)     ├── llm/client (openai SDK, base_url)
+        └── db (SQLAlchemy models, Alembic) ── SQLite file in CATCHUP_DATA_DIR (WAL)
+```
+
+In production, FastAPI serves `frontend/dist` as static files with an SPA fallback; `/api/*` is excluded from the fallback. In development, Vite runs on its own server and proxies `/api` to uvicorn.
+
+Backend layout: `backend/pyproject.toml` (Python ≥3.11, uv) and `backend/src/catchup/`:
+- `main.py`, `config.py`, `db.py`, `models.py`, `schemas.py`, `crypto.py`
+- `net/safe_fetch.py`
+- `sources/discovery.py`, `sources/feeds.py`
+- `collection.py`
+- `llm/client.py`, `llm/prompts.py`
+- `digest/runner.py`, `digest/summarize.py`, `digest/group.py`
+- `api/{settings,sources,runs,digests}.py`
+
+Supporting directories: `backend/alembic/` and `backend/tests/` (with `tests/fixtures/`).
+
+Frontend layout: `frontend/` (Vite React TS):
+- `src/api/client.ts` and typed endpoint functions
+- `src/pages/{Settings,Sources,Generate,History,DigestView}.tsx`
+- a small shared component set
+
+## Data Model
+
+| Table | Key columns |
+| --- | --- |
+| `model_config` | `id` (single row), `base_url`, `model_id`, `api_key_encrypted`, `api_key_last4`, `updated_at` |
+| `sources` | `id`, `title`, `site_url`, `feed_url` (unique), `input_url`, `created_at`, `last_check_at`, `last_check_status` |
+| `items` | `id`, `source_id` (FK, cascade delete), `identity_key`, `link`, `title`, `published_at` (UTC, nullable), `discovered_at`, `content_text`, `content_origin` (`feed` \| `article`), `summary` (nullable), `state` (`pending` \| `delivered` \| `baseline`); unique (`source_id`, `identity_key`); index (`source_id`, `link`) |
+| `source_checks` | `id`, `run_id` (nullable; null for the confirm-time check), `source_id` (FK, cascade), `status` (`new_items` \| `no_new_items` \| `failed`), `possible_gap`, `error`, `http_status`, `entries_seen`, `new_count`, `checked_at` |
+| `digest_runs` | `id`, `status` (`queued` \| `collecting` \| `summarizing` \| `grouping` \| `succeeded` \| `no_new_content` \| `failed`), `items_total`, `items_done`, `error_kind`, `error_message`, `digest_id` (nullable), `started_at`, `finished_at` |
+| `digests` | `id`, `run_id`, `created_at`, `model_id`, `item_count`, `source_count` |
+| `digest_topics` | `id`, `digest_id` (FK), `position`, `title`, `overview` |
+| `digest_items` | `id`, `digest_id` (FK), `topic_id` (FK), `position`, `item_id` (nullable, FK set null), `title`, `link`, `source_name`, `published_at`, `summary`, `summary_unavailable` |
+
+Instance settings (environment variables):
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `CATCHUP_DATA_DIR` | `./data` | SQLite location |
+| `CATCHUP_SECRET_KEY` | none (required to save a key) | API key encryption |
+| `CATCHUP_FIRST_ADD_DAYS` | 7 | First-add lookback window |
+| `CATCHUP_FIRST_ADD_MAX` | 5 | First-add item limit per source |
+| `CATCHUP_SHORT_TEXT_CHARS` | 500 | Below this, fetch the article page for its text |
+| `CATCHUP_MAX_ITEM_CHARS` | 20000 | Item text truncation for stage 1 |
+| `CATCHUP_GROUPING_BATCH_CHARS` | 200000 | Stage 2 batching threshold |
+| `CATCHUP_DIGEST_LANGUAGE` | `English` | Language of summaries and topic text |
+
+## API
+
+All errors use the shape `{"error": {"code": str, "message": str, ...}}`.
+
+| Method & path | Request | Response |
+| --- | --- | --- |
+| `GET /api/health` | — | `{"status": "ok"}` |
+| `GET /api/settings/model` | — | `{base_url, model_id, key_set, api_key_last4}` |
+| `PUT /api/settings/model` | `{base_url, model_id, api_key?}` (empty key keeps the stored one) | same as GET; `400 secret_not_configured` |
+| `POST /api/settings/model/test` | `{base_url?, api_key?}` (missing fields fall back to stored values) | `{ok: true, models: [str]}`; errors `auth_failed`, `connection_failed`, `insufficient_balance`, `provider_error` |
+| `POST /api/sources/preview` | `{url}` | `{feed_url, site_url, title, follows_site_feed_notice, entries: [{title, link, published_at}] (≤5)}`; `422` with `invalid_url`, `fetch_failed`, `blocked_address`, `no_feed`, `not_a_feed`, or `duplicate` (+`existing_source`) |
+| `POST /api/sources` | `{feed_url}` | `201` source; `409 duplicate` |
+| `GET /api/sources` | — | `[{id, title, feed_url, site_url, last_check_at, last_check_status, possible_gap}]` |
+| `DELETE /api/sources/{id}` | — | `204` |
+| `POST /api/digest-runs` | — | `202` run; `409 run_active` (+`active_run_id`) |
+| `GET /api/digest-runs/active` | — | run, or `null` |
+| `GET /api/digest-runs/{id}` | — | `{id, status, items_total, items_done, error_kind, error_message, digest_id, source_checks: [{source_id, source_title, status, possible_gap, error}]}` |
+| `GET /api/digests` | — | `[{id, created_at, item_count, source_count}]` newest first |
+| `GET /api/digests/{id}` | — | `{id, created_at, model_id, topics: [{title, overview, items: [{title, link, source_name, published_at, summary, summary_unavailable}]}]}` |
+
+## Risks / Trade-offs
+
+- [The feed drops entries between checks] → Possible-gap flag, shown in the UI. Not recoverable without archives; documented.
+- [DNS rebinding between the check and the connect (TOCTOU) in `safe_fetch`] → The single-user, self-hosted setting lowers the risk. The residual risk is documented, and pinning the connection to the resolved IP is a later hardening task.
+- [A large backlog makes many stage 1 calls, which costs time and money] → Cached summaries, 4-way concurrency, and an "x of y" progress display. The user explicitly chose no cap.
+- [In-process thread state is lost on restart] → Startup recovery marks the run failed, and items stay pending.
+- [The model ignores the JSON format or returns empty content] → JSON mode, an example in the prompt, bounded retries, and validation with the "Other" fallback.
+- [SQLite write contention between run threads and API requests] → WAL, `busy_timeout`, short transactions.
+- [Collected content is sent to the provider] → Stated in the README setup section (D-004).
+
+## Migration Plan
+
+- This is a new application, so there is no existing data. The initial Alembic migration creates all tables. Startup runs `alembic upgrade head` automatically, which keeps local setup to one step.
+- No feature flags. Rollback means reverting the change's commits and deleting the local data directory.
+
+## Testing Plan
+
+- Backend: pytest with no network access.
+  - httpx traffic is mocked with respx.
+  - DNS resolution is monkeypatched for the SSRF tests.
+  - A fake LLM client is injected through FastAPI dependency overrides.
+  - Time is frozen, or passed in explicitly.
+  - Feed and HTML fixtures live in `backend/tests/fixtures/`.
+  - Every spec scenario maps to at least one test. The mapping is recorded in the test report.
+- Frontend: Vitest with Testing Library for page states (loading, error, empty, populated).
+- End-to-end: an API-level test runs the whole flow, including the repeat-run and new-entry cases.
+- Coverage: `pytest --cov`, summarized in `docs/process/test-report-add-core-digest-flow.md`.
+- Manual verification during review (not by the implementer): a real feed and a real DeepSeek key, run by Claude Code with the user. Results are recorded in the test report.
+
+## Open Questions
+
+- None blocking. Summary language defaults to English via `CATCHUP_DIGEST_LANGUAGE`; the UI may expose it later.

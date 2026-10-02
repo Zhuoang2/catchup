@@ -1,0 +1,33 @@
+# Decision Log
+
+Status values: **proposed** (recommended, awaiting user confirmation), **accepted**, **superseded**.
+
+## D-001 Development workflow: OpenSpec + RePPIT + Factory Droid — accepted (2026-10-01)
+
+- Decision: Manage requirements with OpenSpec. For each change, Claude Code researches, writes two proposals, and plans (RePPIT skills). Factory Droid implements `tasks.md`, and Claude Code reviews.
+- Alternatives: Claude Code alone; Droid alone; plain issues without specs.
+- Reasons: Specs give both humans and coding agents the same written context, which the course grades directly. Splitting planning/review from implementation across two tools from different model vendors gives an independent review. The user has 3 months of Factory Plus.
+- Consequences: Plans must be committed before Droid runs (`droid exec -w` starts a worktree from the current commit). The user approves at two gates: proposal choice and plan.
+- Supersedes: `docs/handoff.md` §9, which said OpenSpec/RePPIT were not the established CatchUp workflow.
+
+## D-002 Single project instruction file — accepted (2026-10-01)
+
+- Decision: `AGENTS.md` holds the project context; `CLAUDE.md` is a symlink to it.
+- Alternatives: two separately maintained files; `CLAUDE.md` with an `@AGENTS.md` import.
+- Reasons: Droid reads `AGENTS.md` and Claude Code reads `CLAUDE.md`. One file prevents drift between the tools.
+
+## D-003 Keep the course brief out of the public repository — accepted (2026-10-01)
+
+- Decision: `CS146S Final Project Description.pdf` and `docs/course-requirements.pdf` stay local and are listed in `.gitignore`.
+- Reasons: The repository will be public (open-source project); the brief is course staff material.
+
+## D-004 First model adapter: OpenAI-compatible Chat Completions — accepted (2026-10-02)
+
+- Decision: Implement an OpenAI-compatible adapter first (configurable base URL, model, key). Develop and test against DeepSeek, which the user uses. Other adapters (e.g. Anthropic native) come later behind the same interface.
+- Reasons: DeepSeek exposes an OpenAI-compatible API. The same adapter also covers OpenAI, OpenRouter, and local Ollama, so "user picks a supported model" is met early.
+- Consequence: In cloud-model mode, collected content is sent to the configured provider (here DeepSeek). Setup docs must say so.
+
+## D-005 Public GitHub repository from the start — accepted (2026-10-02)
+
+- Decision: Public repo `Zhuoang2/catchup`. Development happens in the open; an open-source license is still to be chosen.
+- Pre-publish check: Removed the Google Doc URL from `docs/handoff.md` and `docs/proposal.md`. Course brief PDFs are gitignored (D-003). No credentials found in tracked files.

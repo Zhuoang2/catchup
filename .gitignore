@@ -1,0 +1,29 @@
+# Course staff material: keep local, not in the public repo (see decision D-003)
+CS146S Final Project Description.pdf
+docs/course-requirements.pdf
+
+# Agent-internal working memory
+work/
+
+# Secrets and local data
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite3
+data/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+dist/
+
+# OS
+.DS_Store

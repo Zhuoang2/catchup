@@ -21,7 +21,12 @@ This supersedes the note in `docs/handoff.md` §9 that OpenSpec/RePPIT are not t
 
 - OpenSpec (`openspec/`) manages requirements. Every feature or substantial change is an OpenSpec change under `openspec/changes/<change-name>/`.
 - Each change goes: research (`research.md`) → two proposals in `design.md`, user picks one → plan (`proposal.md`, spec deltas, final `design.md`, `tasks.md`), user approves → Factory Droid implements `tasks.md` in a git worktree → Claude Code reviews the diff, tests, and `openspec validate` → user approves merge → `openspec archive`.
-- Small fixes may skip research and proposals, but still get a short `tasks.md` or a clear commit message.
+- Which commands to use:
+  - New features and substantial changes: the RePPIT skills (`/reppit-research` → `/reppit-proposal` → `/reppit-plan`), which write into the OpenSpec change folder. Do not use `/opsx:propose` or `/opsx:explore` for these.
+  - Small changes (bug fixes, styling, narrow adjustments): `/opsx:propose` for a lean proposal and `tasks.md` in one step.
+  - Implementation: Factory Droid runs `/opsx-apply` (its `openspec-apply-change` skill).
+  - Closing: Claude Code reviews; after the user approves the merge, Claude Code runs `openspec archive <change-name>`.
+- Keep full RePPIT changes coarse: about 6–8 for the whole course. Everything else uses the lean path.
 - Implementers follow `tasks.md` in order, check off a task only after its verification passes, and do not edit `proposal.md`, `design.md`, or spec deltas. If the plan looks wrong, stop and report.
 
 ## Process evidence (course requirement)

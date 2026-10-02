@@ -38,3 +38,9 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
 - Alternatives: FastAPI + HTMX (one language, simplest, but endpoints return HTML fragments, so there is less API design and UI prototyping to show, and a future browser extension would need a separate JSON API); Next.js full-stack TypeScript (one language, but weaker libraries for feed parsing, article extraction, and transcripts).
 - Reasons: The hardest part is backend collection (feeds, time boundaries, dedupe, failures), where Python libraries (feedparser, trafilatura) are strongest. The course grades API design and UI prototyping, and a JSON API is reusable by the planned browser extension.
 - Cost: Two languages and two test setups. Implementation is split between Factory Droid and Claude Code.
+
+## D-007 Split between RePPIT and OpenSpec commands — accepted (2026-10-02)
+
+- Decision: Full RePPIT (research → two proposals → plan) for new features and substantial changes; `/opsx:propose` for small changes; Droid implements with `/opsx-apply`; Claude Code reviews and runs `openspec archive` after the user approves. About 6–8 full RePPIT changes for the course.
+- Context: `openspec init` installs its own `propose`/`explore` skills, which overlap with RePPIT's proposal and plan steps. Without a rule, an agent could switch between the two for the same request.
+- Reasons: RePPIT adds a research step with code references and a two-option user choice; OpenSpec adds living specs, validation, and archive history. The lean `/opsx:propose` path keeps small changes cheap, so process overhead stays proportionate for a solo 10-week project.

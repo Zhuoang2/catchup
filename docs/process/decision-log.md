@@ -31,3 +31,10 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
 
 - Decision: Public repo `Zhuoang2/catchup`. Development happens in the open; an open-source license is still to be chosen.
 - Pre-publish check: Removed the Google Doc URL from `docs/handoff.md` and `docs/proposal.md`. Course brief PDFs are gitignored (D-003). No credentials found in tracked files.
+
+## D-006 Tech stack: FastAPI + React — accepted (2026-10-02)
+
+- Decision: Python backend (FastAPI, SQLite via SQLAlchemy) exposing a JSON API; React + Vite + TypeScript frontend, built to static files and served by FastAPI so deployment is a single container.
+- Alternatives: FastAPI + HTMX (one language, simplest, but endpoints return HTML fragments, so there is less API design and UI prototyping to show, and a future browser extension would need a separate JSON API); Next.js full-stack TypeScript (one language, but weaker libraries for feed parsing, article extraction, and transcripts).
+- Reasons: The hardest part is backend collection (feeds, time boundaries, dedupe, failures), where Python libraries (feedparser, trafilatura) are strongest. The course grades API design and UI prototyping, and a JSON API is reusable by the planned browser extension.
+- Cost: Two languages and two test setups. Implementation is split between Factory Droid and Claude Code.

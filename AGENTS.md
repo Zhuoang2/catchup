@@ -11,7 +11,7 @@ The existing proposal PDF in this folder preserves the user's layout. `assets/ca
 
 Project constraints: self-hosted web application; user-owned model API; manual, incremental digest generation; public sources and accessible transcripts first. Browser extensions, authenticated content, existing-page change detection, and automatic scheduling are not initial-release requirements.
 
-No stack, supported-source list, provider matrix, or implementation/test commands have been selected yet. Do not infer those decisions from the proposal. Proposed and accepted decisions are tracked in `docs/process/decision-log.md`.
+Accepted so far: stack is FastAPI + SQLite + React/Vite/TypeScript, served as a single container (D-006); the first model adapter is OpenAI-compatible, developed against DeepSeek (D-004). Still open: supported-source list beyond RSS/Atom, further model providers, deployment target, and implementation/test commands (added once the app exists). Do not infer open decisions from the proposal. All decisions are tracked in `docs/process/decision-log.md`.
 
 `CLAUDE.md` is a symlink to this file so Claude Code and Factory Droid read the same project context. Edit `AGENTS.md` only.
 

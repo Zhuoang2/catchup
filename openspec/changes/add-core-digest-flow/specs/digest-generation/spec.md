@@ -60,6 +60,24 @@ Every item in a digest MUST show its source name and original link taken from st
 - **WHEN** the grouping output references an item that is not in the run
 - **THEN** the reference is ignored and no link is invented for it
 
+### Requirement: Digest language chosen by the user
+The system SHALL let the user choose the digest language in the settings shown during initial setup. The options are English, Simplified Chinese, "same as the original", or another language the user types. Summaries, topic titles, and overviews MUST be written in the chosen language. With "same as the original", each item summary uses that item's language, and topic text uses the language most items are written in. A stored item summary MUST be reused only if it was written in the currently chosen language. Changing the language MUST NOT alter saved digests.
+
+#### Scenario: Choose Chinese at setup
+- **WHEN** the user selects Simplified Chinese in settings and generates a digest
+- **THEN** the digest's summaries, topic titles, and overviews are in Simplified Chinese
+
+#### Scenario: Change language after earlier runs
+- **WHEN** an item was summarized in English, the user switches the language to Simplified Chinese, and the item is included in a later run
+- **THEN** the item is summarized again in Simplified Chinese, and digests saved earlier remain in English
+
+### Requirement: Require model setup before generating
+The system SHALL refuse to start a run while no model configuration is saved, and direct the user to the settings.
+
+#### Scenario: Generate before setup
+- **WHEN** the user clicks Generate Digest before saving a model configuration
+- **THEN** no run starts and the user is told to complete the model settings first
+
 ### Requirement: Recover from interrupted runs
 On startup, the system SHALL mark any run left unfinished as failed. Its items MUST remain pending.
 

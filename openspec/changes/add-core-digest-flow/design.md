@@ -48,7 +48,8 @@ External constraints from research:
 - **Alternatives:** a synchronous request (timeouts, no progress), or Celery/RQ (needs Redis, which is out of proportion for a single-user app, `docs/handoff.md:73`).
 
 ### D3. Two-stage summarization
-- **Stage 1:** one JSON call per item that does not yet have a summary. Input text is truncated to `CATCHUP_MAX_ITEM_CHARS` (default 20000). Up to 4 calls run concurrently. The summary is stored on the item and reused by later runs. If an item still fails after retries, it is marked `summary_unavailable` for that run.
+- **Stage 1:** one JSON call per item that has no summary in the current digest language. Input text is truncated to `CATCHUP_MAX_ITEM_CHARS` (default 20000). Up to 4 calls run concurrently. The summary is stored on the item together with `summary_language` and reused by later runs only while the language setting matches. If an item still fails after retries, it is marked `summary_unavailable` for that run.
+- **Language:** prompts take the user's `digest_language` setting. Its value is `en`, `zh-Hans`, `original`, or free text for another language, and it is read once at run start. With `original`, each item summary uses the item's own language, and topic titles and overviews use the language most items are written in.
 - **Stage 2:** one JSON call groups items into topics. The input is short refs (`i1`, `i2`, ...), titles, source names, and summaries. The output is `{"topics": [{"title", "overview", "item_refs": [...]}]}`.
 - Validation of the stage 2 output:
   - Unknown refs are discarded.
@@ -127,8 +128,9 @@ Frontend layout: `frontend/` (Vite React TS):
 | Table | Key columns |
 | --- | --- |
 | `model_config` | `id` (single row), `base_url`, `model_id`, `api_key_encrypted`, `api_key_last4`, `updated_at` |
+| `app_settings` | `id` (single row), `digest_language` (default `en`), `updated_at` |
 | `sources` | `id`, `title`, `site_url`, `feed_url` (unique), `input_url`, `created_at`, `last_check_at`, `last_check_status` |
-| `items` | `id`, `source_id` (FK, cascade delete), `identity_key`, `link`, `title`, `published_at` (UTC, nullable), `discovered_at`, `content_text`, `content_origin` (`feed` \| `article`), `summary` (nullable), `state` (`pending` \| `delivered` \| `baseline`); unique (`source_id`, `identity_key`); index (`source_id`, `link`) |
+| `items` | `id`, `source_id` (FK, cascade delete), `identity_key`, `link`, `title`, `published_at` (UTC, nullable), `discovered_at`, `content_text`, `content_origin` (`feed` \| `article`), `summary` (nullable), `summary_language` (nullable), `state` (`pending` \| `delivered` \| `baseline`); unique (`source_id`, `identity_key`); index (`source_id`, `link`) |
 | `source_checks` | `id`, `run_id` (nullable; null for the confirm-time check), `source_id` (FK, cascade), `status` (`new_items` \| `no_new_items` \| `failed`), `possible_gap`, `error`, `http_status`, `entries_seen`, `new_count`, `checked_at` |
 | `digest_runs` | `id`, `status` (`queued` \| `collecting` \| `summarizing` \| `grouping` \| `succeeded` \| `no_new_content` \| `failed`), `items_total`, `items_done`, `error_kind`, `error_message`, `digest_id` (nullable), `started_at`, `finished_at` |
 | `digests` | `id`, `run_id`, `created_at`, `model_id`, `item_count`, `source_count` |
@@ -146,7 +148,8 @@ Instance settings (environment variables):
 | `CATCHUP_SHORT_TEXT_CHARS` | 500 | Below this, fetch the article page for its text |
 | `CATCHUP_MAX_ITEM_CHARS` | 20000 | Item text truncation for stage 1 |
 | `CATCHUP_GROUPING_BATCH_CHARS` | 200000 | Stage 2 batching threshold |
-| `CATCHUP_DIGEST_LANGUAGE` | `English` | Language of summaries and topic text |
+
+The digest language is a user setting stored in `app_settings`, not an environment variable. The user picks it in Settings during initial setup.
 
 ## API
 
@@ -158,11 +161,13 @@ All errors use the shape `{"error": {"code": str, "message": str, ...}}`.
 | `GET /api/settings/model` | — | `{base_url, model_id, key_set, api_key_last4}` |
 | `PUT /api/settings/model` | `{base_url, model_id, api_key?}` (empty key keeps the stored one) | same as GET; `400 secret_not_configured` |
 | `POST /api/settings/model/test` | `{base_url?, api_key?}` (missing fields fall back to stored values) | `{ok: true, models: [str]}`; errors `auth_failed`, `connection_failed`, `insufficient_balance`, `provider_error` |
+| `GET /api/settings/preferences` | — | `{digest_language}` |
+| `PUT /api/settings/preferences` | `{digest_language}` (`en`, `zh-Hans`, `original`, or free text ≤ 40 chars) | `{digest_language}`; `422 invalid_language` for empty or overlong text |
 | `POST /api/sources/preview` | `{url}` | `{feed_url, site_url, title, follows_site_feed_notice, entries: [{title, link, published_at}] (≤5)}`; `422` with `invalid_url`, `fetch_failed`, `blocked_address`, `no_feed`, `not_a_feed`, or `duplicate` (+`existing_source`) |
 | `POST /api/sources` | `{feed_url}` | `201` source; `409 duplicate` |
 | `GET /api/sources` | — | `[{id, title, feed_url, site_url, last_check_at, last_check_status, possible_gap}]` |
 | `DELETE /api/sources/{id}` | — | `204` |
-| `POST /api/digest-runs` | — | `202` run; `409 run_active` (+`active_run_id`) |
+| `POST /api/digest-runs` | — | `202` run; `409 run_active` (+`active_run_id`); `409 model_not_configured` |
 | `GET /api/digest-runs/active` | — | run, or `null` |
 | `GET /api/digest-runs/{id}` | — | `{id, status, items_total, items_done, error_kind, error_message, digest_id, source_checks: [{source_id, source_title, status, possible_gap, error}]}` |
 | `GET /api/digests` | — | `[{id, created_at, item_count, source_count}]` newest first |
@@ -199,4 +204,4 @@ All errors use the shape `{"error": {"code": str, "message": str, ...}}`.
 
 ## Open Questions
 
-- None blocking. Summary language defaults to English via `CATCHUP_DIGEST_LANGUAGE`; the UI may expose it later.
+- None blocking. (Resolved 2026-10-02: the digest language is chosen by the user in Settings during initial setup rather than through an environment variable.)

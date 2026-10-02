@@ -10,7 +10,7 @@ CatchUp has planning documents but no application yet. The core promise is this:
 - Model settings: the user enters an OpenAI-compatible base URL and API key, tests the connection, and picks a model from the provider's list. The key is stored encrypted and never returned.
 - Source management: the user pastes a website or feed URL and sees a preview of the identified feed (name, address, recent entries). On confirm, the source is saved. Duplicates and unsupported URLs are explained. User-supplied URLs are fetched through a guard that blocks internal network addresses.
 - Content collection: on each Generate Digest run, every source is checked, and each entry is recorded the first time it is seen. Each check reports one of: new items found, no new items, or failed. A possible gap is flagged when older entries may have dropped off a feed between checks.
-- Digest generation: a background run with progress summarizes each new item once (cached) and groups the summaries into topics. Links and source names come from stored data, never from model output. There is no limit on the number of items per run.
+- Digest generation: a background run with progress summarizes each new item once (cached) and groups the summaries into topics. Output is in the language the user chose during setup (English, Simplified Chinese, same as the original, or another language). Links and source names come from stored data, never from model output. There is no limit on the number of items per run.
 - Digest history: saved digests can be listed and reopened after a restart.
 
 ## Capabilities
@@ -19,7 +19,7 @@ CatchUp has planning documents but no application yet. The core promise is this:
 - `model-settings`: Configuring an OpenAI-compatible model provider (base URL, API key, model), testing the connection, and protecting the stored key.
 - `source-management`: Adding a source from a pasted URL with preview and confirmation, rejecting duplicates and unsupported URLs, listing and deleting sources, and safe fetching of user-supplied URLs.
 - `content-collection`: Checking sources on each run, recording entries the first time they are seen, deciding what counts as new, and reporting per-source check outcomes, including failure vs no updates and possible gaps.
-- `digest-generation`: Running digest generation in the background with progress, summarizing new items, grouping them by topic with citations to stored items, and handling model errors and retries.
+- `digest-generation`: Running digest generation in the background with progress, summarizing new items in the user's chosen language, grouping them by topic with citations to stored items, and handling model errors and retries.
 - `digest-history`: Saving digests and letting the user list and reopen past digests.
 
 ### Modified Capabilities

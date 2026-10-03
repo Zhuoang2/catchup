@@ -62,4 +62,17 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   > Implement ONLY task group 1 (tasks 1.1 to 1.5) of OpenSpec change add-core-digest-flow using the openspec-apply-change skill. Read openspec/changes/add-core-digest-flow/proposal.md, design.md, specs/ and tasks.md first. Work through tasks 1.1-1.5 in order and check off each task in tasks.md only after its verification passes. Do not start group 2. Do not edit proposal.md, design.md, or the spec deltas. Commit when group 1 is done. If a task is blocked or the plan looks wrong, stop and report instead of improvising. At the end, report: what you did per task, the exact verification commands you ran and their results, any deviations from the plan, and the branch/worktree path.
 
 - Prompt adjustment vs the template in the plan skill: Scope was narrowed to one group ("ONLY", "Do not start group 2"). The prompt adds an explicit reading list and a required end-of-run report (per-task summary, the exact verification commands and results, deviations, worktree path) so the review can check claims instead of trusting them.
-- Outcome: pending review.
+- Outcome (Droid's report): commit `0da6d26`, 5/22 tasks checked, 4 backend + 1 frontend tests passing, `openspec validate --strict` passing. It reported its own failure (an SPA fallback route shadowed an API route) and its fix, and it upgraded Vitest to clear two `npm audit` advisories. It also added its own entry to this log, as `AGENTS.md` instructs. That entry is merged in below.
+- Cost: 29 turns, ~4.4 minutes, 242,373 Factory credits (from the `droid exec` JSON result).
+
+### Claude Code review of group 1 (Opus 5.5)
+
+- Method: Claude did not trust the report. It checked out the branch in a separate worktree, re-ran every verification command, compared the migration against the models (`alembic.autogenerate.compare_metadata`, no drift), tested multi-threaded SQLite access, and read every non-generated file.
+- Confirmed: all of Droid's stated test and build results reproduced, and `npm audit` showed 0 vulnerabilities.
+- Findings that Droid's own checks missed:
+  1. [must] Two tests built the app from environment settings, so running the suite created `backend/data/catchup.sqlite3`. It would also migrate a user's real database if `CATCHUP_DATA_DIR` were set. Reproduced by running pytest in a clean checkout.
+  2. [must] `openai` was pinned to `<3` (locked 2.54.0) although 3.x is current. This was caught before any client code was written against the old major.
+  3. [should] `AppError` lived in `main.py`, which would cause circular imports once routers import it.
+  4. [should] Mutual foreign keys between `digest_runs` and `digests`; SQLAlchemy warns this may become an error.
+  5. [optional] Vite 6 / TypeScript 5.8 instead of the current Vite 8 / TypeScript 7.
+- Lesson: Every task's "Verify" line passed, yet finding 1 was still a real defect. Verification lines check what the plan names, not side effects such as files written outside the test sandbox. Future plans should state "tests must not touch real data or the network" as a verifiable criterion, not only as a note. Findings were sent back to the same Droid session (`droid exec -s`).

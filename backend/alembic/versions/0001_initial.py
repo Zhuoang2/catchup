@@ -45,7 +45,7 @@ def upgrade() -> None:
         sa.Column("items_done", sa.Integer(), nullable=False),
         sa.Column("error_kind", sa.String(64)),
         sa.Column("error_message", sa.Text()),
-        sa.Column("digest_id", sa.Integer(), sa.ForeignKey("digests.id")),
+        sa.Column("digest_id", sa.Integer()),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("finished_at", sa.DateTime(timezone=True)),
     )

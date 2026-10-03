@@ -89,7 +89,7 @@ class DigestRun(Base):
     items_done: Mapped[int] = mapped_column(Integer, default=0)
     error_kind: Mapped[str | None] = mapped_column(String(64))
     error_message: Mapped[str | None] = mapped_column(Text)
-    digest_id: Mapped[int | None] = mapped_column(ForeignKey("digests.id"))
+    digest_id: Mapped[int | None] = mapped_column(Integer)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

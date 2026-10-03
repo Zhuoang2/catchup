@@ -7,8 +7,8 @@ in `openspec/changes/add-core-digest-flow/tasks.md`.
 
 ## Development setup
 
-Install Python 3.11 or newer, [uv](https://docs.astral.sh/uv/), and Node.js 20
-or newer. From the repository root:
+Install Python 3.11 or newer, [uv](https://docs.astral.sh/uv/), and Node.js
+20.19+ or 22.12+ (as required by Vite 8). From the repository root:
 
 ```sh
 cp .env.example .env

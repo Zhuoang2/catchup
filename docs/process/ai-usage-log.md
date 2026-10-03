@@ -53,7 +53,7 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Plan: proposal.md, five spec deltas (model-settings, source-management, content-collection, digest-generation, digest-history), the final design.md, and 22 tasks in tasks.md. `openspec validate --strict` passes.
 - Lesson: The user's clarifying question exposed that "new content" was explained only abstractly. A concrete run-by-run example made the semantics reviewable, and it became a spec requirement with scenarios.
 
-## 2026-10-02 — First Droid hand-off: task group 1 of `add-core-digest-flow` (Factory Droid, default model)
+## 2026-10-02 — First Droid hand-off: task group 1 of `add-core-digest-flow` (Factory Droid, GPT-6 Sol)
 
 - Purpose: First implementation by Factory Droid, limited to group 1 (scaffolding and CI) as a trial before handing over the remaining 17 tasks.
 - Command: `droid exec --auto medium -w add-core-digest-flow -o json "<prompt>"`

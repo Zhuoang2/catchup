@@ -100,7 +100,7 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - Vite 8.3.2, TypeScript 7.0.2, plugin-react 6.1.1: frontend test and build pass, `npm audit` reports 0 vulnerabilities.
   - `openspec validate --strict` passes.
 - Remaining weakness: The new sentinel test builds its settings before setting `CATCHUP_DATA_DIR`, so it passes regardless and would not catch a future test that calls `create_app()` without settings. The original bug is fixed. An autouse fixture that points every test at a temporary data dir is added to the next hand-off instead.
-- Cost reported by Droid for the fix run: 41 turns, ~2 minutes, 371,518 Factory credits. It is unclear whether `droid exec -s` reports per-call or cumulative session credits.
+- Cost: the session counter went from 29 to 41 turns and from 242,373 to 371,518 credits, so the fix run cost ~129K credits (see the cost note under groups 2–3).
 
 ## 2026-10-03 — Model settings implementation (Factory Droid, GPT-6 Sol)
 
@@ -122,7 +122,7 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - Rules moved from notes into verification criteria: "Rules for every task, treated as verification criteria (not just notes): tests make no real network calls …, never read a real API key, and never write outside pytest temp dirs."
   - The carried-over sentinel-test fix comes first.
   - Commit per group, and a required report of deviations and uncertainties.
-- Droid's result: commits `54a5cd3` (group 2) and `74ea0c5` (group 3); 76 backend + 9 frontend tests; 13/22 tasks. The new autouse fixture blocks DNS and socket connections for every test. Cost: 109 turns, ~10 minutes, 1,518,203 Factory credits, by far the most expensive run so far.
+- Droid's result: commits `54a5cd3` (group 2) and `74ea0c5` (group 3); 76 backend + 9 frontend tests; 13/22 tasks. The new autouse fixture blocks DNS and socket connections for every test. Cost: ~10 minutes; the session counter rose from 41 to 109 turns and from 371,518 to 1,518,203 credits, so this run cost ~1.15M credits (see the cost note below).
 - Claude's review:
   - Method: re-ran everything in a separate worktree (76 + 9 tests, 94% backend coverage, build, audit 0) and read all source files. Hypotheses were then checked with small experiments instead of being reported as guesses: the SDK default timeout, IP-classification edge cases, a `text/plain` CSRF attempt, and a foreign Host header.
   - Findings:
@@ -140,3 +140,17 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Prompt (user, excerpt): "The main finding is a security issue whose root cause was the original design text, not your code: the stored API key could be sent to a changed base_url, and with no Host check a DNS-rebinding page could exploit that. Implement ONLY tasks 2.5 and 3.5, then stop ... no real network, no real key, no writes outside pytest temp dirs."
 - Outcome: Reject changed provider URLs without a new key, enforce an environment-configured Host allowlist, pass explicit model-call timeouts, retry empty choices, declare httpx2, enforce a 30-second fetch deadline, and check NAT64's embedded IPv4 address. Added offline tests with a fake provider, respx and a fake clock.
 - What failed / adjustment: The focused backend tests passed on the first run. The initial full frontend command could not find Vitest in this fresh worktree; `npm ci` installed the locked dependencies, then tests and build passed. Local Host tests use a default-only configuration; other tests add TestClient's synthetic `testserver` Host through the autouse fixture without broadening the production default.
+- Fix result: Droid commit `571daca` (tasks 2.5, 3.5). Claude re-verified it in a fresh worktree:
+  - 95 backend tests at 94% coverage, 9 frontend tests, build passing, `openspec validate --strict` passing.
+  - Experiments: a foreign Host header now gets 400, while `127.0.0.1` and the Vite dev proxy host `localhost:5173` still work. `httpx2` is declared.
+- **Cost note (correction):** `droid exec -s` reports the session's **cumulative** turns and credits; the turn counts rise 29 → 41 → 109 → 128. Per-run costs:
+
+  | Run | Credits |
+  | --- | --- |
+  | Group 1 | ~242K |
+  | Group 1 fixes | ~129K |
+  | Groups 2–3 | ~1.15M |
+  | Fixes 2.5/3.5 | ~417K |
+  | **Total so far** | **~1.94M** |
+
+  Resuming one long session also makes every later call re-read a growing context. For group 4 onward, a fresh session per group is cheaper; the OpenSpec files already carry the needed context.

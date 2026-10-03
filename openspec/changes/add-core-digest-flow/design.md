@@ -73,6 +73,17 @@ External constraints from research:
 ### D5. Feed discovery
 - If the response parses as a feed with entries, or is served with an RSS/Atom content type, it is used as the feed.
 - Otherwise, the HTML is searched for `<link rel="alternate" type="application/rss+xml|application/atom+xml">`. Relative URLs are resolved, and the first candidate that parses is used.
+- Common-path probing (added 2026-10-02 at the user's request): if the page declares no feed, try these same-origin candidates in order and stop at the first that parses as a feed with entries:
+  1. the page URL with `.rss` appended to its path, both without and with a trailing slash. This covers Mastodon `@user.rss` and Reddit `/r/x/.rss`.
+  2. `/feed`, `/rss`, `/rss.xml`, `/feed.xml`, `/atom.xml`, `/index.xml` at the origin.
+- Probing rules:
+  - At most 8 requests, each through `safe_fetch`, all on the same origin.
+  - The preview shows the feed URL that was found.
+  - When an origin-level path is used for a deeper page, the "whole site" notice is shown.
+- Platforms verified on 2026-10-02 to work through this logic:
+  - Bluesky and Mastodon profiles declare RSS links.
+  - A Reddit subreddit page declares none, but `/.rss` returned a feed when tested from a residential IP. Whether Reddit blocks cloud IPs is unverified.
+  - X is not supported. Reading it requires login or the paid X API, so it is deferred (`docs/process/requirements-changes.md`).
 - "Single article" detection (`docs/handoff.md:46`):
   - The page has `og:type=article`.
   - Or the page's path is not the site root and the page declares a feed.

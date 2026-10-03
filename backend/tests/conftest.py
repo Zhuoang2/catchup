@@ -1,10 +1,22 @@
-from dataclasses import replace
+import socket
 
 import pytest
 
 from catchup.config import Settings
 
 
+@pytest.fixture(autouse=True)
+def isolate_test_environment(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("CATCHUP_DATA_DIR", str(tmp_path))
+    monkeypatch.delenv("CATCHUP_SECRET_KEY", raising=False)
+
+    def no_network(*_args, **_kwargs):
+        raise AssertionError("Tests must mock DNS and network connections")
+
+    monkeypatch.setattr(socket, "getaddrinfo", no_network)
+    monkeypatch.setattr(socket.socket, "connect", no_network)
+
+
 @pytest.fixture
-def test_settings(tmp_path) -> Settings:
-    return replace(Settings.from_env(), data_dir=tmp_path)
+def test_settings() -> Settings:
+    return Settings.from_env()

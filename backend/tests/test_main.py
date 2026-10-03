@@ -23,16 +23,9 @@ def test_app_error_shape(test_settings: Settings) -> None:
     assert response.json() == {"error": {"code": "example", "message": "Try again"}}
 
 
-def test_tests_do_not_touch_configured_data_dir(test_settings: Settings, tmp_path, monkeypatch) -> None:
-    sentinel = tmp_path / "sentinel"
-    sentinel.mkdir()
-    marker = sentinel / "keep.txt"
-    marker.write_text("untouched", encoding="utf-8")
-    monkeypatch.setenv("CATCHUP_DATA_DIR", str(sentinel))
-
-    with TestClient(create_app(test_settings)) as client:
+def test_autouse_sandbox_applies_without_settings(tmp_path) -> None:
+    with TestClient(create_app()) as client:
         assert client.get("/api/health").json() == {"status": "ok"}
-
-    assert marker.read_text(encoding="utf-8") == "untouched"
-    assert list(sentinel.iterdir()) == [marker]
-    assert (test_settings.data_dir / "catchup.sqlite3").exists()
+        assert client.app.state.settings.data_dir == tmp_path
+        assert client.app.state.settings.secret_key is None
+    assert (tmp_path / "catchup.sqlite3").exists()

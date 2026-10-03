@@ -101,3 +101,10 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - `openspec validate --strict` passes.
 - Remaining weakness: The new sentinel test builds its settings before setting `CATCHUP_DATA_DIR`, so it passes regardless and would not catch a future test that calls `create_app()` without settings. The original bug is fixed. An autouse fixture that points every test at a temporary data dir is added to the next hand-off instead.
 - Cost reported by Droid for the fix run: 41 turns, ~2 minutes, 371,518 Factory credits. It is unclear whether `droid exec -s` reports per-call or cumulative session credits.
+
+## 2026-10-03 — Model settings implementation (Factory Droid, GPT-6 Sol)
+
+- Purpose: Implement tasks 2.1–2.4 and the carried-over test sandbox fix.
+- Prompt (user, excerpt): "Implement ONLY task groups 2 and 3 (tasks 2.1-2.4 and 3.1-3.4) ... Replace it with an autouse fixture ... tests make no real network calls ... never read a real API key, and never write outside pytest temp dirs. Check off each task only after its verification passes. Commit after group 2 and again after group 3."
+- Outcome: The autouse fixture redirects app data to per-test temp dirs, removes the instance secret, and rejects unmocked DNS/connect calls. Added Fernet protection, a model client, settings APIs and a language picker UI.
+- What failed / adjustment: The first frontend run lacked dependencies (`npm ci` fixed it). Vitest 4 did not automatically clean up DOM trees between tests (three queries failed), so explicit Testing Library cleanup was added. OpenAI 3 uses httpx2, so a test-only transport bridge sends its requests through respx's httpx router without network calls.

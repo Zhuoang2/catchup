@@ -29,7 +29,7 @@ The system SHALL let the user test a configuration before or after saving it. A 
 - **THEN** the system reports that the API key was rejected, without exposing the key
 
 #### Scenario: Unreachable provider
-- **WHEN** the base URL cannot be reached or times out
+- **WHEN** the base URL cannot be reached or does not answer within 15 seconds
 - **THEN** the system reports a connection error that names the base URL
 
 ### Requirement: Protect the stored API key
@@ -42,6 +42,20 @@ The system MUST store the API key encrypted, using a secret supplied through the
 #### Scenario: Missing instance secret
 - **WHEN** the user tries to save an API key and the instance secret is not configured
 - **THEN** the system refuses to save and explains how to set the secret
+
+### Requirement: Never send the stored key to a different provider address
+The system MUST use the stored API key only with the stored base URL. A save or connection test that changes the base URL MUST include a new API key.
+
+#### Scenario: Base URL changed without a key
+- **WHEN** a key is stored for one base URL and the user saves or tests a different base URL without entering a key
+- **THEN** the request is refused with a message asking for the API key, and no request is sent to the new address
+
+### Requirement: Accept requests only for allowed hosts
+The system MUST reject HTTP requests whose Host header is not in the instance's configured list of allowed hosts. By default, the list contains only local addresses.
+
+#### Scenario: Request for an unknown host
+- **WHEN** a request arrives with a Host header that is not in the allowed list
+- **THEN** the system rejects it without performing the requested action
 
 ### Requirement: Report provider errors meaningfully
 When a model call fails, the system SHALL distinguish authentication failure, insufficient balance, rate limiting, and temporary provider errors, and show the user a message suited to each.

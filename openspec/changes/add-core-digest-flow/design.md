@@ -67,6 +67,8 @@ External constraints from research:
   - Follow at most 5 redirects manually, re-checking each hop.
   - Apply timeouts of 5 s to connect and 15 s to read.
   - Stop reading after 5 MB.
+  - Abort the whole fetch after 30 s of wall-clock time, so a server that drips bytes cannot keep it open (added after the group 2–3 review).
+  - Treat IPv6 addresses in the NAT64 prefix `64:ff9b::/96` by checking the embedded IPv4 address.
 - feedparser always receives bytes, never a URL or an untrusted string.
 - **Alternative:** letting feedparser fetch. It was rejected because it has no timeout and its own docstring warns against untrusted strings.
 
@@ -103,6 +105,12 @@ External constraints from research:
 ### D8. Digest content is snapshotted
 - Digest items copy the title, link, source name, publish date, and summary at save time.
 - This lets a saved digest reopen unchanged even after its source is deleted, as the source-management spec requires.
+
+### D9. Local-instance hardening (added 2026-10-03 after the group 2–3 review)
+- **The stored key is never sent to a new address.** `PUT /api/settings/model` and `POST /api/settings/model/test` reuse the stored key only when the submitted `base_url` equals the stored one. Otherwise the request must include `api_key`, or it fails with `422 api_key_required`.
+- **Host allowlist.** Requests whose `Host` header is not in `CATCHUP_ALLOWED_HOSTS` are rejected with 400. The default is `localhost,127.0.0.1,[::1]`, plus any port; deployments add their own domain. This blocks DNS-rebinding pages from reaching the local API.
+- Why: The instance has no login. Without these two rules, a page that rebinds its domain to 127.0.0.1 could change `base_url` to an attacker's server while the stored key is kept, and the next test or run would send the key there.
+- **Model-call timeouts.** The SDK default read timeout is 600 s. Connection tests (`list_models`) use a 15 s total timeout. Chat calls use connect 10 s and read 300 s.
 
 ## Architecture
 
@@ -159,6 +167,7 @@ Instance settings (environment variables):
 | `CATCHUP_SHORT_TEXT_CHARS` | 500 | Below this, fetch the article page for its text |
 | `CATCHUP_MAX_ITEM_CHARS` | 20000 | Item text truncation for stage 1 |
 | `CATCHUP_GROUPING_BATCH_CHARS` | 200000 | Stage 2 batching threshold |
+| `CATCHUP_ALLOWED_HOSTS` | `localhost,127.0.0.1,[::1]` | Accepted `Host` header values (D9) |
 
 The digest language is a user setting stored in `app_settings`, not an environment variable. The user picks it in Settings during initial setup.
 
@@ -170,8 +179,8 @@ All errors use the shape `{"error": {"code": str, "message": str, ...}}`.
 | --- | --- | --- |
 | `GET /api/health` | — | `{"status": "ok"}` |
 | `GET /api/settings/model` | — | `{base_url, model_id, key_set, api_key_last4}` |
-| `PUT /api/settings/model` | `{base_url, model_id, api_key?}` (empty key keeps the stored one) | same as GET; `400 secret_not_configured` |
-| `POST /api/settings/model/test` | `{base_url?, api_key?}` (missing fields fall back to stored values) | `{ok: true, models: [str]}`; errors `auth_failed`, `connection_failed`, `insufficient_balance`, `provider_error` |
+| `PUT /api/settings/model` | `{base_url, model_id, api_key?}` (empty key keeps the stored one only if `base_url` is unchanged) | same as GET; `400 secret_not_configured`; `422 api_key_required` |
+| `POST /api/settings/model/test` | `{base_url?, api_key?}` (missing `base_url` falls back to the stored one; the stored key is used only with the stored `base_url`) | `{ok: true, models: [str]}`; errors `auth_failed`, `connection_failed`, `insufficient_balance`, `provider_error`, `api_key_required` |
 | `GET /api/settings/preferences` | — | `{digest_language}` |
 | `PUT /api/settings/preferences` | `{digest_language}` (`en`, `zh-Hans`, `original`, or free text ≤ 40 chars) | `{digest_language}`; `422 invalid_language` for empty or overlong text |
 | `POST /api/sources/preview` | `{url}` | `{feed_url, site_url, title, follows_site_feed_notice, entries: [{title, link, published_at}] (≤5)}`; `422` with `invalid_url`, `fetch_failed`, `blocked_address`, `no_feed`, `not_a_feed`, or `duplicate` (+`existing_source`) |

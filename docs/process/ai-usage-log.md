@@ -115,3 +115,21 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Prompt: The same user prompt above requested group 3, offline tests, checking each task only after verification, and a second commit.
 - Outcome: Safe fetching with DNS and redirect checks, timeouts and a 5 MB cap; feed parsing, HTML discovery and bounded same-origin probing; source preview/confirm/list/delete with first-add baseline and pending marking; and a Sources page. Tests use fixture bytes, respx and patched DNS.
 - What failed / adjustment: A safe-fetch test revealed that Python's `is_global` alone allows multicast; explicit multicast and other reserved-address checks fixed it. Two respx tests matched a generic route before the specific feed route; registering the specific route first fixed their failures. The probing budget was shared across candidate requests and their redirects so redirects cannot exceed eight requests or leave the origin. Final review also tightened group 2's provider URL validation to reject embedded credentials rather than echoing them in settings or connection errors.
+
+## 2026-10-03 — Groups 2–3 of `add-core-digest-flow` (Factory Droid, GPT-6 Sol) and review (Claude Code, Opus 5.5)
+
+- Hand-off prompt changes after the group 1 lesson:
+  - Rules moved from notes into verification criteria: "Rules for every task, treated as verification criteria (not just notes): tests make no real network calls …, never read a real API key, and never write outside pytest temp dirs."
+  - The carried-over sentinel-test fix comes first.
+  - Commit per group, and a required report of deviations and uncertainties.
+- Droid's result: commits `54a5cd3` (group 2) and `74ea0c5` (group 3); 76 backend + 9 frontend tests; 13/22 tasks. The new autouse fixture blocks DNS and socket connections for every test. Cost: 109 turns, ~10 minutes, 1,518,203 Factory credits, by far the most expensive run so far.
+- Claude's review:
+  - Method: re-ran everything in a separate worktree (76 + 9 tests, 94% backend coverage, build, audit 0) and read all source files. Hypotheses were then checked with small experiments instead of being reported as guesses: the SDK default timeout, IP-classification edge cases, a `text/plain` CSRF attempt, and a foreign Host header.
+  - Findings:
+    1. [must, security] The stored API key was reused when the base URL changed. With no Host check (a foreign Host returned 200), a DNS-rebinding page could repoint the provider and receive the key. **The root cause was Claude's own design text** ("missing fields fall back to stored values"), not Droid's code.
+    2. [must] `safe_fetch` had a per-read timeout but no total deadline, so a slow-drip server could hold a request open.
+    3. [must] The model client inherited the SDK default read timeout of 600 s (verified), so a connection test could hang for 10 minutes.
+    4. [should] `httpx2` was imported but not declared; an empty `choices` list would crash; NAT64 `64:ff9b::7f00:1` passed the address guard.
+  - Ruled out by experiment: simple CSRF (FastAPI rejected a `text/plain` body with 422).
+- Process: Claude amended the spec (two new requirements), design (D9, D4 additions), and tasks (2.5, 3.5) on the branch, logged the requirement change, and sent the fixes back to the same Droid session.
+- Lesson: Reviewing only against the plan would have missed finding 1, because the code matched the design. A short threat-model pass ("who can reach this API, and what can they make it do?") belongs in every review of a security-relevant group.

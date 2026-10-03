@@ -86,8 +86,10 @@ def save_model(data: ModelInput, request: Request, session: Session = Depends(ge
     if data.api_key and data.api_key.strip():
         encrypted = encrypt_key(data.api_key.strip(), request.app.state.settings.secret_key)
         last4 = data.api_key.strip()[-4:]
-    elif row:
+    elif row and base_url == row.base_url:
         encrypted, last4 = row.api_key_encrypted, row.api_key_last4
+    elif row:
+        raise AppError("api_key_required", "Enter an API key when changing the provider base URL.", 422)
     else:
         raise AppError("missing_api_key", "Enter an API key before saving model settings.", 422)
     if row is None:
@@ -111,6 +113,8 @@ def test_model(
 ) -> dict:
     row = session.get(ModelConfig, 1)
     base_url = (data.base_url or (row.base_url if row else DEFAULT_BASE_URL)).strip()
+    if not data.api_key and row and base_url != row.base_url:
+        raise AppError("api_key_required", "Enter an API key when changing the provider base URL.", 422)
     api_key = data.api_key or (_read_key(row, request.app.state.settings.secret_key) if row else "")
     if not api_key or not _valid_provider_url(base_url):
         raise AppError("invalid_model_config", "Enter a provider URL and API key to test.", 422)

@@ -20,7 +20,7 @@ Implementer notes:
 - [x] 2.2 Implement `backend/src/catchup/llm/client.py`: openai SDK client from `base_url`/key/model; `list_models()`; `chat_json(messages, max_tokens)` using `response_format={"type": "json_object"}`; bounded retries with backoff on empty content, 429, 500, and 503; typed errors `AuthFailed`, `InsufficientBalance`, `RateLimited`, `ProviderError`, `ConnectionFailed`. Make sure HTTP logging never includes the key. Verify: respx-mocked tests for success, empty-then-valid, 401, 402, 429-then-success, 503 exhausting retries, and connection timeout.
 - [x] 2.3 Implement `backend/src/catchup/api/settings.py`: `GET` and `PUT /api/settings/model`, `POST /api/settings/model/test`, and `GET` and `PUT /api/settings/preferences` (digest language: `en`, `zh-Hans`, `original`, or free text ≤ 40 chars) per design.md. Verify: tests for every scenario in `specs/model-settings/spec.md` (including that no response body contains the full key), plus preference save/read and `invalid_language` for empty or overlong text.
 - [x] 2.4 Build `frontend/src/pages/Settings.tsx`: base URL (default `https://api.deepseek.com`), password-type key field showing `•••• last4` when set, a Test button that fills a model dropdown from the returned list, a digest language selector (English, 简体中文, Same as original, Other with a text field), Save, and error messages per error code. Verify: Vitest tests for the initial load, a successful test populating models, an auth error message, and choosing "Other" showing the text field.
-- [ ] 2.5 Review fixes (design.md D9):
+- [x] 2.5 Review fixes (design.md D9):
   - stored key reused only with the unchanged stored `base_url` in `PUT /api/settings/model` and `POST /api/settings/model/test`; otherwise `422 api_key_required`
   - Host allowlist middleware driven by `CATCHUP_ALLOWED_HOSTS` (add it to config, `.env.example`, and README)
   - explicit timeouts in `llm/client.py`: 15 s total for `list_models`; connect 10 s / read 300 s for chat
@@ -39,7 +39,7 @@ Implementer notes:
   - probing never exceeding 8 requests or leaving the origin
 - [x] 3.3 Implement `backend/src/catchup/api/sources.py`: preview, confirm (re-fetch, duplicate check, first-add marking using `CATCHUP_FIRST_ADD_DAYS`/`MAX`, a confirm-time `source_checks` row), list with last check, and delete. Verify: tests for every scenario in `specs/source-management/spec.md`, including 2 recent + 10 old entries and 8 recent entries giving exactly 5 pending.
 - [x] 3.4 Build `frontend/src/pages/Sources.tsx`: URL input → preview card (title, feed URL, up to 5 entries, the follow-the-site notice when present) → Confirm; error messages per code; source list with last check status and possible-gap badge; delete with confirmation. Verify: Vitest tests for the preview, a duplicate error, and list rendering.
-- [ ] 3.5 Review fixes (design.md D4): a 30 s wall-clock deadline for the whole `safe_fetch`, so slow-drip responses abort, and the NAT64 `64:ff9b::/96` embedded-IPv4 check. Verify: a test with a mocked response that streams slowly past the deadline fails with a timeout error, and a test that `64:ff9b::7f00:1` is blocked.
+- [x] 3.5 Review fixes (design.md D4): a 30 s wall-clock deadline for the whole `safe_fetch`, so slow-drip responses abort, and the NAT64 `64:ff9b::/96` embedded-IPv4 check. Verify: a test with a mocked response that streams slowly past the deadline fails with a timeout error, and a test that `64:ff9b::7f00:1` is blocked.
 
 ## 4. Content collection
 

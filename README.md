@@ -35,6 +35,12 @@ Open the Vite address shown in the terminal. It proxies `/api` to the backend
 at `http://127.0.0.1:8000`. To serve the built frontend from FastAPI instead,
 run `npm run build` from `frontend/` and open `http://127.0.0.1:8000`.
 The backend creates and migrates `CATCHUP_DATA_DIR/catchup.sqlite3` at startup.
+By default, the backend accepts requests only for `localhost`, `127.0.0.1`,
+and `[::1]` (with or without a port). If you deploy behind a domain, set
+`CATCHUP_ALLOWED_HOSTS` to a comma-separated list that includes that domain,
+for example `localhost,127.0.0.1,[::1],catchup.example.org`. Do not add
+untrusted domains or `*`. Changing a model provider URL requires entering
+the API key again; CatchUp will not send a stored key to a new address.
 From their respective directories, run backend tests with `uv run pytest`
 and frontend tests/build with `npm test -- --run` and `npm run build`.
 Tests require neither a network connection nor a real model key.

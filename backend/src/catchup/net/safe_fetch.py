@@ -3,12 +3,15 @@
 import ipaddress
 import socket
 from dataclasses import dataclass
+from time import monotonic
 from urllib.parse import urljoin, urlsplit
 
 import httpx
 
 MAX_BYTES = 5 * 1024 * 1024
 MAX_REDIRECTS = 5
+FETCH_DEADLINE_SECONDS = 30
+NAT64_PREFIX = ipaddress.IPv6Network("64:ff9b::/96")
 
 
 class FetchError(Exception):
@@ -45,6 +48,8 @@ def _check_address(url: str) -> None:
             address = ipaddress.ip_address(answer[4][0])
         except ValueError as exc:
             raise FetchError("blocked_address", "The source address is not allowed.") from exc
+        if isinstance(address, ipaddress.IPv6Address) and address in NAT64_PREFIX:
+            address = ipaddress.IPv4Address(address.packed[-4:])
         if (not address.is_global or address.is_private or address.is_loopback
                 or address.is_link_local or address.is_reserved or address.is_multicast
                 or address.is_unspecified):
@@ -53,19 +58,33 @@ def _check_address(url: str) -> None:
 
 def safe_fetch(url: str, *, same_origin: str | None = None, budget: list[int] | None = None) -> FetchResponse:
     current = url
-    timeout = httpx.Timeout(connect=5.0, read=15.0, write=5.0, pool=5.0)
-    with httpx.Client(timeout=timeout, follow_redirects=False, trust_env=False) as client:
+    deadline = monotonic() + FETCH_DEADLINE_SECONDS
+
+    def remaining() -> float:
+        seconds = deadline - monotonic()
+        if seconds <= 0:
+            raise FetchError("fetch_failed", "The source fetch timed out.")
+        return seconds
+
+    with httpx.Client(follow_redirects=False, trust_env=False) as client:
         for hop in range(MAX_REDIRECTS + 1):
+            remaining()
             parts = urlsplit(current)
             if same_origin is not None and f"{parts.scheme}://{parts.netloc}" != same_origin:
                 raise FetchError("fetch_failed", "Feed probing must stay on the same origin.")
             _check_address(current)
+            left = remaining()
             if budget is not None:
                 if budget[0] <= 0:
                     raise FetchError("fetch_failed", "Feed probing request limit reached.")
                 budget[0] -= 1
             try:
-                with client.stream("GET", current) as response:
+                timeout = httpx.Timeout(
+                    connect=min(5.0, left), read=min(15.0, left),
+                    write=min(5.0, left), pool=min(5.0, left),
+                )
+                with client.stream("GET", current, timeout=timeout) as response:
+                    remaining()
                     if response.status_code in (301, 302, 303, 307, 308):
                         location = response.headers.get("location")
                         if not location:
@@ -84,9 +103,11 @@ def safe_fetch(url: str, *, same_origin: str | None = None, budget: list[int] | 
                             raise FetchError("fetch_failed", "The source returned an invalid response size.") from None
                     body = bytearray()
                     for chunk in response.iter_bytes():
+                        remaining()
                         body.extend(chunk)
                         if len(body) > MAX_BYTES:
                             raise FetchError("fetch_failed", "The source response exceeds the 5 MB limit.")
+                    remaining()
                     return FetchResponse(
                         url=str(response.url), content=bytes(body),
                         content_type=response.headers.get("content-type", ""), status_code=response.status_code,

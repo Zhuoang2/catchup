@@ -83,7 +83,7 @@ class ModelClient:
         raise AssertionError("unreachable")
 
     def list_models(self) -> list[str]:
-        result = self._call(self._client.models.list)
+        result = self._call(lambda: self._client.models.list(timeout=15.0))
         return [entry.id for entry in result.data]
 
     def chat_json(self, messages: list[dict[str, str]], max_tokens: int) -> dict[str, Any]:
@@ -93,8 +93,9 @@ class ModelClient:
                 messages=messages,
                 max_tokens=max_tokens,
                 response_format={"type": "json_object"},
+                timeout=httpx2.Timeout(connect=10.0, read=300.0, write=10.0, pool=10.0),
             )
-            return result.choices[0].message.content
+            return result.choices[0].message.content if result.choices else None
 
         content = self._call(chat)
         try:

@@ -14,6 +14,7 @@ class Settings:
     short_text_chars: int
     max_item_chars: int
     grouping_batch_chars: int
+    allowed_hosts: tuple[str, ...]
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -25,4 +26,9 @@ class Settings:
             short_text_chars=int(os.getenv("CATCHUP_SHORT_TEXT_CHARS", "500")),
             max_item_chars=int(os.getenv("CATCHUP_MAX_ITEM_CHARS", "20000")),
             grouping_batch_chars=int(os.getenv("CATCHUP_GROUPING_BATCH_CHARS", "200000")),
+            allowed_hosts=tuple(
+                host.strip().lower()
+                for host in os.getenv("CATCHUP_ALLOWED_HOSTS", "localhost,127.0.0.1,[::1]").split(",")
+                if host.strip()
+            ),
         )

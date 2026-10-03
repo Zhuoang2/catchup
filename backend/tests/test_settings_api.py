@@ -93,6 +93,38 @@ def test_can_test_stored_key_without_resending_it(api):
     assert fake.calls[-1] == ("https://provider.example/v1", KEY, "provider-current")
 
 
+def test_changed_provider_requires_new_key_for_save_and_test(api):
+    client, fake = api
+    assert save(client).status_code == 200
+    other = "https://different.example/v1"
+    for path, method, data in [
+        ("/api/settings/model", client.put,
+         {"base_url": other, "model_id": "provider-next", "api_key": ""}),
+        ("/api/settings/model/test", client.post,
+         {"base_url": other}),
+    ]:
+        response = method(path, json=data)
+        assert response.status_code == 422
+        assert response.json()["error"]["code"] == "api_key_required"
+        assert KEY.encode() not in response.content
+    assert fake.calls == []
+    assert client.get("/api/settings/model").json()["base_url"] == "https://provider.example/v1"
+    with client.app.state.session_factory() as session:
+        row = session.get(ModelConfig, 1)
+        assert decrypt_key(row.api_key_encrypted, client.app.state.settings.secret_key) == KEY
+
+    new_key = "other-test-only-key-5599"
+    response = client.post("/api/settings/model/test", json={
+        "base_url": other, "api_key": new_key,
+    })
+    assert response.status_code == 200
+    assert fake.calls[-1][:2] == (other, new_key)
+    assert client.put("/api/settings/model", json={
+        "base_url": other, "model_id": "provider-next", "api_key": new_key,
+    }).status_code == 200
+    assert client.get("/api/settings/model").json()["api_key_last4"] == "5599"
+
+
 @pytest.mark.parametrize("error,code,status", [
     (AuthFailed("The provider rejected the API key."), "auth_failed", 401),
     (ConnectionFailed("Could not connect to the model provider at https://provider.example/v1."),

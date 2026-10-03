@@ -36,6 +36,38 @@ def test_rejects_mixed_dns_results(resolve):
         safe_fetch(PUBLIC)
 
 
+def test_nat64_embedded_private_address_blocked(resolve):
+    resolve["public.example"] = ["64:ff9b::7f00:1"]
+    with pytest.raises(FetchError) as error:
+        safe_fetch(PUBLIC)
+    assert error.value.code == "blocked_address"
+
+
+def test_nat64_embedded_public_address_allowed(resolve):
+    resolve["public.example"] = ["64:ff9b::808:808"]
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(PUBLIC).mock(return_value=httpx.Response(200, content=b"public"))
+        assert safe_fetch(PUBLIC).content == b"public"
+
+
+def test_slow_drip_aborts_after_wall_clock_deadline(resolve, monkeypatch):
+    clock = [100.0]
+    monkeypatch.setattr("catchup.net.safe_fetch.monotonic", lambda: clock[0])
+
+    class SlowChunks(httpx.SyncByteStream):
+        def __iter__(self):
+            for _ in range(4):
+                clock[0] += 11.0
+                yield b"x"
+
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(PUBLIC).mock(return_value=httpx.Response(200, stream=SlowChunks()))
+        with pytest.raises(FetchError, match="timed out") as error:
+            safe_fetch(PUBLIC)
+    assert error.value.code == "fetch_failed"
+    assert clock[0] > 130
+
+
 def test_redirect_to_metadata_is_blocked_before_request(resolve):
     resolve["metadata.example"] = ["169.254.169.254"]
     with respx.mock(assert_all_mocked=True) as router:

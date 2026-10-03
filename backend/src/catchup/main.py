@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import sessionmaker
 
 from catchup.api.settings import router as settings_router
+from catchup.api.sources import router as sources_router
 from catchup.config import Settings
 from catchup.db import make_engine, migrate
 from catchup.errors import register_error_handlers
@@ -32,6 +33,7 @@ def create_app(settings: Settings | None = None, dist_dir: Path | None = None) -
     app.state.settings = instance_settings
     register_error_handlers(app)
     app.include_router(settings_router)
+    app.include_router(sources_router)
 
     @app.get("/api/health")
     def health() -> dict[str, str]:

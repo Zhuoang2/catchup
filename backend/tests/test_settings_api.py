@@ -132,6 +132,18 @@ def test_invalid_request_never_echoes_submitted_key(api):
     assert KEY.encode() not in response.content
 
 
+def test_provider_url_cannot_embed_credentials(api):
+    client, _ = api
+    url = f"https://user:{KEY}@provider.example/v1"
+    for path, method, body in [
+        ("/api/settings/model", client.put, {"base_url": url, "model_id": "test", "api_key": KEY}),
+        ("/api/settings/model/test", client.post, {"base_url": url, "api_key": KEY}),
+    ]:
+        response = method(path, json=body)
+        assert response.status_code == 422
+        assert KEY.encode() not in response.content
+
+
 def test_preference_save_and_read(api):
     client, _ = api
     assert client.get("/api/settings/preferences").json() == {"digest_language": "en"}

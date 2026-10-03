@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from contextlib import closing
+from urllib.parse import urlsplit
 
 from cryptography.fernet import InvalidToken
 from fastapi import APIRouter, Depends, Request
@@ -59,6 +60,18 @@ def _public_model(row: ModelConfig | None) -> dict:
     }
 
 
+def _valid_provider_url(value: str) -> bool:
+    try:
+        parts = urlsplit(value)
+        return (
+            parts.scheme in ("http", "https") and bool(parts.hostname)
+            and parts.username is None and parts.password is None
+            and (parts.port is None or parts.port > 0)
+        )
+    except ValueError:
+        return False
+
+
 @router.get("/model")
 def read_model(session: Session = Depends(get_session)) -> dict:
     return _public_model(session.get(ModelConfig, 1))
@@ -67,7 +80,7 @@ def read_model(session: Session = Depends(get_session)) -> dict:
 @router.put("/model")
 def save_model(data: ModelInput, request: Request, session: Session = Depends(get_session)) -> dict:
     base_url, model_id = data.base_url.strip(), data.model_id.strip()
-    if not base_url.startswith(("http://", "https://")) or not model_id:
+    if not _valid_provider_url(base_url) or not model_id:
         raise AppError("invalid_model_config", "Enter a valid provider URL and model ID.", 422)
     row = session.get(ModelConfig, 1)
     if data.api_key and data.api_key.strip():
@@ -99,7 +112,7 @@ def test_model(
     row = session.get(ModelConfig, 1)
     base_url = (data.base_url or (row.base_url if row else DEFAULT_BASE_URL)).strip()
     api_key = data.api_key or (_read_key(row, request.app.state.settings.secret_key) if row else "")
-    if not api_key or not base_url.startswith(("http://", "https://")):
+    if not api_key or not _valid_provider_url(base_url):
         raise AppError("invalid_model_config", "Enter a provider URL and API key to test.", 422)
     try:
         with closing(factory(base_url, api_key, row.model_id if row else "")) as client:

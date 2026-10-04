@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel>
+<title>Example News</title><link>https://site.example/</link>
+<item><guid>entry-a</guid><title>First &amp; Best</title><link>https://site.example/a</link>
+<pubDate>Fri, 02 Oct 2026 10:00:00 GMT</pubDate>
+<description><![CDATA[<p>News <b>summary</b>.</p>]]></description></item>
+<item><guid>entry-b</guid><title>Second</title><link>https://site.example/b</link>
+<pubDate>Thu, 01 Oct 2026 10:00:00 GMT</pubDate>
+<description>Another summary.</description></item>
+</channel></rss>

@@ -1,0 +1,292 @@
+import threading
+from dataclasses import replace
+from datetime import datetime, timezone
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import event, select
+
+from catchup.crypto import encrypt_key
+from catchup.digest.runner import run_digest, start_run
+from catchup.llm.client import AuthFailed, InsufficientBalance, ProviderError
+from catchup.main import create_app
+from catchup.models import (
+    AppSettings, Digest, DigestItem, DigestRun, DigestTopic, Item, ModelConfig, Source, SourceCheck,
+)
+
+
+class FakeModel:
+    def __init__(self, responses=None):
+        self.responses = iter(responses) if responses is not None else None
+        self.calls = []
+
+    def chat_json(self, messages, max_tokens):
+        self.calls.append((messages, max_tokens))
+        if self.responses is not None:
+            result = next(self.responses)
+            if isinstance(result, Exception):
+                raise result
+            return result
+        if '"summary"' in messages[0]["content"]:
+            return {"summary": "English summary"}
+        return {"topics": [{"title": "Technology", "overview": "News",
+                            "item_refs": [f"i{n}" for n in range(1, 141)]}]}
+
+    def close(self):
+        pass
+
+
+@pytest.fixture
+def environment(test_settings):
+    settings = replace(test_settings, secret_key="a test-only instance secret")
+    with TestClient(create_app(settings)) as client:
+        client.app.state.model_client_factory = lambda *_: FakeModel()
+        yield client
+
+
+def seed(client, count=1, sources=1, language="en"):
+    with client.app.state.session_factory() as session:
+        session.add(ModelConfig(id=1, base_url="https://model.example", model_id="test",
+                                api_key_encrypted=encrypt_key("fake-key", client.app.state.settings.secret_key),
+                                api_key_last4="-key"))
+        session.add(AppSettings(id=1, digest_language=language))
+        for n in range(sources):
+            source = Source(title=f"Source {n}", site_url=f"https://s{n}.example/",
+                            feed_url=f"https://s{n}.example/feed", input_url=f"https://s{n}.example/feed")
+            session.add(source)
+            session.flush()
+            for index in range(n, count, sources):
+                session.add(Item(source_id=source.id, identity_key=str(index),
+                                 link=f"https://s{n}.example/{index}", title=f"Item {index}",
+                                 content_text="Original content", content_origin="feed", state="pending",
+                                 published_at=datetime(2026, 10, 3, tzinfo=timezone.utc)))
+        session.commit()
+
+
+def stub_collection(monkeypatch, on_check=None):
+    def check(session, source, run_id, _settings):
+        if on_check:
+            on_check()
+        row = SourceCheck(run_id=run_id, source_id=source.id, status="no_new_items",
+                          entries_seen=0, new_count=0)
+        session.add(row)
+        session.commit()
+        return row
+    monkeypatch.setattr("catchup.digest.runner.check_source", check)
+
+
+def all_rows(client, model):
+    with client.app.state.session_factory() as session:
+        return session.scalars(select(model)).all()
+
+
+def execute(client):
+    run = start_run(client.app, background=False)
+    run_digest(client.app, run.id)
+    return client.get(f"/api/digest-runs/{run.id}").json()
+
+
+def test_long_gap_snapshots_every_item_once_and_delivers_atomically(environment, monkeypatch):
+    seed(environment, count=140, sources=2)
+    stub_collection(monkeypatch)
+    result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert result["items_done"] == result["items_total"] == 140
+    assert result["sources_total"] == len(result["source_checks"]) == 2
+    assert len(all_rows(environment, DigestItem)) == 140
+    assert len({row.item_id for row in all_rows(environment, DigestItem)}) == 140
+    assert len(all_rows(environment, DigestTopic)) == 1
+    assert all(item.state == "delivered" for item in all_rows(environment, Item))
+    assert all(row.summary_language == "en" for row in all_rows(environment, Item))
+    assert all(row.link.startswith("https://s") and row.source_name.startswith("Source ")
+               for row in all_rows(environment, DigestItem))
+
+
+def test_group_failure_preserves_pending_and_retry_uses_cached_summary(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    first = FakeModel([{"summary": "Cached"}, ProviderError("group failed")])
+    environment.app.state.model_client_factory = lambda *_: first
+    failed = execute(environment)
+    assert failed["status"] == "failed" and failed["error_kind"] == "provider_error"
+    assert all_rows(environment, Digest) == []
+    assert all_rows(environment, Item)[0].state == "pending"
+    retry = FakeModel([{"topics": [{"title": "Topic", "overview": "Overview", "item_refs": ["i1"]}]}])
+    environment.app.state.model_client_factory = lambda *_: retry
+    succeeded = execute(environment)
+    assert succeeded["status"] == "succeeded"
+    assert len(retry.calls) == 1
+    assert all_rows(environment, DigestItem)[0].summary == "Cached"
+
+
+def test_save_failure_rolls_back_snapshot_and_delivery(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+
+    def reject_snapshot(*_args):
+        raise RuntimeError("snapshot insert rejected")
+
+    event.listen(DigestItem, "before_insert", reject_snapshot)
+    try:
+        result = execute(environment)
+    finally:
+        event.remove(DigestItem, "before_insert", reject_snapshot)
+    assert result["status"] == "failed"
+    assert all_rows(environment, Digest) == []
+    assert all_rows(environment, DigestTopic) == []
+    assert all_rows(environment, Item)[0].state == "pending"
+
+
+@pytest.mark.parametrize("failure", [AuthFailed("Rejected key"), InsufficientBalance("No balance")])
+def test_auth_or_balance_fails_immediately_with_pending_items(environment, monkeypatch, failure):
+    seed(environment, count=5)
+    stub_collection(monkeypatch)
+    model = FakeModel([failure] * 5)
+    environment.app.state.model_client_factory = lambda *_: model
+    result = execute(environment)
+    assert result["status"] == "failed" and result["error_kind"] == failure.code
+    assert "model settings" in result["error_message"]
+    assert all(item.state == "pending" for item in all_rows(environment, Item))
+    assert all_rows(environment, Digest) == []
+
+
+def test_item_model_failure_is_unavailable_not_a_failed_run(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    model = FakeModel([ProviderError("temporary"),
+                       {"topics": [{"title": "T", "overview": "O", "item_refs": ["i1"]}]}])
+    environment.app.state.model_client_factory = lambda *_: model
+    assert execute(environment)["status"] == "succeeded"
+    snapshot = all_rows(environment, DigestItem)[0]
+    assert snapshot.summary is None and snapshot.summary_unavailable
+    assert snapshot.title == "Item 0" and snapshot.link.endswith("/0")
+
+
+def test_missing_group_ref_goes_to_other_and_unknown_ref_is_ignored(environment, monkeypatch):
+    seed(environment, count=2)
+    stub_collection(monkeypatch)
+    model = FakeModel([
+        {"summary": "One"}, {"summary": "Two"},
+        {"topics": [{"title": "Chosen", "overview": "O", "item_refs": ["i1", "i999"]}]},
+    ])
+    environment.app.state.model_client_factory = lambda *_: model
+    assert execute(environment)["status"] == "succeeded"
+    assert {topic.title for topic in all_rows(environment, DigestTopic)} == {"Chosen", "Other"}
+    assert len(all_rows(environment, DigestItem)) == 2
+
+
+def test_no_content_reports_failed_source_without_digest(environment, monkeypatch):
+    seed(environment, count=0, sources=2)
+
+    def check(session, source, run_id, _settings):
+        row = SourceCheck(run_id=run_id, source_id=source.id, status="failed",
+                          error="offline", possible_gap=True)
+        session.add(row)
+        session.commit()
+        return row
+    monkeypatch.setattr("catchup.digest.runner.check_source", check)
+    result = execute(environment)
+    assert result["status"] == "no_new_content" and result["digest_id"] is None
+    assert len(result["source_checks"]) == 2
+    assert result["source_checks"][0]["error"] == "offline"
+    assert all_rows(environment, Digest) == []
+
+
+def test_language_change_resummarizes_and_keeps_old_snapshot(environment, monkeypatch):
+    seed(environment, count=2)
+    stub_collection(monkeypatch)
+    first = FakeModel([{"summary": "English"}, {"summary": "English"},
+                       {"topics": [{"title": "English", "overview": "English", "item_refs": ["i1", "i2"]}]}])
+    environment.app.state.model_client_factory = lambda *_: first
+    assert execute(environment)["status"] == "succeeded"
+    with environment.app.state.session_factory() as session:
+        session.get(AppSettings, 1).digest_language = "zh-Hans"
+        session.scalars(select(Item)).first().state = "pending"
+        session.commit()
+    next_model = FakeModel([{"summary": "中文"},
+                            {"topics": [{"title": "中文", "overview": "中文", "item_refs": ["i1"]}]}])
+    environment.app.state.model_client_factory = lambda *_: next_model
+    assert execute(environment)["status"] == "succeeded"
+    assert "Simplified Chinese" in str(next_model.calls)
+    assert [row.summary for row in all_rows(environment, DigestItem)] == [
+        "English", "English", "中文",
+    ]
+
+
+def test_language_is_read_once_before_collection(environment, monkeypatch):
+    seed(environment)
+
+    def change_language():
+        with environment.app.state.session_factory() as session:
+            session.get(AppSettings, 1).digest_language = "zh-Hans"
+            session.commit()
+
+    stub_collection(monkeypatch, change_language)
+    model = FakeModel()
+    environment.app.state.model_client_factory = lambda *_: model
+    assert execute(environment)["status"] == "succeeded"
+    assert "Write the summary in English" in str(model.calls[0])
+    assert all_rows(environment, Item)[0].summary_language == "en"
+
+
+def test_recovery_marks_unfinished_failed_and_allows_retry(test_settings, monkeypatch):
+    settings = replace(test_settings, secret_key="a test-only instance secret")
+    with TestClient(create_app(settings)) as client:
+        seed(client)
+        with client.app.state.session_factory() as session:
+            session.add(DigestRun(status="summarizing", items_total=1))
+            session.commit()
+    with TestClient(create_app(settings)) as restarted:
+        stub_collection(monkeypatch)
+        restarted.app.state.model_client_factory = lambda *_: FakeModel()
+        previous = restarted.get("/api/digest-runs/1").json()
+        assert previous["status"] == "failed" and previous["error_kind"] == "interrupted"
+        assert all_rows(restarted, Item)[0].state == "pending"
+        assert execute(restarted)["status"] == "succeeded"
+
+
+def test_api_rejects_unconfigured_and_reports_active_progress(environment, monkeypatch):
+    assert environment.post("/api/digest-runs").json()["error"]["code"] == "model_not_configured"
+    assert environment.get("/api/digest-runs/active").json() is None
+    seed(environment, count=1, sources=2)
+    entered, release = threading.Event(), threading.Event()
+
+    checks = 0
+
+    def blocked():
+        nonlocal checks
+        checks += 1
+        if checks == 2:
+            entered.set()
+            assert release.wait(timeout=5)
+
+    stub_collection(monkeypatch, blocked)
+    finished = threading.Event()
+    from catchup.digest import runner
+    original = runner.run_digest
+
+    def signaled(app, run_id):
+        try:
+            original(app, run_id)
+        finally:
+            finished.set()
+
+    monkeypatch.setattr(runner, "run_digest", signaled)
+    response = environment.post("/api/digest-runs")
+    assert response.status_code == 202
+    run_id = response.json()["id"]
+    assert entered.wait(timeout=5)
+    active = environment.get("/api/digest-runs/active").json()
+    assert active["id"] == run_id and active["status"] == "collecting"
+    assert active["sources_total"] == 2 and len(active["source_checks"]) == 1
+    conflict = environment.post("/api/digest-runs")
+    assert conflict.status_code == 409
+    assert conflict.json()["error"]["active_run_id"] == run_id
+    release.set()
+    assert finished.wait(timeout=5)
+    detail = environment.get(f"/api/digest-runs/{run_id}").json()
+    assert detail["status"] == "succeeded"
+    assert detail["items_total"] == detail["items_done"] == 1
+    assert len(detail["source_checks"]) == 2
+    assert environment.get("/api/digest-runs/active").json() is None
+    assert environment.get("/api/digest-runs/9999").status_code == 404

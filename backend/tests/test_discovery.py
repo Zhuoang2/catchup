@@ -1,0 +1,150 @@
+import hashlib
+import re
+import socket
+from datetime import datetime, timezone
+from pathlib import Path
+
+import httpx
+import pytest
+import respx
+
+from catchup.net.safe_fetch import FetchError, FetchResponse
+from catchup.sources.discovery import discover
+from catchup.sources.feeds import FeedParseError, parse_feed
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def fixture(name: str) -> bytes:
+    return (FIXTURES / name).read_bytes()
+
+
+@pytest.fixture
+def public_dns(monkeypatch):
+    def lookup(host, port, *_args, **_kwargs):
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", port))]
+    monkeypatch.setattr(socket, "getaddrinfo", lookup)
+
+
+@pytest.mark.parametrize("name,expected", [
+    ("rss.xml", "rss20"), ("atom.xml", "atom10"), ("malformed.xml", "rss20"),
+    ("no-ids.xml", "rss20"), ("no-dates.xml", "rss20"),
+])
+def test_parses_all_feed_fixtures(name, expected):
+    import feedparser
+    raw = fixture(name)
+    assert feedparser.parse(raw).version == expected
+    feed = parse_feed(FetchResponse("https://site.example/feed", raw, "application/rss+xml", 200))
+    assert feed.entries
+
+
+def test_normalizes_identity_date_and_text():
+    feed = parse_feed(FetchResponse("https://site.example/feed", fixture("rss.xml"), "application/rss+xml", 200))
+    first = feed.entries[0]
+    assert feed.title == "Example News"
+    assert first.identity_key == "entry-a"
+    assert first.title == "First & Best"
+    assert first.published_at == datetime(2026, 10, 2, 10, tzinfo=timezone.utc)
+    assert first.content_text == "News summary ."
+
+    no_ids = parse_feed(FetchResponse("https://site.example/feed", fixture("no-ids.xml"), "", 200))
+    assert no_ids.entries[0].identity_key == "https://site.example/linked"
+    date = datetime(2026, 10, 2, 11, tzinfo=timezone.utc)
+    assert no_ids.entries[1].identity_key == hashlib.sha256(f"Hash fallback{date.isoformat()}".encode()).hexdigest()
+    undated = parse_feed(FetchResponse("https://site.example/feed", fixture("no-dates.xml"), "", 200))
+    assert undated.entries[0].published_at is None
+    atom = parse_feed(FetchResponse("https://site.example/atom", fixture("atom.xml"), "", 200))
+    assert atom.entries[0].content_text == "Atom text"
+
+
+def test_rejects_unparseable_bytes():
+    with pytest.raises(FeedParseError):
+        parse_feed(FetchResponse("https://site.example/feed", b"not a feed", "", 200))
+
+
+def test_direct_feed_and_declared_html(public_dns):
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/feed.xml").mock(return_value=httpx.Response(
+            200, content=fixture("rss.xml"), headers={"content-type": "application/rss+xml"},
+        ))
+        router.get("https://site.example/").mock(return_value=httpx.Response(
+            200, content=fixture("declared.html"), headers={"content-type": "text/html"},
+        ))
+        direct = discover("https://site.example/feed.xml")
+        declared = discover("https://site.example/")
+    assert direct.feed.feed_url == declared.feed.feed_url == "https://site.example/feed.xml"
+    assert not direct.follows_site_feed_notice
+    assert not declared.follows_site_feed_notice
+
+
+def test_article_page_follows_whole_site(public_dns):
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/story").mock(return_value=httpx.Response(
+            200, content=fixture("article.html"), headers={"content-type": "text/html"},
+        ))
+        router.get("https://site.example/atom.xml").mock(return_value=httpx.Response(
+            200, content=fixture("atom.xml"), headers={"content-type": "application/atom+xml"},
+        ))
+        found = discover("https://site.example/story")
+    assert found.follows_site_feed_notice
+    assert found.feed.feed_url == "https://site.example/atom.xml"
+
+
+def test_reddit_path_dot_rss_probe(public_dns):
+    url = "https://site.example/r/catchup/"
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(url).mock(return_value=httpx.Response(
+            200, content=fixture("no-feed.html"), headers={"content-type": "text/html"},
+        ))
+        router.get("https://site.example/r/catchup.rss").mock(return_value=httpx.Response(404))
+        router.get("https://site.example/r/catchup/.rss").mock(return_value=httpx.Response(
+            200, content=fixture("rss.xml"), headers={"content-type": "application/rss+xml"},
+        ))
+        found = discover(url)
+        assert len(router.calls) == 3
+    assert found.feed.feed_url.endswith("/r/catchup/.rss")
+
+
+def test_origin_feed_probe_notices_site_scope(public_dns):
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/stories").mock(return_value=httpx.Response(
+            200, content=fixture("no-feed.html"), headers={"content-type": "text/html"},
+        ))
+        router.get("https://site.example/feed").mock(return_value=httpx.Response(
+            200, content=fixture("rss.xml"), headers={"content-type": "application/rss+xml"},
+        ))
+        router.get(re.compile(r"https://site\.example/.*")).mock(
+            return_value=httpx.Response(404),
+        )
+        found = discover("https://site.example/stories")
+    assert found.feed.feed_url == "https://site.example/feed"
+    assert found.follows_site_feed_notice
+
+
+def test_no_candidate_succeeds_and_probing_is_bounded(public_dns):
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/deep/path").mock(return_value=httpx.Response(
+            200, content=fixture("no-feed.html"), headers={"content-type": "text/html"},
+        ))
+        router.get(re.compile(r"https://site\.example/.*")).mock(return_value=httpx.Response(404))
+        with pytest.raises(FetchError) as error:
+            discover("https://site.example/deep/path")
+        called = [str(call.request.url) for call in router.calls]
+    assert error.value.code == "no_feed"
+    assert len(called) - 1 == 8
+    assert all(url.startswith("https://site.example/") for url in called)
+
+
+def test_probe_redirect_cannot_leave_origin_or_exceed_budget(public_dns):
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/deep/path").mock(return_value=httpx.Response(
+            200, content=fixture("no-feed.html"), headers={"content-type": "text/html"},
+        ))
+        router.get(re.compile(r"https://site\.example/.*")).mock(return_value=httpx.Response(
+            302, headers={"location": "https://other.example/private"},
+        ))
+        with pytest.raises(FetchError, match="No supported feed"):
+            discover("https://site.example/deep/path")
+        called = [str(call.request.url) for call in router.calls]
+    assert len(called) - 1 <= 8
+    assert all(url.startswith("https://site.example/") for url in called)

@@ -5,7 +5,7 @@ This folder is the CatchUp CS146S project workspace. It currently contains plann
 Before planning or implementing, read:
 1. `docs/handoff.md` — confirmed scope, superseded ideas, open decisions, course obligations, next steps.
 2. `docs/proposal.md` — current proposal text snapshot.
-3. `docs/course-requirements.pdf` — original course brief when checking deliverables.
+3. `docs/course-requirements.pdf` — original course brief when checking deliverables. It is gitignored (course staff material), so it exists only in the main local checkout, not in worktrees or clones.
 
 The existing proposal PDF in this folder preserves the user's layout. `assets/catchup-workflow.png` is the compact workflow figure.
 
@@ -41,3 +41,13 @@ The course grades evidence of how requirements and context were communicated to 
 Never record API keys, tokens, or passwords in these files.
 
 This file contains only project-specific context. Personal global agent rules are maintained separately in the user's existing `~/.codex/AGENTS.md`; do not duplicate them here.
+
+## Commands
+
+Run backend commands from `backend/` and frontend commands from `frontend/`:
+
+- Install: `uv sync` (backend), `npm ci` (frontend).
+- Backend dev server: `uv run uvicorn catchup.main:app --reload`.
+- Frontend dev server: `npm run dev` (proxies `/api` to port 8000).
+- Checks: `uv run pytest`, `npm test -- --run`, `npm run build`.
+- See `README.md` for environment setup; `CATCHUP_SECRET_KEY` is required before saving a model key.

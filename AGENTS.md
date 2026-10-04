@@ -1,6 +1,6 @@
 # CatchUp — project entry point
 
-This folder is the CatchUp CS146S project workspace. It currently contains planning materials; no application has been implemented.
+This folder is the CatchUp CS146S project workspace. The core flow (model settings, RSS/Atom sources, digest generation, history) is implemented: `backend/` (FastAPI) and `frontend/` (React). Current requirements are in `openspec/specs/`; completed changes are in `openspec/changes/archive/`.
 
 Before planning or implementing, read:
 1. `docs/handoff.md` — confirmed scope, superseded ideas, open decisions, course obligations, next steps.
@@ -11,7 +11,7 @@ The existing proposal PDF in this folder preserves the user's layout. `assets/ca
 
 Project constraints: self-hosted web application; user-owned model API; manual, incremental digest generation; public sources and accessible transcripts first. Browser extensions, authenticated content, existing-page change detection, and automatic scheduling are not initial-release requirements.
 
-Accepted so far: stack is FastAPI + SQLite + React/Vite/TypeScript, served as a single container (D-006); the first model adapter is OpenAI-compatible, developed against DeepSeek (D-004). Still open: supported-source list beyond RSS/Atom, further model providers, deployment target, and implementation/test commands (added once the app exists). Do not infer open decisions from the proposal. All decisions are tracked in `docs/process/decision-log.md`.
+Accepted so far: stack is FastAPI + SQLite + React/Vite/TypeScript, served as a single container (D-006); the first model adapter is OpenAI-compatible, developed against DeepSeek (D-004). Still open: supported-source list beyond RSS/Atom, further model providers, and the deployment target. Commands are listed under "Commands" below. Do not infer open decisions from the proposal. All decisions are tracked in `docs/process/decision-log.md`.
 
 `CLAUDE.md` is a symlink to this file so Claude Code and Factory Droid read the same project context. Edit `AGENTS.md` only.
 

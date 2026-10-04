@@ -80,7 +80,11 @@ def create_app(settings: Settings | None = None, dist_dir: Path | None = None) -
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
-    frontend_dist = dist_dir if dist_dir is not None else Path(__file__).resolve().parents[3] / "frontend" / "dist"
+    frontend_dist = (
+        dist_dir if dist_dir is not None else
+        instance_settings.frontend_dist if instance_settings.frontend_dist is not None else
+        Path(__file__).resolve().parents[3] / "frontend" / "dist"
+    )
     if (frontend_dist / "index.html").is_file():
         assets = frontend_dist / "assets"
         if assets.is_dir():

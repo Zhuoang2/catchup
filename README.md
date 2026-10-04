@@ -29,6 +29,10 @@ set -a; . ../.env; set +a
 uv run uvicorn catchup.main:app --reload
 ```
 
+Alternatively, start the backend with `uv run catchup serve` from `backend/`
+after loading the same environment. This listens on `127.0.0.1:8000` by
+default; use `uv run catchup serve --help` for host and port options.
+
 ```sh
 cd frontend
 npm ci

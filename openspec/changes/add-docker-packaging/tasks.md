@@ -11,13 +11,13 @@ Implementer notes:
 
 ## 1. Self-contained backend package
 
-- [ ] 1.1 Move `backend/alembic/` to `backend/src/catchup/migrations/` with `git mv` (keep `env.py`, `script.py.mako`, `versions/0001_initial.py`), and point `migrate()` in `backend/src/catchup/db.py` at the package-relative directory per design.md D1. Verify:
+- [x] 1.1 Move `backend/alembic/` to `backend/src/catchup/migrations/` with `git mv` (keep `env.py`, `script.py.mako`, `versions/0001_initial.py`), and point `migrate()` in `backend/src/catchup/db.py` at the package-relative directory per design.md D1. Verify:
   - the existing migration and startup tests pass
   - a new test asserts the migrations directory lives inside the `catchup` package
   - a new test migrates a database created with the old revision table and checks it is unchanged and still at head
-- [ ] 1.2 Add `CATCHUP_FRONTEND_DIST` (`Settings.frontend_dist`) in `backend/src/catchup/config.py` and use it in `create_app` (`backend/src/catchup/main.py`) with the precedence in design.md D1 (argument > setting > source-tree fallback). Add it, commented out, to `.env.example`. Verify: tests for each precedence level, for a missing directory (API still works, no frontend), and that `backend/tests/test_static.py` still passes.
-- [ ] 1.3 Add `backend/src/catchup/cli.py` with `catchup serve [--host] [--port]` (defaults `127.0.0.1`, `8000`) that calls `uvicorn.run(create_app(), host=…, port=…)`, and `[project.scripts] catchup = "catchup.cli:main"` in `backend/pyproject.toml`. Verify: tests for `--help` (exit 0), the defaults, and custom values, with `uvicorn.run` patched and asserted; `uv run catchup serve --help` works.
-- [ ] 1.4 Update the README "Development setup" section and the `AGENTS.md` "Commands" section to mention `uv run catchup serve` alongside `uvicorn`. Verify: the documented commands run (`--help` for serve).
+- [x] 1.2 Add `CATCHUP_FRONTEND_DIST` (`Settings.frontend_dist`) in `backend/src/catchup/config.py` and use it in `create_app` (`backend/src/catchup/main.py`) with the precedence in design.md D1 (argument > setting > source-tree fallback). Add it, commented out, to `.env.example`. Verify: tests for each precedence level, for a missing directory (API still works, no frontend), and that `backend/tests/test_static.py` still passes.
+- [x] 1.3 Add `backend/src/catchup/cli.py` with `catchup serve [--host] [--port]` (defaults `127.0.0.1`, `8000`) that calls `uvicorn.run(create_app(), host=…, port=…)`, and `[project.scripts] catchup = "catchup.cli:main"` in `backend/pyproject.toml`. Verify: tests for `--help` (exit 0), the defaults, and custom values, with `uvicorn.run` patched and asserted; `uv run catchup serve --help` works.
+- [x] 1.4 Update the README "Development setup" section and the `AGENTS.md` "Commands" section to mention `uv run catchup serve` alongside `uvicorn`. Verify: the documented commands run (`--help` for serve).
 
 ## 2. Container image and local run
 

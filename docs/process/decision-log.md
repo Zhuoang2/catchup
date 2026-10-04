@@ -29,7 +29,7 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
 
 ## D-005 Public GitHub repository from the start — accepted (2026-10-02)
 
-- Decision: Public repo `Zhuoang2/catchup`. Development happens in the open; an open-source license is still to be chosen.
+- Decision: Public repo `Zhuoang2/catchup`. Development happens in the open; the license is MIT (D-008).
 - Pre-publish check: Removed the Google Doc URL from `docs/handoff.md` and `docs/proposal.md`. Course brief PDFs are gitignored (D-003). No credentials found in tracked files.
 
 ## D-006 Tech stack: FastAPI + React — accepted (2026-10-02)
@@ -44,3 +44,15 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
 - Decision: Full RePPIT (research → two proposals → plan) for new features and substantial changes; `/opsx:propose` for small changes; Droid implements with `/opsx-apply`; Claude Code reviews and runs `openspec archive` after the user approves. About 6–8 full RePPIT changes for the course.
 - Context: `openspec init` installs its own `propose`/`explore` skills, which overlap with RePPIT's proposal and plan steps. Without a rule, an agent could switch between the two for the same request.
 - Reasons: RePPIT adds a research step with code references and a two-option user choice; OpenSpec adds living specs, validation, and archive history. The lean `/opsx:propose` path keeps small changes cheap, so process overhead stays proportionate for a solo 10-week project.
+
+## D-008 License: MIT — accepted (2026-10-04)
+
+- Decision: Release CatchUp under the MIT License, with copyright held by Zhuoang Tao.
+- Alternatives: Apache-2.0 (adds an explicit patent grant and more notice requirements); GPL-family (requires derivatives to stay open).
+- Reasons: The user chose MIT. It is the simplest permissive license and fits a self-hosted tool that others may adapt.
+
+## D-009 Project board: GitHub Projects with repository issues — accepted (2026-10-04)
+
+- Decision: The backlog is tracked as issues in `Zhuoang2/catchup`, shown on a GitHub Projects board linked to the repository.
+- Alternatives: Linear, Jira, Trello (all accepted by the course brief).
+- Reasons: The board sits next to the code, pull requests, and CI. PRs can close issues automatically, and the process evidence for the course stays in one place.

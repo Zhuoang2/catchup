@@ -61,3 +61,7 @@ blogs, Bluesky and Mastodon profiles, and Reddit subreddits (availability
 can depend on the host network).
 X, pages without feeds, podcasts/YouTube, and content behind a login or
 paywall are not supported in this release.
+
+## License
+
+CatchUp is released under the [MIT License](LICENSE).

@@ -143,7 +143,7 @@ Performed 2026-10-03 by Claude Code with the user.
 **Experiment:** budgets raised locally, uncommitted (4096 per summary; 8192 + 24 per item for grouping).
 
 **Run 2: succeeded** in 22 s.
-- 11/11 summaries, 0 unavailable, 6 topics.
+- 11/11 summaries, 0 unavailable, 5 topics.
 - Chinese output is fluent; topic grouping is sensible.
 - Links, source names, and local times are correct.
 - Reddit answered 200 this time, so the earlier 429 was transient rate limiting.
@@ -159,4 +159,26 @@ Performed 2026-10-03 by Claude Code with the user.
 | Reddit link posts carry no content in RSS (only "[link] [comments]") | later | next change: extract the linked article |
 | Reddit 429 under repeated requests | later | next change: e.g. a descriptive User-Agent, backoff |
 
-A re-test after tasks 8.1–8.4 is recorded below.
+### Re-test after group 8 (commit `d2d2d94`, 2026-10-03)
+
+**Setup:** same local instance and the user's stored key. All four sources were deleted and re-added to re-run first-add with the new code.
+
+**Source deletion** (spec scenario "Delete a source", verified on real data): digest 1 still opened with all 5 topics after its sources were deleted.
+
+**Previews:**
+- **Titles fixed:** Bluesky and Mastodon entries now show the start of the post text, e.g. "Happy opening day of hockey season, NHL fans! Keep up with all 1,344 regular…".
+- **Notice fixed:** no "whole site" notice on the profile pages (`follows_site_feed_notice=false` for all four sources).
+
+**New observation, deferred:** Reddit's preview succeeded, but the confirm right after it failed with `fetch_failed` (rate limited), because confirm re-fetches the feed. Confirming again 15 s later worked. This adds to the deferred Reddit rate-limit item. Possible fixes for the next change: reuse the preview's fetch in confirm, a descriptive User-Agent, backoff.
+
+**Run 3: succeeded** in about 20 s.
+- 11/11 summaries, 0 unavailable, 5 topics.
+- The Reddit check hit 429 again during the run and was shown as `failed`. Its items had already been recorded at confirm time, so they were still included, as the ledger design intends.
+- **Summary quality, checked by reading every summary:**
+  - The Bluesky summary describes the post without the DID or handle.
+  - Reddit link-only posts get one sentence saying there is no substantive content.
+  - Blog summaries stay accurate and fluent Chinese.
+
+**Cosmetic, not tracked:** a Mastodon post whose text ends in "..." shows "...…" when its derived title is truncated.
+
+**Result:** the manual verification passes. Remaining issues (Reddit link posts, Reddit rate limits) are deferred to the next change.

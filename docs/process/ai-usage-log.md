@@ -239,3 +239,14 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Prompt (user, faithful excerpt): "Implement ONLY group 8, using the openspec-apply-change skill, then stop. ... Use exactly the budgets in design.md D3. ... titles from the plain text. ... Follow the new rule in D5 exactly. ... prompt wording only; keep 'json' and the example output; keep the language instruction. ... no real network, no real API key, no writes outside pytest temp dirs, no fixed sleeps. ... Commit once at the end."
 - Outcome: Raised model output budgets, derived readable titles from untitled posts without changing the identity fallback, limited the whole-site notice to articles and deeper-page origin probes, and added substance-focused summary prompt rules. Added six backend tests (153 total); mapped all 52 spec scenarios. Backend/frontend tests, build, and strict validation passed using offline fixtures, mocks, and fake clients.
 - What failed / adjustment: The first title test expected truncation too early; corrected its expected word-boundary title. An initial mapping audit counted table headers; restricted it to actual spec names, then 52/52 mapped with 85 valid backend references. `npm ci` was needed in this new worktree before frontend tests. Real-provider output quality remains for reviewer/user re-test, not inferred from prompt assertions.
+
+## 2026-10-03 — Group 8 (Factory Droid, fresh session), review, and re-test (Claude Code, Opus 5.5)
+
+- Droid: commit `d2d2d94`, 28/28 tasks, 153 backend + 19 frontend tests. Cost: 31 turns, ~3 minutes, ~263K credits.
+- Review: Claude re-ran everything and re-audited the report by script (52/52 scenarios, 64 cited tests exist). Code matched design D3/D5.
+- Re-test on real sources with the user's stored key:
+  - Every manual-test finding was confirmed fixed (titles, notice, metadata-free summaries, budgets).
+  - The "delete a source keeps old digests" scenario was confirmed on real data.
+  - One new real-world issue: confirming a Reddit source right after preview gets rate-limited. Deferred.
+- Correction: Claude had reported "6 topics" for run 2; a recount showed 5. Fixed in the test report.
+- Final implementation cost for the change: ~3.40M Factory credits across 10 Droid runs.

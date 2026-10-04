@@ -21,18 +21,18 @@ Implementer notes:
 
 ## 2. Container image and local run
 
-- [ ] 2.1 Add `.dockerignore` (allowlist, design.md D3) and the multi-stage `Dockerfile` (design.md D2). Verify:
+- [x] 2.1 Add `.dockerignore` (allowlist, design.md D3) and the multi-stage `Dockerfile` (design.md D2). Verify:
   - `docker build -t catchup:local .` succeeds
   - `docker run --rm catchup:local id -u` is not `0`
   - the image has no `/app/backend`, and `/app/.env` is absent even when a dummy `.env` exists in the working copy at build time
   - `docker image inspect` shows the `HEALTHCHECK`, `VOLUME /data`, and `EXPOSE 8000`
   - record the image size in the test report
-- [ ] 2.2 Add `compose.yaml` per design.md D4. Verify:
+- [x] 2.2 Add `compose.yaml` per design.md D4. Verify:
   - `docker compose config` is valid
   - after `docker compose up -d --build`, the service becomes healthy
   - `docker compose port catchup 8000` (or `docker inspect`) shows the host binding `127.0.0.1`
   - `docker compose down` cleans up; remove the volume only if the test created it
-- [ ] 2.3 Add `scripts/docker-smoke.sh` per design.md D5 (executable, `set -euo pipefail`, trap cleanup, image tag argument). Verify: `scripts/docker-smoke.sh catchup:local` passes locally and prints each check; a deliberately broken health URL makes it fail (try once, then revert).
+- [x] 2.3 Add `scripts/docker-smoke.sh` per design.md D5 (executable, `set -euo pipefail`, trap cleanup, image tag argument). Verify: `scripts/docker-smoke.sh catchup:local` passes locally and prints each check; a deliberately broken health URL makes it fail (try once, then revert).
 
 ## 3. CI and release automation
 

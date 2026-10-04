@@ -62,3 +62,13 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
 - Decision: Branch protection on `main` requires the `backend` and `frontend` CI checks to pass before a pull request can merge. Force pushes and branch deletion are blocked.
 - Settings: up-to-date branches are not required (`strict: false`), no review approval is required (solo project), and admins are not forced through the rule (`enforce_admins: false`), so small documentation commits can still go straight to `main`.
 - Reason: Without required checks, `gh pr merge --auto` merged PR #19 immediately instead of waiting for CI (see `ai-usage-log.md`, 2026-10-04). With required checks, auto-merge waits for green CI.
+
+## D-011 Local deployment only; no hosted demo — accepted (2026-10-04)
+
+- Decision: CatchUp is delivered as a self-hosted open-source project. Users run it locally, from source or as a Docker image published by CI. The course demo runs on the developer's machine. There is no cloud-hosted instance.
+- Evidence: On the course forum, a student asked whether the final project must be web-hosted or whether a locally deployed open-source project is fine. Course staff (Mihail Eric) answered: "Locally deployed is completely fine." The only stated restriction is substantial complexity.
+- Alternatives: a hosted demo instance (needs access control, a separate spending-capped model key, and runs into cloud-IP blocking by YouTube and Reddit); a temporary tunnel from the local machine (kept as a fallback if a shareable link is ever needed).
+- Consequences:
+  - Issue #7 drops the hosted demo and access control. It becomes packaging and release automation (Docker image, GHCR publishing).
+  - #13 (clean-environment install) carries the "deployment" evidence.
+  - Local runs keep the home network, which avoids datacenter-IP blocking.

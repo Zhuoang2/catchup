@@ -108,3 +108,19 @@ Verification: focused backend digest tests (28 passed before the last regression
 - Both group 6 carry-overs addressed: all model timestamps use `UTCDateTime` (same SQLite schema, UTC on storage and retrieval), the digest endpoint's `_utc` helper is gone, and run detail now includes `started_at`/`finished_at`. The cross-endpoint regression test covers source list, run detail, digest list and detail, and normalization of a non-UTC input offset. Feed parsing falls back to the feed URL for non-HTTP(S) entry links; a parameterized regression test covers `javascript:`, `data:`, and `file:`.
 - API integration test configures a fake provider, previews and confirms the RSS fixture, synchronously executes three runs (success, `no_new_content`, success after one feed entry is added), checks the third digest contains only that entry, and checks links/source names against fixture data rather than model output. It uses respx, patched DNS, temporary SQLite, and a fake model client; no fixed sleeps.
 - Verification: focused carry-over tests 36 passed; integration test 1 passed after fixing a test dependency override (first attempt failed); full `uv run pytest` 147 passed; `uv run pytest --cov=catchup --cov-report=term` 147 passed, 95% overall (module details in `docs/process/test-report-add-core-digest-flow.md`). Initial frontend invocation lacked Vitest in this worktree; `npm ci` installed locked dependencies, then `npm test -- --run` passed 19 tests, `npm run build` passed, and `openspec validate add-core-digest-flow --strict` passed. All 48 scenarios in the five spec deltas have rows in the report; none are unmapped. No real feed or key was used; manual verification remains for reviewer and user.
+
+### Claude Code review of group 7 (2026-10-03)
+
+- Re-ran in a fresh worktree: 147 backend tests (95% coverage), 19 frontend tests, build, `npm audit` (0), strict validation; OpenSpec apply state `all_done` (24/24).
+- Test report cross-checked with a script:
+  - All 48 spec scenarios are named in the mapping table.
+  - All 57 cited `file::test` references exist in `backend/tests/`.
+  - All cited frontend test files exist.
+- End-to-end test reviewed. Besides the flow in tasks.md, it asserts:
+  - the key never appears in responses
+  - stored citations (title, link, source) match the fixture
+  - an earlier digest is unchanged after a later run
+  - exactly 5 model calls (3 summaries + 2 groupings), so nothing is re-summarized
+  - exactly 5 feed fetches
+- Both group 6 carry-overs are fixed: a model-layer `UTCDateTime` replaces the per-endpoint helper, and non-http(s) entry links fall back to the feed URL.
+- Verdict: **no required fixes.** Remaining before merge: manual verification with a real feed and a real DeepSeek key.

@@ -12,5 +12,20 @@
   scenario mapping and smoke output.
 - Review follow-up: real-model UI check, later migration upgrade, and GHCR
   publish/visibility and multi-architecture manifest require reviewer/user
-  action after merge. `.env.example`'s relative data dir must not be passed
-  into the container; the Docker guide creates a secret-only `.env`.
+  action after merge. Compose pins `/data` and `/app/frontend` regardless of
+  `.env`; the standalone Docker command pins `/data` as well.
+
+## Reviewer follow-up (2026-10-04)
+
+- Pinned the Compose data/frontend paths, commented the optional source
+  checkout data path in `.env.example`, and pinned `/data` in the `docker run`
+  example. With a temporary `.env` specifying relative paths, `docker compose
+  config --format json` showed `/data` and `/app/frontend`. The temporary file
+  was removed.
+- The Docker guide now retains `localhost` and `127.0.0.1` when configuring
+  allowed hosts, and explains `latest` (after the first release), `edge`
+  (current main), and version tags. Both paragraphs were read back.
+- Fresh `docker build -t catchup:local .` and
+  `scripts/docker-smoke.sh catchup:local`: all eight checks passed.
+  `cd backend && uv run pytest`: 206 passed. `actionlint` on both workflows
+  and `openspec validate add-docker-packaging --strict`: passed.

@@ -68,11 +68,15 @@ printf 'CATCHUP_SECRET_KEY=%s\n' "$(openssl rand -hex 32)" > .env
 ```
 
 Do not commit or share `.env`. Keep this secret across upgrades and backups,
-or previously saved model credentials cannot be decrypted. The image stores
-its database at `/data/catchup.sqlite3`; do not set `CATCHUP_DATA_DIR=./data`
-in the container (the source-checkout `.env.example` uses that value).
+or previously saved model credentials cannot be decrypted. Compose pins
+`CATCHUP_DATA_DIR=/data` and `CATCHUP_FRONTEND_DIST=/app/frontend`, even if
+`.env` contains values intended for development.
 
-Start from the published image, or build the same service from this checkout:
+The `latest` tag is the newest release, available after the first `vX.Y.Z`
+release tag. The `edge` tag tracks `main`; `X.Y.Z` pins a specific release.
+Until the first release, build from this checkout, or change the image in
+`compose.yaml` to `ghcr.io/zhuoang2/catchup:edge` after it is published.
+Start from the published image when available, or build from this checkout:
 
 ```sh
 docker compose up -d
@@ -84,7 +88,7 @@ Open `http://localhost:8000`. The API and web interface share this port.
 If using only Docker rather than Compose, the equivalent command is:
 
 ```sh
-docker run -d --name catchup --env-file .env \
+docker run -d --name catchup --env-file .env -e CATCHUP_DATA_DIR=/data \
   -p 127.0.0.1:8000:8000 -v catchup-data:/data \
   ghcr.io/zhuoang2/catchup:latest
 ```
@@ -93,9 +97,11 @@ The provided Compose file binds **only to `127.0.0.1`**. CatchUp has **no
 login**: anyone who can access an exposed instance can read data and change
 settings. Do not expose it to an untrusted network. If you deliberately
 expose it, change the loopback address in `compose.yaml`, set
-`CATCHUP_ALLOWED_HOSTS` to your intended domain (not `*`), and provide your
-own access control and TLS. Collected content is sent to the configured model
-provider, even when CatchUp itself runs locally.
+`CATCHUP_ALLOWED_HOSTS` to include your intended domain **and** `localhost`
+and `127.0.0.1` (for the container health check), for example
+`CATCHUP_ALLOWED_HOSTS=localhost,127.0.0.1,catchup.example.com`. Do not use
+`*`. Provide your own access control and TLS. Collected content is sent to
+the configured model provider, even when CatchUp itself runs locally.
 
 To upgrade the published image without deleting the volume:
 

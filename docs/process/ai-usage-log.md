@@ -9,6 +9,12 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Outcome: Self-contained package, local Docker/Compose deployment, smoke script, CI and release workflow definitions, and user guide. Four group commits; 206 backend and 22 frontend tests, frontend build, smoke, wheel check, both-architecture local build, actionlint and strict validation passed. No image pushed or tag created.
 - Problems / adjustment: The local `actionlint` executable was missing, so Homebrew installed it before linting. A deliberately broken image health URL proved the smoke script rejects unhealthy containers. The source `.env.example` sets a relative data path; the Docker guide instead generates a secret-only `.env` so `/data` remains the persistent location. Real-key and GHCR checks remain for review.
 
+### Reviewer follow-up (Factory Droid, GPT-6 Sol)
+
+- Prompt (faithful excerpt): "Reviewer findings ... three small fixes ... Data directory must not depend on the container's working directory ... keep localhost and 127.0.0.1 in CATCHUP_ALLOWED_HOSTS ... latest exists only after the first vX.Y.Z tag ... commit once."
+- Outcome: Compose pins `/data` and `/app/frontend` even when `.env` supplies relative paths; the standalone Docker example pins `/data`. Documentation now explains health-check hosts and available image tags. A temporary `.env` confirmed Compose's precedence; fresh Docker smoke, 206 pytest cases, actionlint, and strict OpenSpec validation passed.
+- Adjustment: The first Docker guide only warned against a relative data path; the review identified that deployment should enforce the persistent path rather than depend on that warning or the container's current directory.
+
 ## 2026-10-04 — Source reliability implementation (Factory Droid, GPT-6 Sol)
 
 - Purpose: Implement OpenSpec change `improve-source-reliability`, groups 1–4, on a branch from main.

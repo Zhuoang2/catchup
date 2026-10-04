@@ -69,7 +69,18 @@ PASS: preference survives restart
   the same volume and confirm migrations and data preservation when a later
   revision exists.
 
-The example `.env.example` is for source checkouts and sets
-`CATCHUP_DATA_DIR=./data`. Docker users must generate the Docker-specific
-`.env` documented in the README (secret only), otherwise that override would
-put the database outside `/data`. No other design deviations were needed.
+The example `.env.example` is for source checkouts and comments out the
+optional `CATCHUP_DATA_DIR=./data` default. Compose overrides any relative
+data/frontend paths in `.env` with `/data` and `/app/frontend`; standalone
+`docker run` pins `/data`. No other design deviations were needed.
+
+## Reviewer follow-up (2026-10-04)
+
+| Check | Result |
+| --- | --- |
+| Temporary `.env` with `CATCHUP_DATA_DIR=./elsewhere` and `CATCHUP_FRONTEND_DIST=./wrong-build`; `docker compose config --format json` | Service paths were `/data` and `/app/frontend`; temporary file removed |
+| Read Docker guide's allowed-hosts and image-tag sections | Explicit health-check loopback hosts; `latest` after first version tag, `edge` for main, `X.Y.Z` for a release |
+| Fresh `docker build -t catchup:local .` and `scripts/docker-smoke.sh catchup:local` | Passed all eight smoke checks shown above |
+| `cd backend && uv run pytest` | 206 passed |
+| `actionlint .github/workflows/ci.yml .github/workflows/release.yml` | Passed |
+| `openspec validate add-docker-packaging --strict` | Passed |

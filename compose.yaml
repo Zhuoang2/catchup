@@ -9,6 +9,9 @@ services:
     env_file:
       - path: .env
         required: false
+    environment:
+      CATCHUP_DATA_DIR: /data
+      CATCHUP_FRONTEND_DIST: /app/frontend
     restart: unless-stopped
 
 volumes:

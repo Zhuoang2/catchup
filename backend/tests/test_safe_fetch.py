@@ -1,10 +1,13 @@
 import socket
+from datetime import datetime, timezone
 
 import httpx
 import pytest
 import respx
 
-from catchup.net.safe_fetch import FetchError, MAX_BYTES, safe_fetch
+from catchup.config import Settings
+from catchup.main import create_app
+from catchup.net.safe_fetch import FetchError, MAX_BYTES, parse_retry_after, safe_fetch
 
 PUBLIC = "https://public.example/feed"
 
@@ -122,3 +125,130 @@ def test_redirect_limit(resolve):
             )
         with pytest.raises(FetchError, match="too many"):
             safe_fetch("https://public.example/0")
+
+
+def test_user_agent_on_page_redirect_and_contact(resolve, monkeypatch):
+    monkeypatch.setattr("catchup.net.safe_fetch.version", lambda _package: "1.2.3")
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(PUBLIC).mock(return_value=httpx.Response(302, headers={"location": "/next"}))
+        router.get("https://public.example/next").mock(return_value=httpx.Response(200))
+        safe_fetch(PUBLIC)
+        assert [call.request.headers["user-agent"] for call in router.calls] == [
+            "CatchUp/1.2.3 (+https://github.com/Zhuoang2/catchup)"
+        ] * 2
+        monkeypatch.setenv("CATCHUP_USER_AGENT_CONTACT", "by /u/example")
+        safe_fetch(PUBLIC)
+        assert router.calls[-1].request.headers["user-agent"] == (
+            "CatchUp/1.2.3 (+https://github.com/Zhuoang2/catchup; by /u/example)"
+        )
+
+
+def test_user_agent_fallback_and_invalid_contact(monkeypatch):
+    from importlib.metadata import PackageNotFoundError
+    from catchup.net.safe_fetch import user_agent
+
+    def missing(_package):
+        raise PackageNotFoundError
+
+    monkeypatch.setattr("catchup.net.safe_fetch.version", missing)
+    assert user_agent().startswith("CatchUp/0.0.0 ")
+    for contact in ("evil\r\nX-Injected: yes", "\u2603", "x" * 101):
+        monkeypatch.setenv("CATCHUP_USER_AGENT_CONTACT", contact)
+        with pytest.raises(ValueError, match="CATCHUP_USER_AGENT_CONTACT"):
+            Settings.from_env()
+        with pytest.raises(ValueError, match="CATCHUP_USER_AGENT_CONTACT"):
+            create_app()
+
+
+@pytest.mark.parametrize("value,expected", [
+    ("3", 3),
+    ("Sun, 06 Nov 1994 08:49:40 GMT", 10),
+    ("Sunday, 06-Nov-94 08:49:40 GMT", 10),
+    ("Sun Nov  6 08:49:40 1994", 10),
+    ("Sun, 06 Nov 1994 08:49:20 GMT", 0),
+    (None, None), ("", None), ("garbage", None), ("+3", None), ("3.5", None),
+])
+def test_retry_after_formats(value, expected):
+    assert parse_retry_after(value, now=datetime(1994, 11, 6, 8, 49, 30, tzinfo=timezone.utc)) == expected
+
+
+@pytest.mark.parametrize("status,headers,expected_code,requests,delay", [
+    (429, {"Retry-After": "120"}, "rate_limited", 1, 120),
+    (429, {}, "rate_limited", 1, None),
+    (503, {"Retry-After": "120"}, "rate_limited", 1, 120),
+    (503, {}, "fetch_failed", 1, None),
+    (503, {"Retry-After": "garbage"}, "fetch_failed", 1, None),
+    (429, {"Retry-After": "3"}, None, 2, 3),
+    (503, {"Retry-After": "3"}, None, 2, 3),
+])
+def test_rate_limit_policy(resolve, monkeypatch, status, headers, expected_code, requests, delay):
+    clock = [100.0]
+    sleeps = []
+    monkeypatch.setattr("catchup.net.safe_fetch.monotonic", lambda: clock[0])
+
+    def fake_sleep(seconds):
+        sleeps.append(seconds)
+        clock[0] += seconds
+
+    monkeypatch.setattr("catchup.net.safe_fetch.sleep", fake_sleep)
+    with respx.mock(assert_all_mocked=True) as router:
+        route = router.get(PUBLIC).mock(side_effect=[
+            httpx.Response(status, headers=headers), httpx.Response(200, content=b"ok"),
+        ])
+        if expected_code:
+            with pytest.raises(FetchError) as error:
+                safe_fetch(PUBLIC)
+            assert error.value.code == expected_code
+            assert error.value.retry_after == (delay if expected_code == "rate_limited" else None)
+            if expected_code == "rate_limited":
+                assert "rate limiting" in str(error.value)
+                assert ("120 seconds" in str(error.value)) == (delay == 120)
+        else:
+            assert safe_fetch(PUBLIC).content == b"ok"
+        assert route.call_count == requests
+    assert sleeps == ([3] if requests == 2 else [])
+
+
+def test_retry_only_once_without_using_redirect_hop(resolve, monkeypatch):
+    monkeypatch.setattr("catchup.net.safe_fetch.sleep", lambda _seconds: None)
+    with respx.mock(assert_all_mocked=True) as router:
+        limited = router.get(PUBLIC).mock(side_effect=[
+            httpx.Response(429, headers={"Retry-After": "0"}),
+            httpx.Response(302, headers={"location": "/next"}),
+        ])
+        router.get("https://public.example/next").mock(return_value=httpx.Response(200, content=b"ok"))
+        budget = [3]
+        assert safe_fetch(PUBLIC, budget=budget, same_origin="https://public.example").content == b"ok"
+        assert limited.call_count == 2
+        assert budget == [0]
+
+    with respx.mock(assert_all_mocked=True) as router:
+        limited = router.get(PUBLIC).mock(return_value=httpx.Response(429, headers={"Retry-After": "0"}))
+        with pytest.raises(FetchError) as error:
+            safe_fetch(PUBLIC)
+        assert error.value.code == "rate_limited"
+        assert limited.call_count == 2
+
+
+def test_retry_requires_budget_and_deadline(resolve, monkeypatch):
+    clock = [100.0]
+    monkeypatch.setattr("catchup.net.safe_fetch.monotonic", lambda: clock[0])
+    monkeypatch.setattr("catchup.net.safe_fetch.sleep", lambda _seconds: pytest.fail("unexpected sleep"))
+    with respx.mock(assert_all_mocked=True) as router:
+        def short_deadline(_request):
+            clock[0] = 127.0
+            return httpx.Response(429, headers={"Retry-After": "3"})
+
+        route = router.get(PUBLIC).mock(side_effect=short_deadline)
+        with pytest.raises(FetchError) as error:
+            safe_fetch(PUBLIC)
+        assert error.value.code == "rate_limited"
+        assert error.value.retry_after == 3
+        assert route.call_count == 1
+    clock[0] = 100.0
+    monkeypatch.setattr("catchup.net.safe_fetch.sleep", lambda seconds: clock.__setitem__(0, clock[0] + seconds))
+    with respx.mock(assert_all_mocked=True) as router:
+        route = router.get(PUBLIC).mock(return_value=httpx.Response(429, headers={"Retry-After": "3"}))
+        with pytest.raises(FetchError, match="request limit"):
+            safe_fetch(PUBLIC, budget=[1])
+        assert route.call_count == 1

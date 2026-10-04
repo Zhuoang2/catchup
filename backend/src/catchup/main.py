@@ -13,7 +13,7 @@ from catchup.api.settings import router as settings_router
 from catchup.api.sources import router as sources_router
 from catchup.api.runs import router as runs_router
 from catchup.api.digests import router as digests_router
-from catchup.config import Settings
+from catchup.config import Settings, validate_user_agent_contact
 from catchup.db import make_engine, migrate
 from catchup.digest.runner import recover_runs
 from catchup.errors import register_error_handlers
@@ -22,6 +22,7 @@ from catchup.llm.client import ModelClient
 
 def create_app(settings: Settings | None = None, dist_dir: Path | None = None) -> FastAPI:
     instance_settings = settings or Settings.from_env()
+    validate_user_agent_contact(instance_settings.user_agent_contact)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

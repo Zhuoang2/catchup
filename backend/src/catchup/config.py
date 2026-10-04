@@ -5,6 +5,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+def validate_user_agent_contact(contact: str | None) -> str | None:
+    if contact is not None and (len(contact) > 100 or any(not 32 <= ord(ch) <= 126 for ch in contact)):
+        raise ValueError("CATCHUP_USER_AGENT_CONTACT must be printable ASCII (no CR/LF), at most 100 characters.")
+    return contact
+
+
 @dataclass(frozen=True)
 class Settings:
     data_dir: Path
@@ -15,6 +21,7 @@ class Settings:
     max_item_chars: int
     grouping_batch_chars: int
     allowed_hosts: tuple[str, ...]
+    user_agent_contact: str | None = None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -31,4 +38,5 @@ class Settings:
                 for host in os.getenv("CATCHUP_ALLOWED_HOSTS", "localhost,127.0.0.1,[::1]").split(",")
                 if host.strip()
             ),
+            user_agent_contact=validate_user_agent_contact(os.getenv("CATCHUP_USER_AGENT_CONTACT")),
         )

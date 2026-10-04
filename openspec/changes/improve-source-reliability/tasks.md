@@ -12,14 +12,14 @@ Implementer notes:
 
 ## 1. Identify CatchUp and honor rate limits in `safe_fetch`
 
-- [ ] 1.1 Add the User-Agent per design.md D2:
+- [x] 1.1 Add the User-Agent per design.md D2:
   - `CATCHUP_USER_AGENT_CONTACT` in `backend/src/catchup/config.py`, with validation (printable ASCII, no CR/LF, ≤ 100 chars) that fails at startup with a clear error
   - the header on the `httpx.Client` in `backend/src/catchup/net/safe_fetch.py`
   - the version from `importlib.metadata` with a `0.0.0` fallback
 
   Verify: tests assert the exact header with and without a contact, that an invalid contact (e.g. containing `\r\n`) is rejected, and (respx) that the header is present on a redirect hop.
-- [ ] 1.2 Add `Retry-After` parsing per design.md D3 (delay-seconds; HTTP-date in IMF-fixdate, RFC 850, and asctime; past → 0; invalid → `None`) as a small function in `safe_fetch.py` or a new `net/retry_after.py`. Verify: unit tests for each format, a past date, an empty value, and garbage.
-- [ ] 1.3 Implement the retry policy per design.md D3 in `safe_fetch.py`:
+- [x] 1.2 Add `Retry-After` parsing per design.md D3 (delay-seconds; HTTP-date in IMF-fixdate, RFC 850, and asctime; past → 0; invalid → `None`) as a small function in `safe_fetch.py` or a new `net/retry_after.py`. Verify: unit tests for each format, a past date, an empty value, and garbage.
+- [x] 1.3 Implement the retry policy per design.md D3 in `safe_fetch.py`:
   - 429, or 503 with `Retry-After`, is retried once when ≤ 10 s and within the deadline (a patchable module-level sleep hook)
   - otherwise `FetchError("rate_limited", message, status_code, retry_after=…)`
   - `FetchError` gains `retry_after`

@@ -18,6 +18,7 @@ from catchup.db import make_engine, migrate
 from catchup.digest.runner import recover_runs
 from catchup.errors import register_error_handlers
 from catchup.llm.client import ModelClient
+from catchup.net.feed_cache import FeedCache
 
 
 def create_app(settings: Settings | None = None, dist_dir: Path | None = None) -> FastAPI:
@@ -38,6 +39,7 @@ def create_app(settings: Settings | None = None, dist_dir: Path | None = None) -
 
     app = FastAPI(lifespan=lifespan)
     app.state.settings = instance_settings
+    app.state.feed_cache = FeedCache()
     app.state.model_client_factory = ModelClient
     register_error_handlers(app)
     app.include_router(settings_router)

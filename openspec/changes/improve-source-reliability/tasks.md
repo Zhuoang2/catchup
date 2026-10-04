@@ -30,7 +30,7 @@ Implementer notes:
 
 ## 2. Reuse a recent preview on confirm
 
-- [ ] 2.1 Add `backend/src/catchup/net/feed_cache.py` (`FeedCache`: lock, TTL 600 s, max 50 with oldest evicted, pop on use, injectable clock) per design.md D4. Create it on `app.state.feed_cache` in `create_app`. Pass it to `discover(url, cache=…)` from preview, which stores the final feed response under its final URL. In `confirm` (`backend/src/catchup/api/sources.py`), pop a fresh entry for `feed_url` instead of fetching, and fall back to fetching otherwise. Verify:
+- [x] 2.1 Add `backend/src/catchup/net/feed_cache.py` (`FeedCache`: lock, TTL 600 s, max 50 with oldest evicted, pop on use, injectable clock) per design.md D4. Create it on `app.state.feed_cache` in `create_app`. Pass it to `discover(url, cache=…)` from preview, which stores the final feed response under its final URL. In `confirm` (`backend/src/catchup/api/sources.py`), pop a fresh entry for `feed_url` instead of fetching, and fall back to fetching otherwise. Verify:
   - unit tests for TTL, cap, and pop
   - API tests: preview → confirm makes exactly one request to the feed URL (respx call count); confirm after the TTL (injected clock) fetches again; confirm without any preview fetches
   - existing source tests still pass

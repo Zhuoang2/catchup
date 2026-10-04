@@ -55,9 +55,9 @@ def _unique_entries(feed):
 
 
 @router.post("/preview")
-def preview(data: PreviewInput, session: Session = Depends(get_session)) -> dict:
+def preview(data: PreviewInput, request: Request, session: Session = Depends(get_session)) -> dict:
     try:
-        found = discover(data.url.strip())
+        found = discover(data.url.strip(), cache=request.app.state.feed_cache)
     except FetchError as exc:
         raise _fetch_error(exc) from exc
     duplicate = _existing(found.feed.feed_url, session)
@@ -83,7 +83,9 @@ def preview(data: PreviewInput, session: Session = Depends(get_session)) -> dict
 @router.post("", status_code=201)
 def confirm(data: ConfirmInput, request: Request, session: Session = Depends(get_session)) -> dict:
     try:
-        feed = parse_feed(safe_fetch(data.feed_url.strip()))
+        feed_url = data.feed_url.strip()
+        response = request.app.state.feed_cache.pop(feed_url)
+        feed = parse_feed(response if response is not None else safe_fetch(feed_url))
     except FetchError as exc:
         raise _fetch_error(exc) from exc
     except FeedParseError as exc:

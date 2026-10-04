@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit
 
+from catchup.net.feed_cache import FeedCache
 from catchup.net.safe_fetch import FetchError, FetchResponse, safe_fetch
 from catchup.sources.feeds import Feed, FeedParseError, parse_feed
 
@@ -46,13 +47,19 @@ def _probes(url: str) -> list[str]:
     return list(dict.fromkeys(origin + path for path in paths))[:8]
 
 
-def discover(url: str) -> Discovery:
+def discover(url: str, *, cache: FeedCache | None = None) -> Discovery:
+    def found_feed(response: FetchResponse, notice: bool) -> Discovery:
+        feed = parse_feed(response)
+        if cache is not None:
+            cache.put(response)
+        return Discovery(feed, notice)
+
     response = safe_fetch(url)
     is_feed_type = response.content_type.lower().split(";")[0].strip() in FEED_TYPES
     try:
         feed = parse_feed(response)
         if feed.entries or is_feed_type:
-            return Discovery(feed, False)
+            return found_feed(response, False)
     except FeedParseError:
         if is_feed_type:
             raise FetchError("not_a_feed", "The URL did not return a parsable feed.") from None
@@ -69,8 +76,12 @@ def discover(url: str) -> Discovery:
         for href in links.feeds:
             candidate = urljoin(response.url, href)
             try:
-                return Discovery(parse_feed(safe_fetch(candidate)), notice)
-            except (FetchError, FeedParseError):
+                return found_feed(safe_fetch(candidate), notice)
+            except FetchError as exc:
+                if exc.code == "rate_limited":
+                    raise
+                continue
+            except FeedParseError:
                 continue
         raise FetchError("not_a_feed", "The declared feed could not be parsed.")
 
@@ -81,10 +92,15 @@ def discover(url: str) -> Discovery:
         if not budget[0]:
             break
         try:
-            found = parse_feed(safe_fetch(candidate, same_origin=_origin(response.url), budget=budget))
+            feed_response = safe_fetch(candidate, same_origin=_origin(response.url), budget=budget)
+            found = parse_feed(feed_response)
             if found.entries:
                 origin_level = urlsplit(candidate).path in COMMON_PATHS
-                return Discovery(found, notice or (deeper_page and origin_level))
-        except (FetchError, FeedParseError):
+                return found_feed(feed_response, notice or (deeper_page and origin_level))
+        except FetchError as exc:
+            if exc.code == "rate_limited":
+                raise
+            continue
+        except FeedParseError:
             continue
     raise FetchError("no_feed", "No supported feed was found at this URL.")

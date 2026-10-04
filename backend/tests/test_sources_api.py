@@ -70,6 +70,55 @@ def test_preview_does_not_write_and_limits_entries(client):
         assert session.scalar(select(func.count()).select_from(Item)) == 0
 
 
+@pytest.mark.parametrize("path", ["direct", "declared", "probed"])
+def test_preview_confirm_uses_final_feed_url_once(client, path):
+    target = "https://site.example/final.xml"
+    with respx.mock(assert_all_mocked=True) as router:
+        if path == "direct":
+            start_url = FEED_URL
+        else:
+            start_url = "https://site.example/"
+            page = (b"<html><link rel='alternate' type='application/rss+xml' href='/feed.xml'></html>"
+                    if path == "declared" else b"<!doctype html><html></html>")
+            router.get(start_url).mock(return_value=httpx.Response(
+                200, content=page, headers={"content-type": "text/html"},
+            ))
+        if path == "probed":
+            router.get("https://site.example/.rss").mock(return_value=httpx.Response(404))
+            router.get("https://site.example/feed").mock(
+                return_value=httpx.Response(302, headers={"location": "/final.xml"}),
+            )
+        else:
+            router.get(FEED_URL).mock(return_value=httpx.Response(302, headers={"location": "/final.xml"}))
+        final = router.get(target).mock(return_value=httpx.Response(
+            200, content=entries_xml(1), headers={"content-type": "application/rss+xml"},
+        ))
+        preview = client.post("/api/sources/preview", json={"url": start_url})
+        assert preview.status_code == 200
+        assert preview.json()["feed_url"] == target
+        confirmed = client.post("/api/sources", json={"feed_url": target})
+        assert confirmed.status_code == 201
+        assert final.call_count == 1
+
+
+def test_expired_preview_refetches_feed(client):
+    now = [0.0]
+    client.app.state.feed_cache.clock = lambda: now[0]
+    with respx.mock(assert_all_mocked=True) as router:
+        route = serve_feed(router, entries_xml(1))
+        assert client.post("/api/sources/preview", json={"url": FEED_URL}).status_code == 200
+        now[0] = 601
+        assert client.post("/api/sources", json={"feed_url": FEED_URL}).status_code == 201
+        assert route.call_count == 2
+
+
+def test_confirm_without_preview_fetches_feed(client):
+    with respx.mock(assert_all_mocked=True) as router:
+        route = serve_feed(router, entries_xml(1))
+        assert client.post("/api/sources", json={"feed_url": FEED_URL}).status_code == 201
+        assert route.call_count == 1
+
+
 def test_declared_html_article_notice(client):
     with respx.mock(assert_all_mocked=True) as router:
         router.get("https://site.example/story").mock(return_value=httpx.Response(

@@ -180,3 +180,17 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Prompt (faithful excerpt): "Runner thread and stage-1 workers must never share a SQLAlchemy session ... Put the model-client factory on app.state ... Read digest_language once at run start ... POST /api/digest-runs: 409 model_not_configured ... 409 run_active ... collecting-stage progress ... no real network, no real API key, no writes outside pytest temp dirs, and no fixed sleeps in tests. ... Commit after each of 5.1-5.2 and 5.3-5.4."
 - Outcome: Added four-way model-only summary workers, validated topic refs with batching/merge, short-transaction run persistence with startup recovery, progress API, and polling UI. Summaries are reused only in the matching language; saved digest and delivery are atomic. Tests map all digest-generation scenarios in `review-notes.md`. Committed the first pair of tasks separately from the runner/UI pair.
 - What failed / adjustment: No focused or full checks failed. `npm ci` was needed in the fresh worktree. Strengthened a concurrent fake to route responses by item title rather than scheduling order, and changed fatal-error handling not to wait for unrelated model workers. No real model or feed was contacted.
+
+## 2026-10-03 — Group 5 (Factory Droid, fresh session) and review (Claude Code, Opus 5.5)
+
+- Prompt: a fresh session again, this time with **nine reviewer notes written before any code existed**. Among them:
+  - session isolation between threads
+  - the model-client factory on `app.state` so the background thread is testable
+  - a synchronous entry point so tests need no sleeps
+  - the language-keyed summary cache
+  - the error policy per error type
+  - one-transaction save
+  - collecting-stage progress, carried over from the group 4 review
+- Result: commits `89bdc02`, `51fe105`; 20/24 tasks; 130 backend + 15 frontend tests. Every digest-generation scenario is mapped to tests. Cost: 36 turns, ~5.4 minutes, ~341K credits.
+- Review: no required fixes. Three low-severity items are carried into the next hand-off instead of paying for a separate fix session.
+- Lesson: Anticipating the design pitfalls of the hardest group in the prompt again avoided a fix round. Folding low-severity findings into the next group's prompt is cheaper than an immediate fix session.

@@ -56,3 +56,19 @@ Digest-generation spec scenarios:
 | Rejected key during a run | `test_auth_or_balance_fails_immediately_with_pending_items`, `test_auth_failure_does_not_wait_for_another_model_worker` |
 
 Additional tests cover summary-unavailable snapshots, original-language prompt rules, batching and merge, read-once language, source-check visibility as collection commits, and failure UI. Remaining end-to-end collection-to-digest API testing and history endpoints are task groups 7 and 6 respectively.
+
+### Claude Code review of group 5 (2026-10-03)
+
+- Re-ran in a fresh worktree: 130 backend tests (95% coverage; runner 98%), runner tests 3× in a row with no flakiness, no fixed sleeps in tests, 15 frontend tests, build, and strict validation. No `backend/data` is created.
+- Code read in full (runner, summarize, group, prompts, runs API). Confirmed:
+  - All DB writes happen on the runner thread; workers only call the model.
+  - Every pending item yields exactly one result.
+  - Snapshot and delivery share one transaction.
+  - Auth and balance errors abort without waiting for other workers.
+  - Grouping output is validated: unknown refs are dropped, duplicates removed, unplaced items go to "Other".
+  - Prompts mark item content as data, not instructions.
+- Verdict: **no required fixes.** Carried into the group 6 hand-off (low severity):
+  1. The final `except Exception` in `run_digest` logs nothing; unexpected failures should be logged server-side without credentials.
+  2. The "Other" topic title is always English; it should follow the digest language.
+  3. A source deleted mid-run raises `KeyError` at save time and fails the whole run; its items should be skipped instead.
+- To check in the manual DeepSeek test: whether `SUMMARY_MAX_TOKENS = 512` is enough if the model spends tokens on reasoning (empty content would show up as "summary unavailable").

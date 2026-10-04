@@ -271,3 +271,4 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - a real server saw the CatchUp User-Agent
   - Reddit preview → immediate confirm succeeded with 0 extra feed requests; this step had failed before the change
 - Lesson: Asking a research subagent to verify the current external rules, not just the data format, surfaced a platform shutdown that made half of the planned work obsolete. Checking it before planning saved implementing a feature with a six-week lifespan.
+- Archive (user approved the merge): `openspec archive improve-source-reliability -y` added 5 requirements to the main specs (`source-management` now 8, `content-collection` now 8; strict validation passes). It moved the change to `openspec/changes/archive/2026-10-04-improve-source-reliability/`.

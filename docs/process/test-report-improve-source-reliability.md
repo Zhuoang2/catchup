@@ -56,4 +56,14 @@ Every scenario in both change spec deltas is mapped below. Backend test names ar
 
 ## Manual verification
 
-Reviewer and user: pending. Preview → confirm a Reddit source without the previous ~15 s manual wait; inspect the User-Agent with a local request log or an HTTP echo service. Live Reddit and real model access were intentionally not used by the implementer.
+Performed 2026-10-04 by Claude Code against the real network. No model call was involved, so no API key was used.
+
+- **User-Agent:** `safe_fetch("https://httpbin.org/headers")` showed the server received `CatchUp/0.1.0 (+https://github.com/Zhuoang2/catchup)`.
+- **Reddit preview → immediate confirm:** run through the real API (`TestClient` on a throwaway data dir).
+  - Preview of `https://www.reddit.com/r/programming/` returned 200 with feed `https://www.reddit.com/r/programming.rss`.
+  - Confirm, sent immediately afterwards, returned **201** (`new_items`) in 4.3 s. Before this change, the same step failed with a rate limit and had to be retried 15 s later (`test-report-add-core-digest-flow.md`, re-test).
+  - Requests were counted by wrapping `httpx.Client.stream`. **0 feed requests during confirm**; the preview's feed was reused.
+  - The 5 confirm-time article fetches all went to `www.reddit.com`. A total of 4.3 s is consistent with ≥ 1 s spacing per host.
+- **Not exercised live:** an actual 429 with `Retry-After`, because Reddit did not rate limit during this check. This behavior is covered by the respx tests above.
+
+**Result:** passes.

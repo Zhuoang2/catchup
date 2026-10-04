@@ -258,3 +258,16 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Correction: Claude had reported "6 topics" for run 2; a recount showed 5. Fixed in the test report.
 - Final implementation cost for the change: ~3.40M Factory credits across 10 Droid runs.
 - Archive (user approved the merge): `openspec archive add-core-digest-flow -y` merged the deltas into five main specs (32 requirements; `openspec validate --specs --strict` passes; no placeholder Purposes). It moved the change to `openspec/changes/archive/2026-10-03-add-core-digest-flow/`. The README was updated from "scaffold" wording to the current state.
+
+## 2026-10-04 — `improve-source-reliability`: research, scope change, implementation, review (Claude Code, Opus 5.5; Factory Droid, GPT-6 Sol)
+
+- **Research changed the scope.** A subagent asked to verify Reddit's RSS structure and rate-limit rules found that Reddit will stop all RSS on 2026-11-13. Claude confirmed this against the TechCrunch report before relying on it. The user then dropped the Reddit link-post extractor (#2, closed) and kept only generic fetch reliability.
+- Proposals: in-process handling (chosen) vs persistent cooldowns. The user asked for both proposals' downsides before deciding; Claude listed six for each.
+- Droid, fresh session, with seven reviewer notes anticipating pitfalls (backward-compatible `safe_fetch`, no real sleeps, locks, cache key = final URL, one shared message prefix, `AppError` details, UA contact validation):
+  - 9/9 tasks, 4 commits, 197 backend + 22 frontend tests
+  - 58 turns, ~6.6 minutes, ~590K credits
+- Review: no required fixes; two low-severity notes recorded.
+- Live check without a model key:
+  - a real server saw the CatchUp User-Agent
+  - Reddit preview → immediate confirm succeeded with 0 extra feed requests; this step had failed before the change
+- Lesson: Asking a research subagent to verify the current external rules, not just the data format, surfaced a platform shutdown that made half of the planned work obsolete. Checking it before planning saved implementing a feature with a six-week lifespan.

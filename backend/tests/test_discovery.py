@@ -118,6 +118,7 @@ def test_direct_feed_and_declared_html(public_dns):
         ))
         direct = discover("https://site.example/feed.xml")
         declared = discover("https://site.example/")
+        assert all(call.request.headers["user-agent"].startswith("CatchUp/") for call in router.calls)
     assert direct.feed.feed_url == declared.feed.feed_url == "https://site.example/feed.xml"
     assert not direct.follows_site_feed_notice
     assert not declared.follows_site_feed_notice
@@ -164,6 +165,7 @@ def test_reddit_path_dot_rss_probe(public_dns):
         ))
         found = discover(url)
         assert len(router.calls) == 3
+        assert all(call.request.headers["user-agent"].startswith("CatchUp/") for call in router.calls)
     assert found.feed.feed_url.endswith("/r/catchup/.rss")
 
 

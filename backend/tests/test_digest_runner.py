@@ -1,4 +1,5 @@
 import threading
+import socket
 from dataclasses import replace
 from datetime import datetime, timezone
 
@@ -13,6 +14,10 @@ from catchup.main import create_app
 from catchup.models import (
     AppSettings, Digest, DigestItem, DigestRun, DigestTopic, Item, ModelConfig, Source, SourceCheck,
 )
+from catchup.net.host_spacing import HostSpacer
+from catchup.net.safe_fetch import RATE_LIMIT_PREFIX
+import httpx
+import respx
 
 
 class FakeModel:
@@ -64,7 +69,7 @@ def seed(client, count=1, sources=1, language="en"):
 
 
 def stub_collection(monkeypatch, on_check=None):
-    def check(session, source, run_id, _settings):
+    def check(session, source, run_id, _settings, *, spacer=None):
         if on_check:
             on_check()
         row = SourceCheck(run_id=run_id, source_id=source.id, status="no_new_items",
@@ -255,7 +260,7 @@ def test_missing_group_ref_goes_to_other_and_unknown_ref_is_ignored(environment,
 def test_no_content_reports_failed_source_without_digest(environment, monkeypatch):
     seed(environment, count=0, sources=2)
 
-    def check(session, source, run_id, _settings):
+    def check(session, source, run_id, _settings, *, spacer=None):
         row = SourceCheck(run_id=run_id, source_id=source.id, status="failed",
                           error="offline", possible_gap=True)
         session.add(row)
@@ -367,3 +372,84 @@ def test_api_rejects_unconfigured_and_reports_active_progress(environment, monke
     assert len(detail["source_checks"]) == 2
     assert environment.get("/api/digest-runs/active").json() is None
     assert environment.get("/api/digest-runs/9999").status_code == 404
+
+
+@pytest.mark.parametrize("same_host", [True, False])
+def test_runner_spaces_same_host_checks_without_delaying_other_hosts(environment, monkeypatch, same_host):
+    seed(environment, count=0, sources=2)
+    with environment.app.state.session_factory() as session:
+        sources = session.scalars(select(Source).order_by(Source.id)).all()
+        sources[0].feed_url = "https://site.example/one"
+        sources[1].feed_url = f"https://{'site' if same_host else 'other'}.example/two"
+        session.commit()
+
+    monkeypatch.setattr(socket, "getaddrinfo", lambda _host, port, **_kwargs: [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", port)),
+    ])
+    now = [10.0]
+    starts = []
+    sleeps = []
+
+    def advance(seconds):
+        sleeps.append(seconds)
+        now[0] += seconds
+
+    monkeypatch.setattr(
+        "catchup.digest.runner.HostSpacer",
+        lambda: HostSpacer(clock=lambda: now[0], sleep=advance),
+    )
+
+    def answer(_request):
+        starts.append(now[0])
+        return httpx.Response(200, content=b"<rss><channel><title>Empty</title></channel></rss>")
+
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/one").mock(side_effect=answer)
+        router.get(sources[1].feed_url).mock(side_effect=answer)
+        result = execute(environment)
+    assert result["status"] == "no_new_content"
+    assert len(starts) == 2
+    assert starts[1] - starts[0] == (1.0 if same_host else 0.0)
+    assert sleeps == ([1.0] if same_host else [])
+
+
+@pytest.mark.parametrize("status,error,expected", [
+    (429, f"{RATE_LIMIT_PREFIX} Try again in about 120 seconds.", True),
+    (503, f"{RATE_LIMIT_PREFIX} Try again in about 120 seconds.", True),
+    (503, "The source could not be fetched.", False),
+])
+def test_run_detail_identifies_only_rate_limited_checks(environment, status, error, expected):
+    seed(environment, count=0)
+    with environment.app.state.session_factory() as session:
+        source = session.scalar(select(Source))
+        run = DigestRun(status="no_new_content")
+        session.add(run)
+        session.flush()
+        session.add(SourceCheck(source_id=source.id, run_id=run.id, status="failed",
+                                http_status=status, error=error, entries_seen=0, new_count=0))
+        session.commit()
+        run_id = run.id
+    check = environment.get(f"/api/digest-runs/{run_id}").json()["source_checks"][0]
+    assert check["status"] == "failed"
+    assert check["http_status"] == status
+    assert check["rate_limited"] is expected
+
+
+def test_rate_limited_run_check_is_visible_in_progress_and_source_list(environment, monkeypatch):
+    seed(environment, count=0)
+    monkeypatch.setattr(socket, "getaddrinfo", lambda _host, port, **_kwargs: [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", port)),
+    ])
+    with respx.mock(assert_all_mocked=True) as router:
+        route = router.get("https://s0.example/feed").mock(return_value=httpx.Response(
+            429, headers={"Retry-After": "120"},
+        ))
+        result = execute(environment)
+    assert route.call_count == 1
+    assert route.calls[0].request.headers["user-agent"].startswith("CatchUp/")
+    assert result["status"] == "no_new_content"
+    check = result["source_checks"][0]
+    assert (check["status"], check["http_status"], check["rate_limited"]) == ("failed", 429, True)
+    assert "about 120 seconds" in check["error"]
+    listed = environment.get("/api/sources").json()[0]
+    assert (listed["last_check_status"], listed["http_status"], listed["rate_limited"]) == ("failed", 429, True)

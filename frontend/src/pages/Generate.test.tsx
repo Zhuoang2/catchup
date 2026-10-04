@@ -34,6 +34,18 @@ it('resumes collection progress and shows source outcomes on reload', async () =
   expect(screen.getByRole('button', { name: 'Generate Digest' })).toBeDisabled()
 })
 
+it('labels rate-limited source checks distinctly from failures', async () => {
+  fetchMock.mockResolvedValue(respond({
+    ...run, status: 'no_new_content', source_checks: [
+      { source_id: 1, source_title: 'News', status: 'failed', possible_gap: false,
+        http_status: 429, rate_limited: true, error: 'The source is rate limiting requests.' },
+    ],
+  }))
+  page()
+  expect(await screen.findByText('News: rate limited (try later)')).toBeInTheDocument()
+  expect(screen.queryByText(/News: failed/)).not.toBeInTheDocument()
+})
+
 it('starts generation and follows item progress, then links to the digest', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
   try {

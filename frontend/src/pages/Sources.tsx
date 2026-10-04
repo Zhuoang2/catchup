@@ -9,6 +9,7 @@ type Preview = {
 type Source = {
   id: number; title: string; feed_url: string; site_url: string;
   last_check_at: string | null; last_check_status: string | null; possible_gap: boolean
+  http_status: number | null; rate_limited: boolean
 }
 
 const messages: Record<string, string> = {
@@ -20,7 +21,12 @@ const messages: Record<string, string> = {
 }
 
 function describeError(error: unknown) {
-  if (error instanceof ApiError) return messages[error.code] ?? error.message
+  if (error instanceof ApiError) {
+    if (error.code === 'rate_limited') {
+      return `Rate limited — try again later${error.retryAfter !== null ? ` (about ${error.retryAfter} seconds)` : ''}.`
+    }
+    return messages[error.code] ?? error.message
+  }
   return 'Could not connect to CatchUp.'
 }
 
@@ -120,6 +126,7 @@ export default function Sources() {
             <span> Last check: {source.last_check_status ?? 'Never checked'}
               {source.last_check_at ? ` (${new Date(source.last_check_at).toLocaleString()})` : ''}
             </span>
+            {source.rate_limited && <span> Rate limited</span>}
             {source.possible_gap && <span> Possible gap</span>}
             <button type="button" onClick={() => deleteSource(source)}>Delete {source.title}</button>
           </li>

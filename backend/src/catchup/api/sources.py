@@ -12,6 +12,8 @@ from catchup.collection import article_text
 from catchup.db import get_session
 from catchup.errors import AppError
 from catchup.models import Item, Source, SourceCheck, utc_now
+from catchup.net.host_spacing import HostSpacer
+from catchup.net.rate_limit import is_rate_limited
 from catchup.net.safe_fetch import FetchError, safe_fetch
 from catchup.sources.discovery import discover
 from catchup.sources.feeds import FeedParseError, parse_feed
@@ -28,7 +30,7 @@ class ConfirmInput(BaseModel):
 
 
 def _fetch_error(exc: FetchError) -> AppError:
-    return AppError(exc.code, str(exc), 422)
+    return AppError(exc.code, str(exc), 422, **({"retry_after": exc.retry_after} if exc.code == "rate_limited" else {}))
 
 
 def _existing(feed_url: str, session: Session) -> Source | None:
@@ -55,9 +57,9 @@ def _unique_entries(feed):
 
 
 @router.post("/preview")
-def preview(data: PreviewInput, session: Session = Depends(get_session)) -> dict:
+def preview(data: PreviewInput, request: Request, session: Session = Depends(get_session)) -> dict:
     try:
-        found = discover(data.url.strip())
+        found = discover(data.url.strip(), cache=request.app.state.feed_cache)
     except FetchError as exc:
         raise _fetch_error(exc) from exc
     duplicate = _existing(found.feed.feed_url, session)
@@ -83,7 +85,9 @@ def preview(data: PreviewInput, session: Session = Depends(get_session)) -> dict
 @router.post("", status_code=201)
 def confirm(data: ConfirmInput, request: Request, session: Session = Depends(get_session)) -> dict:
     try:
-        feed = parse_feed(safe_fetch(data.feed_url.strip()))
+        feed_url = data.feed_url.strip()
+        response = request.app.state.feed_cache.pop(feed_url)
+        feed = parse_feed(response if response is not None else safe_fetch(feed_url))
     except FetchError as exc:
         raise _fetch_error(exc) from exc
     except FeedParseError as exc:
@@ -107,11 +111,12 @@ def confirm(data: ConfirmInput, request: Request, session: Session = Depends(get
     session.add(source)
     session.flush()
     pending_count = 0
+    spacer = HostSpacer()
     for entry in entries:
         state = "pending" if entry.identity_key in selected else "baseline"
         pending_count += state == "pending"
         text, origin = (
-            article_text(entry, {feed.feed_url}, settings.short_text_chars)
+            article_text(entry, {feed.feed_url}, settings.short_text_chars, spacer=spacer)
             if state == "pending" else (entry.content_text, "feed")
         )
         session.add(Item(
@@ -154,6 +159,8 @@ def list_sources(session: Session = Depends(get_session)) -> list[dict]:
             "site_url": source.site_url, "last_check_at": last.checked_at if last else source.last_check_at,
             "last_check_status": last.status if last else source.last_check_status,
             "possible_gap": last.possible_gap if last else False,
+            "http_status": last.http_status if last else None,
+            "rate_limited": is_rate_limited(last),
         })
     return result
 

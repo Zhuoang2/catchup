@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 
 from catchup.main import create_app
 from catchup.models import Digest, DigestItem, DigestRun, DigestTopic, Item, Source, SourceCheck
+from catchup.net.safe_fetch import RATE_LIMIT_PREFIX
 
 NOW = datetime(2026, 10, 3, 12, tzinfo=timezone.utc)
 FEED_URL = "https://site.example/feed.xml"
@@ -70,6 +71,56 @@ def test_preview_does_not_write_and_limits_entries(client):
         assert session.scalar(select(func.count()).select_from(Item)) == 0
 
 
+@pytest.mark.parametrize("path", ["direct", "declared", "probed"])
+def test_preview_confirm_uses_final_feed_url_once(client, path):
+    target = "https://site.example/final.xml"
+    with respx.mock(assert_all_mocked=True) as router:
+        if path == "direct":
+            start_url = FEED_URL
+        else:
+            start_url = "https://site.example/"
+            page = (b"<html><link rel='alternate' type='application/rss+xml' href='/feed.xml'></html>"
+                    if path == "declared" else b"<!doctype html><html></html>")
+            router.get(start_url).mock(return_value=httpx.Response(
+                200, content=page, headers={"content-type": "text/html"},
+            ))
+        if path == "probed":
+            router.get("https://site.example/.rss").mock(return_value=httpx.Response(404))
+            router.get("https://site.example/feed").mock(
+                return_value=httpx.Response(302, headers={"location": "/final.xml"}),
+            )
+        else:
+            router.get(FEED_URL).mock(return_value=httpx.Response(302, headers={"location": "/final.xml"}))
+        final = router.get(target).mock(return_value=httpx.Response(
+            200, content=entries_xml(1), headers={"content-type": "application/rss+xml"},
+        ))
+        preview = client.post("/api/sources/preview", json={"url": start_url})
+        assert preview.status_code == 200
+        assert preview.json()["feed_url"] == target
+        confirmed = client.post("/api/sources", json={"feed_url": target})
+        assert confirmed.status_code == 201
+        assert final.call_count == 1
+
+
+def test_expired_preview_refetches_feed(client):
+    now = [0.0]
+    client.app.state.feed_cache.clock = lambda: now[0]
+    with respx.mock(assert_all_mocked=True) as router:
+        route = serve_feed(router, entries_xml(1))
+        assert client.post("/api/sources/preview", json={"url": FEED_URL}).status_code == 200
+        now[0] = 601
+        assert client.post("/api/sources", json={"feed_url": FEED_URL}).status_code == 201
+        assert route.call_count == 2
+
+
+def test_confirm_without_preview_fetches_feed(client):
+    with respx.mock(assert_all_mocked=True) as router:
+        route = serve_feed(router, entries_xml(1))
+        assert client.post("/api/sources", json={"feed_url": FEED_URL}).status_code == 201
+        assert route.call_count == 1
+        assert route.calls[0].request.headers["user-agent"].startswith("CatchUp/")
+
+
 def test_declared_html_article_notice(client):
     with respx.mock(assert_all_mocked=True) as router:
         router.get("https://site.example/story").mock(return_value=httpx.Response(
@@ -110,6 +161,7 @@ def test_configurable_first_add_limits(monkeypatch, public_dns):
     with TestClient(create_app()) as client, respx.mock(assert_all_mocked=True) as router:
         serve_feed(router, entries_xml(8))
         assert client.post("/api/sources", json={"feed_url": FEED_URL}).status_code == 201
+        assert all(call.request.headers["user-agent"].startswith("CatchUp/") for call in router.calls)
         with client.app.state.session_factory() as session:
             assert session.scalars(select(Item.state)).all().count("pending") == 1
 
@@ -142,6 +194,7 @@ def test_confirm_enriches_short_pending_entry_but_not_baseline(client):
                          b"</article></body></html>",
         ))
         assert client.post("/api/sources", json={"feed_url": FEED_URL}).status_code == 201
+        assert all(call.request.headers["user-agent"].startswith("CatchUp/") for call in router.calls)
     assert article.call_count == 1
     with client.app.state.session_factory() as session:
         recent = session.scalar(select(Item).where(Item.identity_key == "recent"))
@@ -196,6 +249,44 @@ def test_fetch_failure(client):
     assert response.json()["error"]["code"] == "fetch_failed"
 
 
+@pytest.mark.parametrize("endpoint", ["/api/sources/preview", "/api/sources"])
+def test_rate_limited_preview_or_confirm_has_retry_after(client, endpoint):
+    payload = {"url": FEED_URL} if endpoint.endswith("preview") else {"feed_url": FEED_URL}
+    with respx.mock(assert_all_mocked=True) as router:
+        route = router.get(FEED_URL).mock(return_value=httpx.Response(
+            429, headers={"Retry-After": "120"},
+        ))
+        response = client.post(endpoint, json=payload)
+    assert route.call_count == 1
+    assert response.status_code == 422
+    assert response.json()["error"] == {
+        "code": "rate_limited",
+        "message": f"{RATE_LIMIT_PREFIX} Try again in about 120 seconds.",
+        "retry_after": 120,
+    }
+
+
+@pytest.mark.parametrize("path", ["declared", "probed"])
+def test_preview_surfaces_rate_limit_on_discovered_feed(client, path):
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/").mock(return_value=httpx.Response(
+            200, content=(b"<html><link rel='alternate' type='application/rss+xml' href='/feed.xml'></html>"
+                          if path == "declared" else b"<!doctype html><html></html>"),
+            headers={"content-type": "text/html"},
+        ))
+        if path == "probed":
+            router.get("https://site.example/.rss").mock(return_value=httpx.Response(404))
+            target = "https://site.example/feed"
+        else:
+            target = FEED_URL
+        route = router.get(target).mock(return_value=httpx.Response(429))
+        response = client.post("/api/sources/preview", json={"url": "https://site.example/"})
+    assert route.call_count == 1
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "rate_limited"
+    assert response.json()["error"]["retry_after"] is None
+
+
 def test_list_status_and_delete_keeps_digest_snapshot(client):
     with respx.mock(assert_all_mocked=True) as router:
         serve_feed(router, entries_xml(1))
@@ -234,3 +325,23 @@ def test_list_status_and_delete_keeps_digest_snapshot(client):
         assert saved.summary == "Saved"
         assert saved.link.endswith("/0")
         assert session.scalar(select(func.count()).select_from(Digest)) == 1
+
+
+@pytest.mark.parametrize("status,error,expected", [
+    (429, "The source is rate limiting requests. Try again later.", True),
+    (503, f"{RATE_LIMIT_PREFIX} Try again in about 120 seconds.", True),
+    (503, "The source could not be fetched.", False),
+])
+def test_source_list_exposes_check_rate_limit(client, status, error, expected):
+    with respx.mock(assert_all_mocked=True) as router:
+        serve_feed(router, entries_xml(1))
+        source_id = client.post("/api/sources", json={"feed_url": FEED_URL}).json()["id"]
+    with client.app.state.session_factory() as session:
+        session.add(SourceCheck(source_id=source_id, status="failed", http_status=status,
+                                error=error, entries_seen=0, new_count=0,
+                                checked_at=NOW + timedelta(minutes=1)))
+        session.commit()
+    source = client.get("/api/sources").json()[0]
+    assert source["last_check_status"] == "failed"
+    assert source["http_status"] == status
+    assert source["rate_limited"] is expected

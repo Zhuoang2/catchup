@@ -2,6 +2,13 @@
 
 Real usage records for the technical spec, alpha reflection, and final report. Each entry: date, tool/model, purpose, prompt (verbatim or faithful excerpt), outcome, problems, adjustment.
 
+## 2026-10-04 — Docker packaging implementation (Factory Droid, GPT-6 Sol)
+
+- Purpose: Implement `add-docker-packaging` (#7), groups 1–4, on a branch from main.
+- Prompt (faithful excerpt): "Implement OpenSpec change add-docker-packaging ... using the openspec-apply-change skill ... check off each task only after its verification passes. Commit after each task group. Do not edit proposal.md, design.md, or the spec deltas ... pytest makes no real network calls, uses no real API key, writes nothing outside temp dirs, and uses no real sleeps; Docker checks use only local images, throwaway volumes, and loopback ports."
+- Outcome: Self-contained package, local Docker/Compose deployment, smoke script, CI and release workflow definitions, and user guide. Four group commits; 206 backend and 22 frontend tests, frontend build, smoke, wheel check, both-architecture local build, actionlint and strict validation passed. No image pushed or tag created.
+- Problems / adjustment: The local `actionlint` executable was missing, so Homebrew installed it before linting. A deliberately broken image health URL proved the smoke script rejects unhealthy containers. The source `.env.example` sets a relative data path; the Docker guide instead generates a secret-only `.env` so `/data` remains the persistent location. Real-key and GHCR checks remain for review.
+
 ## 2026-10-04 — Source reliability implementation (Factory Droid, GPT-6 Sol)
 
 - Purpose: Implement OpenSpec change `improve-source-reliability`, groups 1–4, on a branch from main.

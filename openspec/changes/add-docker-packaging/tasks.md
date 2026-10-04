@@ -49,7 +49,7 @@ Implementer notes:
 
 ## 4. Documentation and test report
 
-- [ ] 4.1 Add a README "Run with Docker" section:
+- [x] 4.1 Add a README "Run with Docker" section:
   - generating `CATCHUP_SECRET_KEY` into `.env`
   - `docker compose up -d` (published image) and `--build` (from source)
   - an equivalent `docker run` command
@@ -62,7 +62,7 @@ Implementer notes:
   - collected content being sent to the model provider
 
   Verify: every command in the section matches `compose.yaml` and `Dockerfile` (names, ports, volume, env vars).
-- [ ] 4.2 Write `docs/process/test-report-add-docker-packaging.md`:
+- [x] 4.2 Write `docs/process/test-report-add-docker-packaging.md`:
   - commands and results, including the image size and the smoke script output
   - a table mapping every scenario in `specs/local-deployment/spec.md` to its test or check; list any scenario verified only manually
   - a placeholder "Manual verification" section

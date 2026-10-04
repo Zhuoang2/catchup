@@ -221,3 +221,14 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Result: commit `65f058a`, 24/24 tasks, 147 backend + 19 frontend tests, test report with 48/48 scenarios mapped. Cost: 29 turns, ~4.2 minutes, ~317K credits.
 - Review: Claude did not trust the mapping table. A script checked that every scenario is named and that every cited test exists (57/57). No required fixes.
 - Implementation totals for the change: ~3.14M Factory credits across 9 Droid runs. The resumed long session (groups 1–3 plus fixes) cost ~1.94M; the four fresh-session groups (4–7) cost ~1.20M together.
+
+## 2026-10-03 — Manual verification with real DeepSeek and public sources (Claude Code, Opus 5.5, with the user)
+
+- Claude ran the app locally and drove the UI in the built-in browser. The user typed their own DeepSeek key into Settings; Claude never handled it.
+- Run 1 failed. Claude did not guess at the cause:
+  1. It read the stored run and item state from the database (read-only): 4 of 11 summaries and the grouping call were empty.
+  2. It confirmed in DeepSeek's docs that thinking mode is on by default.
+  3. It tested the hypothesis with an uncommitted local change that raised the budgets. Run 2 succeeded.
+- This was the most valuable test of the change. A design assumption (512-token summaries) passed 147 mocked tests but broke against the real provider's default behavior. Real sources also showed untitled social posts, a misleading notice, and metadata-heavy summaries.
+- Process: findings became spec requirements and tasks 8.1–8.4 on the branch, then went to a fresh Droid session (user's choice). Larger issues (Reddit link posts, rate limiting, a thinking toggle) were deferred to the next change.
+- Lesson: Mocked tests verify the contract we imagined. One short real run per change against the real provider and real sources is necessary, and it should happen before the plan is considered done.

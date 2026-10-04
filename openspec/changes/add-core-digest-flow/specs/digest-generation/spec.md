@@ -85,6 +85,20 @@ On startup, the system SHALL mark any run left unfinished as failed. Its items M
 - **WHEN** the application restarts while a run is summarizing
 - **THEN** after restart that run shows as failed and a new run can include its items
 
+### Requirement: Work with reasoning models by default
+The system SHALL request output budgets large enough that a provider's default reasoning mode does not leave summary or grouping responses empty.
+
+#### Scenario: Provider reasons before answering
+- **WHEN** the configured model reasons before producing output, as DeepSeek does by default
+- **THEN** item summaries and topic grouping still return content within the requested budget
+
+### Requirement: Summaries focus on substance
+Item summaries SHALL be 2–4 sentences about the item's substance. They MUST NOT include platform identifiers, user handles, submission metadata, or timestamps unless essential to the meaning. An item without substantive content MUST be described in one short sentence saying so.
+
+#### Scenario: Social post with metadata
+- **WHEN** an item is a social post whose feed text includes the author handle and a platform identifier
+- **THEN** the summary describes what the post says and omits the identifier and handle
+
 ### Requirement: Retry transient model errors
 The system SHALL retry model calls that return empty content, rate-limit errors, or temporary server errors, with backoff and a bounded number of attempts. Authentication and insufficient-balance errors MUST fail the run immediately with a message telling the user to fix the configuration.
 

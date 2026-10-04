@@ -49,6 +49,8 @@ External constraints from research:
 
 ### D3. Two-stage summarization
 - **Stage 1:** one JSON call per item that has no summary in the current digest language. Input text is truncated to `CATCHUP_MAX_ITEM_CHARS` (default 20000). Up to 4 calls run concurrently. The summary is stored on the item together with `summary_language` and reused by later runs only while the language setting matches. If an item still fails after retries, it is marked `summary_unavailable` for that run.
+- **Output budgets (changed 2026-10-03 after the manual test):** DeepSeek enables thinking mode by default at "high" effort (api-docs.deepseek.com/guides/thinking_mode). With the original budgets (512 tokens per summary; 512 + 24 per item for grouping), 4 of 11 summaries and the grouping call returned empty content, and the run failed. The budgets are now 4096 tokens per summary and `min(32768, 8192 + 24 × items)` for grouping and merge calls. With these budgets the same 11 items succeeded in 22 s with no unavailable summaries. Turning thinking off per provider is a possible later optimization (cost and latency), not part of this change.
+- **Summary content rules (added 2026-10-03 after the manual test):** summaries are 2–4 sentences about the item's substance. They must leave out platform identifiers (e.g. DIDs), user handles, post or submission metadata, and timestamps, unless essential to the meaning. If the item has no substantive content (e.g. only a link), the summary says so in one short sentence.
 - **Language:** prompts take the user's `digest_language` setting. Its value is `en`, `zh-Hans`, `original`, or free text for another language, and it is read once at run start. With `original`, each item summary uses the item's own language, and topic titles and overviews use the language most items are written in.
 - **Stage 2:** one JSON call groups items into topics. The input is short refs (`i1`, `i2`, ...), titles, source names, and summaries. The output is `{"topics": [{"title", "overview", "item_refs": [...]}]}`.
 - Validation of the stage 2 output:
@@ -88,8 +90,10 @@ External constraints from research:
   - X is not supported. Reading it requires login or the paid X API, so it is deferred (`docs/process/requirements-changes.md`).
 - "Single article" detection (`docs/handoff.md:46`):
   - The page has `og:type=article`.
-  - Or the page's path is not the site root and the page declares a feed.
+  - Or the feed was found by probing an origin-level path (e.g. `/feed`) for a page deeper than the site root.
   - If either holds, the preview shows a notice that the whole site's feed will be followed.
+  - Changed 2026-10-03 after the manual test. The earlier rule ("path is not the site root and the page declares a feed") wrongly showed the notice on Bluesky and Mastodon profile pages, whose declared feed belongs to the profile itself.
+- Untitled entries (added 2026-10-03 after the manual test): Bluesky and Mastodon RSS items have no `<title>`. When an entry has no title, the title is the first 80 characters of its plain text, cut at a word boundary where possible and followed by "…" when shortened. Only an entry with neither title nor text is "Untitled".
 
 ### D6. Synchronous SQLAlchemy with SQLite WAL
 - Connection setup: `PRAGMA journal_mode=WAL`, `busy_timeout=5000`, `foreign_keys=ON` on connect.

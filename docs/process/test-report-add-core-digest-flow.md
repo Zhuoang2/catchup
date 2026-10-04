@@ -111,4 +111,44 @@ Test names without a path in this table are in `backend/tests/`; frontend tests 
 
 ## Manual verification
 
-Placeholder for reviewer: Claude Code and the user verify the flow with a real feed and a real DeepSeek key during review. No live check was performed by the implementer; record the observations here after review.
+Performed 2026-10-03 by Claude Code with the user.
+
+**Setup:** branch at `e710af7`, run locally with a throwaway data directory. The user entered their own DeepSeek key in Settings; Claude never handled it. Model `deepseek-flash`, digest language 简体中文.
+
+**Sources** (added through the UI, preview then confirm):
+
+| Source | Result |
+| --- | --- |
+| `https://simonwillison.net/` | declared Atom feed found |
+| `https://bsky.app/profile/bsky.app` | declared RSS feed found |
+| `https://mastodon.social/@Mastodon` | declared RSS feed found |
+| `https://www.reddit.com/r/programming/` | no declared feed; probing found `/r/programming.rss` |
+
+**Run 1: failed.**
+- Stage 1: 7 of 11 summaries succeeded; 4 came back as empty content after retries.
+- Stage 2: the grouping call returned empty content, so the run failed with `provider_error`.
+- As designed, all 11 items stayed pending and the 7 summaries stayed cached.
+- In the same run Reddit answered HTTP 429. It was recorded as `failed` with `http_status=429`, separately from "no new items", and the run continued.
+
+**Diagnosis:** DeepSeek's docs say thinking mode is on by default at "high" effort. The original budgets (512 per summary, 776 for grouping) left no room for the answer after reasoning.
+
+**Experiment:** budgets raised locally, uncommitted (4096 per summary; 8192 + 24 per item for grouping).
+
+**Run 2: succeeded** in 22 s.
+- 11/11 summaries, 0 unavailable, 6 topics.
+- Chinese output is fluent; topic grouping is sensible.
+- Links, source names, and local times are correct.
+- Reddit answered 200 this time, so the earlier 429 was transient rate limiting.
+
+**Issues found that the mocked tests could not catch:**
+
+| Issue | Severity | Status |
+| --- | --- | --- |
+| Output budgets too small for DeepSeek's default reasoning | must | task 8.1 |
+| Bluesky/Mastodon entries titled "Untitled" (no `<title>` in their RSS) | should | task 8.2 |
+| Whole-site notice wrongly shown on profile pages | should | task 8.3 |
+| Summaries describe metadata (DIDs, user handles, "submitted by …") | should | task 8.4 |
+| Reddit link posts carry no content in RSS (only "[link] [comments]") | later | next change: extract the linked article |
+| Reddit 429 under repeated requests | later | next change: e.g. a descriptive User-Agent, backoff |
+
+A re-test after tasks 8.1–8.4 is recorded below.

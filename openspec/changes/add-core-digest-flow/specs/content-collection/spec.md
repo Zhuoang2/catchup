@@ -46,6 +46,13 @@ When a successful check of a source that already has recorded entries finds none
 - **WHEN** a source with recorded entries is checked and every entry in its feed is new
 - **THEN** the check outcome carries a possible-gap flag that the user can see
 
+### Requirement: Readable titles for untitled entries
+When a feed entry has no title, the system SHALL use the beginning of the entry's text (at most 80 characters) as its title. It SHALL show "Untitled" only when the entry has neither title nor text.
+
+#### Scenario: Social post without a title
+- **WHEN** a feed entry has no title and its text begins "Happy opening day, hockey fans! Follow all 1,344 games…"
+- **THEN** the entry's title shown in previews and digests starts with "Happy opening day, hockey fans!"
+
 ### Requirement: Keep article text for summarization
 For each new entry, the system SHALL keep the text the feed provides. When that text is very short, the system SHALL try to fetch the linked article through the safe fetcher and extract its main text, and fall back to the feed text if extraction fails.
 

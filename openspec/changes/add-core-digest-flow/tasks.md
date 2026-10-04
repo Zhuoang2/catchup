@@ -62,4 +62,12 @@ Implementer notes:
 - [x] 7.1 Add an end-to-end API test: configure settings (mocked provider) → preview and confirm a fixture feed → run → digest saved → second run gives `no_new_content` → fixture feed gains one entry → third run's digest contains only that entry. Verify: the test passes in `uv run pytest`.
 - [x] 7.2 Write `docs/process/test-report-add-core-digest-flow.md` with the commands run, the pass/fail counts, backend coverage from `uv run pytest --cov=catchup`, the frontend test count, and a table mapping each spec scenario to its test(s). Verify: every scenario in the five spec files appears in the table.
 
-Manual verification with a real feed and a real DeepSeek key is done during review by Claude Code with the user, not by the implementer.
+
+## 8. Fixes from manual verification
+
+- [ ] 8.1 Raise output budgets in `backend/src/catchup/llm/prompts.py` per design.md D3: 4096 for item summaries; `min(32768, 8192 + 24 × count)` for grouping and merge. Update the module docstring with the reason (DeepSeek thinking mode is on by default). Verify: tests assert the budgets passed to the client for a summary, a grouping call, and a merge call.
+- [ ] 8.2 Derive titles for untitled entries in `backend/src/catchup/sources/feeds.py` per design.md D5: the first 80 characters of plain text, cut at a word boundary where possible, with "…" when shortened; "Untitled" only with neither title nor text. Handle CJK text without spaces (cut at 80 characters). Verify: tests with a Bluesky-style RSS fixture (no `<title>`, text in `<description>`), a long CJK text, and an entry with neither.
+- [ ] 8.3 Fix the whole-site notice in `backend/src/catchup/sources/discovery.py` per design.md D5: show it only for `og:type=article`, or when an origin-level probe path was used for a deeper page. Verify: a test where a profile-style page (path `/@user`, declared feed, no `og:type=article`) gets no notice; existing article and origin-probe notice tests still pass.
+- [ ] 8.4 Add the summary content rules to the summary prompt in `prompts.py` per design.md D3: 2–4 sentences on substance; no platform identifiers, handles, submission metadata, or timestamps unless essential; one short sentence when there is no substantive content. Verify: a test asserts the system prompt contains these rules, and the existing language and "json" prompt tests still pass.
+
+Manual verification with a real feed and a real DeepSeek key is done during review by Claude Code with the user, not by the implementer. Results so far are in `docs/process/test-report-add-core-digest-flow.md` ("Manual verification").

@@ -21,6 +21,10 @@ The system SHALL accept a pasted URL and identify an RSS or Atom feed for it. If
 - **WHEN** the pasted HTML page declares no feed, but a feed exists at a common location on the same site (such as the page URL with `.rss` appended, `/feed`, `/rss.xml`, or `/atom.xml`)
 - **THEN** the system finds and previews that feed, and the preview shows the feed URL that was found
 
+#### Scenario: Profile or section page with its own declared feed
+- **WHEN** the pasted page is a profile or section page (not an article) that declares its own feed
+- **THEN** the preview does not say that the whole site's feed will be followed
+
 #### Scenario: Pasting a single article URL
 - **WHEN** the pasted page is an individual article on a site that declares a feed
 - **THEN** the preview states that CatchUp will follow the site's feed, not only that article

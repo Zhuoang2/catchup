@@ -53,7 +53,7 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Plan: proposal.md, five spec deltas (model-settings, source-management, content-collection, digest-generation, digest-history), the final design.md, and 22 tasks in tasks.md. `openspec validate --strict` passes.
 - Lesson: The user's clarifying question exposed that "new content" was explained only abstractly. A concrete run-by-run example made the semantics reviewable, and it became a spec requirement with scenarios.
 
-## 2026-10-02 — First Droid hand-off: task group 1 of `add-core-digest-flow` (Factory Droid, default model)
+## 2026-10-02 — First Droid hand-off: task group 1 of `add-core-digest-flow` (Factory Droid, GPT-6 Sol)
 
 - Purpose: First implementation by Factory Droid, limited to group 1 (scaffolding and CI) as a trial before handing over the remaining 17 tasks.
 - Command: `droid exec --auto medium -w add-core-digest-flow -o json "<prompt>"`
@@ -62,8 +62,16 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   > Implement ONLY task group 1 (tasks 1.1 to 1.5) of OpenSpec change add-core-digest-flow using the openspec-apply-change skill. Read openspec/changes/add-core-digest-flow/proposal.md, design.md, specs/ and tasks.md first. Work through tasks 1.1-1.5 in order and check off each task in tasks.md only after its verification passes. Do not start group 2. Do not edit proposal.md, design.md, or the spec deltas. Commit when group 1 is done. If a task is blocked or the plan looks wrong, stop and report instead of improvising. At the end, report: what you did per task, the exact verification commands you ran and their results, any deviations from the plan, and the branch/worktree path.
 
 - Prompt adjustment vs the template in the plan skill: Scope was narrowed to one group ("ONLY", "Do not start group 2"). The prompt adds an explicit reading list and a required end-of-run report (per-task summary, the exact verification commands and results, deviations, worktree path) so the review can check claims instead of trusting them.
-- Outcome (Droid's report): commit `0da6d26`, 5/22 tasks checked, 4 backend + 1 frontend tests passing, `openspec validate --strict` passing. It reported its own failure (an SPA fallback route shadowed an API route) and its fix, and it upgraded Vitest to clear two `npm audit` advisories. It also added its own entry to this log, as `AGENTS.md` instructs. That entry is merged in below.
+- Outcome (Droid's report): commit `0da6d26`, 5/22 tasks checked, 4 backend + 1 frontend tests passing, `openspec validate --strict` passing. It reported its own failure (an SPA fallback route shadowed an API route) and its fix, and it upgraded Vitest to clear two `npm audit` advisories. It also added its own entry to this log, as `AGENTS.md` instructs; that entry is kept below.
 - Cost: 29 turns, ~4.4 minutes, 242,373 Factory credits (from the `droid exec` JSON result).
+
+### Droid's own record of group 1 (Factory Droid, GPT-6 Sol)
+
+- Purpose: Implement only tasks 1.1–1.5, the application scaffold, migration, UI routes, static serving, documentation, and CI.
+- Prompt (user, excerpt): "Implement ONLY task group 1 (tasks 1.1 to 1.5) of OpenSpec change add-core-digest-flow using the openspec-apply-change skill. ... Work through tasks 1.1-1.5 in order and check off each task in tasks.md only after its verification passes. Do not start group 2. ... Commit when group 1 is done."
+- Outcome: Backend health/error tests, SQLite/Alembic startup test, frontend navigation test/build, SPA/API isolation test, development setup, and CI. Four backend and one frontend tests pass locally. No real key or live network is needed for the tests.
+- What failed: A first static fallback route shadowed a test-added API endpoint (one backend test failed). Changed the fallback to serve only 404 responses outside `/api`, then all four tests passed. The initial `npm ci` reported two moderate Vitest dev-dependency advisories; upgrading to patched Vitest 4.1.11 cleared `npm audit` while tests and build still passed.
+- Adjustment: Checked each task's stated verification before updating its checkbox. Left application features in later groups unimplemented.
 
 ### Claude Code review of group 1 (Opus 5.5)
 
@@ -76,3 +84,170 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   4. [should] Mutual foreign keys between `digest_runs` and `digests`; SQLAlchemy warns this may become an error.
   5. [optional] Vite 6 / TypeScript 5.8 instead of the current Vite 8 / TypeScript 7.
 - Lesson: Every task's "Verify" line passed, yet finding 1 was still a real defect. Verification lines check what the plan names, not side effects such as files written outside the test sandbox. Future plans should state "tests must not touch real data or the network" as a verifiable criterion, not only as a note. Findings were sent back to the same Droid session (`droid exec -s`).
+
+### Droid's record of the review fixes (Factory Droid, GPT-6 Sol)
+
+- Purpose: Correct issues found in review of the scaffold before starting group 2.
+- Prompt (user, excerpt): "Code review of your group 1 commit 0da6d26 found issues. Fix them on branch add-core-digest-flow, still within group 1 (do not start group 2): ... Tests must never touch a real data dir ... Change to openai>=3,<4 ... Move AppError ... make digest_runs.digest_id a plain nullable integer ... [optional] Upgrade [Vite and TypeScript] only if npm test, npm run build and npm audit stay clean."
+- Outcome: Test applications use a temporary data directory; a sentinel-directory test detects accidental writes to the configured location. OpenAI 3 is locked, shared errors are independent of the app module, and the digest table cycle is removed. The optional frontend upgrade passed tests, build, and audit.
+- What failed / adjustment: No checks failed in this round. Added regression tests for the two database issues, and updated the Node requirement in the README to match Vite 8.
+
+### Claude Code re-verification of the fixes (Opus 5.5)
+
+- Re-ran everything in a fresh worktree of commit `5441843`:
+  - 6 backend tests pass, also with `-W error::sqlalchemy.exc.SAWarning`, and no `backend/data` is created.
+  - `openai` 3.24.0 is locked; `Base.metadata.sorted_tables` raises no warning.
+  - Vite 8.3.2, TypeScript 7.0.2, plugin-react 6.1.1: frontend test and build pass, `npm audit` reports 0 vulnerabilities.
+  - `openspec validate --strict` passes.
+- Remaining weakness: The new sentinel test builds its settings before setting `CATCHUP_DATA_DIR`, so it passes regardless and would not catch a future test that calls `create_app()` without settings. The original bug is fixed. An autouse fixture that points every test at a temporary data dir is added to the next hand-off instead.
+- Cost: the session counter went from 29 to 41 turns and from 242,373 to 371,518 credits, so the fix run cost ~129K credits (see the cost note under groups 2–3).
+
+## 2026-10-03 — Model settings implementation (Factory Droid, GPT-6 Sol)
+
+- Purpose: Implement tasks 2.1–2.4 and the carried-over test sandbox fix.
+- Prompt (user, excerpt): "Implement ONLY task groups 2 and 3 (tasks 2.1-2.4 and 3.1-3.4) ... Replace it with an autouse fixture ... tests make no real network calls ... never read a real API key, and never write outside pytest temp dirs. Check off each task only after its verification passes. Commit after group 2 and again after group 3."
+- Outcome: The autouse fixture redirects app data to per-test temp dirs, removes the instance secret, and rejects unmocked DNS/connect calls. Added Fernet protection, a model client, settings APIs and a language picker UI.
+- What failed / adjustment: The first frontend run lacked dependencies (`npm ci` fixed it). Vitest 4 did not automatically clean up DOM trees between tests (three queries failed), so explicit Testing Library cleanup was added. OpenAI 3 uses httpx2, so a test-only transport bridge sends its requests through respx's httpx router without network calls.
+
+## 2026-10-03 — Source management implementation (Factory Droid, GPT-6 Sol)
+
+- Purpose: Implement tasks 3.1–3.4, with no work on content collection or generation.
+- Prompt: The same user prompt above requested group 3, offline tests, checking each task only after verification, and a second commit.
+- Outcome: Safe fetching with DNS and redirect checks, timeouts and a 5 MB cap; feed parsing, HTML discovery and bounded same-origin probing; source preview/confirm/list/delete with first-add baseline and pending marking; and a Sources page. Tests use fixture bytes, respx and patched DNS.
+- What failed / adjustment: A safe-fetch test revealed that Python's `is_global` alone allows multicast; explicit multicast and other reserved-address checks fixed it. Two respx tests matched a generic route before the specific feed route; registering the specific route first fixed their failures. The probing budget was shared across candidate requests and their redirects so redirects cannot exceed eight requests or leave the origin. Final review also tightened group 2's provider URL validation to reject embedded credentials rather than echoing them in settings or connection errors.
+
+## 2026-10-03 — Groups 2–3 of `add-core-digest-flow` (Factory Droid, GPT-6 Sol) and review (Claude Code, Opus 5.5)
+
+- Hand-off prompt changes after the group 1 lesson:
+  - Rules moved from notes into verification criteria: "Rules for every task, treated as verification criteria (not just notes): tests make no real network calls …, never read a real API key, and never write outside pytest temp dirs."
+  - The carried-over sentinel-test fix comes first.
+  - Commit per group, and a required report of deviations and uncertainties.
+- Droid's result: commits `54a5cd3` (group 2) and `74ea0c5` (group 3); 76 backend + 9 frontend tests; 13/22 tasks. The new autouse fixture blocks DNS and socket connections for every test. Cost: ~10 minutes; the session counter rose from 41 to 109 turns and from 371,518 to 1,518,203 credits, so this run cost ~1.15M credits (see the cost note below).
+- Claude's review:
+  - Method: re-ran everything in a separate worktree (76 + 9 tests, 94% backend coverage, build, audit 0) and read all source files. Hypotheses were then checked with small experiments instead of being reported as guesses: the SDK default timeout, IP-classification edge cases, a `text/plain` CSRF attempt, and a foreign Host header.
+  - Findings:
+    1. [must, security] The stored API key was reused when the base URL changed. With no Host check (a foreign Host returned 200), a DNS-rebinding page could repoint the provider and receive the key. **The root cause was Claude's own design text** ("missing fields fall back to stored values"), not Droid's code.
+    2. [must] `safe_fetch` had a per-read timeout but no total deadline, so a slow-drip server could hold a request open.
+    3. [must] The model client inherited the SDK default read timeout of 600 s (verified), so a connection test could hang for 10 minutes.
+    4. [should] `httpx2` was imported but not declared; an empty `choices` list would crash; NAT64 `64:ff9b::7f00:1` passed the address guard.
+  - Ruled out by experiment: simple CSRF (FastAPI rejected a `text/plain` body with 422).
+- Process: Claude amended the spec (two new requirements), design (D9, D4 additions), and tasks (2.5, 3.5) on the branch, logged the requirement change, and sent the fixes back to the same Droid session.
+- Lesson: Reviewing only against the plan would have missed finding 1, because the code matched the design. A short threat-model pass ("who can reach this API, and what can they make it do?") belongs in every review of a security-relevant group.
+
+## 2026-10-03 — D9 and D4 review fixes (Factory Droid, GPT-6 Sol)
+
+- Purpose: Implement only tasks 2.5 and 3.5 after review amended the plan.
+- Prompt (user, excerpt): "The main finding is a security issue whose root cause was the original design text, not your code: the stored API key could be sent to a changed base_url, and with no Host check a DNS-rebinding page could exploit that. Implement ONLY tasks 2.5 and 3.5, then stop ... no real network, no real key, no writes outside pytest temp dirs."
+- Outcome: Reject changed provider URLs without a new key, enforce an environment-configured Host allowlist, pass explicit model-call timeouts, retry empty choices, declare httpx2, enforce a 30-second fetch deadline, and check NAT64's embedded IPv4 address. Added offline tests with a fake provider, respx and a fake clock.
+- What failed / adjustment: The focused backend tests passed on the first run. The initial full frontend command could not find Vitest in this fresh worktree; `npm ci` installed the locked dependencies, then tests and build passed. Local Host tests use a default-only configuration; other tests add TestClient's synthetic `testserver` Host through the autouse fixture without broadening the production default.
+- Fix result: Droid commit `571daca` (tasks 2.5, 3.5). Claude re-verified it in a fresh worktree:
+  - 95 backend tests at 94% coverage, 9 frontend tests, build passing, `openspec validate --strict` passing.
+  - Experiments: a foreign Host header now gets 400, while `127.0.0.1` and the Vite dev proxy host `localhost:5173` still work. `httpx2` is declared.
+- **Cost note (correction):** `droid exec -s` reports the session's **cumulative** turns and credits; the turn counts rise 29 → 41 → 109 → 128. Per-run costs:
+
+  | Run | Credits |
+  | --- | --- |
+  | Group 1 | ~242K |
+  | Group 1 fixes | ~129K |
+  | Groups 2–3 | ~1.15M |
+  | Fixes 2.5/3.5 | ~417K |
+  | **Total so far** | **~1.94M** |
+
+  Resuming one long session also makes every later call re-read a growing context. For group 4 onward, a fresh session per group is cheaper; the OpenSpec files already carry the needed context.
+
+## 2026-10-03 — Content collection implementation (Factory Droid, GPT-6 Sol)
+
+- Purpose: Implement only task 4.1, including safe article extraction and per-source check outcomes.
+- Prompt (user, faithful excerpt): "Implement ONLY task group 4 (task 4.1, content collection), using the openspec-apply-change skill ... source_checks.http_status must be recorded ... secondary link match must ignore links equal to the source's feed_url ... possible-gap flag applies only to a successful check of a source that already has recorded items ... no real network ... Commit once at the end."
+- Outcome: Added `check_source(session, source, run_id, settings)`, first-sight recording and gap detection, HTTP status on check failures, and article extraction with feed fallback. Confirm-time pending entries also use the same extractor so the first digest has full text when available. Offline tests cover all content-collection scenarios.
+- What failed / adjustment: No tests failed. The course brief file named in `AGENTS.md` was absent in this worktree; task 4.1 did not depend on it. During implementation, noticed confirm-time pending entries would otherwise bypass extraction; reused the extraction helper there and adjusted existing test fixtures to supply sufficiently long feed text where article fetching is not under test. No real key or live network was used.
+- Verification: `uv run pytest` (112 passing before the last gap-edge test); final `uv run pytest --cov=catchup --cov-report=term` (113 passing, 95% overall, 100% collection); `npm test -- --run` (9 passing); `npm run build` and `openspec validate add-core-digest-flow --strict` passed.
+
+## 2026-10-03 — Group 4 in a fresh Droid session (Factory Droid, GPT-6 Sol) and review (Claude Code, Opus 5.5)
+
+- Change in approach: a new `droid exec` session instead of resuming the long one (`-s`), to stop paying for an ever-growing context. Because the new session had no memory, the prompt carried the context explicitly:
+  - a reading list (AGENTS.md, the relevant design decisions and spec, and the existing modules to reuse)
+  - four reviewer notes that anticipated pitfalls found while reading earlier code: HTTP status missing from `FetchError`; linkless entries carrying the feed URL as their link; the exact gap rule; extraction only via `safe_fetch`
+  - an explicit boundary: expose `check_source` for the runner; build no runner, API, or UI
+- Result: commit `0eedcd6`, 16/24 tasks, 113 backend tests. Every content-collection scenario is mapped to a test in `review-notes.md`.
+- Cost: 27 turns, ~4 minutes, **~252K credits**. That is about the same as group 1, versus ~1.15M for groups 2–3 in the resumed session. Fresh sessions plus an explicit context prompt worked better on cost, without losing quality.
+- Review: no required fixes; one trade-off recorded (synchronous article extraction). The only discrepancy was reported coverage of 95% vs 94% reproduced.
+- Lesson: Putting the pitfalls into the prompt in advance prevented a fix round. All four notes were handled correctly on the first pass.
+
+## 2026-10-03 — Digest generation group 5 (Factory Droid, GPT-6 Sol)
+
+- Purpose: Implement only tasks 5.1–5.4: summaries, topic grouping, run lifecycle, API, and Generate page.
+- Prompt (faithful excerpt): "Runner thread and stage-1 workers must never share a SQLAlchemy session ... Put the model-client factory on app.state ... Read digest_language once at run start ... POST /api/digest-runs: 409 model_not_configured ... 409 run_active ... collecting-stage progress ... no real network, no real API key, no writes outside pytest temp dirs, and no fixed sleeps in tests. ... Commit after each of 5.1-5.2 and 5.3-5.4."
+- Outcome: Added four-way model-only summary workers, validated topic refs with batching/merge, short-transaction run persistence with startup recovery, progress API, and polling UI. Summaries are reused only in the matching language; saved digest and delivery are atomic. Tests map all digest-generation scenarios in `review-notes.md`. Committed the first pair of tasks separately from the runner/UI pair.
+- What failed / adjustment: No focused or full checks failed. `npm ci` was needed in the fresh worktree. Strengthened a concurrent fake to route responses by item title rather than scheduling order, and changed fatal-error handling not to wait for unrelated model workers. No real model or feed was contacted.
+
+## 2026-10-03 — Group 5 (Factory Droid, fresh session) and review (Claude Code, Opus 5.5)
+
+- Prompt: a fresh session again, this time with **nine reviewer notes written before any code existed**. Among them:
+  - session isolation between threads
+  - the model-client factory on `app.state` so the background thread is testable
+  - a synchronous entry point so tests need no sleeps
+  - the language-keyed summary cache
+  - the error policy per error type
+  - one-transaction save
+  - collecting-stage progress, carried over from the group 4 review
+- Result: commits `89bdc02`, `51fe105`; 20/24 tasks; 130 backend + 15 frontend tests. Every digest-generation scenario is mapped to tests. Cost: 36 turns, ~5.4 minutes, ~341K credits.
+- Review: no required fixes. Three low-severity items are carried into the next hand-off instead of paying for a separate fix session.
+- Lesson: Anticipating the design pitfalls of the hardest group in the prompt again avoided a fix round. Folding low-severity findings into the next group's prompt is cheaper than an immediate fix session.
+
+## 2026-10-03 — Digest history group 6 (Factory Droid, GPT-6 Sol)
+
+- Purpose: Implement tasks 6.1–6.2 and three carried-over group 5 review fixes, without starting group 7.
+- Prompt (faithful excerpt): "Implement ONLY task group 6 (tasks 6.1-6.2, digest history) plus three carried-over review items, using the openspec-apply-change skill ... Read digests only from the snapshot tables ... The restart test must create a second app on the same data dir ... no real network, no real API key, no writes outside pytest temp dirs, no fixed sleeps in tests. ... Commit once at the end."
+- Outcome: Snapshot-backed history API and reader UI with ordered topics/items and safe links; runner logs unexpected failures with exception text redacted, localizes the fallback topic, and skips items deleted mid-run. Automated coverage includes deletion, restart, language variants, and an all-items-deleted case. Final checks: 142 backend and 19 frontend tests, build and strict OpenSpec validation pass.
+- What failed / adjustment: A frontend test expected `getByText('Blog')` to match text split around a date element; it was changed to assert against the containing item. A UTC test expected `+00:00` while FastAPI emitted `Z`; the assertion was corrected. No live model, key, or network was used.
+
+## 2026-10-03 — Group 6 (Factory Droid, fresh session) and review (Claude Code, Opus 5.5)
+
+- Prompt: group 6 tasks plus the three carried-over group 5 findings, each with a required test (for example, a `caplog` test proving the decrypted key never appears in logs).
+- Result: commit `083c9df`, 22/24 tasks, 142 backend + 19 frontend tests. Cost: 31 turns, ~3.7 minutes, ~289K credits.
+- Review: no required fixes. Reading the code across endpoints, rather than only the new endpoint, found an inconsistency that no per-group test could catch: one endpoint normalized SQLite's naive datetimes to UTC and another did not. Carried into group 7 with one model-layer fix.
+
+## 2026-10-03 — Integration and report group 7 (Factory Droid, GPT-6 Sol)
+
+- Purpose: Finish tasks 7.1–7.2 and fix the two findings carried over from group 6.
+- Prompt (faithful excerpt): "Implement task group 7 (7.1 end-to-end API test, 7.2 test report) plus two carried-over review items, using the openspec-apply-change skill ... Fix [timestamp handling] once at the model layer ... keep only http/https entry links ... [test] configure with a mocked provider, preview and confirm a fixture feed, run, digest saved, second run no_new_content, the feed gains one entry ... citations come from stored data ... no real network, no real API key, no writes outside pytest temp dirs, no fixed sleeps in tests."
+- Outcome: UTC model type and feed-link guard with regression tests; complete three-run API integration test; report mapping all 48 spec scenarios to tests, with 95% backend statement coverage. Full backend 147 passed, frontend 19 passed, build and strict OpenSpec validation passed.
+- What failed / adjustment: Initial integration test injected a model object rather than a factory into the settings dependency; the test failed before any feed work, then passed after changing the override to return a factory. Frontend tests initially could not find Vitest in this new worktree; `npm ci` installed the lockfile dependencies and the suite passed. No real feed/provider check was attempted, per the review hand-off.
+
+## 2026-10-03 — Group 7 (Factory Droid, fresh session) and review (Claude Code, Opus 5.5)
+
+- Prompt: the carried-over fixes come first, so the end-to-end test and the report cover the final code. The test report must map every spec scenario and list any scenario without a test explicitly instead of hiding it.
+- Result: commit `65f058a`, 24/24 tasks, 147 backend + 19 frontend tests, test report with 48/48 scenarios mapped. Cost: 29 turns, ~4.2 minutes, ~317K credits.
+- Review: Claude did not trust the mapping table. A script checked that every scenario is named and that every cited test exists (57/57). No required fixes.
+- Implementation totals for the change: ~3.14M Factory credits across 9 Droid runs. The resumed long session (groups 1–3 plus fixes) cost ~1.94M; the four fresh-session groups (4–7) cost ~1.20M together.
+
+## 2026-10-03 — Manual verification with real DeepSeek and public sources (Claude Code, Opus 5.5, with the user)
+
+- Claude ran the app locally and drove the UI in the built-in browser. The user typed their own DeepSeek key into Settings; Claude never handled it.
+- Run 1 failed. Claude did not guess at the cause:
+  1. It read the stored run and item state from the database (read-only): 4 of 11 summaries and the grouping call were empty.
+  2. It confirmed in DeepSeek's docs that thinking mode is on by default.
+  3. It tested the hypothesis with an uncommitted local change that raised the budgets. Run 2 succeeded.
+- This was the most valuable test of the change. A design assumption (512-token summaries) passed 147 mocked tests but broke against the real provider's default behavior. Real sources also showed untitled social posts, a misleading notice, and metadata-heavy summaries.
+- Process: findings became spec requirements and tasks 8.1–8.4 on the branch, then went to a fresh Droid session (user's choice). Larger issues (Reddit link posts, rate limiting, a thinking toggle) were deferred to the next change.
+- Lesson: Mocked tests verify the contract we imagined. One short real run per change against the real provider and real sources is necessary, and it should happen before the plan is considered done.
+
+## 2026-10-03 — Group 8 manual-verification fixes (Factory Droid, GPT-6 Sol)
+
+- Purpose: Implement only tasks 8.1–8.4 after the real-source/DeepSeek review, without repeating live verification.
+- Prompt (user, faithful excerpt): "Implement ONLY group 8, using the openspec-apply-change skill, then stop. ... Use exactly the budgets in design.md D3. ... titles from the plain text. ... Follow the new rule in D5 exactly. ... prompt wording only; keep 'json' and the example output; keep the language instruction. ... no real network, no real API key, no writes outside pytest temp dirs, no fixed sleeps. ... Commit once at the end."
+- Outcome: Raised model output budgets, derived readable titles from untitled posts without changing the identity fallback, limited the whole-site notice to articles and deeper-page origin probes, and added substance-focused summary prompt rules. Added six backend tests (153 total); mapped all 52 spec scenarios. Backend/frontend tests, build, and strict validation passed using offline fixtures, mocks, and fake clients.
+- What failed / adjustment: The first title test expected truncation too early; corrected its expected word-boundary title. An initial mapping audit counted table headers; restricted it to actual spec names, then 52/52 mapped with 85 valid backend references. `npm ci` was needed in this new worktree before frontend tests. Real-provider output quality remains for reviewer/user re-test, not inferred from prompt assertions.
+
+## 2026-10-03 — Group 8 (Factory Droid, fresh session), review, and re-test (Claude Code, Opus 5.5)
+
+- Droid: commit `d2d2d94`, 28/28 tasks, 153 backend + 19 frontend tests. Cost: 31 turns, ~3 minutes, ~263K credits.
+- Review: Claude re-ran everything and re-audited the report by script (52/52 scenarios, 64 cited tests exist). Code matched design D3/D5.
+- Re-test on real sources with the user's stored key:
+  - Every manual-test finding was confirmed fixed (titles, notice, metadata-free summaries, budgets).
+  - The "delete a source keeps old digests" scenario was confirmed on real data.
+  - One new real-world issue: confirming a Reddit source right after preview gets rate-limited. Deferred.
+- Correction: Claude had reported "6 topics" for run 2; a recount showed 5. Fixed in the test report.
+- Final implementation cost for the change: ~3.40M Factory credits across 10 Droid runs.
+- Archive (user approved the merge): `openspec archive add-core-digest-flow -y` merged the deltas into five main specs (32 requirements; `openspec validate --specs --strict` passes; no placeholder Purposes). It moved the change to `openspec/changes/archive/2026-10-03-add-core-digest-flow/`. The README was updated from "scaffold" wording to the current state.

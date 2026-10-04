@@ -56,3 +56,9 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
 - Decision: The backlog is tracked as issues in `Zhuoang2/catchup`, shown on a GitHub Projects board linked to the repository.
 - Alternatives: Linear, Jira, Trello (all accepted by the course brief).
 - Reasons: The board sits next to the code, pull requests, and CI. PRs can close issues automatically, and the process evidence for the course stays in one place.
+
+## D-010 Protect `main` with required CI checks — accepted (2026-10-04)
+
+- Decision: Branch protection on `main` requires the `backend` and `frontend` CI checks to pass before a pull request can merge. Force pushes and branch deletion are blocked.
+- Settings: up-to-date branches are not required (`strict: false`), no review approval is required (solo project), and admins are not forced through the rule (`enforce_admins: false`), so small documentation commits can still go straight to `main`.
+- Reason: Without required checks, `gh pr merge --auto` merged PR #19 immediately instead of waiting for CI (see `ai-usage-log.md`, 2026-10-04). With required checks, auto-merge waits for green CI.

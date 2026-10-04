@@ -250,3 +250,4 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - One new real-world issue: confirming a Reddit source right after preview gets rate-limited. Deferred.
 - Correction: Claude had reported "6 topics" for run 2; a recount showed 5. Fixed in the test report.
 - Final implementation cost for the change: ~3.40M Factory credits across 10 Droid runs.
+- Archive (user approved the merge): `openspec archive add-core-digest-flow -y` merged the deltas into five main specs (32 requirements; `openspec validate --specs --strict` passes; no placeholder Purposes). It moved the change to `openspec/changes/archive/2026-10-03-add-core-digest-flow/`. The README was updated from "scaffold" wording to the current state.

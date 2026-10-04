@@ -1,9 +1,13 @@
 # CatchUp
 
-CatchUp is a self-hosted, on-demand personal digest. This repository is under
-development. The current scaffold includes the API, database, frontend routes,
-and CI; model setup, source collection, and digest generation are later tasks
-in `openspec/changes/add-core-digest-flow/tasks.md`.
+CatchUp is a self-hosted, on-demand personal digest. Configure an
+OpenAI-compatible model (DeepSeek is tested), add the sites and feeds you
+follow, and click Generate Digest. CatchUp collects what is new since each
+source's last successful check and writes a topic-grouped digest with links
+to the originals. Saved digests stay available in History.
+
+The project is under active development. Requirements live in
+`openspec/specs/`; completed changes are in `openspec/changes/archive/`.
 
 ## Development setup
 
@@ -45,15 +49,15 @@ From their respective directories, run backend tests with `uv run pytest`
 and frontend tests/build with `npm test -- --run` and `npm run build`.
 Tests require neither a network connection nor a real model key.
 
-When model setup is implemented, collected content will be sent to the
+Collected content is sent to the
 configured model provider. Self-hosting does not keep that content local if
 you choose a cloud provider.
 
 ## Supported sources
 
-The initial source implementation is planned for RSS/Atom feeds, including
-sites that declare a feed or expose one at a common path. Examples include
+CatchUp supports RSS/Atom feeds, including sites that declare a feed or
+expose one at a common path. Examples include
 blogs, Bluesky and Mastodon profiles, and Reddit subreddits (availability
-can depend on the host network). These adapters are not in this scaffold yet.
+can depend on the host network).
 X, pages without feeds, podcasts/YouTube, and content behind a login or
 paywall are not supported in this release.

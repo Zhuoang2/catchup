@@ -88,3 +88,17 @@ Digest history reads only `digests`, `digest_topics`, and `digest_items`, in sto
 | Source deleted during generation: skip lost items and count only saved ones | `test_deleted_source_during_grouping_saves_only_surviving_items`, `test_all_items_deleted_during_grouping_does_not_save_empty_digest`, `test_source_deleted_during_summarization_is_skipped` |
 
 Verification: focused backend digest tests (28 passed before the last regression was added); final `uv run pytest` (142 passed); `npm test -- --run` (19 passed); `npm run build` (passed); `openspec validate add-core-digest-flow --strict` (passed). Tests use temporary data directories, fake model calls, and blocked unmocked network access; no real key, network, or fixed sleeps. One frontend test initially matched a split text node and was corrected to query its item; one UTC assertion expected `+00:00` but FastAPI serializes UTC as `Z`, so it was corrected. Group 7 remains pending; no live feed/model check was performed.
+
+### Claude Code review of group 6 (2026-10-03)
+
+- Re-ran in a fresh worktree: 142 backend tests (95% coverage; `digests.py` 100%), 19 frontend tests, build, and strict validation. No `backend/data` is created.
+- Confirmed:
+  - The history API reads only snapshot tables, in stored order.
+  - Original links use `target="_blank" rel="noopener noreferrer"`, and no `dangerouslySetInnerHTML` is used.
+  - All three group 5 carry-overs are fixed and tested:
+    1. Unexpected errors are logged with the traceback but the exception text is withheld.
+    2. The "Other" topic title is localized (其他 for zh-Hans).
+    3. Items deleted mid-run are skipped and the counts adjusted.
+- Verdict: **no required fixes.** Carried into the group 7 hand-off:
+  1. [bug, low] Inconsistent datetime serialization. `api/digests.py` adds UTC with a local `_utc` helper, but `api/sources.py` returns `last_check_at`/`checked_at` as naive timestamps read back from SQLite. Browsers parse those as local time, so "last check" would display shifted by the UTC offset. Fix it once at the model layer (a timezone-aware `DateTime` type that always returns UTC) and drop the per-endpoint helper.
+  2. [defense in depth, low] Feed entry links are rendered as `href`. React 19 blocks `javascript:` URLs, but parsing should keep only `http`/`https` links and fall back to the feed URL otherwise.

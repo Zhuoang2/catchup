@@ -307,3 +307,10 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - the user entered their key; a Chinese digest was generated in ~30 s
   - data identical across restart and container recreation, and the stored key still decrypted
 - Archive (user approved the merge and a `v0.1.0` release): `openspec archive add-docker-packaging -y` created the main spec `local-deployment` (7 requirements). The change moved to `openspec/changes/archive/2026-10-04-add-docker-packaging/`.
+
+## 2026-10-05 — Merge and first release `v0.1.0` (Claude Code, Opus 5.5)
+
+- The first CI run on PR #20 failed because `astral-sh/setup-uv@v10` does not exist (only full version tags). Claude checked every action reference against the GitHub API, found only this one missing, and pinned `v10.2.0` itself as a one-line fix.
+- Auto-merge was refused at first because the repository did not allow it. This also explains why PR #19 merged immediately: with no required checks, `--auto` falls back to a direct merge. With the user's approval, Claude enabled auto-merge and made `docker` a required check (D-012). Claude then checked the check-run timestamps to confirm the merge happened only after CI passed.
+- With the user's approval, Claude published release `v0.1.0` at `b5fec1a` with release notes (highlights, run instructions, known limitations). The first attempt failed because a release target must be a full SHA, not a short one.
+- Lesson: Every remote assumption failed once and needed a check against the live service: action tag aliases, repository merge settings, and release target formats. Local linting does not cover them.

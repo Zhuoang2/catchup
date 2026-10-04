@@ -72,3 +72,11 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Issue #7 drops the hosted demo and access control. It becomes packaging and release automation (Docker image, GHCR publishing).
   - #13 (clean-environment install) carries the "deployment" evidence.
   - Local runs keep the home network, which avoids datacenter-IP blocking.
+
+## D-012 Auto-merge allowed; `docker` added to required checks — accepted (2026-10-05)
+
+- Decision: The repository allows auto-merge, and branch protection on `main` now requires `backend`, `frontend`, and `docker` (the image build plus `scripts/docker-smoke.sh`).
+- Reasons:
+  - With required checks in place, `gh pr merge --auto` waits for green CI instead of merging at once (compare the PR #19 slip in `ai-usage-log.md`).
+  - Requiring `docker` means no merge can break the published image.
+- First use: PR #20. Auto-merge was enabled after all six check runs on its head (`d97b79e`) had already succeeded, so it merged immediately, correctly (`b5fec1a`).

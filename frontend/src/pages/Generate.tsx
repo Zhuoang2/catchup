@@ -8,6 +8,8 @@ type Check = {
   status: string
   possible_gap: boolean
   error: string | null
+  http_status: number | null
+  rate_limited: boolean
 }
 type Run = {
   id: number
@@ -87,9 +89,9 @@ export default function Generate() {
           <ul>
             {run.source_checks.map((check) => (
               <li key={check.source_id}>
-                {check.source_title}: {check.status}
+                {check.source_title}: {check.rate_limited ? 'rate limited (try later)' : check.status}
                 {check.possible_gap && ' (possible gap)'}
-                {check.error && `: ${check.error}`}
+                {!check.rate_limited && check.error && `: ${check.error}`}
               </li>
             ))}
           </ul>

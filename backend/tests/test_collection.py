@@ -151,6 +151,18 @@ def test_failed_check_then_success_recovers_both_items(session, app):
     assert {entry.identity_key for entry in session.scalars(select(Item))} == {"one", "two"}
 
 
+def test_rate_limited_check_preserves_suggested_wait(session, app):
+    with respx.mock(assert_all_mocked=True) as router:
+        route = router.get(FEED_URL).mock(return_value=httpx.Response(
+            429, headers={"Retry-After": "120"},
+        ))
+        check = run_check(session, app.state.settings)
+    assert route.call_count == 1
+    assert check.status == "failed"
+    assert check.http_status == 429
+    assert "about 120 seconds" in check.error
+
+
 def test_failed_source_does_not_prevent_checking_another_source(session, app):
     other_url = "https://site.example/other.xml"
     other = Source(

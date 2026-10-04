@@ -6,15 +6,17 @@ from trafilatura import extract
 
 from catchup.config import Settings
 from catchup.models import Item, Source, SourceCheck, utc_now
+from catchup.net.host_spacing import HostSpacer
 from catchup.net.safe_fetch import FetchError, safe_fetch
 from catchup.sources.feeds import FeedEntry, FeedParseError, parse_feed
 
 
-def article_text(entry: FeedEntry, fallback_links: set[str], threshold: int) -> tuple[str, str]:
+def article_text(entry: FeedEntry, fallback_links: set[str], threshold: int,
+                 *, spacer: HostSpacer | None = None) -> tuple[str, str]:
     if len(entry.content_text) >= threshold or entry.link in fallback_links:
         return entry.content_text, "feed"
     try:
-        response = safe_fetch(entry.link)
+        response = safe_fetch(entry.link, spacer=spacer)
     except FetchError:
         return entry.content_text, "feed"
     try:
@@ -27,10 +29,11 @@ def article_text(entry: FeedEntry, fallback_links: set[str], threshold: int) -> 
     return entry.content_text, "feed"
 
 
-def check_source(session: Session, source: Source, run_id: int, settings: Settings) -> SourceCheck:
+def check_source(session: Session, source: Source, run_id: int, settings: Settings,
+                 *, spacer: HostSpacer | None = None) -> SourceCheck:
     """Check one saved source; persist its items and outcome in one transaction."""
     try:
-        response = safe_fetch(source.feed_url)
+        response = safe_fetch(source.feed_url, spacer=spacer)
         feed = parse_feed(response)
     except (FetchError, FeedParseError) as exc:
         now = utc_now()
@@ -62,7 +65,7 @@ def check_source(session: Session, source: Source, run_id: int, settings: Settin
     for entry in feed.entries:
         if entry.identity_key in seen_keys or (entry.link not in fallback_links and entry.link in seen_links):
             continue
-        text, origin = article_text(entry, fallback_links, settings.short_text_chars)
+        text, origin = article_text(entry, fallback_links, settings.short_text_chars, spacer=spacer)
         session.add(Item(
             source_id=source.id, identity_key=entry.identity_key, link=entry.link,
             title=entry.title, published_at=entry.published_at, discovered_at=now,

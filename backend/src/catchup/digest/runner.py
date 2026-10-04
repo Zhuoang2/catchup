@@ -18,6 +18,8 @@ from catchup.models import (
     AppSettings, Digest, DigestItem, DigestRun, DigestTopic, Item, ModelConfig,
     Source, SourceCheck, utc_now,
 )
+from catchup.net.host_spacing import HostSpacer
+from catchup.net.rate_limit import is_rate_limited
 
 ACTIVE = ("queued", "collecting", "summarizing", "grouping")
 _start_lock = threading.Lock()
@@ -87,11 +89,12 @@ def run_digest(app: FastAPI, run_id: int) -> None:
             key = decrypt_key(config.api_key_encrypted, app.state.settings.secret_key)
             source_ids = session.scalars(select(Source.id).order_by(Source.id)).all()
         _stage(factory, run_id, "collecting")
+        spacer = HostSpacer()
         for source_id in source_ids:
             with factory() as session:
                 source = session.get(Source, source_id)
                 if source is not None:
-                    check_source(session, source, run_id, app.state.settings)
+                    check_source(session, source, run_id, app.state.settings, spacer=spacer)
 
         with factory() as session:
             rows = session.execute(
@@ -213,7 +216,8 @@ def run_detail(session, run: DigestRun) -> dict:
         "sources_total": session.scalar(select(func.count(Source.id))) or 0,
         "source_checks": [
             {"source_id": check.source_id, "source_title": title, "status": check.status,
-             "possible_gap": check.possible_gap, "error": check.error}
+             "possible_gap": check.possible_gap, "error": check.error,
+             "http_status": check.http_status, "rate_limited": is_rate_limited(check)}
             for check, title in checks
         ],
     }

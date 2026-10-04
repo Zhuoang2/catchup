@@ -37,19 +37,19 @@ Implementer notes:
 
 ## 3. Run politeness and showing "rate limited"
 
-- [ ] 3.1 Add `backend/src/catchup/net/host_spacing.py` (`HostSpacer`, min interval 1.0 s, case-insensitive host, thread-safe, injectable clock and sleep) per design.md D5. Add `safe_fetch(..., spacer=None)`, which calls `spacer.wait(url)` before every request, including redirects and retries. Pass it through:
+- [x] 3.1 Add `backend/src/catchup/net/host_spacing.py` (`HostSpacer`, min interval 1.0 s, case-insensitive host, thread-safe, injectable clock and sleep) per design.md D5. Add `safe_fetch(..., spacer=None)`, which calls `spacer.wait(url)` before every request, including redirects and retries. Pass it through:
   - the runner creates one `HostSpacer` per run (`digest/runner.py`)
   - `check_source(..., spacer=)` and `article_text(..., spacer=)` (`collection.py`)
   - confirm's article fetches use their own `HostSpacer`
 
   Verify: unit tests for same and different hosts; a runner test with two same-host sources asserting ≥ 1 s spacing via the injected clock, and no delay for different hosts.
-- [ ] 3.2 Show "rate limited" in the API per design.md D6:
+- [x] 3.2 Show "rate limited" in the API per design.md D6:
   - one helper decides whether a stored check is rate limited
   - the source list (`api/sources.py`) and run detail (`digest/runner.run_detail`) add `http_status` and `rate_limited` to each check
   - preview and confirm map `rate_limited` to `422` with `retry_after`
 
   Verify: tests for every scenario in `specs/content-collection/spec.md` "Identify rate-limited checks", the preview and confirm 422 shape, and a 503 rate-limit check detected via the shared message prefix.
-- [ ] 3.3 Update the frontend per design.md D6:
+- [x] 3.3 Update the frontend per design.md D6:
   - `frontend/src/pages/Sources.tsx`: a "Rate limited — try again later" message (include the wait when given) for preview/confirm, and a "Rate limited" badge in the list
   - `frontend/src/pages/Generate.tsx`: label rate-limited checks "rate limited (try later)"
 

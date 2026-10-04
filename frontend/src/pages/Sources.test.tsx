@@ -10,6 +10,7 @@ const saved = {
   id: 2, title: 'Example News', feed_url: 'https://site.example/feed',
   site_url: 'https://site.example/', last_check_at: '2026-10-03T10:00:00Z',
   last_check_status: 'failed', possible_gap: true,
+  http_status: 503, rate_limited: false,
 }
 const preview = {
   feed_url: saved.feed_url, site_url: saved.site_url, title: saved.title,
@@ -60,12 +61,47 @@ describe('sources', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Already following Example News.')
   })
 
+  it('shows a rate-limited preview with suggested wait', async () => {
+    fetchMock.mockImplementation(async (path: string) => path === '/api/sources'
+      ? respond([])
+      : respond({ error: {
+        code: 'rate_limited', message: 'The source is rate limiting requests.',
+        retry_after: 120,
+      } }, 422))
+    render(<Sources />)
+    fireEvent.change(screen.getByLabelText('Website or feed URL'), {
+      target: { value: saved.feed_url },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Rate limited — try again later (about 120 seconds).',
+    )
+  })
+
+  it('shows a rate-limited confirm without a suggested wait', async () => {
+    fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+      if (path === '/api/sources' && options?.method === 'POST') {
+        return respond({ error: { code: 'rate_limited', message: 'Rate limited', retry_after: null } }, 422)
+      }
+      if (path === '/api/sources') return respond([])
+      return respond(preview)
+    })
+    render(<Sources />)
+    fireEvent.change(screen.getByLabelText('Website or feed URL'), {
+      target: { value: saved.feed_url },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirm source' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Rate limited — try again later.')
+  })
+
   it('renders saved source outcomes and possible gaps', async () => {
-    fetchMock.mockResolvedValue(respond([saved]))
+    fetchMock.mockResolvedValue(respond([{ ...saved, rate_limited: true }]))
     render(<Sources />)
     expect(await screen.findByText('Example News')).toBeInTheDocument()
     expect(screen.getByText(/Last check: failed/)).toBeInTheDocument()
     expect(screen.getByText('Possible gap')).toBeInTheDocument()
+    expect(screen.getByText('Rate limited')).toBeInTheDocument()
   })
 
   it('asks before deleting and refreshes the list', async () => {

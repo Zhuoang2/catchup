@@ -3,6 +3,7 @@ export class ApiError extends Error {
     public code: string,
     message: string,
     public status: number,
+    public retryAfter: number | null = null,
   ) {
     super(message)
     this.name = 'ApiError'
@@ -17,11 +18,12 @@ export async function request<T>(path: string, options?: RequestInit): Promise<T
       body && typeof body === 'object' && 'error' in body
         ? body.error
         : null
-    ) as { code?: string; message?: string } | null
+    ) as { code?: string; message?: string; retry_after?: number | null } | null
     throw new ApiError(
       error?.code ?? 'request_failed',
       error?.message ?? `Request failed (${response.status})`,
       response.status,
+      error?.retry_after ?? null,
     )
   }
   if (response.status === 204) return undefined as T

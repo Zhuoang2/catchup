@@ -137,7 +137,8 @@ def safe_fetch(url: str, *, same_origin: str | None = None, budget: list[int] | 
                         if status_code == 429 or (status_code == 503 and delay is not None):
                             if not retried and delay is not None and delay <= 10 and remaining(status_code) > delay + 1:
                                 retried = True
-                                sleep(delay)
+                                if delay:
+                                    sleep(delay)
                                 continue
                             raise FetchError("rate_limited", _rate_limit_message(delay), status_code, delay)
                         if response.status_code in (301, 302, 303, 307, 308):

@@ -62,6 +62,18 @@ def test_rejects_unparseable_bytes():
         parse_feed(FetchResponse("https://site.example/feed", b"not a feed", "", 200))
 
 
+@pytest.mark.parametrize("unsafe_link", ["javascript:alert(1)", "data:text/html,unsafe", "file:///etc/passwd"])
+def test_unsafe_entry_links_fall_back_to_feed_url(unsafe_link):
+    raw = (f"<rss version='2.0'><channel><title>Links</title>"
+           f"<item><title>Unsafe</title><link>{unsafe_link}</link></item>"
+           f"<item><title>Safe</title><link>https://site.example/article</link></item>"
+           f"</channel></rss>").encode()
+    feed = parse_feed(FetchResponse("https://site.example/feed", raw, "application/rss+xml", 200))
+    assert feed.entries[0].link == feed.feed_url
+    assert feed.entries[0].identity_key != unsafe_link
+    assert feed.entries[1].link == "https://site.example/article"
+
+
 def test_direct_feed_and_declared_html(public_dns):
     with respx.mock(assert_all_mocked=True) as router:
         router.get("https://site.example/feed.xml").mock(return_value=httpx.Response(

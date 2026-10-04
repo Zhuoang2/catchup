@@ -4,12 +4,34 @@ from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.types import TypeDecorator
 
 from catchup.db import Base
 
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+class UTCDateTime(TypeDecorator):
+    """Store UTC in SQLite and restore the offset SQLite does not preserve."""
+
+    impl = DateTime(timezone=True)
+    cache_ok = True
+
+    def process_bind_param(self, value: datetime | None, dialect) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+    def process_result_value(self, value: datetime | None, dialect) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
 
 
 class ModelConfig(Base):
@@ -20,7 +42,7 @@ class ModelConfig(Base):
     model_id: Mapped[str] = mapped_column(String(255))
     api_key_encrypted: Mapped[str] = mapped_column(Text)
     api_key_last4: Mapped[str] = mapped_column(String(4))
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
 
 
 class AppSettings(Base):
@@ -28,7 +50,7 @@ class AppSettings(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     digest_language: Mapped[str] = mapped_column(String(40), default="en", server_default="en")
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
 
 
 class Source(Base):
@@ -39,8 +61,8 @@ class Source(Base):
     site_url: Mapped[str] = mapped_column(Text)
     feed_url: Mapped[str] = mapped_column(Text, unique=True)
     input_url: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
-    last_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
+    last_check_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     last_check_status: Mapped[str | None] = mapped_column(String(32))
 
 
@@ -56,8 +78,8 @@ class Item(Base):
     identity_key: Mapped[str] = mapped_column(Text)
     link: Mapped[str] = mapped_column(Text)
     title: Mapped[str] = mapped_column(Text)
-    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    discovered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    published_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    discovered_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
     content_text: Mapped[str] = mapped_column(Text)
     content_origin: Mapped[str] = mapped_column(String(16))
     summary: Mapped[str | None] = mapped_column(Text)
@@ -77,7 +99,7 @@ class SourceCheck(Base):
     http_status: Mapped[int | None] = mapped_column(Integer)
     entries_seen: Mapped[int] = mapped_column(Integer, default=0)
     new_count: Mapped[int] = mapped_column(Integer, default=0)
-    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    checked_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
 
 
 class DigestRun(Base):
@@ -90,8 +112,8 @@ class DigestRun(Base):
     error_kind: Mapped[str | None] = mapped_column(String(64))
     error_message: Mapped[str | None] = mapped_column(Text)
     digest_id: Mapped[int | None] = mapped_column(Integer)
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
+    finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
 
 class Digest(Base):
@@ -99,7 +121,7 @@ class Digest(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     run_id: Mapped[int] = mapped_column(ForeignKey("digest_runs.id"), unique=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
     model_id: Mapped[str] = mapped_column(String(255))
     item_count: Mapped[int] = mapped_column(Integer)
     source_count: Mapped[int] = mapped_column(Integer)
@@ -126,6 +148,6 @@ class DigestItem(Base):
     title: Mapped[str] = mapped_column(Text)
     link: Mapped[str] = mapped_column(Text)
     source_name: Mapped[str] = mapped_column(Text)
-    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    published_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     summary: Mapped[str | None] = mapped_column(Text)
     summary_unavailable: Mapped[bool] = mapped_column(Boolean, default=False)

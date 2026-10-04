@@ -59,7 +59,7 @@ Implementer notes:
 
 ## 7. Integration and test report
 
-- [ ] 7.1 Add an end-to-end API test: configure settings (mocked provider) → preview and confirm a fixture feed → run → digest saved → second run gives `no_new_content` → fixture feed gains one entry → third run's digest contains only that entry. Verify: the test passes in `uv run pytest`.
-- [ ] 7.2 Write `docs/process/test-report-add-core-digest-flow.md` with the commands run, the pass/fail counts, backend coverage from `uv run pytest --cov=catchup`, the frontend test count, and a table mapping each spec scenario to its test(s). Verify: every scenario in the five spec files appears in the table.
+- [x] 7.1 Add an end-to-end API test: configure settings (mocked provider) → preview and confirm a fixture feed → run → digest saved → second run gives `no_new_content` → fixture feed gains one entry → third run's digest contains only that entry. Verify: the test passes in `uv run pytest`.
+- [x] 7.2 Write `docs/process/test-report-add-core-digest-flow.md` with the commands run, the pass/fail counts, backend coverage from `uv run pytest --cov=catchup`, the frontend test count, and a table mapping each spec scenario to its test(s). Verify: every scenario in the five spec files appears in the table.
 
 Manual verification with a real feed and a real DeepSeek key is done during review by Claude Code with the user, not by the implementer.

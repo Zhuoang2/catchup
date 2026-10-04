@@ -209,6 +209,7 @@ def run_detail(session, run: DigestRun) -> dict:
         "id": run.id, "status": run.status, "items_total": run.items_total,
         "items_done": run.items_done, "error_kind": run.error_kind,
         "error_message": run.error_message, "digest_id": run.digest_id,
+        "started_at": run.started_at, "finished_at": run.finished_at,
         "sources_total": session.scalar(select(func.count(Source.id))) or 0,
         "source_checks": [
             {"source_id": check.source_id, "source_title": title, "status": check.status,

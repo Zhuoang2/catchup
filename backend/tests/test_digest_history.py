@@ -1,9 +1,9 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 
 from catchup.main import create_app
-from catchup.models import Digest, DigestItem, DigestRun, DigestTopic, Item, Source
+from catchup.models import Digest, DigestItem, DigestRun, DigestTopic, Item, Source, SourceCheck
 
 
 def seed_history(client):
@@ -98,3 +98,32 @@ def test_digest_history_survives_new_app_on_same_data_directory(test_settings):
     with TestClient(create_app(test_settings)) as restarted:
         assert restarted.get("/api/digests").json() == before_list
         assert restarted.get("/api/digests/1").json() == before_detail
+
+
+def test_stored_timestamps_are_utc_across_endpoints(test_settings):
+    local_offset = timezone(timedelta(hours=-7))
+    local_time = datetime(2026, 10, 2, 3, tzinfo=local_offset)
+    with TestClient(create_app(test_settings)) as client:
+        source_id = seed_history(client)
+        with client.app.state.session_factory() as session:
+            source = session.get(Source, source_id)
+            source.last_check_at = local_time
+            session.add(SourceCheck(source_id=source_id, status="no_new_items", checked_at=local_time))
+            run = session.get(DigestRun, 1)
+            run.started_at = local_time
+            run.finished_at = local_time
+            session.commit()
+        source = client.get("/api/sources").json()[0]
+        run = client.get("/api/digest-runs/1").json()
+        history = client.get("/api/digests").json()
+        digest = client.get("/api/digests/1").json()
+        for value in (
+            source["last_check_at"], run["started_at"], run["finished_at"],
+            *(row["created_at"] for row in history), digest["created_at"],
+            digest["topics"][0]["items"][0]["published_at"],
+        ):
+            assert datetime.fromisoformat(value).utcoffset() == timedelta(0)
+        assert source["last_check_at"] == run["started_at"] == run["finished_at"] == "2026-10-02T10:00:00Z"
+        with client.app.state.session_factory() as session:
+            assert session.get(Source, source_id).last_check_at.tzinfo == timezone.utc
+            assert session.get(DigestRun, 1).started_at.tzinfo == timezone.utc

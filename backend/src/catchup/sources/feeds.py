@@ -57,13 +57,18 @@ def parse_feed(response: FetchResponse) -> Feed:
         published_at = datetime(*stamp[:6], tzinfo=timezone.utc) if stamp else None
         title = plain_text(entry.get("title", "")) or "Untitled"
         original_link = entry.get("link", "")
-        identity = entry.get("id") or original_link
+        try:
+            parts = urlsplit(original_link)
+            link = original_link if parts.scheme.lower() in ("http", "https") and parts.hostname else response.url
+        except ValueError:
+            link = response.url
+        identity = entry.get("id") or (link if link != response.url else "")
         if not identity:
             identity = hashlib.sha256(f"{title}{published_at.isoformat() if published_at else ''}".encode()).hexdigest()
         content = entry.get("content") or []
         description = content[0].get("value", "") if content else entry.get("summary", "")
         entries.append(FeedEntry(
-            identity_key=identity, link=original_link or response.url, title=title,
+            identity_key=identity, link=link, title=title,
             published_at=published_at, content_text=plain_text(description),
         ))
     site_url = parsed.feed.get("link") or f"{urlsplit(response.url).scheme}://{urlsplit(response.url).netloc}/"

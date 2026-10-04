@@ -1,7 +1,5 @@
 """Read saved digests from their snapshots, independent of current sources."""
 
-from datetime import datetime, timezone
-
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -13,18 +11,13 @@ from catchup.models import Digest, DigestItem, DigestTopic
 router = APIRouter(prefix="/api/digests")
 
 
-def _utc(value: datetime | None) -> datetime | None:
-    # SQLite drops timezone information from UTC timestamps on retrieval.
-    return value.replace(tzinfo=timezone.utc) if value is not None and value.tzinfo is None else value
-
-
 @router.get("")
 def list_digests(session: Session = Depends(get_session)) -> list[dict]:
     digests = session.scalars(
         select(Digest).order_by(Digest.created_at.desc(), Digest.id.desc())
     ).all()
     return [
-        {"id": digest.id, "created_at": _utc(digest.created_at),
+        {"id": digest.id, "created_at": digest.created_at,
          "item_count": digest.item_count, "source_count": digest.source_count}
         for digest in digests
     ]
@@ -47,11 +40,11 @@ def get_digest(digest_id: int, session: Session = Depends(get_session)) -> dict:
     for item in items:
         by_topic[item.topic_id].append({
             "title": item.title, "link": item.link, "source_name": item.source_name,
-            "published_at": _utc(item.published_at), "summary": item.summary,
+            "published_at": item.published_at, "summary": item.summary,
             "summary_unavailable": item.summary_unavailable,
         })
     return {
-        "id": digest.id, "created_at": _utc(digest.created_at), "model_id": digest.model_id,
+        "id": digest.id, "created_at": digest.created_at, "model_id": digest.model_id,
         "topics": [
             {"title": topic.title, "overview": topic.overview, "items": by_topic[topic.id]}
             for topic in topics

@@ -207,3 +207,10 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Prompt: group 6 tasks plus the three carried-over group 5 findings, each with a required test (for example, a `caplog` test proving the decrypted key never appears in logs).
 - Result: commit `083c9df`, 22/24 tasks, 142 backend + 19 frontend tests. Cost: 31 turns, ~3.7 minutes, ~289K credits.
 - Review: no required fixes. Reading the code across endpoints, rather than only the new endpoint, found an inconsistency that no per-group test could catch: one endpoint normalized SQLite's naive datetimes to UTC and another did not. Carried into group 7 with one model-layer fix.
+
+## 2026-10-03 — Integration and report group 7 (Factory Droid, GPT-6 Sol)
+
+- Purpose: Finish tasks 7.1–7.2 and fix the two findings carried over from group 6.
+- Prompt (faithful excerpt): "Implement task group 7 (7.1 end-to-end API test, 7.2 test report) plus two carried-over review items, using the openspec-apply-change skill ... Fix [timestamp handling] once at the model layer ... keep only http/https entry links ... [test] configure with a mocked provider, preview and confirm a fixture feed, run, digest saved, second run no_new_content, the feed gains one entry ... citations come from stored data ... no real network, no real API key, no writes outside pytest temp dirs, no fixed sleeps in tests."
+- Outcome: UTC model type and feed-link guard with regression tests; complete three-run API integration test; report mapping all 48 spec scenarios to tests, with 95% backend statement coverage. Full backend 147 passed, frontend 19 passed, build and strict OpenSpec validation passed.
+- What failed / adjustment: Initial integration test injected a model object rather than a factory into the settings dependency; the test failed before any feed work, then passed after changing the override to return a factory. Frontend tests initially could not find Vitest in this new worktree; `npm ci` installed the lockfile dependencies and the suite passed. No real feed/provider check was attempted, per the review hand-off.

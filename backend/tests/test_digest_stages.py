@@ -1,6 +1,10 @@
+import threading
+
+import pytest
+
 from catchup.digest.group import GroupItem, group_items
 from catchup.digest.summarize import SummaryInput, summarize_items
-from catchup.llm.client import ProviderError
+from catchup.llm.client import AuthFailed, ProviderError
 
 
 class FakeModel:
@@ -20,7 +24,14 @@ def test_summary_cache_language_prompt_truncation_and_unavailable():
     cached = SummaryInput(1, "Cached", "content", "In English", "en")
     new = SummaryInput(2, "Fresh", "1234567890", None, None)
     failing = SummaryInput(3, "Fails", "failure", None, None)
-    client = FakeModel([{"summary": "Fresh summary"}, ProviderError("failed")])
+    class PerItemModel(FakeModel):
+        def chat_json(self, messages, max_tokens):
+            self.calls.append((messages, max_tokens))
+            if "Title: Fails" in messages[1]["content"]:
+                raise ProviderError("failed")
+            return {"summary": "Fresh summary"}
+
+    client = PerItemModel()
     results = []
     summarize_items(client, [cached, new, failing], "en", 5, results.append)
     assert len(client.calls) == 2
@@ -43,6 +54,46 @@ def test_original_language_instruction():
     summarize_items(client, [SummaryInput(1, "标题", "正文", None, None)],
                     "original", 200, lambda _: None)
     assert "original language of this item" in str(client.calls[0])
+
+
+def test_auth_failure_does_not_wait_for_another_model_worker():
+    entered, release = threading.Event(), threading.Event()
+
+    class BlockingModel(FakeModel):
+        def chat_json(self, messages, max_tokens):
+            if "Title: Slow" in messages[1]["content"]:
+                entered.set()
+                assert release.wait(timeout=5)
+                return {"summary": "Slow result"}
+            assert entered.wait(timeout=5)
+            raise AuthFailed("Rejected")
+
+    finished = threading.Event()
+    failures = []
+
+    def execute():
+        try:
+            with pytest.raises(AuthFailed):
+                summarize_items(
+                    BlockingModel(),
+                    [SummaryInput(n, title, "text", None, None)
+                     for n, title in ((1, "Rejected"), (2, "Slow"))],
+                    "en", 100, lambda _: None,
+                )
+        except Exception as exc:
+            failures.append(exc)
+        finally:
+            finished.set()
+
+    thread = threading.Thread(target=execute)
+    thread.start()
+    try:
+        assert entered.wait(timeout=5)
+        assert finished.wait(timeout=5)
+        assert not failures
+    finally:
+        release.set()
+        thread.join(timeout=5)
 
 
 def test_group_discards_unknown_refs_and_duplicates_and_places_omissions():

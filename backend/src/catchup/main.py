@@ -11,9 +11,12 @@ from sqlalchemy.orm import sessionmaker
 
 from catchup.api.settings import router as settings_router
 from catchup.api.sources import router as sources_router
+from catchup.api.runs import router as runs_router
 from catchup.config import Settings
 from catchup.db import make_engine, migrate
+from catchup.digest.runner import recover_runs
 from catchup.errors import register_error_handlers
+from catchup.llm.client import ModelClient
 
 
 def create_app(settings: Settings | None = None, dist_dir: Path | None = None) -> FastAPI:
@@ -26,15 +29,18 @@ def create_app(settings: Settings | None = None, dist_dir: Path | None = None) -
             migrate(engine)
             app.state.engine = engine
             app.state.session_factory = sessionmaker(engine, expire_on_commit=False)
+            recover_runs(app.state.session_factory)
             yield
         finally:
             engine.dispose()
 
     app = FastAPI(lifespan=lifespan)
     app.state.settings = instance_settings
+    app.state.model_client_factory = ModelClient
     register_error_handlers(app)
     app.include_router(settings_router)
     app.include_router(sources_router)
+    app.include_router(runs_router)
 
     @app.middleware("http")
     async def allowed_host(request: Request, call_next):

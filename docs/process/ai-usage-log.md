@@ -173,3 +173,10 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Cost: 27 turns, ~4 minutes, **~252K credits**. That is about the same as group 1, versus ~1.15M for groups 2–3 in the resumed session. Fresh sessions plus an explicit context prompt worked better on cost, without losing quality.
 - Review: no required fixes; one trade-off recorded (synchronous article extraction). The only discrepancy was reported coverage of 95% vs 94% reproduced.
 - Lesson: Putting the pitfalls into the prompt in advance prevented a fix round. All four notes were handled correctly on the first pass.
+
+## 2026-10-03 — Digest generation group 5 (Factory Droid, GPT-6 Sol)
+
+- Purpose: Implement only tasks 5.1–5.4: summaries, topic grouping, run lifecycle, API, and Generate page.
+- Prompt (faithful excerpt): "Runner thread and stage-1 workers must never share a SQLAlchemy session ... Put the model-client factory on app.state ... Read digest_language once at run start ... POST /api/digest-runs: 409 model_not_configured ... 409 run_active ... collecting-stage progress ... no real network, no real API key, no writes outside pytest temp dirs, and no fixed sleeps in tests. ... Commit after each of 5.1-5.2 and 5.3-5.4."
+- Outcome: Added four-way model-only summary workers, validated topic refs with batching/merge, short-transaction run persistence with startup recovery, progress API, and polling UI. Summaries are reused only in the matching language; saved digest and delivery are atomic. Tests map all digest-generation scenarios in `review-notes.md`. Committed the first pair of tasks separately from the runner/UI pair.
+- What failed / adjustment: No focused or full checks failed. `npm ci` was needed in the fresh worktree. Strengthened a concurrent fake to route responses by item title rather than scheduling order, and changed fatal-error handling not to wait for unrelated model workers. No real model or feed was contacted.

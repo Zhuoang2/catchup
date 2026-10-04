@@ -54,13 +54,17 @@ def summarize_items(
             on_result(SummaryResult(item.id, item.summary))
         else:
             uncached.append(item)
-    with ThreadPoolExecutor(max_workers=4) as pool:
+    pool = ThreadPoolExecutor(max_workers=4)
+    try:
         futures = [pool.submit(_summarize, client, item, language, max_chars) for item in uncached]
         for future in as_completed(futures):
-            try:
-                result = future.result()
-            except (AuthFailed, InsufficientBalance):
-                for outstanding in futures:
-                    outstanding.cancel()
-                raise
-            on_result(result)
+            on_result(future.result())
+    except (AuthFailed, InsufficientBalance):
+        # Do not wait for unrelated, possibly slow provider calls before failing.
+        pool.shutdown(wait=False, cancel_futures=True)
+        raise
+    except Exception:
+        pool.shutdown(wait=True, cancel_futures=True)
+        raise
+    else:
+        pool.shutdown(wait=True)

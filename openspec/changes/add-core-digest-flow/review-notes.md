@@ -30,3 +30,29 @@ Additional fallback, status, empty-feed, and linkless-entry cases are covered in
   - article extraction only through `safe_fetch`, with fallback to the feed text
 - Verdict: **no required fixes.**
 - Known trade-off, not a defect: article extraction runs synchronously inside `check_source` and at confirm time. The worst case is ~30 s per short entry (the `safe_fetch` deadline); typical pages take 1–2 s. Group 5 should show progress during the collecting stage so long collections stay understandable.
+
+## Task group 5, digest generation (2026-10-03)
+
+Verification: focused `uv run pytest -q tests/test_digest_stages.py tests/test_digest_runner.py` (17 passed); full `uv run pytest` (130 passed); `npm test -- --run` (15 passed); `npm run build` (passed); `openspec validate add-core-digest-flow --strict` (passed). The test sandbox blocks DNS/connect, all model calls use fakes except the existing respx-mocked adapter tests, and the instance database is under pytest's temp directory. No real key or live network was used. Frontend polling uses fake timers; backend synchronization uses events, not fixed sleeps.
+
+Digest-generation spec scenarios:
+
+| Scenario | Test |
+| --- | --- |
+| Start a run | `test_api_rejects_unconfigured_and_reports_active_progress`, `Generate.test.tsx` starts generation |
+| Run already active | `test_api_rejects_unconfigured_and_reports_active_progress`, `Generate.test.tsx` resolves an active-run conflict |
+| Following progress | `test_api_rejects_unconfigured_and_reports_active_progress`, `Generate.test.tsx` shows 5 of 12 and collecting sources checked |
+| Long gap (140 pending) | `test_long_gap_snapshots_every_item_once_and_delivers_atomically` |
+| Run fails before saving | `test_group_failure_preserves_pending_and_retry_uses_cached_summary`, `test_save_failure_rolls_back_snapshot_and_delivery` |
+| Nothing new and one failure | `test_no_content_reports_failed_source_without_digest`, `Generate.test.tsx` no-new-content state |
+| Retry after failure | `test_group_failure_preserves_pending_and_retry_uses_cached_summary` |
+| Item missing from grouping | `test_missing_group_ref_goes_to_other_and_unknown_ref_is_ignored`, `test_group_discards_unknown_refs_and_duplicates_and_places_omissions` |
+| Unknown item reference | `test_missing_group_ref_goes_to_other_and_unknown_ref_is_ignored` |
+| Choose Chinese at setup | `test_language_change_resummarizes_and_keeps_old_snapshot`, `test_group_discards_unknown_refs_and_duplicates_and_places_omissions` (topic prompt language) |
+| Change language after earlier runs | `test_language_change_resummarizes_and_keeps_old_snapshot`, `test_summary_cache_language_prompt_truncation_and_unavailable` |
+| Generate before setup | `test_api_rejects_unconfigured_and_reports_active_progress`, `Generate.test.tsx` Settings link |
+| Restart during a run | `test_recovery_marks_unfinished_failed_and_allows_retry` |
+| Empty model response | `test_empty_response_retries` in `test_llm_client.py` (adapter used by runner) |
+| Rejected key during a run | `test_auth_or_balance_fails_immediately_with_pending_items`, `test_auth_failure_does_not_wait_for_another_model_worker` |
+
+Additional tests cover summary-unavailable snapshots, original-language prompt rules, batching and merge, read-once language, source-check visibility as collection commits, and failure UI. Remaining end-to-end collection-to-digest API testing and history endpoints are task groups 7 and 6 respectively.

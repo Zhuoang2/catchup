@@ -29,3 +29,10 @@
   `scripts/docker-smoke.sh catchup:local`: all eight checks passed.
   `cd backend && uv run pytest`: 206 passed. `actionlint` on both workflows
   and `openspec validate add-docker-packaging --strict`: passed.
+
+## CI fix by the reviewer (2026-10-05)
+
+- The first CI run on PR #20 failed at job setup: `Unable to resolve action astral-sh/setup-uv@v10`. `setup-uv` publishes only full version tags (latest `v10.2.0`) and no moving `v10` major tag. Neither actionlint nor local runs check that a tag exists, so this surfaced only on GitHub.
+- Checked every action reference against the GitHub API (`git/ref/tags/<tag>`). Only `astral-sh/setup-uv@v10` was missing; the others exist (`checkout@v7`, `setup-node@v7`, `setup-buildx-action@v4`, `build-push-action@v7`, `setup-qemu-action@v4`, `login-action@v4`, `metadata-action@v6`).
+- Fixed directly: `astral-sh/setup-uv@v10.2.0`. A one-line change, so no Droid run.
+- Root cause in planning: `design.md` D6 assumed major tags for every action. The research recorded "latest tag v10.2.0" but not whether a `v10` alias exists.

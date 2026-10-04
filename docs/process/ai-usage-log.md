@@ -306,4 +306,4 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - healthy in 5 s, loopback-only port
   - the user entered their key; a Chinese digest was generated in ~30 s
   - data identical across restart and container recreation, and the stored key still decrypted
-- Archive (user approved the merge and a `v0.1.0` release): `openspec archive add-docker-packaging -y` created the main spec `local-deployment` (7 requirements). The change moved to `openspec/changes/archive/2026-10-05-add-docker-packaging/`.
+- Archive (user approved the merge and a `v0.1.0` release): `openspec archive add-docker-packaging -y` created the main spec `local-deployment` (7 requirements). The change moved to `openspec/changes/archive/2026-10-04-add-docker-packaging/`.

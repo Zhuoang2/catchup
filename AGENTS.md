@@ -5,7 +5,7 @@ This folder is the CatchUp CS146S project workspace. It currently contains plann
 Before planning or implementing, read:
 1. `docs/handoff.md` — confirmed scope, superseded ideas, open decisions, course obligations, next steps.
 2. `docs/proposal.md` — current proposal text snapshot.
-3. `docs/course-requirements.pdf` — original course brief when checking deliverables.
+3. `docs/course-requirements.pdf` — original course brief when checking deliverables. It is gitignored (course staff material), so it exists only in the main local checkout, not in worktrees or clones.
 
 The existing proposal PDF in this folder preserves the user's layout. `assets/catchup-workflow.png` is the compact workflow figure.
 

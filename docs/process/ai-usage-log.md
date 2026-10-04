@@ -162,3 +162,14 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Outcome: Added `check_source(session, source, run_id, settings)`, first-sight recording and gap detection, HTTP status on check failures, and article extraction with feed fallback. Confirm-time pending entries also use the same extractor so the first digest has full text when available. Offline tests cover all content-collection scenarios.
 - What failed / adjustment: No tests failed. The course brief file named in `AGENTS.md` was absent in this worktree; task 4.1 did not depend on it. During implementation, noticed confirm-time pending entries would otherwise bypass extraction; reused the extraction helper there and adjusted existing test fixtures to supply sufficiently long feed text where article fetching is not under test. No real key or live network was used.
 - Verification: `uv run pytest` (112 passing before the last gap-edge test); final `uv run pytest --cov=catchup --cov-report=term` (113 passing, 95% overall, 100% collection); `npm test -- --run` (9 passing); `npm run build` and `openspec validate add-core-digest-flow --strict` passed.
+
+## 2026-10-03 — Group 4 in a fresh Droid session (Factory Droid, GPT-6 Sol) and review (Claude Code, Opus 5.5)
+
+- Change in approach: a new `droid exec` session instead of resuming the long one (`-s`), to stop paying for an ever-growing context. Because the new session had no memory, the prompt carried the context explicitly:
+  - a reading list (AGENTS.md, the relevant design decisions and spec, and the existing modules to reuse)
+  - four reviewer notes that anticipated pitfalls found while reading earlier code: HTTP status missing from `FetchError`; linkless entries carrying the feed URL as their link; the exact gap rule; extraction only via `safe_fetch`
+  - an explicit boundary: expose `check_source` for the runner; build no runner, API, or UI
+- Result: commit `0eedcd6`, 16/24 tasks, 113 backend tests. Every content-collection scenario is mapped to a test in `review-notes.md`.
+- Cost: 27 turns, ~4 minutes, **~252K credits**. That is about the same as group 1, versus ~1.15M for groups 2–3 in the resumed session. Fresh sessions plus an explicit context prompt worked better on cost, without losing quality.
+- Review: no required fixes; one trade-off recorded (synchronous article extraction). The only discrepancy was reported coverage of 95% vs 94% reproduced.
+- Lesson: Putting the pitfalls into the prompt in advance prevented a fix round. All four notes were handled correctly on the first pass.

@@ -36,13 +36,13 @@ Implementer notes:
 
 ## 3. CI and release automation
 
-- [ ] 3.1 Update `.github/workflows/ci.yml` per design.md D6:
+- [x] 3.1 Update `.github/workflows/ci.yml` per design.md D6:
   - actions at current majors and Node 24, keeping the job names `backend` and `frontend`
   - a wheel content check in `backend`
   - a new `docker` job (buildx, `load: true`, `linux/amd64`, GitHub Actions cache, run `scripts/docker-smoke.sh`)
 
   Verify: lint the workflow with `actionlint` (e.g. `docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:latest`); the wheel check passes locally (`uv build --wheel`, then inspect the zip).
-- [ ] 3.2 Add `.github/workflows/release.yml` per design.md D6 (triggers `main` plus `v*.*.*` tags; permissions `contents: read`, `packages: write`; QEMU + buildx; metadata tags `edge`/semver/`latest`; push to `ghcr.io/zhuoang2/catchup`; OCI labels). Verify:
+- [x] 3.2 Add `.github/workflows/release.yml` per design.md D6 (triggers `main` plus `v*.*.*` tags; permissions `contents: read`, `packages: write`; QEMU + buildx; metadata tags `edge`/semver/`latest`; push to `ghcr.io/zhuoang2/catchup`; OCI labels). Verify:
   - `actionlint` passes
   - a local multi-platform build without push succeeds: `docker buildx build --platform linux/amd64,linux/arm64 .`, or, if the local builder cannot do multi-platform, the native platform only, noting this in the report
   - the workflow has no trigger on `pull_request`

@@ -58,21 +58,23 @@ PASS: preference survives restart
 | Running from a source checkout | `test_static.py::test_source_tree_dist_fallback`, `test_built_frontend_fallback_keeps_api_json` | Automated pass |
 | Environment file present | Dummy `.env` build + absence assertion; `.dockerignore` allowlist excludes `data/`, dependencies and unrelated files | Automated `.env` check; `data/` exclusion by allowlist inspection |
 
-## Manual verification (reviewer/user)
+## Manual verification
 
-- [ ] On the user's Mac: `docker compose up --build`, open UI, save model
-  settings with a real key, generate one digest, restart, and confirm data.
-- [ ] After merge, confirm GHCR `edge` exists for amd64 and arm64 and check
-  package visibility; after a user-created version tag, verify semver and
-  `latest` tags. No image was published or tag created here.
-- [ ] Replace an existing container with a genuinely newer schema/image on
-  the same volume and confirm migrations and data preservation when a later
-  revision exists.
+Performed 2026-10-05 by Claude Code with the user on the user's Mac (Docker Desktop 29.8.0, linux/arm64), branch at `40713e0`.
 
-The example `.env.example` is for source checkouts and comments out the
-optional `CATCHUP_DATA_DIR=./data` default. Compose overrides any relative
-data/frontend paths in `.env` with `/data` and `/app/frontend`; standalone
-`docker run` pins `/data`. No other design deviations were needed.
+- **Followed the README literally:** generated `.env` with `printf 'CATCHUP_SECRET_KEY=%s\n' "$(openssl rand -hex 32)" > .env`, then ran `docker compose up -d --build`.
+  - The container was healthy within 5 s.
+  - `docker compose ps` showed `127.0.0.1:8000->8000/tcp`, i.e. loopback only.
+- **Env pinning:** with a `.env` setting `CATCHUP_DATA_DIR=./elsewhere` and `CATCHUP_FRONTEND_DIST=/nope`, `docker compose config` still resolved `/data` and `/app/frontend`.
+- **Real use:** opened `http://localhost:8000` in the built-in browser. The user entered their own DeepSeek key in Settings; Claude did not handle it. Settings: `deepseek-flash`, 简体中文.
+  - Added two sources (Simon Willison's blog, Bluesky `@bsky.app`).
+  - Generate Digest succeeded in about 30 s: 6/6 items summarized, 4 topics in Chinese.
+- **Persistence:** a snapshot of settings, sources, digests, and topic titles was identical before, after `docker compose restart`, and after `docker compose down` + `up`. The container ID changed while the named volume stayed.
+  - After recreation, "Test connection" succeeded using the stored key. It was still decryptable with the same `.env` secret.
+- **Cleanup:** `docker compose down -v`, `.env` removed.
+- **Not verified here:** upgrading to a genuinely newer image with a new migration (no newer image exists yet), and the first GHCR publish (happens after merge).
+
+**Result:** passes.
 
 ## Reviewer follow-up (2026-10-04)
 

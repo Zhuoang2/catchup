@@ -287,3 +287,22 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Archive (user approved the merge): `openspec archive improve-source-reliability -y` added 5 requirements to the main specs (`source-management` now 8, `content-collection` now 8; strict validation passes). It moved the change to `openspec/changes/archive/2026-10-04-improve-source-reliability/`.
 - **Process slip (merge):** the user approved "archive, wait for CI, then merge". To avoid polling CI, Claude ran `gh pr merge --merge --auto`. The repository has no branch protection or required checks, so GitHub merged immediately instead of waiting (merge commit `bd127f3` at 08:36:05Z). Claude checked right away: both CI runs for the merged head `a7c5efa` had completed successfully at about the same time, so the merged code was the tested code. The slip was reported to the user as it happened.
   - Lesson: `--auto` only waits when the branch requires status checks. Either require the CI checks on `main` or merge only after reading a green status.
+
+## 2026-10-05 — `add-docker-packaging`: review and real Docker run (Claude Code, Opus 5.5; Factory Droid, GPT-6 Sol)
+
+- Droid, fresh session, with eight reviewer notes:
+  - `env.py` becomes importable
+  - `Settings` defaults
+  - venv location and a matching Python path
+  - `tsc` needs test files in the build context
+  - chown `/data` before `VOLUME`
+  - no curl or jq
+  - keep the CI job names that branch protection requires
+  - never push or tag
+
+  Result: 11/11 tasks, 206 backend tests, an image of 407 MiB, ~510K credits. A small fix round cost ~139K.
+- Droid itself flagged a possible data-loss path: an `.env` with `CATCHUP_DATA_DIR=./data` overriding `/data`. **Claude tested it instead of accepting or dismissing it.** The database still landed on `/data`, but only because the image has no `WORKDIR` (cwd `/`). The verdict was downgraded from "must" to "should", and the fix still went in: compose pins the variable, and `docker run` docs pass `-e`. Lesson: test a claimed risk before ranking it. Here the reasoning was right about the fragility and wrong about the current impact.
+- Real run on the user's Mac, following the README literally:
+  - healthy in 5 s, loopback-only port
+  - the user entered their key; a Chinese digest was generated in ~30 s
+  - data identical across restart and container recreation, and the stored key still decrypted

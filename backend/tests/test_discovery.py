@@ -57,6 +57,40 @@ def test_normalizes_identity_date_and_text():
     assert atom.entries[0].content_text == "Atom text"
 
 
+def test_untitled_social_post_uses_plain_text_at_word_boundary():
+    feed = parse_feed(FetchResponse("https://site.example/feed", fixture("bluesky-untitled.xml"),
+                                    "application/rss+xml", 200))
+    entry = feed.entries[0]
+    assert entry.content_text == (
+        "Happy opening day, hockey fans! Follow all 1,344 games and enjoy every moment of the season."
+    )
+    assert entry.title == "Happy opening day, hockey fans! Follow all 1,344 games and enjoy every moment of…"
+    assert entry.identity_key == "at://did:plc:example/app.bsky.feed.post/1"
+    assert entry.link == "https://bsky.app/profile/example.bsky.social/post/1"
+
+
+def test_untitled_long_cjk_text_cuts_at_80_characters():
+    text = "今天天气真好" * 20
+    raw = (f"<rss version='2.0'><channel><title>Posts</title>"
+           f"<item><link>https://site.example/post</link><description>{text}</description></item>"
+           f"</channel></rss>").encode()
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert entry.title == text[:80] + "…"
+    assert entry.identity_key == "https://site.example/post"
+
+
+def test_no_title_or_text_is_untitled_and_titled_hash_stays_stable():
+    raw = (b"<rss version='2.0'><channel><title>Posts</title>"
+           b"<item><guid>empty-post</guid></item>"
+           b"<item><title>Existing title</title><description>Different text</description></item>"
+           b"</channel></rss>")
+    entries = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries
+    assert entries[0].title == "Untitled"
+    assert entries[0].identity_key == "empty-post"
+    assert entries[1].title == "Existing title"
+    assert entries[1].identity_key == hashlib.sha256(b"Existing title").hexdigest()
+
+
 def test_rejects_unparseable_bytes():
     with pytest.raises(FeedParseError):
         parse_feed(FetchResponse("https://site.example/feed", b"not a feed", "", 200))
@@ -100,6 +134,22 @@ def test_article_page_follows_whole_site(public_dns):
         found = discover("https://site.example/story")
     assert found.follows_site_feed_notice
     assert found.feed.feed_url == "https://site.example/atom.xml"
+
+
+def test_profile_with_declared_feed_does_not_show_site_notice(public_dns):
+    html = (b"<!doctype html><html><head><meta property='og:type' content='profile'>"
+            b"<link rel='alternate' type='application/rss+xml' href='/@user.rss'>"
+            b"</head></html>")
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/@user").mock(return_value=httpx.Response(
+            200, content=html, headers={"content-type": "text/html"},
+        ))
+        router.get("https://site.example/@user.rss").mock(return_value=httpx.Response(
+            200, content=fixture("rss.xml"), headers={"content-type": "application/rss+xml"},
+        ))
+        found = discover("https://site.example/@user")
+    assert found.feed.feed_url == "https://site.example/@user.rss"
+    assert not found.follows_site_feed_notice
 
 
 def test_reddit_path_dot_rss_probe(public_dns):

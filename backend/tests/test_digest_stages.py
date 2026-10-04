@@ -5,6 +5,7 @@ import pytest
 from catchup.digest.group import GroupItem, group_items
 from catchup.digest.summarize import SummaryInput, summarize_items
 from catchup.llm.client import AuthFailed, ProviderError
+from catchup.llm.prompts import grouping_max_tokens, summary_messages
 
 
 class FakeModel:
@@ -39,7 +40,7 @@ def test_summary_cache_language_prompt_truncation_and_unavailable():
     assert next(r for r in results if r.id == 3).unavailable
     assert any("12345" in str(call) and "English" in str(call) and "json" in str(call)
                for call in client.calls)
-    assert all("1234567890" not in str(call) and tokens == 512 for call, tokens in client.calls)
+    assert all("1234567890" not in str(call) and tokens == 4096 for call, tokens in client.calls)
 
     changed = FakeModel([{"summary": "中文摘要"}])
     output = []
@@ -54,6 +55,17 @@ def test_original_language_instruction():
     summarize_items(client, [SummaryInput(1, "标题", "正文", None, None)],
                     "original", 200, lambda _: None)
     assert "original language of this item" in str(client.calls[0])
+
+
+def test_summary_prompt_focuses_on_substance_and_retains_json_language():
+    system = summary_messages("Post", "A social post", "zh-Hans")[0]["content"]
+    assert "2–4 sentences" in system and "substance" in system
+    for phrase in ("platform identifiers", "user handles", "submission metadata", "timestamps",
+                   "unless essential", "no substantive content", "one short sentence"):
+        assert phrase in system
+    assert "Simplified Chinese" in system
+    assert "json" in system
+    assert 'Example output: {"summary":' in system
 
 
 def test_auth_failure_does_not_wait_for_another_model_worker():
@@ -107,6 +119,7 @@ def test_group_discards_unknown_refs_and_duplicates_and_places_omissions():
     assert "Simplified Chinese" in str(client.calls[0])
     assert '"source": "Source"' in str(client.calls[0])
     assert "json" in str(client.calls[0])
+    assert client.calls[0][1] == 8192 + 24 * len(items)
 
 
 def test_batch_merge_covers_every_item_once():
@@ -123,6 +136,12 @@ def test_batch_merge_covers_every_item_once():
     ]
     assert len(client.calls) == 5
     assert "language most items" in str(client.calls[-1])
+    assert all(tokens == 8192 + 24 for _, tokens in client.calls[:-1])
+    assert client.calls[-1][1] == 8192 + 24 * 4
+
+
+def test_grouping_budget_is_capped():
+    assert grouping_max_tokens(2000) == 32768
 
 
 @pytest.mark.parametrize("language, expected", [

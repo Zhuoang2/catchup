@@ -64,7 +64,7 @@ def discover(url: str) -> Discovery:
     links = _Links()
     links.feed(response.content.decode("utf-8", errors="replace"))
     deeper_page = urlsplit(response.url).path not in ("", "/")
-    notice = links.is_article or (deeper_page and bool(links.feeds))
+    notice = links.is_article
     if links.feeds:
         for href in links.feeds:
             candidate = urljoin(response.url, href)

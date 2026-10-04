@@ -124,3 +124,12 @@ Verification: focused backend digest tests (28 passed before the last regression
   - exactly 5 feed fetches
 - Both group 6 carry-overs are fixed: a model-layer `UTCDateTime` replaces the per-endpoint helper, and non-http(s) entry links fall back to the feed URL.
 - Verdict: **no required fixes.** Remaining before merge: manual verification with a real feed and a real DeepSeek key.
+
+## Task group 8, manual-verification fixes (2026-10-03)
+
+- 8.1: Output budgets are 4096 for summaries and `min(32768, 8192 + 24 × count)` for grouping and merge. Fake-client tests assert the requested budgets at all three stages and the cap. This leaves room for DeepSeek's default thinking mode before the JSON answer.
+- 8.2: Untitled feed entries derive a plain-text title at a word boundary up to 80 text characters (or exactly 80 CJK characters with no spaces), adding an ellipsis if shortened. A Bluesky-style HTML-description fixture, long CJK post, empty post, and titled hash fallback are covered. Entries with ids or links retain their key selection.
+- 8.3: A declared feed on `/@user` no longer triggers the whole-site notice. Existing article (`og:type=article`) and deeper-page origin-probe notice tests still pass.
+- 8.4: The summary system prompt now asks for 2–4 sentences on substance, excludes platform identifiers/handles/submission metadata/timestamps unless essential, and gives one short sentence for content-free items. A prompt test asserts those rules and the existing language, JSON keyword, and example.
+- Verification: `uv run pytest -q tests/test_digest_stages.py` (12 passed); `uv run pytest -q tests/test_discovery.py tests/test_sources_api.py` (33 passed); `uv run pytest` (153 passed); `npm test -- --run` (19 passed); `npm run build` (passed); `openspec validate add-core-digest-flow --strict` (valid). The scenario audit matched 52/52 headings to report rows and resolved all 85 backend test references. All tests used fake/mocked model and network interactions, with pytest temp data directories and no fixed sleeps.
+- During test authoring, the first Bluesky truncation assertion expected a shorter title than the specified 80-character limit; corrected the expected title, then the focused suite passed. The first mapping audit counted header/separator rows; restricted it to spec names and it passed. No live feed or DeepSeek re-test was done; reviewer and user own that verification. The 2026-10-03 manual-verification record in the test report was not edited.

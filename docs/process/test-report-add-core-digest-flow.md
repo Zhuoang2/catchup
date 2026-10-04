@@ -71,6 +71,7 @@ Test names without a path in this table are in `backend/tests/`; frontend tests 
 | source-management | Pasting a feed URL | `test_sources_api.py::test_preview_does_not_write_and_limits_entries`, `test_discovery.py::test_direct_feed_and_declared_html` |
 | source-management | Pasting a website URL that declares a feed | `test_discovery.py::test_direct_feed_and_declared_html`, `test_sources_api.py::test_declared_html_article_notice` |
 | source-management | Website exposes a feed without declaring it | `test_discovery.py::test_reddit_path_dot_rss_probe`, `test_discovery.py::test_origin_feed_probe_notices_site_scope` |
+| source-management | Profile or section page with its own declared feed | `test_discovery.py::test_profile_with_declared_feed_does_not_show_site_notice` |
 | source-management | Pasting a single article URL | `test_sources_api.py::test_declared_html_article_notice`, `test_discovery.py::test_article_page_follows_whole_site` |
 | source-management | No feed found | `test_sources_api.py::test_no_feed_and_not_a_feed`, `test_discovery.py::test_no_candidate_succeeds_and_probing_is_bounded` |
 | source-management | Duplicate source | `test_sources_api.py::test_duplicate_preview_and_confirm_name_existing_source` |
@@ -87,6 +88,7 @@ Test names without a path in this table are in `backend/tests/`; frontend tests 
 | content-collection | Site changes an entry identifier | `test_collection.py::test_changed_identifier_same_link_is_not_new` |
 | content-collection | Failure then success | `test_collection.py::test_failed_check_then_success_recovers_both_items` |
 | content-collection | All entries unseen | `test_collection.py::test_possible_gap_only_with_prior_items_and_no_match`, `test_collection.py::test_linkless_new_entry_can_signal_gap` |
+| content-collection | Social post without a title | `test_discovery.py::test_untitled_social_post_uses_plain_text_at_word_boundary`, `test_discovery.py::test_untitled_long_cjk_text_cuts_at_80_characters`, `test_discovery.py::test_no_title_or_text_is_untitled_and_titled_hash_stays_stable` |
 | content-collection | Feed provides only a short excerpt | `test_collection.py::test_short_feed_excerpt_is_replaced_with_extracted_article`, `test_sources_api.py::test_confirm_enriches_short_pending_entry_but_not_baseline` |
 | digest-generation | Start a run | `test_digest_runner.py::test_api_rejects_unconfigured_and_reports_active_progress`, `test_core_flow.py::test_incremental_api_flow_with_stored_citations`, `Generate.test.tsx` |
 | digest-generation | Run already active | `test_digest_runner.py::test_api_rejects_unconfigured_and_reports_active_progress`, `Generate.test.tsx` |
@@ -101,13 +103,19 @@ Test names without a path in this table are in `backend/tests/`; frontend tests 
 | digest-generation | Change language after earlier runs | `test_digest_runner.py::test_language_change_resummarizes_and_keeps_old_snapshot`, `test_digest_stages.py::test_summary_cache_language_prompt_truncation_and_unavailable` |
 | digest-generation | Generate before setup | `test_digest_runner.py::test_api_rejects_unconfigured_and_reports_active_progress`, `Generate.test.tsx` |
 | digest-generation | Restart during a run | `test_digest_runner.py::test_recovery_marks_unfinished_failed_and_allows_retry` |
+| digest-generation | Provider reasons before answering | `test_digest_stages.py::test_summary_cache_language_prompt_truncation_and_unavailable`, `test_digest_stages.py::test_group_discards_unknown_refs_and_duplicates_and_places_omissions`, `test_digest_stages.py::test_batch_merge_covers_every_item_once`, `test_digest_stages.py::test_grouping_budget_is_capped` (assert requested budgets with fake clients; live provider re-test belongs to review) |
+| digest-generation | Social post with metadata | `test_digest_stages.py::test_summary_prompt_focuses_on_substance_and_retains_json_language` (assert prompt rules; generated prose needs manual review) |
 | digest-generation | Empty model response | `test_llm_client.py::test_empty_response_retries`, `test_llm_client.py::test_empty_choices_retries` |
 | digest-generation | Rejected key during a run | `test_digest_runner.py::test_auth_or_balance_fails_immediately_with_pending_items`, `test_digest_stages.py::test_auth_failure_does_not_wait_for_another_model_worker` |
 | digest-history | Several digests | `test_digest_history.py::test_history_lists_three_newest_first_with_counts`, `History.test.tsx` |
 | digest-history | Open an older digest | `test_digest_history.py::test_digest_detail_uses_snapshot_positions_and_survives_source_deletion`, `DigestView.test.tsx` |
 | digest-history | Restart | `test_digest_history.py::test_digest_history_survives_new_app_on_same_data_directory` |
 
-**Scenarios without a test:** None. An automated audit compared all 48 `#### Scenario:` headings to the 48 table rows and verified 79 backend test references against definitions; none were missing or unknown. Additional regression tests: `test_digest_history.py::test_stored_timestamps_are_utc_across_endpoints` checks timestamps in source, run and digest responses (including conversion from a non-UTC offset); `test_discovery.py::test_unsafe_entry_links_fall_back_to_feed_url` rejects non-HTTP(S) entry links.
+**Scenarios without a test:** None. The group 7 audit compared the then-current 48 `#### Scenario:` headings to 48 table rows and verified 79 backend test references against definitions. Group 8 adds four scenarios and their test mappings above. Additional regression tests: `test_digest_history.py::test_stored_timestamps_are_utc_across_endpoints` checks timestamps in source, run and digest responses (including conversion from a non-UTC offset); `test_discovery.py::test_unsafe_entry_links_fall_back_to_feed_url` rejects non-HTTP(S) entry links.
+
+## Group 8 automated verification (2026-10-03)
+
+`uv run pytest` passed 153 tests; `npm test -- --run` passed 19; `npm run build` and `openspec validate add-core-digest-flow --strict` passed. The scenario audit matched 52 headings to 52 table rows and checked 85 backend test references against definitions, with none missing or unknown. All backend tests used the autouse network guard and pytest temporary data directories; model calls used fakes or mocks. No live provider, real key, network, or fixed sleeps were used. The historical coverage figures above are from group 7, not a new group 8 coverage run.
 
 ## Manual verification
 

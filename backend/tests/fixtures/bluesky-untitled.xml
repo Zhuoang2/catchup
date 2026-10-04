@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Bluesky posts</title>
+    <link>https://bsky.app/profile/example.bsky.social</link>
+    <item>
+      <guid>at://did:plc:example/app.bsky.feed.post/1</guid>
+      <link>https://bsky.app/profile/example.bsky.social/post/1</link>
+      <description><![CDATA[<p>Happy opening day, hockey fans! Follow all 1,344 games and enjoy every moment of the season.</p>]]></description>
+    </item>
+  </channel>
+</rss>

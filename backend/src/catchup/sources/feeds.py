@@ -30,6 +30,19 @@ def plain_text(html: str) -> str:
     return " ".join(" ".join(parser.fragments).split())
 
 
+def _entry_title(title: str, content_text: str) -> str:
+    if title:
+        return title
+    if not content_text:
+        return "Untitled"
+    if len(content_text) <= 80:
+        return content_text
+    prefix = content_text[:80]
+    if not prefix[-1].isspace() and not content_text[80].isspace():
+        prefix = prefix.rsplit(" ", 1)[0] if " " in prefix else prefix
+    return prefix.rstrip() + "…"
+
+
 @dataclass(frozen=True)
 class FeedEntry:
     identity_key: str
@@ -55,7 +68,10 @@ def parse_feed(response: FetchResponse) -> Feed:
     for entry in parsed.entries:
         stamp = entry.get("published_parsed") or entry.get("updated_parsed")
         published_at = datetime(*stamp[:6], tzinfo=timezone.utc) if stamp else None
-        title = plain_text(entry.get("title", "")) or "Untitled"
+        content = entry.get("content") or []
+        description = content[0].get("value", "") if content else entry.get("summary", "")
+        content_text = plain_text(description)
+        title = _entry_title(plain_text(entry.get("title", "")), content_text)
         original_link = entry.get("link", "")
         try:
             parts = urlsplit(original_link)
@@ -65,11 +81,9 @@ def parse_feed(response: FetchResponse) -> Feed:
         identity = entry.get("id") or (link if link != response.url else "")
         if not identity:
             identity = hashlib.sha256(f"{title}{published_at.isoformat() if published_at else ''}".encode()).hexdigest()
-        content = entry.get("content") or []
-        description = content[0].get("value", "") if content else entry.get("summary", "")
         entries.append(FeedEntry(
             identity_key=identity, link=link, title=title,
-            published_at=published_at, content_text=plain_text(description),
+            published_at=published_at, content_text=content_text,
         ))
     site_url = parsed.feed.get("link") or f"{urlsplit(response.url).scheme}://{urlsplit(response.url).netloc}/"
     return Feed(

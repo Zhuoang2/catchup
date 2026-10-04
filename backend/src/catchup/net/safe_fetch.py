@@ -15,9 +15,10 @@ NAT64_PREFIX = ipaddress.IPv6Network("64:ff9b::/96")
 
 
 class FetchError(Exception):
-    def __init__(self, code: str, message: str):
+    def __init__(self, code: str, message: str, status_code: int | None = None):
         super().__init__(message)
         self.code = code
+        self.status_code = status_code
 
 
 @dataclass(frozen=True)
@@ -60,10 +61,10 @@ def safe_fetch(url: str, *, same_origin: str | None = None, budget: list[int] | 
     current = url
     deadline = monotonic() + FETCH_DEADLINE_SECONDS
 
-    def remaining() -> float:
+    def remaining(status_code: int | None = None) -> float:
         seconds = deadline - monotonic()
         if seconds <= 0:
-            raise FetchError("fetch_failed", "The source fetch timed out.")
+            raise FetchError("fetch_failed", "The source fetch timed out.", status_code)
         return seconds
 
     with httpx.Client(follow_redirects=False, trust_env=False) as client:
@@ -78,19 +79,26 @@ def safe_fetch(url: str, *, same_origin: str | None = None, budget: list[int] | 
                 if budget[0] <= 0:
                     raise FetchError("fetch_failed", "Feed probing request limit reached.")
                 budget[0] -= 1
+            status_code = None
             try:
                 timeout = httpx.Timeout(
                     connect=min(5.0, left), read=min(15.0, left),
                     write=min(5.0, left), pool=min(5.0, left),
                 )
                 with client.stream("GET", current, timeout=timeout) as response:
-                    remaining()
+                    status_code = response.status_code
+                    remaining(status_code)
                     if response.status_code in (301, 302, 303, 307, 308):
                         location = response.headers.get("location")
                         if not location:
-                            raise FetchError("fetch_failed", "The source returned a redirect without a destination.")
+                            raise FetchError(
+                                "fetch_failed", "The source returned a redirect without a destination.",
+                                response.status_code,
+                            )
                         if hop == MAX_REDIRECTS:
-                            raise FetchError("fetch_failed", "The source redirected too many times.")
+                            raise FetchError(
+                                "fetch_failed", "The source redirected too many times.", response.status_code,
+                            )
                         current = urljoin(current, location)
                         continue
                     response.raise_for_status()
@@ -98,22 +106,32 @@ def safe_fetch(url: str, *, same_origin: str | None = None, budget: list[int] | 
                     if length:
                         try:
                             if int(length) > MAX_BYTES:
-                                raise FetchError("fetch_failed", "The source response exceeds the 5 MB limit.")
+                                raise FetchError(
+                                    "fetch_failed", "The source response exceeds the 5 MB limit.", status_code,
+                                )
                         except ValueError:
-                            raise FetchError("fetch_failed", "The source returned an invalid response size.") from None
+                            raise FetchError(
+                                "fetch_failed", "The source returned an invalid response size.", status_code,
+                            ) from None
                     body = bytearray()
                     for chunk in response.iter_bytes():
-                        remaining()
+                        remaining(status_code)
                         body.extend(chunk)
                         if len(body) > MAX_BYTES:
-                            raise FetchError("fetch_failed", "The source response exceeds the 5 MB limit.")
-                    remaining()
+                            raise FetchError(
+                                "fetch_failed", "The source response exceeds the 5 MB limit.", status_code,
+                            )
+                    remaining(status_code)
                     return FetchResponse(
                         url=str(response.url), content=bytes(body),
                         content_type=response.headers.get("content-type", ""), status_code=response.status_code,
                     )
             except httpx.TimeoutException as exc:
-                raise FetchError("fetch_failed", "The source fetch timed out.") from exc
+                raise FetchError("fetch_failed", "The source fetch timed out.", status_code) from exc
+            except httpx.HTTPStatusError as exc:
+                raise FetchError(
+                    "fetch_failed", "The source could not be fetched.", exc.response.status_code,
+                ) from exc
             except httpx.HTTPError as exc:
                 raise FetchError("fetch_failed", "The source could not be fetched.") from exc
     raise AssertionError("unreachable")

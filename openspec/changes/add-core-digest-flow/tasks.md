@@ -43,7 +43,7 @@ Implementer notes:
 
 ## 4. Content collection
 
-- [ ] 4.1 Implement `backend/src/catchup/collection.py`: check one source (safe fetch → parse → record unseen entries by identity key with a secondary link match), set the outcome (`new_items` / `no_new_items` / `failed` with error) and `possible_gap`, and for new entries with text shorter than `CATCHUP_SHORT_TEXT_CHARS`, fetch the article via `safe_fetch` and extract it with `trafilatura.extract`, falling back to the feed text. Verify: tests for every scenario in `specs/content-collection/spec.md` (repeated entries, late entry with old date, id change with same link, failure then success, possible gap, failure never reported as no new items, short-text extraction and fallback).
+- [x] 4.1 Implement `backend/src/catchup/collection.py`: check one source (safe fetch → parse → record unseen entries by identity key with a secondary link match), set the outcome (`new_items` / `no_new_items` / `failed` with error) and `possible_gap`, and for new entries with text shorter than `CATCHUP_SHORT_TEXT_CHARS`, fetch the article via `safe_fetch` and extract it with `trafilatura.extract`, falling back to the feed text. Verify: tests for every scenario in `specs/content-collection/spec.md` (repeated entries, late entry with old date, id change with same link, failure then success, possible gap, failure never reported as no new items, short-text extraction and fallback).
 
 ## 5. Digest generation
 

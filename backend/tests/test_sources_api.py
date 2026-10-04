@@ -26,7 +26,8 @@ def entries_xml(recent: int, old: int = 0, undated: int = 0) -> bytes:
         )
         entries.append(
             f"<item><guid>item-{i}</guid><title>Entry {i}</title>"
-            f"<link>https://site.example/articles/{i}</link>{date_tag}<description>Text {i}</description></item>",
+            f"<link>https://site.example/articles/{i}</link>{date_tag}"
+            f"<description>{'Feed text ' * 60}</description></item>",
         )
     return (
         "<rss version='2.0'><channel><title>Example News</title>"
@@ -123,6 +124,33 @@ def test_confirm_preserves_entries_without_links(client):
         assert client.post("/api/sources", json={"feed_url": FEED_URL}).status_code == 201
     with client.app.state.session_factory() as session:
         assert session.scalars(select(Item.state)).all().count("pending") == 2
+
+
+def test_confirm_enriches_short_pending_entry_but_not_baseline(client):
+    xml = b"""<rss version="2.0"><channel><title>News</title>
+    <item><guid>recent</guid><link>https://site.example/recent</link>
+    <title>Recent</title><pubDate>Fri, 02 Oct 2026 10:00:00 GMT</pubDate>
+    <description>Short</description></item>
+    <item><guid>old</guid><link>https://site.example/old</link>
+    <title>Old</title><pubDate>Thu, 01 Jan 2026 10:00:00 GMT</pubDate>
+    <description>Short</description></item></channel></rss>"""
+    with respx.mock(assert_all_mocked=True) as router:
+        serve_feed(router, xml)
+        article = router.get("https://site.example/recent").mock(return_value=httpx.Response(
+            200, content=b"<html><body><article><h1>Recent</h1>"
+                         b"<p>Full article text for the newly pending entry.</p>"
+                         b"</article></body></html>",
+        ))
+        assert client.post("/api/sources", json={"feed_url": FEED_URL}).status_code == 201
+    assert article.call_count == 1
+    with client.app.state.session_factory() as session:
+        recent = session.scalar(select(Item).where(Item.identity_key == "recent"))
+        old = session.scalar(select(Item).where(Item.identity_key == "old"))
+        assert recent.state == "pending"
+        assert recent.content_origin == "article"
+        assert "Full article text" in recent.content_text
+        assert old.state == "baseline"
+        assert old.content_text == "Short"
 
 
 def test_duplicate_preview_and_confirm_name_existing_source(client):

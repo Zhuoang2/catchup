@@ -154,3 +154,11 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   | **Total so far** | **~1.94M** |
 
   Resuming one long session also makes every later call re-read a growing context. For group 4 onward, a fresh session per group is cheaper; the OpenSpec files already carry the needed context.
+
+## 2026-10-03 — Content collection implementation (Factory Droid, GPT-6 Sol)
+
+- Purpose: Implement only task 4.1, including safe article extraction and per-source check outcomes.
+- Prompt (user, faithful excerpt): "Implement ONLY task group 4 (task 4.1, content collection), using the openspec-apply-change skill ... source_checks.http_status must be recorded ... secondary link match must ignore links equal to the source's feed_url ... possible-gap flag applies only to a successful check of a source that already has recorded items ... no real network ... Commit once at the end."
+- Outcome: Added `check_source(session, source, run_id, settings)`, first-sight recording and gap detection, HTTP status on check failures, and article extraction with feed fallback. Confirm-time pending entries also use the same extractor so the first digest has full text when available. Offline tests cover all content-collection scenarios.
+- What failed / adjustment: No tests failed. The course brief file named in `AGENTS.md` was absent in this worktree; task 4.1 did not depend on it. During implementation, noticed confirm-time pending entries would otherwise bypass extraction; reused the extraction helper there and adjusted existing test fixtures to supply sufficiently long feed text where article fetching is not under test. No real key or live network was used.
+- Verification: `uv run pytest` (112 passing before the last gap-edge test); final `uv run pytest --cov=catchup --cov-report=term` (113 passing, 95% overall, 100% collection); `npm test -- --run` (9 passing); `npm run build` and `openspec validate add-core-digest-flow --strict` passed.

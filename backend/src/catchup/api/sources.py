@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from catchup.collection import article_text
 from catchup.db import get_session
 from catchup.errors import AppError
 from catchup.models import Item, Source, SourceCheck, utc_now
@@ -109,10 +110,14 @@ def confirm(data: ConfirmInput, request: Request, session: Session = Depends(get
     for entry in entries:
         state = "pending" if entry.identity_key in selected else "baseline"
         pending_count += state == "pending"
+        text, origin = (
+            article_text(entry, {feed.feed_url}, settings.short_text_chars)
+            if state == "pending" else (entry.content_text, "feed")
+        )
         session.add(Item(
             source_id=source.id, identity_key=entry.identity_key, link=entry.link,
             title=entry.title, published_at=entry.published_at, discovered_at=now,
-            content_text=entry.content_text, content_origin="feed", state=state,
+            content_text=text, content_origin=origin, state=state,
         ))
     source.last_check_status = "new_items" if pending_count else "no_new_items"
     session.add(SourceCheck(

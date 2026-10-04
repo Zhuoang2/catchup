@@ -16,6 +16,9 @@ def isolate_test_environment(tmp_path, monkeypatch) -> None:
 
     monkeypatch.setattr(socket, "getaddrinfo", no_network)
     monkeypatch.setattr(socket.socket, "connect", no_network)
+    # Tests with meaningful delays inject clocks; all other sleeps stay virtual.
+    monkeypatch.setattr("catchup.net.host_spacing._sleep", lambda _seconds: None)
+    monkeypatch.setattr("catchup.net.safe_fetch.sleep", no_network)
 
 
 @pytest.fixture

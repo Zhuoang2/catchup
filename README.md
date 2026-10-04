@@ -59,6 +59,13 @@ CatchUp supports RSS/Atom feeds, including sites that declare a feed or
 expose one at a common path. Examples include
 blogs, Bluesky and Mastodon profiles, and Reddit subreddits (availability
 can depend on the host network).
+Reddit support ends on **2026-11-13** because Reddit is
+[discontinuing RSS feeds](https://techcrunch.com/2026/09/30/reddit-is-killing-rss-feeds-ending-public-api-access-because-of-ai-bots/).
+Source requests identify the client as
+`CatchUp/<version> (+https://github.com/Zhuoang2/catchup)`. Optionally set
+`CATCHUP_USER_AGENT_CONTACT` to append a contact inside the parentheses,
+for example `CatchUp/0.1.0 (+https://github.com/Zhuoang2/catchup; by /u/example)`.
+The contact must be printable ASCII, no longer than 100 characters.
 X, pages without feeds, podcasts/YouTube, and content behind a login or
 paywall are not supported in this release.
 

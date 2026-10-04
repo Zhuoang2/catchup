@@ -2,6 +2,13 @@
 
 Real usage records for the technical spec, alpha reflection, and final report. Each entry: date, tool/model, purpose, prompt (verbatim or faithful excerpt), outcome, problems, adjustment.
 
+## 2026-10-04 — Source reliability implementation (Factory Droid, GPT-6 Sol)
+
+- Purpose: Implement OpenSpec change `improve-source-reliability`, groups 1–4, on a branch from main.
+- Prompt (user, faithful excerpt): "Implement OpenSpec change improve-source-reliability (GitHub issue #3) using the openspec-apply-change skill ... Work through ... tasks.md in order (groups 1-4) and check off each task only after its verification passes. Commit after each task group. Do not edit proposal.md, design.md, or the spec deltas ... no real network, no real API key, no writes outside pytest temp dirs, no real sleeps in tests."
+- Outcome: Descriptive User-Agent and bounded rate-limit retry, preview feed cache, per-run host spacing, clear rate-limit responses/UI, docs and test mapping. Four group commits; 197 backend and 22 frontend tests pass, build and strict validation pass. No live sources or model were used.
+- What failed / adjustment: `parsedate_to_datetime` returned a naive date for asctime; interpreted that format as UTC. A fake sleep test caught an unnecessary zero-second sleep. The earlier end-to-end test expected confirm to fetch again; corrected its request count to four after caching. Default sleeps were intercepted in the test fixture, while timing assertions use fake clocks and sleeps.
+
 ## 2026-10-01 — Product discussion and proposal (Codex)
 
 - Tool: Codex.

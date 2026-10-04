@@ -260,6 +260,7 @@ def test_short_feed_excerpt_is_replaced_with_extracted_article(session, app):
             200, content=article, headers={"content-type": "text/html"},
         ))
         check = run_check(session, app.state.settings)
+        assert all(call.request.headers["user-agent"].startswith("CatchUp/") for call in router.calls)
     saved = session.scalar(select(Item))
     assert check.status == "new_items" and article_route.call_count == 1
     assert saved.content_origin == "article"

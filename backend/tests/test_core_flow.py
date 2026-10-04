@@ -105,4 +105,4 @@ def test_incremental_api_flow_with_stored_citations(test_settings, monkeypatch):
         assert len(client.get("/api/digests").json()) == 2
         assert client.get(f"/api/digests/{first['digest_id']}").json() == first_digest
         assert len(model.calls) == 5  # Three item summaries and two grouping calls.
-        assert router.calls.call_count == 5  # Preview, confirm, and three checks.
+        assert router.calls.call_count == 4  # Preview feed reused at confirm, plus three checks.

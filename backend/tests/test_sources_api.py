@@ -118,6 +118,7 @@ def test_confirm_without_preview_fetches_feed(client):
         route = serve_feed(router, entries_xml(1))
         assert client.post("/api/sources", json={"feed_url": FEED_URL}).status_code == 201
         assert route.call_count == 1
+        assert route.calls[0].request.headers["user-agent"].startswith("CatchUp/")
 
 
 def test_declared_html_article_notice(client):
@@ -160,6 +161,7 @@ def test_configurable_first_add_limits(monkeypatch, public_dns):
     with TestClient(create_app()) as client, respx.mock(assert_all_mocked=True) as router:
         serve_feed(router, entries_xml(8))
         assert client.post("/api/sources", json={"feed_url": FEED_URL}).status_code == 201
+        assert all(call.request.headers["user-agent"].startswith("CatchUp/") for call in router.calls)
         with client.app.state.session_factory() as session:
             assert session.scalars(select(Item.state)).all().count("pending") == 1
 
@@ -192,6 +194,7 @@ def test_confirm_enriches_short_pending_entry_but_not_baseline(client):
                          b"</article></body></html>",
         ))
         assert client.post("/api/sources", json={"feed_url": FEED_URL}).status_code == 201
+        assert all(call.request.headers["user-agent"].startswith("CatchUp/") for call in router.calls)
     assert article.call_count == 1
     with client.app.state.session_factory() as session:
         recent = session.scalar(select(Item).where(Item.identity_key == "recent"))

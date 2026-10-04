@@ -1,7 +1,7 @@
 """Space requests to each host for the lifetime of a digest run."""
 
-import time
 from threading import Lock
+from time import monotonic, sleep as _sleep
 from typing import Callable
 from urllib.parse import urlsplit
 
@@ -10,8 +10,8 @@ class HostSpacer:
     def __init__(self, *, min_interval: float = 1.0, clock: Callable[[], float] | None = None,
                  sleep: Callable[[float], None] | None = None):
         self.min_interval = min_interval
-        self.clock = clock or time.monotonic
-        self.sleep = sleep or time.sleep
+        self.clock = clock or monotonic
+        self.sleep = sleep or _sleep
         self._lock = Lock()
         self._last: dict[str, float] = {}
 

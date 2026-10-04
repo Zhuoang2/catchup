@@ -57,12 +57,12 @@ Implementer notes:
 
 ## 4. Documentation and test report
 
-- [ ] 4.1 Update `README.md` and `.env.example`:
+- [x] 4.1 Update `README.md` and `.env.example`:
   - in Supported sources, state that Reddit support ends on 2026-11-13 because Reddit is discontinuing RSS, citing the TechCrunch report URL from `research.md`
   - document `CATCHUP_USER_AGENT_CONTACT` and the User-Agent CatchUp sends
 
   Verify: the README renders the new text, and `.env.example` lists the variable commented out.
-- [ ] 4.2 Write `docs/process/test-report-improve-source-reliability.md`:
+- [x] 4.2 Write `docs/process/test-report-improve-source-reliability.md`:
   - the commands and results
   - backend coverage for the new and changed modules
   - a table mapping every scenario in both spec files under `specs/` to its tests, listing any scenario without a test explicitly

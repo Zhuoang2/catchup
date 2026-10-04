@@ -433,3 +433,23 @@ def test_run_detail_identifies_only_rate_limited_checks(environment, status, err
     assert check["status"] == "failed"
     assert check["http_status"] == status
     assert check["rate_limited"] is expected
+
+
+def test_rate_limited_run_check_is_visible_in_progress_and_source_list(environment, monkeypatch):
+    seed(environment, count=0)
+    monkeypatch.setattr(socket, "getaddrinfo", lambda _host, port, **_kwargs: [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", port)),
+    ])
+    with respx.mock(assert_all_mocked=True) as router:
+        route = router.get("https://s0.example/feed").mock(return_value=httpx.Response(
+            429, headers={"Retry-After": "120"},
+        ))
+        result = execute(environment)
+    assert route.call_count == 1
+    assert route.calls[0].request.headers["user-agent"].startswith("CatchUp/")
+    assert result["status"] == "no_new_content"
+    check = result["source_checks"][0]
+    assert (check["status"], check["http_status"], check["rate_limited"]) == ("failed", 429, True)
+    assert "about 120 seconds" in check["error"]
+    listed = environment.get("/api/sources").json()[0]
+    assert (listed["last_check_status"], listed["http_status"], listed["rate_limited"]) == ("failed", 429, True)

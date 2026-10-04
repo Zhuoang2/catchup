@@ -1,111 +1,123 @@
-# Design: add-docker-packaging
+# Design
 
-Status: awaiting user choice
+Status: Proposal 2 chosen by the user on 2026-10-04 (self-contained package with a slim image).
 
-## Solution Proposals
+## Context
 
-Context:
-- Request: package CatchUp as one Docker image (FastAPI serving the built React app, SQLite on a persistent volume), publish it to GHCR with GitHub Actions, and document local deployment. There is no hosted instance (D-011, issue #7).
-- Research Source: `research.md`, sections "Frontend build location", "Migrations location and packaging", "Data and configuration", "CI today", "Build context contents", and "External facts".
+See `proposal.md` for motivation. Today CatchUp runs only from a source checkout:
+- `main.py:83` finds `frontend/dist` via `Path(__file__).parents[3]`.
+- `db.py:34` finds `backend/alembic` via `parents[2]`.
+- `pyproject.toml:31-32` packages only `src/catchup`, so migrations are not in a wheel.
 
-### Shared by both proposals
+The data directory defaults to `./data`. Configuration is environment-only, and the allowed-hosts check ignores the port. CI runs tests and builds only, using `checkout@v4`, `setup-uv@v6`, `setup-node@v4`, and Node 20. The working copy contains gitignored secrets and course material that a Docker build context would include by default. External facts come from `research.md` ("External facts").
 
-- **Multi-stage Dockerfile** at the repo root:
-  - A Node stage on `node:24-slim` (current LTS) runs `npm ci && npm run build`.
-  - A uv stage on `ghcr.io/astral-sh/uv:python3.12-trixie-slim` uses the documented cache pattern (`uv sync --locked --no-install-project`, then the project), with `UV_COMPILE_BYTECODE=1`, `UV_NO_DEV=1`, and `UV_PYTHON_DOWNLOADS=0`.
-  - The final stage is `python:3.12-slim-trixie`, the base the uv example says must match the builder (`research.md`, "External facts").
-- **Final image:**
-  - It runs as a non-root user (uid 999).
-  - `CATCHUP_DATA_DIR=/data` points at a declared volume. The SQLite and WAL files must live on one host volume (research, "Data and configuration").
-  - It exposes port 8000 and starts uvicorn with an exec-form `CMD` on `0.0.0.0`.
-  - Its `HEALTHCHECK` calls `/api/health` with `Host: localhost`, which the allowed-hosts check accepts (`main.py:50-77`).
-- **`.dockerignore` as an allowlist** (ignore everything, then re-include `backend/` and `frontend/` sources and lockfiles). This keeps the course PDF, `work/`, `.env`, `.venv`, `node_modules`, and `data/` out of the build context (research, "Build context contents").
-- **`compose.yaml`** for one-command local use:
-  - The port is published as `127.0.0.1:8000:8000`, so the instance, which has no login, is reachable only from the user's own machine.
-  - Data is a named volume.
-  - Settings come from `.env` (`env_file`).
-  - The README shows how to generate `CATCHUP_SECRET_KEY` first.
-- **Publish workflow** `.github/workflows/release.yml`:
-  - It builds `linux/amd64` and `linux/arm64` (Apple Silicon users) and pushes `ghcr.io/zhuoang2/catchup` (lowercase).
-  - Tags: `edge` on pushes to `main`; `X.Y.Z`, `X.Y`, and `latest` on `vX.Y.Z` git tags (`docker/metadata-action@v6`).
-  - Permissions: `contents: read`, `packages: write`.
-  - Actions at current majors: `build-push-action@v7`, `login-action@v4`, `setup-buildx-action@v4`, `setup-qemu-action@v4`.
-- **Image smoke test on every PR:** CI builds the image without pushing, runs it, and checks:
-  - `/api/health` answers 200
-  - `/` serves the frontend
-  - the database file is created on the volume
-  - a restart keeps the data
-- **README "Run with Docker"** section: commands for `docker compose up` and plain `docker run`, how to back up the volume, the note that collected content is sent to the model provider, and the note that the instance is local-only by design.
-- **Spec capability (new): `local-deployment`**. It covers:
-  - starting with one command from a published image
-  - data persisting across container restarts and upgrades
-  - reachability from the local machine only by default
-  - running as non-root
-  - a health check
+## Goals / Non-Goals
 
----
+**Goals:**
+- `docker compose up` gives a working, local-only CatchUp with persistent data.
+- The backend package runs outside the source tree.
+- CI proves the image works on every PR; `main` and version tags publish multi-architecture images to GHCR.
 
-### Proposal 1 — Image that mirrors the source tree (no application code changes)
+**Non-Goals:**
+- A hosted instance or authentication (D-011).
+- Publishing the wheel to PyPI or GitHub Releases. The package becomes ready for it, but that is not done here.
+- Creating the first `vX.Y.Z` tag. The user decides when to cut a release.
+- Making the `docker` CI job a required check (can be added to branch protection later).
 
-- Overview: The final image recreates the repository layout under `/app`:
-  - `/app/backend` holds the source, `alembic/`, and an editable `.venv`.
-  - `/app/frontend/dist` holds the built frontend.
+## Decisions
 
-  The existing relative-path lookups (`main.py:83` → `parents[3]/frontend/dist`; `db.py:34` → `parents[2]/alembic`) resolve unchanged, so the application code stays as it is.
-- Key Changes:
-  - New files: `Dockerfile`, `.dockerignore`, `compose.yaml`, `.github/workflows/release.yml`, plus a smoke-test job in `ci.yml`.
-  - README section.
-  - Spec: new `local-deployment`.
-  - No Python or TypeScript changes.
-- Trade-offs:
-  - Benefits:
-    - Smallest and fastest change, with the least risk to the code that 197 tests cover.
-    - The image behaves exactly like a source checkout, which is easy to reason about.
-  - Costs:
-    - The image depends on the source layout. The `parents[]` lookups stay fragile: moving a file breaks the image, and only the smoke test would catch it.
-    - The final image carries the full backend source and an editable install.
-    - CatchUp still cannot be installed as a normal Python package (e.g. `uvx`/`pip`), because migrations stay outside the package.
-- Validation:
-  - The CI smoke test (health check, frontend served, database created on the volume, data kept across a restart).
-  - `docker compose up` on the developer's Mac (arm64) with a real model key, running one digest.
-  - Inspecting that the image has none of the files excluded by `.dockerignore`.
-- Open Questions:
-  - None blocking.
+### D1. Self-contained package (chosen over mirroring the source tree)
+- Migrations move from `backend/alembic/` to `backend/src/catchup/migrations/` (`env.py`, `script.py.mako`, `versions/`), with history preserved via `git mv`. `migrate()` points Alembic at `Path(__file__).parent / "migrations"`. Hatch includes all files under the package, so the wheel carries them.
+- `CATCHUP_FRONTEND_DIST` (new `Settings.frontend_dist: Path | None`). Precedence:
+  1. the `create_app(dist_dir=…)` argument (tests)
+  2. the setting
+  3. the current source-tree fallback (`parents[3]/frontend/dist`)
+- A missing or invalid directory keeps today's behavior: the API runs and no frontend is served.
+- `catchup` console script (`[project.scripts] catchup = "catchup.cli:main"`). `catchup serve [--host 127.0.0.1] [--port 8000]` calls `uvicorn.run(create_app(), host=…, port=…)`. The default host is loopback; the image passes `--host 0.0.0.0`. The module-level `app` in `main.py` stays for `uvicorn catchup.main:app`.
+- **Alternative considered (Proposal 1):** an image that mirrors the source tree under `/app` so the `parents[]` lookups resolve unchanged, with no code changes. It was rejected because the lookups stay fragile, the image carries the source and an editable install, and CatchUp still could not be installed as a package. It remains the fallback if the move proves troublesome.
 
----
+### D2. Dockerfile (multi-stage, repo root)
+1. **`frontend` stage:** `FROM --platform=$BUILDPLATFORM node:24-slim`. It runs `npm ci && npm run build` using `frontend/package*.json` and sources. The output is architecture-independent, so it runs natively even when building arm64 under emulation.
+2. **`builder` stage:** `FROM ghcr.io/astral-sh/uv:python3.12-trixie-slim`, with `UV_COMPILE_BYTECODE=1`, `UV_LINK_MODE=copy`, `UV_NO_DEV=1`, and `UV_PYTHON_DOWNLOADS=0`. It works in `/app` in two steps:
+   - `uv sync --locked --no-install-project --no-editable` with a cache mount, bind-mounting `backend/uv.lock` and `backend/pyproject.toml`
+   - copy `backend/` and run `uv sync --locked --no-editable`
+3. **Final stage:** `FROM python:3.12-slim-trixie`. It:
+   - creates user and group `catchup` (uid/gid 999) and `/data` owned by them
+   - copies `/app/.venv` from the builder and `dist/` from `frontend` to `/app/frontend`
+   - sets `PATH=/app/.venv/bin:$PATH`, `PYTHONUNBUFFERED=1`, `CATCHUP_DATA_DIR=/data`, `CATCHUP_FRONTEND_DIST=/app/frontend`
+   - declares `VOLUME /data`, `EXPOSE 8000`, and `USER catchup`
+   - defines `HEALTHCHECK --interval=30s --timeout=5s --start-period=20s` running a `python -c` urllib request to `http://127.0.0.1:8000/api/health` (the image has no curl; Host `127.0.0.1` is allowed by default)
+   - runs `CMD ["catchup", "serve", "--host", "0.0.0.0", "--port", "8000"]`
+- The final image contains no source tree and no build tools.
 
-### Proposal 2 — Self-contained package, with a slim image built from it
+### D3. `.dockerignore` as an allowlist
+- `*`, then re-include:
+  - `backend/pyproject.toml`, `backend/uv.lock`, `backend/src/**`
+  - `frontend/package.json`, `frontend/package-lock.json`, `frontend/index.html`, `frontend/tsconfig*.json`, `frontend/vite.config.ts`, `frontend/src/**`, `frontend/public/**` (if present)
+- Then re-exclude `**/__pycache__`, `**/node_modules`, `**/.venv`, `**/dist`, and `**/*.test.tsx` only if the build does not need them. Tests are not needed for `vite build`, but `tsc --noEmit` type-checks them, so keep them unless the build passes without.
+- Everything else is excluded by default: `.env`, `data/`, `work/`, PDFs, `.git`, `openspec/`, `docs/`, `.claude/`, `.factory/`.
 
-- Overview: Make the backend package locate its own resources, then build a final image that contains only the installed environment and the built frontend.
-  - Migrations move into the package.
-  - The frontend location becomes configurable.
-  - A `catchup` command starts the server.
-  - The image installs the project non-editable and copies only `.venv` and the frontend build.
-- Key Changes:
-  - Move `backend/alembic/` to `backend/src/catchup/migrations/`. `db.py` points Alembic at the package-relative path, and the wheel then includes migrations automatically (`pyproject.toml:31-32`).
-  - New `CATCHUP_FRONTEND_DIST` setting. When it is unset, the current source-tree path (`main.py:83`) is the fallback, so `uv run uvicorn` in development keeps working.
-  - New console script `catchup = "catchup.cli:main"` (`catchup serve --host --port`), which wraps uvicorn so the image and future `uvx catchup` use one entry point.
-  - Dockerfile: `uv sync --locked --no-editable` in the builder; the final stage copies only `/app/.venv` and the frontend `dist` (set via `CATCHUP_FRONTEND_DIST=/app/frontend`).
-  - Plus all shared items. Specs: new `local-deployment`.
-- Trade-offs:
-  - Benefits:
-    - Removes the fragile `parents[]` coupling that #7 already flagged.
-    - Smaller image without the source tree.
-    - Opens the door to `pip`/`uvx` installs later without more restructuring.
-    - A cleaner story for the "deployment automation" evidence in the course report.
-  - Costs:
-    - Touches working code: the migration location, the frontend path resolution, and a new CLI. Tests for migrations and static serving need updating.
-    - The development command and README change slightly (`catchup serve` alongside `uvicorn`).
-    - More Droid work than Proposal 1.
-- Validation:
-  - Everything in Proposal 1.
-  - Plus: a test that builds the wheel and checks that it contains `catchup/migrations/versions/0001_initial.py`.
-  - A test that `CATCHUP_FRONTEND_DIST` overrides the path while the source-tree fallback still works.
-  - A test that `catchup serve --help` runs.
-  - The existing migration and static tests still pass.
-- Open Questions:
-  - Whether to also publish the wheel (e.g. to GitHub Releases or PyPI). Not in scope here; the package would be ready for it.
+### D4. `compose.yaml`
+- One service, `catchup`, with both `image: ghcr.io/zhuoang2/catchup:latest` and `build: .`, so it can pull a published image or build locally.
+- `ports: ["127.0.0.1:8000:8000"]` (local only).
+- `volumes: ["catchup-data:/data"]` (named volume).
+- `env_file` set to `.env` with `required: false` (Compose ≥ 2.24).
+- `restart: unless-stopped`.
 
----
+### D5. Smoke test script (`scripts/docker-smoke.sh`)
+- It is used both locally and in CI. With an image tag argument, a fresh named volume, and a free port, it checks:
+  1. The container becomes `healthy` within 60 s.
+  2. `GET /api/health` with `Host: localhost` returns 200.
+  3. `GET /` returns HTML.
+  4. `docker exec … id -u` is not 0.
+  5. `/data/catchup.sqlite3` exists.
+  6. `PUT /api/settings/preferences` to `zh-Hans`, then a container restart, then `GET` still returns `zh-Hans`.
+  7. The image contains no `/app/.env` or `/app/backend`.
+- It cleans up on exit (trap).
 
-Recommendation: **Proposal 2.** The `parents[]` lookups are the one real obstacle to packaging, and research shows they only work from a source checkout. Fixing them once makes the image smaller and the package installable, with a contained, well-tested change: one moved folder, one setting, one small CLI. Proposal 1 is a reasonable fallback if time is tight, since it ships the same user-facing result with no code changes.
+### D6. CI and release
+- **`ci.yml`:**
+  - Bump `actions/checkout@v7`, `astral-sh/setup-uv@v10`, `actions/setup-node@v7`, and Node `24`. Keep the job names `backend` and `frontend`, since branch protection requires them.
+  - Add a `docker` job: `docker/setup-buildx-action@v4`, `docker/build-push-action@v7` with `load: true`, `push: false`, `platforms: linux/amd64`, and a GitHub Actions cache. Then run `scripts/docker-smoke.sh`.
+  - Add a wheel check step in `backend`: `uv build --wheel`, then assert the wheel contains `catchup/migrations/versions/0001_initial.py`.
+- **`release.yml`:**
+  - Triggers: `push` to `main` and tags `v*.*.*`. Permissions: `contents: read`, `packages: write`.
+  - Steps: `checkout@v7`, `setup-qemu-action@v4`, `setup-buildx-action@v4`, `login-action@v4` to `ghcr.io` with `GITHUB_TOKEN`, `metadata-action@v6`, then `build-push-action@v7` with `platforms: linux/amd64,linux/arm64` and `push: true`.
+  - Image `ghcr.io/zhuoang2/catchup`. Tags: `type=edge,branch=main`, `type=semver,pattern={{version}}`, `type=semver,pattern={{major}}.{{minor}}`, and `latest` on semver tags only.
+  - The OCI labels include `org.opencontainers.image.source`.
+  - QEMU was chosen over native arm runners for one simple job. The Node stage runs on `$BUILDPLATFORM`, so only the Python stage is emulated.
+
+## Risks / Trade-offs
+
+- [Moving migrations breaks existing local databases] → Alembic tracks revision IDs, not file paths, so `0001` stays applied. A test migrates a database created before the move and checks that it is unchanged.
+- [arm64 builds under QEMU are slow] → Only the Python install is emulated. Dependencies ship aarch64 wheels (`uv.lock`). This is accepted for a release-only job.
+- [Named volume vs bind mount permissions] → The named volume inherits `/data` ownership (uid 999). The README warns that bind mounts must be writable by uid 999.
+- [The instance has no login] → Loopback-only publishing by default. The README states the risk before explaining `CATCHUP_ALLOWED_HOSTS` and port changes.
+- [GHCR visibility after the first publish is unclear] → The reviewer checks it after the first push to `main` and sets it to public in the GitHub UI if needed.
+- [`env_file required: false` needs Compose ≥ 2.24] → The README states the minimum Docker Compose version.
+
+## Migration Plan
+
+- Existing source checkouts: pull, then `uv sync`. `uv run uvicorn catchup.main:app` keeps working, and so does `uv run catchup serve`. Existing `./data` databases keep working (same revision IDs).
+- Docker users start fresh with a new named volume. There is no data migration from a source checkout in this change. The README explains copying `catchup.sqlite3` into the volume if wanted.
+- Rollback: revert the commits. Published images can be deleted from GHCR.
+
+## Testing Plan
+
+- Unit and integration tests (pytest, existing sandbox rules):
+  - migrations resolve inside the package, and migrating a pre-move database is a no-op
+  - `CATCHUP_FRONTEND_DIST` precedence and fallback
+  - `catchup serve --help`, argument parsing, and the `uvicorn.run` call (patched)
+  - all existing tests still pass
+- CI:
+  - wheel content check
+  - Docker build plus `scripts/docker-smoke.sh` on every push and PR
+  - release workflow on `main` (verified after merge by checking that GHCR has `edge` for both architectures)
+- Manual by the reviewer with the user:
+  - `docker compose up --build` on the Mac (arm64)
+  - open the UI, save model settings, run one digest with a real key
+  - restart and confirm the data is kept
+
+## Open Questions
+
+- None blocking. Cutting the first release tag (`v0.1.0`) is left to the user after merge.

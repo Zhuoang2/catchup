@@ -137,6 +137,83 @@ def test_save_failure_rolls_back_snapshot_and_delivery(environment, monkeypatch)
     assert all_rows(environment, Item)[0].state == "pending"
 
 
+def test_unexpected_failure_is_logged_without_key_or_collected_content(environment, monkeypatch, caplog):
+    seed(environment)
+    stub_collection(monkeypatch)
+    secret = "fake-key"
+    content = "Original content"
+
+    def fail(*_args):
+        raise RuntimeError(f"failed with {secret} and {content}")
+
+    monkeypatch.setattr("catchup.digest.runner.group_items", fail)
+    with caplog.at_level("ERROR", logger="catchup.digest.runner"):
+        result = execute(environment)
+    assert result["status"] == "failed" and result["error_kind"] == "run_failed"
+    assert "Unexpected digest generation failure" in caplog.text
+    assert "RuntimeError" in caplog.text
+    assert secret not in caplog.text
+    assert content not in caplog.text
+    assert "https://model.example" not in caplog.text
+
+
+def test_deleted_source_during_grouping_saves_only_surviving_items(environment, monkeypatch):
+    seed(environment, count=2, sources=2)
+    stub_collection(monkeypatch)
+
+    class DeletingModel(FakeModel):
+        def chat_json(self, messages, max_tokens):
+            if '"item_refs"' in messages[0]["content"]:
+                with environment.app.state.session_factory() as session:
+                    session.delete(session.get(Source, 1))
+                    session.commit()
+            return super().chat_json(messages, max_tokens)
+
+    environment.app.state.model_client_factory = lambda *_: DeletingModel()
+    result = execute(environment)
+    assert result["status"] == "succeeded"
+    digest = all_rows(environment, Digest)[0]
+    assert (digest.item_count, digest.source_count) == (1, 1)
+    assert [row.title for row in all_rows(environment, DigestItem)] == ["Item 1"]
+    assert all_rows(environment, Item)[0].state == "delivered"
+
+
+def test_all_items_deleted_during_grouping_does_not_save_empty_digest(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+
+    class DeletingModel(FakeModel):
+        def chat_json(self, messages, max_tokens):
+            if '"item_refs"' in messages[0]["content"]:
+                with environment.app.state.session_factory() as session:
+                    session.delete(session.get(Source, 1))
+                    session.commit()
+            return super().chat_json(messages, max_tokens)
+
+    environment.app.state.model_client_factory = lambda *_: DeletingModel()
+    result = execute(environment)
+    assert result["status"] == "no_new_content"
+    assert all_rows(environment, Digest) == []
+
+
+def test_source_deleted_during_summarization_is_skipped(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+
+    class DeletingModel(FakeModel):
+        def chat_json(self, messages, max_tokens):
+            if '"summary"' in messages[0]["content"]:
+                with environment.app.state.session_factory() as session:
+                    session.delete(session.get(Source, 1))
+                    session.commit()
+            return super().chat_json(messages, max_tokens)
+
+    environment.app.state.model_client_factory = lambda *_: DeletingModel()
+    result = execute(environment)
+    assert result["status"] == "no_new_content"
+    assert all_rows(environment, Digest) == []
+
+
 @pytest.mark.parametrize("failure", [AuthFailed("Rejected key"), InsufficientBalance("No balance")])
 def test_auth_or_balance_fails_immediately_with_pending_items(environment, monkeypatch, failure):
     seed(environment, count=5)

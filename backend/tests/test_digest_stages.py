@@ -103,7 +103,7 @@ def test_group_discards_unknown_refs_and_duplicates_and_places_omissions():
         {"title": "Second", "overview": "Two", "item_refs": ["i1"]},
     ]}])
     topics = group_items(client, items, "zh-Hans", 10000)
-    assert [(topic.title, topic.item_ids) for topic in topics] == [("First", [1, 2]), ("Other", [3])]
+    assert [(topic.title, topic.item_ids) for topic in topics] == [("First", [1, 2]), ("其他", [3])]
     assert "Simplified Chinese" in str(client.calls[0])
     assert '"source": "Source"' in str(client.calls[0])
     assert "json" in str(client.calls[0])
@@ -123,3 +123,23 @@ def test_batch_merge_covers_every_item_once():
     ]
     assert len(client.calls) == 5
     assert "language most items" in str(client.calls[-1])
+
+
+@pytest.mark.parametrize("language, expected", [
+    ("en", "Other"), ("zh-Hans", "其他"), ("original", "Other"), ("French", "Other"),
+])
+def test_unplaced_topic_title_follows_digest_language(language, expected):
+    client = FakeModel([{"topics": []}])
+    topics = group_items(client, [GroupItem(1, "Title", "Source", "Summary")], language, 10000)
+    assert [(topic.title, topic.item_ids) for topic in topics] == [(expected, [1])]
+
+
+def test_unplaced_batch_topic_title_follows_digest_language():
+    client = FakeModel([
+        {"topics": [{"title": "First", "overview": "One", "item_refs": ["i1"]}]},
+        {"topics": [{"title": "Second", "overview": "Two", "item_refs": ["i1"]}]},
+        {"topics": []},
+    ])
+    topics = group_items(client, [GroupItem(n, "Title", "Source", "Summary") for n in (1, 2)],
+                         "zh-Hans", 10)
+    assert [(topic.title, topic.item_ids) for topic in topics] == [("其他", [1, 2])]

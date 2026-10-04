@@ -1,5 +1,6 @@
 """Single-instance digest lifecycle, with database writes on the runner thread."""
 
+import logging
 import threading
 from contextlib import closing
 
@@ -20,6 +21,7 @@ from catchup.models import (
 
 ACTIVE = ("queued", "collecting", "summarizing", "grouping")
 _start_lock = threading.Lock()
+logger = logging.getLogger(__name__)
 
 
 def active_run(session) -> DigestRun | None:
@@ -117,8 +119,9 @@ def run_digest(app: FastAPI, run_id: int) -> None:
             with factory() as session:
                 if not result.unavailable:
                     item = session.get(Item, result.id)
-                    item.summary = result.summary
-                    item.summary_language = language
+                    if item is not None:
+                        item.summary = result.summary
+                        item.summary_language = language
                 run = session.get(DigestRun, run_id)
                 run.items_done += 1
                 session.commit()
@@ -145,17 +148,29 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                     .where(Item.id.in_([entry.id for entry in inputs]))
                 )
             }
-            digest = Digest(run_id=run_id, model_id=model_id, item_count=len(inputs),
-                            source_count=len({item.source_id for item, _ in items.values()}))
+            saved_topics = [
+                (topic, [item_id for item_id in topic.item_ids if item_id in items])
+                for topic in topics
+            ]
+            saved_topics = [(topic, ids) for topic, ids in saved_topics if ids]
+            saved_ids = [item_id for _, ids in saved_topics for item_id in ids]
+            run = session.get(DigestRun, run_id)
+            if not saved_ids:
+                run.status = "no_new_content"
+                run.finished_at = utc_now()
+                session.commit()
+                return
+            digest = Digest(run_id=run_id, model_id=model_id, item_count=len(saved_ids),
+                            source_count=len({items[item_id][0].source_id for item_id in saved_ids}))
             session.add(digest)
             session.flush()
-            for position, topic in enumerate(topics):
+            for position, (topic, item_ids) in enumerate(saved_topics):
                 saved_topic = DigestTopic(
                     digest_id=digest.id, position=position, title=topic.title, overview=topic.overview,
                 )
                 session.add(saved_topic)
                 session.flush()
-                for index, item_id in enumerate(topic.item_ids):
+                for index, item_id in enumerate(item_ids):
                     item, source_name = items[item_id]
                     summary = summaries[item_id]
                     session.add(DigestItem(
@@ -165,7 +180,6 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                         summary_unavailable=summary.unavailable,
                     ))
                     item.state = "delivered"
-            run = session.get(DigestRun, run_id)
             run.status = "succeeded"
             run.digest_id = digest.id
             run.finished_at = utc_now()
@@ -176,8 +190,13 @@ def run_digest(app: FastAPI, run_id: int) -> None:
         _fail(factory, run_id, exc.code, str(exc))
     except (AppError, InvalidToken):
         _fail(factory, run_id, "model_not_configured", "Check the model settings and instance secret.")
-    except Exception:
+    except Exception as exc:
         # Never expose provider credentials, URLs, or collected content in a run error.
+        # Keep the traceback, but replace the exception text: provider errors can echo secrets.
+        logger.exception(
+            "Unexpected digest generation failure for run %s (%s)", run_id, type(exc).__name__,
+            exc_info=(Exception, Exception("details withheld"), exc.__traceback__),
+        )
         _fail(factory, run_id, "run_failed", "Digest generation failed. Try again.")
 
 

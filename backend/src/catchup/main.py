@@ -12,6 +12,7 @@ from sqlalchemy.orm import sessionmaker
 from catchup.api.settings import router as settings_router
 from catchup.api.sources import router as sources_router
 from catchup.api.runs import router as runs_router
+from catchup.api.digests import router as digests_router
 from catchup.config import Settings
 from catchup.db import make_engine, migrate
 from catchup.digest.runner import recover_runs
@@ -41,6 +42,7 @@ def create_app(settings: Settings | None = None, dist_dir: Path | None = None) -
     app.include_router(settings_router)
     app.include_router(sources_router)
     app.include_router(runs_router)
+    app.include_router(digests_router)
 
     @app.middleware("http")
     async def allowed_host(request: Request, call_next):

@@ -54,8 +54,8 @@ Implementer notes:
 
 ## 6. Digest history
 
-- [ ] 6.1 Implement `backend/src/catchup/api/digests.py` (list newest first; detail from snapshot tables). Verify: tests for every scenario in `specs/digest-history/spec.md`, including a digest that still opens after its source is deleted and after re-creating the app on the same data directory.
-- [ ] 6.2 Build `frontend/src/pages/History.tsx` and `frontend/src/pages/DigestView.tsx`: a list with time, item count, and source count; a digest view with topics, overviews, and items (summary or "summary unavailable", title, source name, date, and a link that opens the original in a new tab). Verify: Vitest tests for the list and digest view rendering.
+- [x] 6.1 Implement `backend/src/catchup/api/digests.py` (list newest first; detail from snapshot tables). Verify: tests for every scenario in `specs/digest-history/spec.md`, including a digest that still opens after its source is deleted and after re-creating the app on the same data directory.
+- [x] 6.2 Build `frontend/src/pages/History.tsx` and `frontend/src/pages/DigestView.tsx`: a list with time, item count, and source count; a digest view with topics, overviews, and items (summary or "summary unavailable", title, source name, date, and a link that opens the original in a new tab). Verify: Vitest tests for the list and digest view rendering.
 
 ## 7. Integration and test report
 

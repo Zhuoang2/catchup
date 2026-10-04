@@ -72,3 +72,19 @@ Additional tests cover summary-unavailable snapshots, original-language prompt r
   2. The "Other" topic title is always English; it should follow the digest language.
   3. A source deleted mid-run raises `KeyError` at save time and fails the whole run; its items should be skipped instead.
 - To check in the manual DeepSeek test: whether `SUMMARY_MAX_TOKENS = 512` is enough if the model spends tokens on reasoning (empty content would show up as "summary unavailable").
+
+## Task group 6, digest history and carried review items (2026-10-03)
+
+Digest history reads only `digests`, `digest_topics`, and `digest_items`, in stored order. SQLite UTC dates are serialized with a timezone so the browser renders the correct time. Original links open in a new tab with `noopener noreferrer`; topic text and summaries are rendered as text, not HTML.
+
+| Scenario or review item | Test |
+| --- | --- |
+| Several digests, newest first with time and counts | `test_history_lists_three_newest_first_with_counts`, `History.test.tsx` list |
+| Open older digest, ordered topics/items, overview, summary, date, source and original link | `test_digest_detail_uses_snapshot_positions_and_survives_source_deletion`, `DigestView.test.tsx` rendering |
+| Source deleted without changing old digest | `test_digest_detail_uses_snapshot_positions_and_survives_source_deletion` |
+| App restart on the same data directory preserves list and full detail | `test_digest_history_survives_new_app_on_same_data_directory` |
+| Unexpected runner exception logged without decrypted key, provider URL, or collected text | `test_unexpected_failure_is_logged_without_key_or_collected_content` |
+| Fallback title in English, Simplified Chinese, original and free text, including batch merge | `test_unplaced_topic_title_follows_digest_language`, `test_unplaced_batch_topic_title_follows_digest_language` |
+| Source deleted during generation: skip lost items and count only saved ones | `test_deleted_source_during_grouping_saves_only_surviving_items`, `test_all_items_deleted_during_grouping_does_not_save_empty_digest`, `test_source_deleted_during_summarization_is_skipped` |
+
+Verification: focused backend digest tests (28 passed before the last regression was added); final `uv run pytest` (142 passed); `npm test -- --run` (19 passed); `npm run build` (passed); `openspec validate add-core-digest-flow --strict` (passed). Tests use temporary data directories, fake model calls, and blocked unmocked network access; no real key, network, or fixed sleeps. One frontend test initially matched a split text node and was corrected to query its item; one UTC assertion expected `+00:00` but FastAPI serializes UTC as `Z`, so it was corrected. Group 7 remains pending; no live feed/model check was performed.

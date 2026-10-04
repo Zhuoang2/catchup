@@ -194,3 +194,10 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Result: commits `89bdc02`, `51fe105`; 20/24 tasks; 130 backend + 15 frontend tests. Every digest-generation scenario is mapped to tests. Cost: 36 turns, ~5.4 minutes, ~341K credits.
 - Review: no required fixes. Three low-severity items are carried into the next hand-off instead of paying for a separate fix session.
 - Lesson: Anticipating the design pitfalls of the hardest group in the prompt again avoided a fix round. Folding low-severity findings into the next group's prompt is cheaper than an immediate fix session.
+
+## 2026-10-03 — Digest history group 6 (Factory Droid, GPT-6 Sol)
+
+- Purpose: Implement tasks 6.1–6.2 and three carried-over group 5 review fixes, without starting group 7.
+- Prompt (faithful excerpt): "Implement ONLY task group 6 (tasks 6.1-6.2, digest history) plus three carried-over review items, using the openspec-apply-change skill ... Read digests only from the snapshot tables ... The restart test must create a second app on the same data dir ... no real network, no real API key, no writes outside pytest temp dirs, no fixed sleeps in tests. ... Commit once at the end."
+- Outcome: Snapshot-backed history API and reader UI with ordered topics/items and safe links; runner logs unexpected failures with exception text redacted, localizes the fallback topic, and skips items deleted mid-run. Automated coverage includes deletion, restart, language variants, and an all-items-deleted case. Final checks: 142 backend and 19 frontend tests, build and strict OpenSpec validation pass.
+- What failed / adjustment: A frontend test expected `getByText('Blog')` to match text split around a date element; it was changed to assert against the containing item. A UTC test expected `+00:00` while FastAPI emitted `Z`; the assertion was corrected. No live model, key, or network was used.

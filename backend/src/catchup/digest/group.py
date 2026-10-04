@@ -23,7 +23,7 @@ class Topic:
     item_ids: list[int]
 
 
-def _valid_topics(response: dict[str, Any], refs: dict[str, int], field: str) -> list[Topic]:
+def _valid_topics(response: dict[str, Any], refs: dict[str, int], field: str, language: str) -> list[Topic]:
     topics = response.get("topics")
     if not isinstance(topics, list):
         raise ProviderError("The model provider returned invalid topics.")
@@ -44,7 +44,7 @@ def _valid_topics(response: dict[str, Any], refs: dict[str, int], field: str) ->
             result.append(Topic(title.strip(), overview.strip(), ids))
     missing = [item_id for item_id in refs.values() if item_id not in placed]
     if missing:
-        result.append(Topic("Other", "", missing))
+        result.append(Topic("其他" if language == "zh-Hans" else "Other", "", missing))
     return result
 
 
@@ -62,7 +62,7 @@ def group_items(client: ModelClient, items: list[GroupItem], language: str, batc
     payload = _payload(items)
     if len(payload) <= batch_chars or len(items) == 1:
         response = client.chat_json(group_messages(payload, language), max_tokens=grouping_max_tokens(len(items)))
-        return _valid_topics(response, {f"i{n}": item.id for n, item in enumerate(items, 1)}, "item_refs")
+        return _valid_topics(response, {f"i{n}": item.id for n, item in enumerate(items, 1)}, "item_refs", language)
 
     batches: list[list[GroupItem]] = []
     current: list[GroupItem] = []
@@ -87,7 +87,7 @@ def group_items(client: ModelClient, items: list[GroupItem], language: str, batc
     ], ensure_ascii=False)
     merged = client.chat_json(merge_messages(merge_input, language),
                               max_tokens=grouping_max_tokens(len(batch_topics)))
-    placements = _valid_topics(merged, refs, "topic_refs")
+    placements = _valid_topics(merged, refs, "topic_refs", language)
     return [
         Topic(topic.title, topic.overview, [
             item_id for batch_id in topic.item_ids for item_id in batch_topics[batch_id - 1].item_ids

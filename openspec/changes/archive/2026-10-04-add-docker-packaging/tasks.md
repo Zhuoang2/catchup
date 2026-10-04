@@ -11,45 +11,45 @@ Implementer notes:
 
 ## 1. Self-contained backend package
 
-- [ ] 1.1 Move `backend/alembic/` to `backend/src/catchup/migrations/` with `git mv` (keep `env.py`, `script.py.mako`, `versions/0001_initial.py`), and point `migrate()` in `backend/src/catchup/db.py` at the package-relative directory per design.md D1. Verify:
+- [x] 1.1 Move `backend/alembic/` to `backend/src/catchup/migrations/` with `git mv` (keep `env.py`, `script.py.mako`, `versions/0001_initial.py`), and point `migrate()` in `backend/src/catchup/db.py` at the package-relative directory per design.md D1. Verify:
   - the existing migration and startup tests pass
   - a new test asserts the migrations directory lives inside the `catchup` package
   - a new test migrates a database created with the old revision table and checks it is unchanged and still at head
-- [ ] 1.2 Add `CATCHUP_FRONTEND_DIST` (`Settings.frontend_dist`) in `backend/src/catchup/config.py` and use it in `create_app` (`backend/src/catchup/main.py`) with the precedence in design.md D1 (argument > setting > source-tree fallback). Add it, commented out, to `.env.example`. Verify: tests for each precedence level, for a missing directory (API still works, no frontend), and that `backend/tests/test_static.py` still passes.
-- [ ] 1.3 Add `backend/src/catchup/cli.py` with `catchup serve [--host] [--port]` (defaults `127.0.0.1`, `8000`) that calls `uvicorn.run(create_app(), host=…, port=…)`, and `[project.scripts] catchup = "catchup.cli:main"` in `backend/pyproject.toml`. Verify: tests for `--help` (exit 0), the defaults, and custom values, with `uvicorn.run` patched and asserted; `uv run catchup serve --help` works.
-- [ ] 1.4 Update the README "Development setup" section and the `AGENTS.md` "Commands" section to mention `uv run catchup serve` alongside `uvicorn`. Verify: the documented commands run (`--help` for serve).
+- [x] 1.2 Add `CATCHUP_FRONTEND_DIST` (`Settings.frontend_dist`) in `backend/src/catchup/config.py` and use it in `create_app` (`backend/src/catchup/main.py`) with the precedence in design.md D1 (argument > setting > source-tree fallback). Add it, commented out, to `.env.example`. Verify: tests for each precedence level, for a missing directory (API still works, no frontend), and that `backend/tests/test_static.py` still passes.
+- [x] 1.3 Add `backend/src/catchup/cli.py` with `catchup serve [--host] [--port]` (defaults `127.0.0.1`, `8000`) that calls `uvicorn.run(create_app(), host=…, port=…)`, and `[project.scripts] catchup = "catchup.cli:main"` in `backend/pyproject.toml`. Verify: tests for `--help` (exit 0), the defaults, and custom values, with `uvicorn.run` patched and asserted; `uv run catchup serve --help` works.
+- [x] 1.4 Update the README "Development setup" section and the `AGENTS.md` "Commands" section to mention `uv run catchup serve` alongside `uvicorn`. Verify: the documented commands run (`--help` for serve).
 
 ## 2. Container image and local run
 
-- [ ] 2.1 Add `.dockerignore` (allowlist, design.md D3) and the multi-stage `Dockerfile` (design.md D2). Verify:
+- [x] 2.1 Add `.dockerignore` (allowlist, design.md D3) and the multi-stage `Dockerfile` (design.md D2). Verify:
   - `docker build -t catchup:local .` succeeds
   - `docker run --rm catchup:local id -u` is not `0`
   - the image has no `/app/backend`, and `/app/.env` is absent even when a dummy `.env` exists in the working copy at build time
   - `docker image inspect` shows the `HEALTHCHECK`, `VOLUME /data`, and `EXPOSE 8000`
   - record the image size in the test report
-- [ ] 2.2 Add `compose.yaml` per design.md D4. Verify:
+- [x] 2.2 Add `compose.yaml` per design.md D4. Verify:
   - `docker compose config` is valid
   - after `docker compose up -d --build`, the service becomes healthy
   - `docker compose port catchup 8000` (or `docker inspect`) shows the host binding `127.0.0.1`
   - `docker compose down` cleans up; remove the volume only if the test created it
-- [ ] 2.3 Add `scripts/docker-smoke.sh` per design.md D5 (executable, `set -euo pipefail`, trap cleanup, image tag argument). Verify: `scripts/docker-smoke.sh catchup:local` passes locally and prints each check; a deliberately broken health URL makes it fail (try once, then revert).
+- [x] 2.3 Add `scripts/docker-smoke.sh` per design.md D5 (executable, `set -euo pipefail`, trap cleanup, image tag argument). Verify: `scripts/docker-smoke.sh catchup:local` passes locally and prints each check; a deliberately broken health URL makes it fail (try once, then revert).
 
 ## 3. CI and release automation
 
-- [ ] 3.1 Update `.github/workflows/ci.yml` per design.md D6:
+- [x] 3.1 Update `.github/workflows/ci.yml` per design.md D6:
   - actions at current majors and Node 24, keeping the job names `backend` and `frontend`
   - a wheel content check in `backend`
   - a new `docker` job (buildx, `load: true`, `linux/amd64`, GitHub Actions cache, run `scripts/docker-smoke.sh`)
 
   Verify: lint the workflow with `actionlint` (e.g. `docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:latest`); the wheel check passes locally (`uv build --wheel`, then inspect the zip).
-- [ ] 3.2 Add `.github/workflows/release.yml` per design.md D6 (triggers `main` plus `v*.*.*` tags; permissions `contents: read`, `packages: write`; QEMU + buildx; metadata tags `edge`/semver/`latest`; push to `ghcr.io/zhuoang2/catchup`; OCI labels). Verify:
+- [x] 3.2 Add `.github/workflows/release.yml` per design.md D6 (triggers `main` plus `v*.*.*` tags; permissions `contents: read`, `packages: write`; QEMU + buildx; metadata tags `edge`/semver/`latest`; push to `ghcr.io/zhuoang2/catchup`; OCI labels). Verify:
   - `actionlint` passes
   - a local multi-platform build without push succeeds: `docker buildx build --platform linux/amd64,linux/arm64 .`, or, if the local builder cannot do multi-platform, the native platform only, noting this in the report
   - the workflow has no trigger on `pull_request`
 
 ## 4. Documentation and test report
 
-- [ ] 4.1 Add a README "Run with Docker" section:
+- [x] 4.1 Add a README "Run with Docker" section:
   - generating `CATCHUP_SECRET_KEY` into `.env`
   - `docker compose up -d` (published image) and `--build` (from source)
   - an equivalent `docker run` command
@@ -62,7 +62,7 @@ Implementer notes:
   - collected content being sent to the model provider
 
   Verify: every command in the section matches `compose.yaml` and `Dockerfile` (names, ports, volume, env vars).
-- [ ] 4.2 Write `docs/process/test-report-add-docker-packaging.md`:
+- [x] 4.2 Write `docs/process/test-report-add-docker-packaging.md`:
   - commands and results, including the image size and the smoke script output
   - a table mapping every scenario in `specs/local-deployment/spec.md` to its test or check; list any scenario verified only manually
   - a placeholder "Manual verification" section

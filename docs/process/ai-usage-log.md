@@ -2,6 +2,19 @@
 
 Real usage records for the technical spec, alpha reflection, and final report. Each entry: date, tool/model, purpose, prompt (verbatim or faithful excerpt), outcome, problems, adjustment.
 
+## 2026-10-04 — Docker packaging implementation (Factory Droid, GPT-6 Sol)
+
+- Purpose: Implement `add-docker-packaging` (#7), groups 1–4, on a branch from main.
+- Prompt (faithful excerpt): "Implement OpenSpec change add-docker-packaging ... using the openspec-apply-change skill ... check off each task only after its verification passes. Commit after each task group. Do not edit proposal.md, design.md, or the spec deltas ... pytest makes no real network calls, uses no real API key, writes nothing outside temp dirs, and uses no real sleeps; Docker checks use only local images, throwaway volumes, and loopback ports."
+- Outcome: Self-contained package, local Docker/Compose deployment, smoke script, CI and release workflow definitions, and user guide. Four group commits; 206 backend and 22 frontend tests, frontend build, smoke, wheel check, both-architecture local build, actionlint and strict validation passed. No image pushed or tag created.
+- Problems / adjustment: The local `actionlint` executable was missing, so Homebrew installed it before linting. A deliberately broken image health URL proved the smoke script rejects unhealthy containers. The source `.env.example` sets a relative data path; the Docker guide instead generates a secret-only `.env` so `/data` remains the persistent location. Real-key and GHCR checks remain for review.
+
+### Reviewer follow-up (Factory Droid, GPT-6 Sol)
+
+- Prompt (faithful excerpt): "Reviewer findings ... three small fixes ... Data directory must not depend on the container's working directory ... keep localhost and 127.0.0.1 in CATCHUP_ALLOWED_HOSTS ... latest exists only after the first vX.Y.Z tag ... commit once."
+- Outcome: Compose pins `/data` and `/app/frontend` even when `.env` supplies relative paths; the standalone Docker example pins `/data`. Documentation now explains health-check hosts and available image tags. A temporary `.env` confirmed Compose's precedence; fresh Docker smoke, 206 pytest cases, actionlint, and strict OpenSpec validation passed.
+- Adjustment: The first Docker guide only warned against a relative data path; the review identified that deployment should enforce the persistent path rather than depend on that warning or the container's current directory.
+
 ## 2026-10-04 — Source reliability implementation (Factory Droid, GPT-6 Sol)
 
 - Purpose: Implement OpenSpec change `improve-source-reliability`, groups 1–4, on a branch from main.
@@ -274,3 +287,23 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Archive (user approved the merge): `openspec archive improve-source-reliability -y` added 5 requirements to the main specs (`source-management` now 8, `content-collection` now 8; strict validation passes). It moved the change to `openspec/changes/archive/2026-10-04-improve-source-reliability/`.
 - **Process slip (merge):** the user approved "archive, wait for CI, then merge". To avoid polling CI, Claude ran `gh pr merge --merge --auto`. The repository has no branch protection or required checks, so GitHub merged immediately instead of waiting (merge commit `bd127f3` at 08:36:05Z). Claude checked right away: both CI runs for the merged head `a7c5efa` had completed successfully at about the same time, so the merged code was the tested code. The slip was reported to the user as it happened.
   - Lesson: `--auto` only waits when the branch requires status checks. Either require the CI checks on `main` or merge only after reading a green status.
+
+## 2026-10-05 — `add-docker-packaging`: review and real Docker run (Claude Code, Opus 5.5; Factory Droid, GPT-6 Sol)
+
+- Droid, fresh session, with eight reviewer notes:
+  - `env.py` becomes importable
+  - `Settings` defaults
+  - venv location and a matching Python path
+  - `tsc` needs test files in the build context
+  - chown `/data` before `VOLUME`
+  - no curl or jq
+  - keep the CI job names that branch protection requires
+  - never push or tag
+
+  Result: 11/11 tasks, 206 backend tests, an image of 407 MiB, ~510K credits. A small fix round cost ~139K.
+- Droid itself flagged a possible data-loss path: an `.env` with `CATCHUP_DATA_DIR=./data` overriding `/data`. **Claude tested it instead of accepting or dismissing it.** The database still landed on `/data`, but only because the image has no `WORKDIR` (cwd `/`). The verdict was downgraded from "must" to "should", and the fix still went in: compose pins the variable, and `docker run` docs pass `-e`. Lesson: test a claimed risk before ranking it. Here the reasoning was right about the fragility and wrong about the current impact.
+- Real run on the user's Mac, following the README literally:
+  - healthy in 5 s, loopback-only port
+  - the user entered their key; a Chinese digest was generated in ~30 s
+  - data identical across restart and container recreation, and the stored key still decrypted
+- Archive (user approved the merge and a `v0.1.0` release): `openspec archive add-docker-packaging -y` created the main spec `local-deployment` (7 requirements). The change moved to `openspec/changes/archive/2026-10-04-add-docker-packaging/`.

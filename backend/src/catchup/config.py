@@ -22,6 +22,7 @@ class Settings:
     grouping_batch_chars: int
     allowed_hosts: tuple[str, ...]
     user_agent_contact: str | None = None
+    frontend_dist: Path | None = None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -39,4 +40,5 @@ class Settings:
                 if host.strip()
             ),
             user_agent_contact=validate_user_agent_contact(os.getenv("CATCHUP_USER_AGENT_CONTACT")),
+            frontend_dist=Path(value) if (value := os.getenv("CATCHUP_FRONTEND_DIST")) else None,
         )

@@ -21,6 +21,9 @@ dependencies = [
   "cryptography>=44,<48",
 ]
 
+[project.scripts]
+catchup = "catchup.cli:main"
+
 [dependency-groups]
 dev = [
   "pytest>=8,<10",

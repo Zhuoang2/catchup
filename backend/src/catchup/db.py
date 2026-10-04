@@ -31,7 +31,7 @@ def make_engine(data_dir: Path) -> Engine:
 
 def migrate(engine: Engine) -> None:
     config = Config()
-    config.set_main_option("script_location", str(Path(__file__).resolve().parents[2] / "alembic"))
+    config.set_main_option("script_location", str(Path(__file__).resolve().parent / "migrations"))
     config.attributes["connection"] = engine
     command.upgrade(config, "head")
 

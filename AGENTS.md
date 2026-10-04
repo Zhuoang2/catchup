@@ -49,6 +49,7 @@ Run backend commands from `backend/` and frontend commands from `frontend/`:
 
 - Install: `uv sync` (backend), `npm ci` (frontend).
 - Backend dev server: `uv run uvicorn catchup.main:app --reload`.
+- Backend CLI alternative: `uv run catchup serve` (or `uv run catchup serve --help`).
 - Frontend dev server: `npm run dev` (proxies `/api` to port 8000).
 - Checks: `uv run pytest`, `npm test -- --run`, `npm run build`.
 - See `README.md` for environment setup; `CATCHUP_SECRET_KEY` is required before saving a model key.

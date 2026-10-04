@@ -29,6 +29,10 @@ set -a; . ../.env; set +a
 uv run uvicorn catchup.main:app --reload
 ```
 
+Alternatively, start the backend with `uv run catchup serve` from `backend/`
+after loading the same environment. This listens on `127.0.0.1:8000` by
+default; use `uv run catchup serve --help` for host and port options.
+
 ```sh
 cd frontend
 npm ci
@@ -52,6 +56,88 @@ Tests require neither a network connection nor a real model key.
 Collected content is sent to the
 configured model provider. Self-hosting does not keep that content local if
 you choose a cloud provider.
+
+## Run with Docker
+
+Install Docker with Compose **2.24 or newer**. No local Python, uv, or Node
+installation is needed. From a directory containing `compose.yaml`, generate
+an instance secret in a private `.env` file:
+
+```sh
+printf 'CATCHUP_SECRET_KEY=%s\n' "$(openssl rand -hex 32)" > .env
+```
+
+Do not commit or share `.env`. Keep this secret across upgrades and backups,
+or previously saved model credentials cannot be decrypted. Compose pins
+`CATCHUP_DATA_DIR=/data` and `CATCHUP_FRONTEND_DIST=/app/frontend`, even if
+`.env` contains values intended for development.
+
+The `latest` tag is the newest release, available after the first `vX.Y.Z`
+release tag. The `edge` tag tracks `main`; `X.Y.Z` pins a specific release.
+Until the first release, build from this checkout, or change the image in
+`compose.yaml` to `ghcr.io/zhuoang2/catchup:edge` after it is published.
+Start from the published image when available, or build from this checkout:
+
+```sh
+docker compose up -d
+# Instead, to build from source:
+docker compose up -d --build
+```
+
+Open `http://localhost:8000`. The API and web interface share this port.
+If using only Docker rather than Compose, the equivalent command is:
+
+```sh
+docker run -d --name catchup --env-file .env -e CATCHUP_DATA_DIR=/data \
+  -p 127.0.0.1:8000:8000 -v catchup-data:/data \
+  ghcr.io/zhuoang2/catchup:latest
+```
+
+The provided Compose file binds **only to `127.0.0.1`**. CatchUp has **no
+login**: anyone who can access an exposed instance can read data and change
+settings. Do not expose it to an untrusted network. If you deliberately
+expose it, change the loopback address in `compose.yaml`, set
+`CATCHUP_ALLOWED_HOSTS` to include your intended domain **and** `localhost`
+and `127.0.0.1` (for the container health check), for example
+`CATCHUP_ALLOWED_HOSTS=localhost,127.0.0.1,catchup.example.com`. Do not use
+`*`. Provide your own access control and TLS. Collected content is sent to
+the configured model provider, even when CatchUp itself runs locally.
+
+To upgrade the published image without deleting the volume:
+
+```sh
+docker compose pull && docker compose up -d
+```
+
+For a source-built service, use `docker compose up -d --build` instead.
+The named `catchup-data` volume survives container replacement; migrations
+run automatically before the server accepts requests. For a consistent backup
+or restore, stop the service first. The commands below find Compose's actual
+volume name (which includes the project name) and use the locally running
+image, so they also work with a source-built image:
+
+```sh
+docker compose stop catchup
+container="$(docker compose ps -aq catchup)"
+volume="$(docker inspect "$container" --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')"
+image="$(docker inspect "$container" --format '{{.Image}}')"
+docker run --rm --network none -v "$volume:/data:ro" --entrypoint python "$image" \
+  -c 'import sys, tarfile; t = tarfile.open(fileobj=sys.stdout.buffer, mode="w|gz"); t.add("/data", arcname="."); t.close()' \
+  > catchup-data.tar.gz
+# To restore this backup to the stopped service's data volume:
+docker run --rm --network none -i -v "$volume:/data" --entrypoint python "$image" \
+  -c 'import sys, tarfile; tarfile.open(fileobj=sys.stdin.buffer, mode="r|gz").extractall("/data", filter="data")' \
+  < catchup-data.tar.gz
+docker compose up -d
+```
+
+Back up `.env` separately and securely. Restoring replaces files in the
+volume; restore only into an empty volume or remove its old contents first
+after making another backup. A bind mount in place of the named volume must
+be writable by UID **999** (the non-root container user). To move an existing
+source-checkout database, stop the service and copy its `catchup.sqlite3`
+into the volume before starting it; keep the same instance secret if it
+contains an encrypted model key.
 
 ## Supported sources
 

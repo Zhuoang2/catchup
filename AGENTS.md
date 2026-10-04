@@ -33,6 +33,7 @@ This supersedes the note in `docs/handoff.md` §9 that OpenSpec/RePPIT are not t
 
 The course grades evidence of how requirements and context were communicated to people and AI tools. Keep these up to date as part of the work, not afterwards:
 
+- Backlog: GitHub issues in `Zhuoang2/catchup`, shown on the project board https://github.com/users/Zhuoang2/projects/1. Move the issue for the current change to In Progress, and close it when its change is archived.
 - `docs/process/decision-log.md` — design and technical decisions with alternatives and reasons.
 - `docs/process/requirements-changes.md` — requirement changes and why they happened.
 - `docs/process/ai-usage-log.md` — real AI tool usage: the actual prompt (verbatim or a faithful excerpt), the tool and model, the outcome, what failed, and how the prompt or instructions were adjusted.

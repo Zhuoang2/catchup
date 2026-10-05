@@ -2,6 +2,12 @@
 
 Real usage records for the technical spec, alpha reflection, and final report. Each entry: date, tool/model, purpose, prompt (verbatim or faithful excerpt), outcome, problems, adjustment.
 
+## 2026-10-05 — Podcast and video sources, group 1 (Factory Droid, GPT-6 Sol)
+
+- Prompt (faithful excerpt): "Implement OpenSpec change add-podcast-and-video-sources using the openspec-apply-change skill ... work through tasks.md in order and check off each task only after its verification passes ... commit after each task group ... no real network or model providers in tests ... do not edit planning artifacts."
+- Outcome: Added migration 0002 with an upgrade/downgrade regression test, pinned transcript and XML dependencies, and added validated environment settings. Backend 240 tests, frontend 22 tests, and frontend build passed. No external services were called in tests.
+- What failed / adjustment: The first downgrade test failed because SQLite rebuilt a parent table while foreign keys were enabled and child rows existed. Using native SQLite `DROP COLUMN` through Alembic batch mode preserved the referenced rows; the second test passed. The removed item cap's runner call temporarily uses the new override or fallback budget until long-text handling is implemented in group 6.
+
 ## 2026-10-04 — Docker packaging implementation (Factory Droid, GPT-6 Sol)
 
 - Purpose: Implement `add-docker-packaging` (#7), groups 1–4, on a branch from main.

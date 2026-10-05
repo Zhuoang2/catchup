@@ -18,7 +18,7 @@ Implementer notes:
 
 ## 1. Schema, dependencies, and configuration
 
-- [ ] 1.1 Add Alembic migration `0002` and the model fields per design.md D11 in `backend/src/catchup/models.py`:
+- [x] 1.1 Add Alembic migration `0002` and the model fields per design.md D11 in `backend/src/catchup/models.py`:
   - `sources.kind`
   - `items.transcript_status`
   - `app_settings.youtube_captions`/`youtube_skip_shorts`
@@ -32,8 +32,8 @@ Implementer notes:
   - a database at `0001` with one source, item, topic, and digest item upgrades
   - existing rows read back as `kind='feed'`, `transcript_status` NULL, topic `kind='topic'`, `youtube_captions` false, `youtube_skip_shorts` true
   - downgrade to `0001` succeeds
-- [ ] 1.2 Add `youtube-transcript-api>=1.2.4,<1.3` and `lxml>=5,<7` to `backend/pyproject.toml` and update `backend/uv.lock`. Verify: `uv sync --locked` succeeds, and `uv run python -c "import youtube_transcript_api, lxml"` works.
-- [ ] 1.3 Update `backend/src/catchup/config.py` per design.md D9 and D3:
+- [x] 1.2 Add `youtube-transcript-api>=1.2.4,<1.3` and `lxml>=5,<7` to `backend/pyproject.toml` and update `backend/uv.lock`. Verify: `uv sync --locked` succeeds, and `uv run python -c "import youtube_transcript_api, lxml"` works.
+- [x] 1.3 Update `backend/src/catchup/config.py` per design.md D9 and D3:
   - add `CATCHUP_MAX_FEED_BYTES` (default 33554432)
   - add `CATCHUP_TRANSCRIPT_WAIT_DAYS` (7), `CATCHUP_CAPTION_WAIT_HOURS` (24), `CATCHUP_CAPTIONS_PER_RUN` (20), `CATCHUP_LONG_ITEM_CHARS` (20000)
   - add the optional `CATCHUP_SINGLE_CALL_CHARS`

@@ -131,7 +131,7 @@ def run_digest(app: FastAPI, run_id: int) -> None:
             summaries[result.id] = result
 
         with closing(app.state.model_client_factory(base_url, key, model_id)) as client:
-            summarize_items(client, inputs, language, app.state.settings.max_item_chars, record)
+            summarize_items(client, inputs, language, app.state.settings.single_call_chars or 60_000, record)
             _stage(factory, run_id, "grouping")
             with factory() as session:
                 group_inputs = [

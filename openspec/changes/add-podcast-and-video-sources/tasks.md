@@ -210,7 +210,7 @@ Implementer notes:
 
 ## 7. Integration checks
 
-- [ ] 7.1 Run the full checks and record the results in the final report:
+- [x] 7.1 Run the full checks and record the results in the final report:
   - `uv run pytest` (with the coverage summary used in earlier changes)
   - `npm test -- --run`
   - `npm run build`

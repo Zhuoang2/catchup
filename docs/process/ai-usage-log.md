@@ -38,6 +38,12 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Outcome: Added strict context-window metadata parsing and caching, complete-text part/combine summaries and transcript key points, and thread-safe token accounting through the run, digest API and UI. Full checks passed: 327 backend tests, 34 frontend tests, and frontend build.
 - Adjustment: The old truncation test was updated to assert both halves of the original input reach part prompts, rather than accepting a cut-off suffix. Existing model fakes were updated to return structured model metadata and usage totals.
 
+## 2026-10-05 — Podcast and video sources, group 7 (Factory Droid, GPT-6 Sol)
+
+- Prompt: Same user request; "Docker is running on this machine, so run the docker build and scripts/docker-smoke.sh in task 7.1; never push, tag, or open a PR."
+- Outcome: 327 backend tests passed at 96% statement coverage; 34 frontend tests and build passed; strict OpenSpec validation, local Docker build and all eight smoke checks passed. Results and the omitted live-source/provider checks are in `test-report-add-podcast-and-video-sources.md`.
+- Adjustment: The existing Docker smoke script's exact preference JSON assertion needed the two new fields. Updated the assertion without dropping the restart and saved-language checks, then built and ran the smoke test successfully. No remote actions were taken.
+
 ## 2026-10-04 — Docker packaging implementation (Factory Droid, GPT-6 Sol)
 
 - Purpose: Implement `add-docker-packaging` (#7), groups 1–4, on a branch from main.

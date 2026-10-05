@@ -294,6 +294,34 @@ See `proposal.md` for motivation and `research.md` for the current code and exte
 
   It uses `batch_alter_table` for SQLite. Downgrade drops them.
 
+### D12. Review fixes (added after the implementation review, 2026-10-05)
+These were found when Claude reviewed the implementation, together with an independent subagent. Every item was reproduced with a script or a live feed before being added.
+
+- **Shared links.**
+  - Live (2026-10-05): The Daily (`feeds.simplecast.com/Sl5CSM3S`) has 64 entries with 1 distinct `<link>`. A Captivate show has 121 entries with 1 distinct link.
+  - Effect today: link-based dedup (`collection.py` new-entry loop, `api/sources.py` `_unique_entries`) records only the first episode, ever. This is pre-existing, but severe for podcasts.
+  - Effect in this branch: the link fallback in transcript matching (`feeds.py` candidate lookup) gives an episode without a transcript a sibling's transcript.
+  - Rule: compute `shared_links` = links carried by more than one entry in the fetched feed document. Treat them exactly like `fallback_links`: no link dedup, no matching of existing items by link, no article fetch, no transcript matching by link. An entry with no feed id whose link is shared gets the title+date hash as its identity (spec "Record entries the first time they are seen"). This applies at confirm, at preview (`_unique_entries`), and in `check_source`.
+  - Transcript candidates are matched by guid. A link is used only when the item has no guid and the link is not shared.
+- **DTD handling.**
+  - The `<!DOCTYPE` byte check is replaced. Parse with the D5 parser, then read `root.getroottree().docinfo.internalDTD`. If it declares any entity (`iterentities()` is non-empty), discard all lxml candidates and rely on feedparser's single tag.
+  - This works for any encoding, which closes the verified UTF-16 bypass in which attribute entities were expanded. A public DOCTYPE without entities (RSS 0.91) keeps full candidate extraction.
+  - Verified: libxml2 expands internal entities in attribute values even with `resolve_entities=False`, and aborts a billion-laughs payload on its own.
+- **Candidate details.**
+  - A transcript element matches when its namespace is the canonical URI or its prefix is `podcast` (the element's own prefix, not only the root `nsmap`). Elements without a namespace never match.
+  - A missing `language` counts as the feed language. Languages compare on the primary subtag, case-insensitively.
+- **Joining text.**
+  - JSON segments are joined with a space into one paragraph while the speaker is unchanged, including when there is no speaker. A new paragraph starts only when the speaker changes.
+  - YouTube caption snippets are joined with spaces. A new paragraph starts before a snippet that begins with `- ` or `>>`, the speaker-change markers.
+  - Verified: today's output puts one word, or one caption line, per paragraph.
+- **Splitting.**
+  - `split_parts` never raises. As a last level, it hard-splits at the budget on a code-point boundary, preferring the last `。！？.!?` within the final 10% of the part. Verified: a 90,000-character Chinese transcript without whitespace is currently `summary_unavailable`.
+  - Separator-only overflow is trimmed so every part is ≤ budget.
+- **Timings.** VTT and SRT timing patterns accept 2 or more hour digits.
+- **Spacing on redirects.** `SpacedSession` waits on the spacer in `send()`, which `requests` also calls for redirect hops, and sets headers and timeout in `request()`.
+- **Summary rendering.** `DigestView` `SummaryText` keeps every line in order: "- " lines become list items, and other lines become paragraphs. Verified: today, text after the first bullet that is not itself a bullet is dropped.
+- **Creator updates grouping.** Sort by `(source_name.casefold(), source_name, …)` so each exact source name forms one contiguous group with a unique key.
+
 ## Risks / Trade-offs
 
 - [The provider overstates `context_window`, or the 1 char/token assumption fails for some script] → the call returns 400, which becomes "summary unavailable" (`client.py:73-76`). The README documents `CATCHUP_SINGLE_CALL_CHARS`. Automatic shrink-and-retry is a non-goal.

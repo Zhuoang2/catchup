@@ -47,6 +47,9 @@ For a podcast episode, the system SHALL use a transcript the feed publishes for 
 - It recognizes transcript tags by their standard podcast prefix even when the feed declares a nonstandard namespace address.
 - It accepts the common nonstandard SRT media type.
 - Feeds with minor XML errors that the feed parser tolerates MUST still yield their transcripts.
+- Entity definitions declared inside a feed MUST NOT affect transcript addresses. A feed whose internal DTD declares entities is read only through the feed parser's single transcript tag.
+- A transcript belongs to the episode whose item lists it. It MUST NOT be attributed to another episode through a link that several items share.
+- A transcript tag without a `language` is in the feed's language, and language tags match on their primary subtag (`en-us` matches `en`).
 
 The transcript MUST be fetched through the safe fetcher with the transcript size limit and per-host spacing, and converted to plain text: timing lines removed, speaker names kept as "Name:" labels. An unexpected error while fetching or converting one episode's transcript MUST NOT fail the run. The episode is treated as having no transcript on that run.
 
@@ -57,6 +60,14 @@ The transcript MUST be fetched through the safe fetcher with the transcript size
 #### Scenario: Transcript served with a generic media type
 - **WHEN** an SRT transcript is served as `application/octet-stream`
 - **THEN** the system still recognizes and converts it
+
+#### Scenario: Shared episode links
+- **WHEN** two episodes link to the same show page and only the first lists a transcript
+- **THEN** the second episode gets no transcript from the first and waits for its own
+
+#### Scenario: Feed with a public DOCTYPE
+- **WHEN** a podcast feed starts with a public DOCTYPE declaration and an episode lists four transcript formats
+- **THEN** all four are considered and the preferred one is used
 
 #### Scenario: Feed with an undefined HTML entity
 - **WHEN** a podcast feed item contains `&nbsp;` in its title and lists a WebVTT transcript

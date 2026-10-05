@@ -8,13 +8,13 @@ from trafilatura import extract
 
 from catchup.sources.feeds import plain_text
 
-TIMING = re.compile(r"^\s*(?:\d{2}:)?\d{2}:\d{2}[.,]\d{3}\s*-->")
-SRT_START = re.compile(r"^\d+\r?\n\d{2}:\d{2}:\d{2},\d{3}\s*-->", re.M)
+TIMING = re.compile(r"^\s*(?:\d{2,}:)?\d{2}:\d{2}[.,]\d{3}\s*-->")
+SRT_START = re.compile(r"^\d+\r?\n\d{2,}:\d{2}:\d{2},\d{3}\s*-->", re.M)
 VOICE = re.compile(r"<v(?:\.[^ >]+)?\s+([^>]+)>", re.I)
 SPEAKER = re.compile(r"^([^:\n]{1,60}):\s*(.*)$", re.S)
 
 
-def _merge_cues(cues: list[str]) -> str:
+def _merge_cues(cues: list[str], *, merge_unlabelled: bool = False) -> str:
     paragraphs: list[str] = []
     last_speaker = None
     for cue in cues:
@@ -24,7 +24,7 @@ def _merge_cues(cues: list[str]) -> str:
         match = SPEAKER.match(cue)
         speaker = match[1] if match else None
         body = match[2] if match else cue
-        if speaker and speaker == last_speaker:
+        if paragraphs and speaker == last_speaker and (speaker is not None or merge_unlabelled):
             paragraphs[-1] += " " + body
         else:
             paragraphs.append(cue)
@@ -67,7 +67,7 @@ def _json_segments(text: str) -> str:
         speaker = segment.get("speaker")
         cues.append(f"{speaker}: {body.strip()}" if isinstance(speaker, str) and speaker.strip()
                     else body.strip())
-    return _merge_cues(cues)
+    return _merge_cues(cues, merge_unlabelled=True)
 
 
 def convert_transcript(body: bytes, declared_type: str | None = None) -> str | None:

@@ -2,6 +2,12 @@
 
 Real usage records for the technical spec, alpha reflection, and final report. Each entry: date, tool/model, purpose, prompt (verbatim or faithful excerpt), outcome, problems, adjustment.
 
+## 2026-10-05 — Podcast and video sources, review round 1 (Factory Droid)
+
+- Prompt (faithful excerpt): "Implement review fixes 8.1–8.7 on `add-podcast-and-video-sources` in task order ... use offline tests ... one group-8 commit ... Docker verification ... stop if D12 conflicts with earlier decisions; do not edit planning artifacts, push, tag, or open a PR."
+- Outcome: Shared-link-safe episode identity and transcript matching, post-parse DTD entity screening, transcript/caption joining, lossless text splitting, redirect-hop spacing, ordered summary rendering and exact-name Creator updates grouping. Final checks: 342 backend tests with 96% coverage, 35 frontend tests, build, strict validation, Docker build and smoke passed. The full results are in `test-report-add-podcast-and-video-sources.md`.
+- What failed / adjustment: Vitest was absent in this worktree; `npm ci` installed the locked dependencies. The first full backend run found an old call-count assertion that assumed oversized unspaced words fail before reaching the fake model; updated it for the new hard-split behavior and reran the suite green. Tests used fixture feeds, fake transports and model clients, with no live provider calls or real sleeps.
+
 ## 2026-10-05 — Podcast and video sources, group 1 (Factory Droid, GPT-6 Sol)
 
 - Prompt (faithful excerpt): "Implement OpenSpec change add-podcast-and-video-sources using the openspec-apply-change skill ... work through tasks.md in order and check off each task only after its verification passes ... commit after each task group ... no real network or model providers in tests ... do not edit planning artifacts."

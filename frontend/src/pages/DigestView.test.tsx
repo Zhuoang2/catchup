@@ -107,6 +107,25 @@ it('shows transcript key points as a list', async () => {
   expect(screen.getByText('Final point').tagName).toBe('LI')
 })
 
+it('keeps overview, bullets, and later prose in original order', async () => {
+  fetchMock.mockResolvedValue(respond({
+    id: 7, created_at: '2026-10-03T10:00:00Z', model_id: 'test',
+    topics: [{ title: 'Podcast', overview: '', items: [{
+      title: 'Episode', link: 'https://example.test/ep', source_name: 'Show',
+      published_at: null, summary: 'Overview\n- Key point\nContinuation\nClosing sentence',
+      summary_unavailable: false,
+    }] }],
+  }))
+  page()
+  const item = (await screen.findByRole('link', { name: 'Episode' })).closest('li')!
+  const blocks = Array.from(item.children).filter(element => element.textContent?.includes('Overview')
+    || element.textContent?.includes('Key point') || element.textContent?.includes('Closing sentence'))
+  expect(blocks.map(element => element.tagName)).toEqual(['P', 'UL', 'P'])
+  expect(blocks.map(element => element.textContent)).toEqual([
+    'Overview', 'Key point', 'Continuation\nClosing sentence',
+  ])
+})
+
 it.each([
   [12, 4, 'Tokens: 12 in / 4 out'],
   [null, null, 'Tokens: not reported'],

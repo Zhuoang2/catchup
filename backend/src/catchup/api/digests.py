@@ -43,19 +43,20 @@ def get_digest(digest_id: int, session: Session = Depends(get_session)) -> dict:
             "published_at": item.published_at, "summary": item.summary,
             "summary_unavailable": item.summary_unavailable,
         })
-    creator_updates: list[dict] = []
+    creator_groups: dict[str, list[dict]] = {}
     for topic in topics:
         if topic.kind != "creator_updates":
             continue
         for item in items:
             if item.topic_id != topic.id:
                 continue
-            if not creator_updates or creator_updates[-1]["source_name"] != item.source_name:
-                creator_updates.append({"source_name": item.source_name, "items": []})
-            creator_updates[-1]["items"].append({
+            creator_groups.setdefault(item.source_name, []).append({
                 "title": item.title, "link": item.link, "published_at": item.published_at,
                 "reason": item.update_reason,
             })
+    creator_updates = [
+        {"source_name": name, "items": group} for name, group in creator_groups.items()
+    ]
     run = session.get(DigestRun, digest.run_id)
     return {
         "id": digest.id, "created_at": digest.created_at, "model_id": digest.model_id,

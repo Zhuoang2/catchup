@@ -326,6 +326,7 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                 session.flush()
                 updates.sort(key=lambda row: (
                     items[row[0]][1].casefold(),
+                    items[row[0]][1],
                     -(items[row[0]][0].published_at.timestamp()
                       if items[row[0]][0].published_at else float("-inf")),
                     row[0],

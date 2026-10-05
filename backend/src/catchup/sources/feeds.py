@@ -1,6 +1,7 @@
 """Parse already-fetched feed bytes into stable, normalized entries."""
 
 import hashlib
+from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from html.parser import HTMLParser
@@ -33,24 +34,25 @@ class TranscriptCandidate:
 
 def ordered_candidates(candidates: tuple[TranscriptCandidate, ...],
                        language: str = "") -> tuple[TranscriptCandidate, ...]:
+    primary = language.split("-", 1)[0].lower()
     return tuple(sorted(candidates, key=lambda candidate: (
         TRANSCRIPT_TYPES.get(candidate.type.lower().split(";")[0].strip(), 5),
-        candidate.language.lower() != language.lower() if language else False,
+        (candidate.language or language).split("-", 1)[0].lower() != primary if primary else False,
     )))
 
 
 def _transcript_candidates(body: bytes) -> dict[str, tuple[TranscriptCandidate, ...]]:
-    """Read every podcast transcript while refusing network, DTD and entity expansion."""
-    # libxml can expand internal entities in attribute values even with
-    # resolve_entities=False. Do not parse a document that declares a DTD.
-    if b"<!DOCTYPE" in body.upper():
-        return {}
+    """Read podcast transcripts without network access or internal DTD entities."""
     try:
         parser = etree.XMLParser(recover=True, resolve_entities=False, no_network=True, load_dtd=False)
         root = etree.fromstring(body.lstrip(b"\xef\xbb\xbf \t\r\n"), parser=parser)
         if root is None:
             return {}
-        namespace = root.nsmap.get("podcast")
+        # libxml can expand internal entities in attributes even with
+        # resolve_entities=False, so discard candidates after parsing such a DTD.
+        internal_dtd = root.getroottree().docinfo.internalDTD
+        if internal_dtd is not None and any(internal_dtd.iterentities()):
+            return {}
         found: dict[str, tuple[TranscriptCandidate, ...]] = {}
         for item in root.iter():
             if not isinstance(item.tag, str) or etree.QName(item).localname != "item":
@@ -65,7 +67,9 @@ def _transcript_candidates(body: bytes) -> dict[str, tuple[TranscriptCandidate, 
                     guid = (child.text or "").strip()
                 elif name.localname == "link":
                     link = (child.text or "").strip()
-                elif name.localname == "transcript" and name.namespace in {PODCAST_NAMESPACE, namespace}:
+                elif name.localname == "transcript" and name.namespace and (
+                    name.namespace == PODCAST_NAMESPACE or child.prefix == "podcast"
+                ):
                     if child.get("url"):
                         candidates.append(TranscriptCandidate(
                             url=child.get("url", ""), type=child.get("type", ""),
@@ -133,6 +137,11 @@ class Feed:
     audio_share: float = 0.0
 
     @property
+    def shared_links(self) -> set[str]:
+        counts = Counter(entry.link for entry in self.entries if entry.link != self.feed_url)
+        return {link for link, count in counts.items() if count > 1}
+
+    @property
     def kind(self) -> str:
         if self.youtube_host:
             return "youtube"
@@ -147,6 +156,8 @@ def parse_feed(response: FetchResponse) -> Feed:
         raise FeedParseError("The content is not a parsable RSS or Atom feed.")
     transcript_candidates = _transcript_candidates(response.content)
     language = parsed.feed.get("language", "")
+    raw_links = [entry.get("link", "") for entry in parsed.entries]
+    shared_links = {link for link, count in Counter(raw_links).items() if link and count > 1}
     entries = []
     for entry in parsed.entries:
         stamp = entry.get("published_parsed") or entry.get("updated_parsed")
@@ -161,11 +172,12 @@ def parse_feed(response: FetchResponse) -> Feed:
             link = original_link if parts.scheme.lower() in ("http", "https") and parts.hostname else response.url
         except ValueError:
             link = response.url
-        identity = entry.get("id") or (link if link != response.url else "")
+        identity = entry.get("id") or (link if link != response.url and original_link not in shared_links else "")
         if not identity:
             identity = hashlib.sha256(f"{title}{published_at.isoformat() if published_at else ''}".encode()).hexdigest()
-        candidates = transcript_candidates.get(entry.get("id") or "", ()) or transcript_candidates.get(
-            original_link, ())
+        guid = entry.get("id")
+        candidates = (transcript_candidates.get(guid, ()) if guid else
+                      transcript_candidates.get(original_link, ()) if original_link not in shared_links else ())
         if not candidates and (fallback := entry.get("podcast_transcript")):
             if isinstance(fallback, dict) and fallback.get("url"):
                 candidates = (TranscriptCandidate(

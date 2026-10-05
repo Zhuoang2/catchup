@@ -75,3 +75,24 @@ def test_part_failure_marks_item_unavailable():
     result = run(model, paragraphs(170), 60_000)
     assert result.unavailable and result.summary is None
     assert len(model.calls) == 2
+
+
+def test_unspaced_chinese_text_is_losslessly_split_and_summarized():
+    text = "中文" * 45_000
+    parts = split_parts(text, 60_000)
+    assert len(parts) == 2
+    assert all(len(part) <= 60_000 for part in parts)
+    assert "".join(parts) == text
+    result = run(CaptureModel(), text, 60_000, "transcript")
+    assert not result.unavailable
+
+
+def test_overflowing_separators_and_sentence_preference():
+    text = "a" * 99 + " " * 102
+    parts = split_parts(text, 100)
+    assert all(len(part) <= 100 for part in parts)
+    assert "".join(parts) == text
+    text = "中" * 94 + "。" + "文" * 20
+    parts = split_parts(text, 100)
+    assert parts[0].endswith("。")
+    assert "".join(parts) == text

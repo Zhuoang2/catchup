@@ -355,6 +355,16 @@ def test_confirm_preserves_entries_without_links(client):
         assert session.scalars(select(Item.state)).all().count("pending") == 2
 
 
+def test_confirm_keeps_episodes_with_shared_show_link(client):
+    with respx.mock(assert_all_mocked=True) as router:
+        serve_feed(router, (FIXTURES / "podcast-shared.xml").read_bytes())
+        preview = client.post("/api/sources/preview", json={"url": FEED_URL})
+        assert len(preview.json()["entries"]) == 3
+        assert client.post("/api/sources", json={"feed_url": FEED_URL}).status_code == 201
+    with client.app.state.session_factory() as session:
+        assert {item.identity_key for item in session.scalars(select(Item))} == {"ep1", "ep2", "ep3"}
+
+
 def test_confirm_enriches_short_pending_entry_but_not_baseline(client):
     xml = b"""<rss version="2.0"><channel><title>News</title>
     <item><guid>recent</guid><link>https://site.example/recent</link>

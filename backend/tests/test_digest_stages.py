@@ -41,7 +41,8 @@ def test_summary_cache_language_full_text_and_unavailable():
     client = PerItemModel()
     results = []
     summarize_items(client, [cached, new, failing], "en", 6, results.append)
-    assert len(client.calls) == 3
+    # An oversized unspaced word now reaches the model instead of failing at splitting.
+    assert len(client.calls) == 4
     assert next(r for r in results if r.id == 1).summary == "In English"
     assert next(r for r in results if r.id == 3).unavailable
     assert any("12345" in str(call) and "English" in str(call) and "json" in str(call)

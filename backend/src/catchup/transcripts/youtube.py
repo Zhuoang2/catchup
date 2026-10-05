@@ -23,11 +23,14 @@ class SpacedSession(requests.Session):
         self.spacer = spacer
 
     def request(self, method, url, **kwargs):
-        self.spacer.wait(url)
         headers = kwargs.pop("headers", {}) or {}
         kwargs["headers"] = {**headers, "User-Agent": user_agent()}
         kwargs.setdefault("timeout", (10, 30))
         return super().request(method, url, **kwargs)
+
+    def send(self, request, **kwargs):
+        self.spacer.wait(request.url)
+        return super().send(request, **kwargs)
 
 
 def choose_track(tracks):
@@ -39,6 +42,19 @@ def choose_track(tracks):
     return next((track for track in listed if not track.is_generated), None)
 
 
+def _join_snippets(snippets) -> str:
+    paragraphs: list[str] = []
+    for snippet in snippets:
+        if not isinstance(snippet.text, str) or not snippet.text.strip():
+            continue
+        text = snippet.text.strip()
+        if not paragraphs or text.startswith(("- ", ">>")):
+            paragraphs.append(text)
+        else:
+            paragraphs[-1] += " " + text
+    return "\n\n".join(paragraphs)
+
+
 def fetch_captions(video_id: str, spacer: HostSpacer) -> tuple[str, str | None]:
     try:
         with SpacedSession(spacer) as session:
@@ -47,10 +63,7 @@ def fetch_captions(video_id: str, spacer: HostSpacer) -> tuple[str, str | None]:
             if track is None:
                 return "caption_wait", None
             snippets = track.fetch()
-            text = "\n\n".join(
-                snippet.text.strip() for snippet in snippets if isinstance(snippet.text, str)
-                and snippet.text.strip()
-            )
+            text = _join_snippets(snippets)
             if not text:
                 return "caption_wait", None
             return "found", text

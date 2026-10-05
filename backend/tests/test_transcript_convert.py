@@ -49,6 +49,20 @@ def test_json_merges_words_and_speakers_with_string_start_times():
     assert convert_transcript(body, "application/json") == "Alice: Hello world\n\nBob: More words"
 
 
+def test_json_unlabelled_words_form_one_paragraph_until_speaker_changes():
+    body = b'{"segments":[{"body":"One"},{"body":"two"},{"speaker":"Alice","body":"Three"},{"body":"four"}]}'
+    assert convert_transcript(body, "application/json") == "One two\n\nAlice: Three\n\nfour"
+
+
+def test_timings_with_three_digit_hours():
+    assert convert_transcript(
+        b"WEBVTT\n\n100:00:00.000 --> 100:00:01.000\nLong show", "text/vtt",
+    ) == "Long show"
+    assert convert_transcript(
+        b"1\n100:00:00,000 --> 100:00:01,000\nLong show",
+    ) == "Long show"
+
+
 def test_html_and_plain_text():
     assert "Spoken words" in (convert_transcript(
         b"<html><body><main><p>Spoken words from the episode.</p></main></body></html>", "text/html",

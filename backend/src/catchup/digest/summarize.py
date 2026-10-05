@@ -31,12 +31,13 @@ class SummaryResult:
 
 def split_parts(text: str, max_chars: int) -> list[str]:
     """Pack consecutive blank-line, line and word segments without discarding text."""
+    max_chars = max(1, max_chars)
     parts: list[str] = []
     current = ""
 
     def pack(segment: str) -> None:
         nonlocal current
-        if len(current) + len(segment) > max_chars and current.strip():
+        if len(current) + len(segment) > max_chars and current:
             parts.append(current)
             current = ""
         current += segment
@@ -47,13 +48,23 @@ def split_parts(text: str, max_chars: int) -> list[str]:
             return
         separators = (r"(\n[ \t]*\n+)", r"(\n)", r"(\s+)")
         if level == len(separators):
-            raise ValueError("A word exceeds the single-call budget.")
+            while len(segment) > max_chars:
+                end = max_chars
+                window = segment[max(0, end - max(1, max_chars // 10)):end]
+                punctuation = max((window.rfind(mark) for mark in "。！？.!?"), default=-1)
+                if punctuation >= 0:
+                    end = max(0, end - len(window)) + punctuation + 1
+                pack(segment[:end])
+                segment = segment[end:]
+            if segment:
+                pack(segment)
+            return
         for piece in re.split(separators[level], segment):
             if piece:
                 add(piece, level + 1)
 
     add(text, 0)
-    if current.strip():
+    if current:
         parts.append(current)
     return parts
 

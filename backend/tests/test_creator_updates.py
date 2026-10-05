@@ -167,6 +167,30 @@ def test_creator_updates_grouped_and_ordered_and_saved_wait(ready):
     assert client.get(f"/api/digests/{digest_id}").json()["transcript_wait_days"] == 7
 
 
+def test_exact_case_creator_names_form_two_groups_even_for_interleaved_snapshot(ready):
+    client, _ = ready
+    add_item(client, "podcast", "no_transcript", source_title="Show", title="First",
+             published=NOW - timedelta(days=2))
+    add_item(client, "podcast", "no_transcript", source_title="show", title="Middle",
+             published=NOW - timedelta(days=1))
+    add_item(client, "podcast", "no_transcript", source_title="Show", title="Last",
+             published=NOW)
+    result = execute(client)
+    digest_id = result["digest_id"]
+    groups = client.get(f"/api/digests/{digest_id}").json()["creator_updates"]
+    assert [group["source_name"] for group in groups] == ["Show", "show"]
+    assert [item["title"] for item in groups[0]["items"]] == ["Last", "First"]
+    with client.app.state.session_factory() as session:
+        rows = session.scalars(select(DigestItem).where(DigestItem.digest_id == digest_id)).all()
+        positions = {"First": 0, "Middle": 1, "Last": 2}
+        for row in rows:
+            row.position = positions[row.title]
+        session.commit()
+    groups = client.get(f"/api/digests/{digest_id}").json()["creator_updates"]
+    assert [group["source_name"] for group in groups] == ["Show", "show"]
+    assert [item["title"] for item in groups[0]["items"]] == ["First", "Last"]
+
+
 def test_old_digest_returns_empty_creator_updates(ready):
     client, _ = ready
     add_item(client, "feed", None, title="Article")

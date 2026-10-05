@@ -4,7 +4,7 @@ import pytest
 import requests
 from youtube_transcript_api import _errors as errors
 
-from catchup.transcripts.youtube import SpacedSession, fetch_captions
+from catchup.transcripts.youtube import SpacedSession, _join_snippets, fetch_captions
 
 
 class Spacer:
@@ -13,6 +13,11 @@ class Spacer:
 
     def wait(self, url):
         self.urls.append(url)
+
+
+def test_caption_snippets_join_until_speaker_marker():
+    snippets = [SimpleNamespace(text=text) for text in ("First", "second", "- Alice", "speaks", ">> Bob", "replies")]
+    assert _join_snippets(snippets) == "First second\n\n- Alice speaks\n\n>> Bob replies"
 
 
 def test_session_spaces_each_request_and_disables_environment(monkeypatch):
@@ -42,6 +47,37 @@ def test_session_spaces_each_request_and_disables_environment(monkeypatch):
     assert [event[0] for event in events] == ["wait", "send", "wait", "send"]
     assert all(event[2].startswith("CatchUp/") and event[3] == (10, 30)
                for event in events if event[0] == "send")
+
+
+def test_session_spaces_redirect_hops():
+    events = []
+
+    class Adapter(requests.adapters.BaseAdapter):
+        def send(self, request, **kwargs):
+            events.append(("send", request.url))
+            response = requests.Response()
+            response.status_code = 302 if len(events) == 2 else 200
+            response.url = request.url
+            response.request = request
+            if response.status_code == 302:
+                response.headers["Location"] = "/final"
+            response._content = b"ok"
+            return response
+
+        def close(self):
+            pass
+
+    class Recorder(Spacer):
+        def wait(self, url):
+            events.append(("wait", url))
+
+    with SpacedSession(Recorder()) as session:
+        session.mount("https://", Adapter())
+        assert session.get("https://www.youtube.com/start").text == "ok"
+    assert events == [
+        ("wait", "https://www.youtube.com/start"), ("send", "https://www.youtube.com/start"),
+        ("wait", "https://www.youtube.com/final"), ("send", "https://www.youtube.com/final"),
+    ]
 
 
 class Track:

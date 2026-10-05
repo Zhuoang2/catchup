@@ -80,7 +80,7 @@ def check_source(session: Session, source: Source, run_id: int, settings: Settin
     existing_items = session.scalars(select(Item).where(Item.source_id == source.id)).all()
     keys = {item.identity_key for item in existing_items}
     by_key = {item.identity_key: item for item in existing_items}
-    fallback_links = {source.feed_url, feed.feed_url}
+    fallback_links = {source.feed_url, feed.feed_url} | feed.shared_links
     links = {item.link for item in existing_items if item.link not in fallback_links}
     matched_previous = any(
         entry.identity_key in keys or (entry.link not in fallback_links and entry.link in links)

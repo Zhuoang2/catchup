@@ -221,7 +221,7 @@ Implementer notes:
 
 ## 8. Review fixes (design.md D12)
 
-- [ ] 8.1 Ignore shared links per design.md D12:
+- [x] 8.1 Ignore shared links per design.md D12:
   - shared links are excluded like `fallback_links` in `check_source` (`backend/src/catchup/collection.py`) and in `_unique_entries`/confirm (`backend/src/catchup/api/sources.py`)
   - shared-link entries without a feed id use the title+date hash
   - transcript candidates in `sources/feeds.py` are matched by guid, and by link only when there is no guid and the link is not shared
@@ -232,27 +232,27 @@ Implementer notes:
   - episode 2 gets no candidates and ends `waiting` (spec "Shared episode links")
   - an item recorded before the fix with that shared link does not block new episodes
   - existing dedup tests for "Site changes an entry identifier" still pass
-- [ ] 8.2 Replace the DOCTYPE byte check with the post-parse internal-DTD entity check per design.md D12, and apply the candidate namespace and language rules (own `podcast` prefix or canonical URI, no un-namespaced match, missing language = feed language, primary-subtag comparison). Verify:
+- [x] 8.2 Replace the DOCTYPE byte check with the post-parse internal-DTD entity check per design.md D12, and apply the candidate namespace and language rules (own `podcast` prefix or canonical URI, no un-namespaced match, missing language = feed language, primary-subtag comparison). Verify:
   - an RSS 0.91 public-DOCTYPE fixture with 4 transcript tags yields 4 candidates (spec "Feed with a public DOCTYPE")
   - a UTF-16 feed with an internal entity used in a transcript `url` yields no lxml candidates (only the feedparser fallback) and never an expanded URL
   - a `podcast` prefix declared on `<channel>` is recognized
   - an un-namespaced `<transcript>` is ignored
   - `en-us` vs `en` and the missing-language cases sort as specified
-- [ ] 8.3 Fix text joining per design.md D12: JSON segments in `transcripts/convert.py` and caption snippets in `transcripts/youtube.py`; VTT/SRT timings with 2+ hour digits. Verify:
+- [x] 8.3 Fix text joining per design.md D12: JSON segments in `transcripts/convert.py` and caption snippets in `transcripts/youtube.py`; VTT/SRT timings with 2+ hour digits. Verify:
   - word-level JSON without speakers gives one paragraph joined by spaces
   - speaker changes still start new paragraphs
   - caption snippets join with spaces, and a new paragraph starts at `- `/`>>`
   - a `100:00:00.000 -->` VTT converts
-- [ ] 8.4 Make `split_parts` in `digest/summarize.py` never raise, with a hard split preferring sentence punctuation, and trim separator-only overflow per design.md D12. Verify:
+- [x] 8.4 Make `split_parts` in `digest/summarize.py` never raise, with a hard split preferring sentence punctuation, and trim separator-only overflow per design.md D12. Verify:
   - a 90,000-character Chinese text without whitespace, at a 60,000 budget, gives 2 parts, every part ≤ budget, and concatenation equal to the input
   - the earlier "[99, 102] at budget 100" case gives parts ≤ 100
   - `_summarize` on that Chinese text is not `summary_unavailable` (fake client)
-- [ ] 8.5 Space redirect hops in `SpacedSession` (`send()`), keep headers and timeout in `request()`. Verify: a fake transport adapter returning one 302 then 200 records 2 spacer waits.
-- [ ] 8.6 Frontend and grouping per design.md D12:
+- [x] 8.5 Space redirect hops in `SpacedSession` (`send()`), keep headers and timeout in `request()`. Verify: a fake transport adapter returning one 302 then 200 records 2 spacer waits.
+- [x] 8.6 Frontend and grouping per design.md D12:
   - `SummaryText` in `frontend/src/pages/DigestView.tsx` keeps every line in order
   - Creator updates sorting in `digest/runner.py` and grouping in `api/digests.py` keep each exact source name contiguous
 
   Verify:
   - a vitest test where "Overview", a bullet, a continuation line, and a closing sentence all render in order
   - an API test with sources "Show" and "show" interleaved by time gives exactly 2 contiguous groups
-- [ ] 8.7 Re-run the full checks from 7.1 and update `docs/process/test-report-add-podcast-and-video-sources.md`. Verify: all pass; report any skipped check with its reason.
+- [x] 8.7 Re-run the full checks from 7.1 and update `docs/process/test-report-add-podcast-and-video-sources.md`. Verify: all pass; report any skipped check with its reason.

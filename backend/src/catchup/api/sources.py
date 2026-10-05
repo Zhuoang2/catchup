@@ -47,11 +47,12 @@ def _duplicate(source: Source, status_code: int) -> AppError:
 def _unique_entries(feed):
     seen_keys: set[str] = set()
     seen_links: set[str] = set()
+    excluded_links = {feed.feed_url} | feed.shared_links
     for entry in feed.entries:
-        if entry.identity_key in seen_keys or (entry.link != feed.feed_url and entry.link in seen_links):
+        if entry.identity_key in seen_keys or (entry.link not in excluded_links and entry.link in seen_links):
             continue
         seen_keys.add(entry.identity_key)
-        if entry.link != feed.feed_url:
+        if entry.link not in excluded_links:
             seen_links.add(entry.link)
         yield entry
 
@@ -119,6 +120,7 @@ def confirm(data: ConfirmInput, request: Request, session: Session = Depends(get
     session.flush()
     pending_count = 0
     spacer = HostSpacer()
+    fallback_links = {feed.feed_url} | feed.shared_links
     for entry in entries:
         state = "pending" if entry.identity_key in selected else "baseline"
         if feed.kind == "youtube" and skip_shorts and is_short(entry.link):
@@ -128,7 +130,7 @@ def confirm(data: ConfirmInput, request: Request, session: Session = Depends(get
                              (feed.kind == "podcast" and entry.has_audio) else
                              "text" if feed.kind == "podcast" else None)
         text, origin = (
-            article_text(entry, {feed.feed_url}, settings.short_text_chars, spacer=spacer)
+            article_text(entry, fallback_links, settings.short_text_chars, spacer=spacer)
             if state == "pending" and transcript_status in (None, "text")
             else (entry.content_text, "feed")
         )

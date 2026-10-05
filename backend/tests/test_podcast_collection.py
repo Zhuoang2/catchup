@@ -1,5 +1,6 @@
 import socket
 from datetime import datetime, timezone
+from pathlib import Path
 
 import httpx
 import pytest
@@ -15,6 +16,7 @@ FEED_URL = "https://site.example/podcast.xml"
 TRANSCRIPT_URL = "https://site.example/transcript.vtt"
 NOW = datetime(2026, 10, 3, tzinfo=timezone.utc)
 VTT = b"WEBVTT\n\n00:00:01.000 --> 00:00:03.000\n<v Alice>Spoken content.</v>\n"
+SHARED = (Path(__file__).parent / "fixtures/podcast-shared.xml").read_bytes()
 
 
 def episode_feed(*transcripts: tuple[str, str]) -> bytes:
@@ -139,3 +141,28 @@ def test_confirm_skips_episode_page_and_transcript(client):
     with client.app.state.session_factory() as session:
         item = session.scalar(select(Item))
         assert item.state == "pending" and item.transcript_status == "to_fetch"
+
+
+def test_shared_link_does_not_block_new_episodes_or_borrow_transcript(client):
+    seed_source(client)
+    with client.app.state.session_factory() as session:
+        source = session.scalar(select(Source))
+        session.add(Item(source_id=source.id, identity_key="ep1", link="https://site.example/show",
+                         title="First", content_text="", content_origin="feed", state="pending",
+                         transcript_status="waiting"))
+        session.commit()
+    with respx.mock(assert_all_mocked=True) as router:
+        route = router.get(FEED_URL).mock(return_value=httpx.Response(200, content=SHARED))
+        router.get("https://site.example/1.vtt").mock(return_value=httpx.Response(200, content=VTT))
+        assert run_check(client) == "new_items"
+        with client.app.state.session_factory() as session:
+            assert {item.identity_key for item in session.scalars(select(Item))} == {"ep1", "ep2", "ep3"}
+            assert session.scalar(select(Item).where(Item.identity_key == "ep2")).transcript_status == "waiting"
+        fourth = b"""<item><guid>ep4</guid><title>Fourth</title>
+        <link>https://site.example/show</link>
+        <enclosure url="https://site.example/4.mp3" type="audio/mpeg"/></item>"""
+        route.mock(return_value=httpx.Response(
+            200, content=SHARED.replace(b"</channel>", fourth + b"</channel>")))
+        assert run_check(client) == "new_items"
+    with client.app.state.session_factory() as session:
+        assert {item.identity_key for item in session.scalars(select(Item))} == {"ep1", "ep2", "ep3", "ep4"}

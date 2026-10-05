@@ -20,6 +20,29 @@ fields without dropping its saved-language and restart assertions. Its
 throwaway container and volume were removed by its cleanup trap. The image
 was not pushed or tagged as a release; CI job names were not changed.
 
+## Review round 1, D12 (2026-10-05)
+
+| Check | Result |
+| --- | --- |
+| `cd backend && uv run pytest --cov=catchup --cov-report=term` | **342 passed**, 96% statement coverage (1740/1815) |
+| `cd frontend && npm test -- --run` | **35 passed** |
+| `cd frontend && npm run build` | TypeScript and Vite build passed |
+| `openspec validate add-podcast-and-video-sources --strict` | Passed |
+| `docker build -t catchup:podcast-video-local .` | Passed on Docker Desktop 29.8.0 |
+| `scripts/docker-smoke.sh catchup:podcast-video-local` | Passed: health, API/UI, persisted preferences, non-root process, volume, image contents |
+
+Offline regression tests cover three episodes sharing a show link, later
+episodes and legacy link matches, transcript attribution, UTF-16 internal
+entities and a public DOCTYPE, nested namespace and language preference,
+caption and JSON joining, long-hour timing, unspaced and separator-heavy
+splitting, redirect spacing, mixed summary prose, and exact-name Creator
+updates grouping. The first full backend run had 341 passes and one outdated
+call-count assertion: hard-splitting now sends an oversized word to the fake
+model instead of rejecting it. The assertion was updated and the complete
+backend suite reran green. No real network/model requests or credentials were
+used in tests. Live providers and manual digest evaluation remain untested;
+no CI workflow ran locally. No image was pushed or tagged as a release.
+
 ## Requirement checks
 
 - **Source recognition / limits / Apple:** `test_sources_api.py`,

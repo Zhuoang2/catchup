@@ -35,13 +35,18 @@ function reasonLabel(reason: string, days: number) {
 function SummaryText({ text }: { text: string | null }) {
   if (!text) return null
   const lines = text.split('\n')
-  const firstPoint = lines.findIndex(line => line.startsWith('- '))
-  if (firstPoint < 0) return <p>{text}</p>
-  return <>
-    {lines.slice(0, firstPoint).join('\n').trim() && <p>{lines.slice(0, firstPoint).join('\n').trim()}</p>}
-    <ul>{lines.slice(firstPoint).filter(line => line.startsWith('- '))
-      .map((line, index) => <li key={index}>{line.slice(2)}</li>)}</ul>
-  </>
+  const blocks: { bullet: boolean; lines: string[] }[] = []
+  for (const line of lines) {
+    const bullet = line.startsWith('- ')
+    if (!blocks.length || blocks[blocks.length - 1].bullet !== bullet) {
+      blocks.push({ bullet, lines: [] })
+    }
+    blocks[blocks.length - 1].lines.push(line)
+  }
+  return <>{blocks.map((block, index) => block.bullet
+    ? <ul key={index}>{block.lines.map((line, position) => <li key={position}>{line.slice(2)}</li>)}</ul>
+    : <p key={index} style={{ whiteSpace: 'pre-line' }}>{block.lines.join('\n')}</p>,
+  )}</>
 }
 
 export default function DigestView() {

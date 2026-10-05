@@ -326,3 +326,81 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Token counts: Claude first asked to download DeepSeek's 1.9 MB offline tokenizer. The user asked why token counts were needed. Claude explained that they decide between a single call and chunking, and pointed out that `deepseek-flash`'s 1M-token context makes exact counts unnecessary. With the user's agreement, it used DeepSeek's documented character ratios instead: about 51k tokens for the 3.6-hour sample. Lesson: check the limit that drives the decision before asking for precise measurements.
 - Speech-to-text facts were recorded as context only. No audio was downloaded. YouTube's terms forbid downloading, and the handoff does not commit to transcription.
 - Date correction: entries above dated 2026-10-05 actually happened on 2026-10-04 (local time, per commit timestamps).
+
+## 2026-10-05 — `add-podcast-and-video-sources`: proposals, amendments, and plan (Claude Code, Opus 5.5)
+
+- `/reppit-proposal` produced two proposals in `design.md` (`be46efb`):
+  - P1: transcripts in `content_text`; a single call with a chunking fallback; global YouTube settings; no speech-to-text.
+  - P2: a digest-time provider chain; always chunked; speech-to-text for podcast audio through a user-supplied key; ffmpeg in the image.
+
+  Claude recommended P1.
+- The user chose P1 and, before planning, sent five amendments (translated excerpt):
+  - "change 'not summarized' into a positive 'Creator updates' section … grouped by creator / show … no model call"
+  - "fix the contradiction between late transcripts and no repeats: podcast episodes wait up to 7 days … each item appears in only one digest"
+  - "do not hard-code the single-call limit: derive it from `context_window` returned by `/models`; fall back to 60,000 characters"
+  - "the captions library bypasses safe_fetch's spacing: fetch videos sequentially with the same host spacer, cap videos per run, record 'blocked' separately from 'no captions'"
+  - "prefer the video's original-language captions (manual > auto), never machine-translated"
+- **What the amendments fixed.** The user found a real flaw in Claude's design: "listed once" and "re-checked for 7 days" contradicted each other under the existing delivered/pending states. Claude had also left the single-call budget as a fixed number that suited only large-context models. Lesson: when a design adds a waiting state, walk through an item's full lifecycle across several runs before proposing it.
+- **What Claude added while revising, and the user accepted:**
+  - a fifth reason, `captions_failed`
+  - stopping caption requests after the first block
+  - resolving transcripts in the run's check phase instead of at confirm (confirming 5 videos would otherwise take 15+ s)
+  - renaming the override to `CATCHUP_SINGLE_CALL_CHARS`, because `.env.example` hard-codes `CATCHUP_MAX_ITEM_CHARS=20000`, and copied configs would silently override the derived budget
+- **Before writing the budget design,** Claude checked DeepSeek's List Models docs: `context_window` and `max_output_tokens` are documented. The live response is still to be verified in review.
+- **`/reppit-plan` output:**
+  - `proposal.md`
+  - deltas for `source-management`, `content-collection`, `digest-generation`, `model-settings`, and a new `transcripts` capability
+  - the final `design.md` (D1–D11)
+  - `tasks.md` (7 groups, 21 tasks)
+
+  `openspec validate --strict` passes.
+- **A drafting slip, caught before validation:** spec wording used "MAY" and "may" for normative rules, which the OpenSpec instructions forbid. Claude rewrote the sentences with SHALL/MUST.
+- **Independent plan review.** The user asked for a separate conversation to review the plan, and said its suggestions should not be accepted wholesale: each should be checked against the code before any change. Claude ran a fresh general-purpose subagent with no access to the planning conversation. Its instructions were to report only evidence-backed problems, without editing files.
+  - The reviewer reported 20 findings: 1 blocker, 5 major, 14 minor or unverified.
+- **Claude's verification of each finding:**
+  - Code reads:
+    - `api/sources.py:90` (confirm's cache-miss fetch, missing from the plan's call sites)
+    - `models.py:38` (the table is `model_config`, not `model_configs`)
+    - `api/runs.py:11` (the route is `/api/digest-runs`)
+    - `feed_cache.py:12` (50 cached bodies × 32 MB)
+    - `Settings.tsx:83` (a preferences save sends only `digest_language`)
+    - `safe_fetch.py:111` (`trust_env=False`)
+    - `summarize.py:53` (a stale cached summary would be reused)
+    - the test fakes' locations
+  - Experiments in the scratchpad:
+    - lxml without `recover` rejects a feed containing `&nbsp;`; with `recover=True` it finds the transcript tag
+    - leading whitespace before `<?xml` fails
+    - youtube-transcript-api 1.2.4's `TranscriptList.build` indexes YouTube JSON directly, so a format change raises a plain `KeyError`
+- **Accepted (17, all confirmed). The main fixes:**
+  - Expiry is computed in memory, written only in the save transaction, and `no_transcript` is included in selection. Before, a run failing after expiry could strand an episode forever.
+  - YouTube captions moved to a separate pass after all checks, oldest first, keyed by `identity_key`. Before, a deferred video that dropped out of its channel's 15-entry feed was never handled.
+  - Every podcast status without a transcript now expires.
+  - Catch-all error containment per item. Before, an unexpected library error would fail every future run.
+  - lxml `recover=True` with a feedparser fallback.
+  - confirm uses the feed limit, and the cache skips bodies over 5 MB.
+  - A stricter podcast classification (iTunes metadata or a majority of audio enclosures), never downgraded.
+  - Selection keyed by status; strict context-window parsing.
+  - Optional preference fields; `trust_env=False`.
+  - Wait days stored on the digest, with a `digest-history` delta added.
+  - Spec wording fixes; the original-language rule relaxed to best effort without an auto-generated track.
+- **Not adopted:**
+  - Cutting token usage and the long-transcript format as "not requested": both were part of Proposal 1, which the user chose. This finding was factually wrong.
+  - A lower fallback than 60,000 characters: the user set that value; small local models are documented instead.
+- **Raised with the user instead of changed:** whether newly uploaded videos without auto-captions yet deserve a grace period (unverified; it would change the user's "list once immediately" rule).
+- Lesson: the reviewer's highest-value findings were lifecycle bugs across runs and failure paths, which the planner had walked only on the happy path. Checking every claim also caught one wrong claim, which would have removed agreed scope.
+- **Second review round.** The user approved the caption wait suggested by the reviewer's #17, and asked for the revised plan to be re-checked by the same review conversation. Claude added `caption_wait`/`unplayable_wait` with `CATCHUP_CAPTION_WAIT_HOURS` (default 24). Reading the library source (1.2.4) showed why both cases must wait:
+  - `TranscriptsDisabled` is raised whenever `captionTracks` is missing, so uploader-disabled and not-yet-generated captions cannot be told apart.
+  - Upcoming premieres raise `VideoUnplayable`.
+- **The re-review found no blockers.**
+  - It confirmed 16 earlier findings resolved and reported 2 major and 6 minor new findings.
+  - Claude verified the main one by experiment: feedparser maps `itunes:author` to `author`, so iTunes metadata cannot be detected from its output. Live Substack feeds (astralcodexten.com, noahpinion.blog) declare the iTunes namespace and `itunes:author`/`owner`/`block` with zero audio enclosures, so under the planned "iTunes metadata" rule these newsletters would have become permanent podcasts, with every post sent to Creator updates.
+  - The fix goes further than the reviewer's suggestion: classification uses only the share of audio enclosures, and non-audio entries of a podcast source are handled as text (`text` status). A misclassification therefore cannot hide text posts.
+- **The other findings, applied after checking against the plan text:**
+  - D8 step 2 now specifies what happens to wait, NULL, and `captions_off` items when the cap or a block is hit.
+  - A false "every status is in the summarize or creator-update set" sentence was corrected.
+  - The order "oldest" is defined as `discovered_at`, then `id` (all entries of one check share one timestamp, `collection.py:64`).
+  - The waiting and deferred message texts are defined.
+  - The feedparser fallback now applies after any lxml failure.
+  - Toggle edge cases are documented, and `captions_off` items are fetched again once the setting is on.
+  - The cap-starvation risk is noted.
+- Lesson: a reviewer's "suspected, could not verify" item (Substack) turned out to be the most consequential once checked live. Unverified findings deserve a quick experiment, not a dismissal.

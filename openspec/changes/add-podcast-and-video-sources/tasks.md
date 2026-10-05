@@ -44,12 +44,12 @@ Implementer notes:
 
 ## 2. Podcast and YouTube sources: kind, larger feeds, Apple Podcasts
 
-- [ ] 2.1 Add `max_bytes` to `safe_fetch` (`backend/src/catchup/net/safe_fetch.py`) per design.md D3. The default stays 5 MB, and the size error message names the limit. Pass `settings.max_feed_bytes` at all three feed call sites: `discover()` (`sources/discovery.py`), the cache-miss fetch in `confirm()` (`api/sources.py:90`), and `check_source()` (`collection.py`). Make `FeedCache` (`net/feed_cache.py`) skip storing responses over 5 MB. Verify with respx tests:
+- [x] 2.1 Add `max_bytes` to `safe_fetch` (`backend/src/catchup/net/safe_fetch.py`) per design.md D3. The default stays 5 MB, and the size error message names the limit. Pass `settings.max_feed_bytes` at all three feed call sites: `discover()` (`sources/discovery.py`), the cache-miss fetch in `confirm()` (`api/sources.py:90`), and `check_source()` (`collection.py`). Make `FeedCache` (`net/feed_cache.py`) skip storing responses over 5 MB. Verify with respx tests:
   - a 6 MB feed body passes preview with the feed limit, by both Content-Length and streaming
   - confirming a 6 MB feed with no cached preview succeeds (spec "Confirm a large feed after the preview expired")
   - a 6 MB response is not stored in the cache
   - a 6 MB article fetch through `article_text()` still fails
-- [ ] 2.2 Classify sources per design.md D2. The changes:
+- [x] 2.2 Classify sources per design.md D2. The changes:
   - `parse_feed` exposes the YouTube-host fact, the audio-enclosure share, and a per-entry `has_audio`
   - the majority rule alone decides `podcast` (no iTunes check), and accepted hosts are `youtube.com`, `www.youtube.com`, and `m.youtube.com`
   - non-audio entries of podcast sources get `transcript_status='text'` and keep `article_text()`
@@ -62,7 +62,7 @@ Implementer notes:
   - a test that a non-audio entry in a podcast source is `text` and summarized
   - a test that a `feed` source whose feed now looks like YouTube is upgraded on check, and that a podcast source whose feed no longer has enclosures stays `podcast`
   - a vitest test for the preview text with captions on and off
-- [ ] 2.3 Resolve Apple Podcasts URLs in `discover()` per design.md D4. Verify with respx tests:
+- [x] 2.3 Resolve Apple Podcasts URLs in `discover()` per design.md D4. Verify with respx tests:
   - a show URL → lookup → feed preview
   - an episode URL with `?i=` → whole-show notice
   - `resultCount` 0, missing `feedUrl`, and invalid JSON → `no_feed`

@@ -105,6 +105,19 @@ def test_oversized_stream(resolve):
             safe_fetch(PUBLIC)
 
 
+@pytest.mark.parametrize("content_length", [True, False])
+def test_six_mb_feed_allowed_with_feed_limit(resolve, content_length):
+    body = b"x" * (6 * 1024 * 1024)
+    headers = {"content-length": str(len(body))} if content_length else {}
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(PUBLIC).mock(return_value=httpx.Response(200, content=body, headers=headers))
+        assert len(safe_fetch(PUBLIC, max_bytes=32 * 1024 * 1024).content) == len(body)
+        with pytest.raises(FetchError, match="5 MB"):
+            safe_fetch(PUBLIC)
+        with pytest.raises(FetchError, match="4 MB"):
+            safe_fetch(PUBLIC, max_bytes=4 * 1024 * 1024)
+
+
 def test_public_response_and_relative_redirect(resolve):
     with respx.mock(assert_all_mocked=True) as router:
         router.get(PUBLIC).mock(return_value=httpx.Response(302, headers={"location": "/new-feed"}))

@@ -1,0 +1,5 @@
+<rss version="2.0"><channel><title>Show</title><link>https://site.example/</link>
+<item><guid>ep1</guid><link>https://site.example/ep1</link><title>Episode 1</title><pubDate>Fri, 02 Oct 2026 10:00:00 GMT</pubDate><enclosure url="https://site.example/1.mp3" type="audio/mpeg"/></item>
+<item><guid>ep2</guid><link>https://site.example/ep2</link><title>Episode 2</title><pubDate>Fri, 02 Oct 2026 10:00:00 GMT</pubDate><enclosure url="https://site.example/2.mp3" type="audio/mpeg"/></item>
+<item><guid>post</guid><link>https://site.example/post</link><title>Text post</title><pubDate>Fri, 02 Oct 2026 10:00:00 GMT</pubDate><description>Text content for readers.</description></item>
+</channel></rss>

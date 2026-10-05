@@ -99,7 +99,11 @@ def run_digest(app: FastAPI, run_id: int) -> None:
         with factory() as session:
             rows = session.execute(
                 select(Item, Source.title).join(Source, Item.source_id == Source.id)
-                .where(Item.state == "pending").order_by(Item.id)
+                .where(Item.state == "pending")
+                .where(
+                    (Item.transcript_status.in_(("found", "text")))
+                    | ((Item.transcript_status.is_(None)) & (Source.kind == "feed"))
+                ).order_by(Item.id)
             ).all()
             inputs = [
                 SummaryInput(item.id, item.title, item.content_text, item.summary, item.summary_language)

@@ -8,6 +8,12 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Outcome: Added migration 0002 with an upgrade/downgrade regression test, pinned transcript and XML dependencies, and added validated environment settings. Backend 240 tests, frontend 22 tests, and frontend build passed. No external services were called in tests.
 - What failed / adjustment: The first downgrade test failed because SQLite rebuilt a parent table while foreign keys were enabled and child rows existed. Using native SQLite `DROP COLUMN` through Alembic batch mode preserved the referenced rows; the second test passed. The removed item cap's runner call temporarily uses the new override or fallback budget until long-text handling is implemented in group 6.
 
+## 2026-10-05 — Podcast and video sources, group 2 (Factory Droid, GPT-6 Sol)
+
+- Prompt: Same user request as group 1, with particular emphasis on offline tests, transcript-status selection and group commits.
+- Outcome: Added configurable 32 MiB feed fetches while keeping articles at 5 MiB and the cache at 5 MiB per entry; classified feeds by YouTube host or majority audio enclosures; showed source kinds in preview; resolved Apple Podcasts pages through a mocked iTunes lookup. The interim runner excludes items awaiting transcripts so a partially implemented change cannot summarize descriptions. Full checks: 257 backend tests, 25 frontend tests and frontend build passed.
+- Problems / adjustment: The first patch for the safe-fetch test missed its context; reapplied only that test. Confirmed that pending audio and video would otherwise reach the old summary path before the later selection task, so restricted the interim summary query to transcript-ready items.
+
 ## 2026-10-04 — Docker packaging implementation (Factory Droid, GPT-6 Sol)
 
 - Purpose: Implement `add-docker-packaging` (#7), groups 1–4, on a branch from main.

@@ -33,7 +33,7 @@ def check_source(session: Session, source: Source, run_id: int, settings: Settin
                  *, spacer: HostSpacer | None = None) -> SourceCheck:
     """Check one saved source; persist its items and outcome in one transaction."""
     try:
-        response = safe_fetch(source.feed_url, spacer=spacer)
+        response = safe_fetch(source.feed_url, spacer=spacer, max_bytes=settings.max_feed_bytes)
         feed = parse_feed(response)
     except (FetchError, FeedParseError) as exc:
         now = utc_now()
@@ -47,6 +47,9 @@ def check_source(session: Session, source: Source, run_id: int, settings: Settin
         session.add(check)
         session.commit()
         return check
+
+    if source.kind == "feed" and feed.kind != "feed":
+        source.kind = feed.kind
 
     existing = session.execute(
         select(Item.identity_key, Item.link).where(Item.source_id == source.id),
@@ -65,11 +68,18 @@ def check_source(session: Session, source: Source, run_id: int, settings: Settin
     for entry in feed.entries:
         if entry.identity_key in seen_keys or (entry.link not in fallback_links and entry.link in seen_links):
             continue
-        text, origin = article_text(entry, fallback_links, settings.short_text_chars, spacer=spacer)
+        transcript_status = ("to_fetch" if source.kind == "youtube" or
+                             (source.kind == "podcast" and entry.has_audio) else
+                             "text" if source.kind == "podcast" else None)
+        text, origin = (
+            article_text(entry, fallback_links, settings.short_text_chars, spacer=spacer)
+            if transcript_status in (None, "text") else (entry.content_text, "feed")
+        )
         session.add(Item(
             source_id=source.id, identity_key=entry.identity_key, link=entry.link,
             title=entry.title, published_at=entry.published_at, discovered_at=now,
             content_text=text, content_origin=origin, state="pending",
+            transcript_status=transcript_status,
         ))
         seen_keys.add(entry.identity_key)
         if entry.link not in fallback_links:

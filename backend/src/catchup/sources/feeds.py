@@ -50,6 +50,7 @@ class FeedEntry:
     title: str
     published_at: datetime | None
     content_text: str
+    has_audio: bool = False
 
 
 @dataclass(frozen=True)
@@ -58,6 +59,16 @@ class Feed:
     site_url: str
     title: str
     entries: list[FeedEntry]
+    youtube_host: bool = False
+    audio_share: float = 0.0
+
+    @property
+    def kind(self) -> str:
+        if self.youtube_host:
+            return "youtube"
+        if self.audio_share > 0.5:
+            return "podcast"
+        return "feed"
 
 
 def parse_feed(response: FetchResponse) -> Feed:
@@ -81,13 +92,19 @@ def parse_feed(response: FetchResponse) -> Feed:
         identity = entry.get("id") or (link if link != response.url else "")
         if not identity:
             identity = hashlib.sha256(f"{title}{published_at.isoformat() if published_at else ''}".encode()).hexdigest()
+        has_audio = any(str(enclosure.get("type", "")).lower().startswith("audio/")
+                        for enclosure in entry.get("enclosures", []))
         entries.append(FeedEntry(
             identity_key=identity, link=link, title=title,
-            published_at=published_at, content_text=content_text,
+            published_at=published_at, content_text=content_text, has_audio=has_audio,
         ))
     site_url = parsed.feed.get("link") or f"{urlsplit(response.url).scheme}://{urlsplit(response.url).netloc}/"
+    parts = urlsplit(response.url)
     return Feed(
         feed_url=response.url, site_url=site_url,
         title=plain_text(parsed.feed.get("title", "")) or urlsplit(response.url).hostname or "Untitled feed",
         entries=entries,
+        youtube_host=parts.hostname in {"youtube.com", "www.youtube.com", "m.youtube.com"}
+        and parts.path == "/feeds/videos.xml",
+        audio_share=sum(entry.has_audio for entry in entries) / len(entries) if entries else 0.0,
     )

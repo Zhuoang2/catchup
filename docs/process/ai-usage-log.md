@@ -452,3 +452,30 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - Toggle edge cases are documented, and `captions_off` items are fetched again once the setting is on.
   - The cap-starvation risk is noted.
 - Lesson: a reviewer's "suspected, could not verify" item (Substack) turned out to be the most consequential once checked live. Unverified findings deserve a quick experiment, not a dismissal.
+
+## 2026-10-05 — `add-podcast-and-video-sources`: implementation review and fix round (Claude Code, Opus 5.5; Factory Droid, fresh session `72e07ca6`)
+
+- **Droid's first pass:**
+  - 21/21 tasks in 7 commits, ~2.19M credits.
+  - Claude re-ran everything in a separate worktree: 327 backend tests (96% coverage), 34 frontend tests, the build, `openspec validate --strict`, and the Docker build plus smoke test (8/8), all matching Droid's report.
+  - Live checks:
+    - The Vergecast (6.2 MB) previews as a podcast.
+    - Apple show and episode URLs resolve, with the whole-show notice.
+    - astralcodexten.com stays a feed.
+    - A YouTube channel is recognized.
+    - A Buzzsprout VTT transcript converts to 35,559 characters with speakers.
+    - Captions for `s7d2d8FhevU` come back at 172,818 characters, with the spacer called before each of the library's 3 requests.
+- **Droid's own deviation, tested rather than assumed.** Droid skipped lxml for any document with a DOCTYPE, claiming libxml expands attribute entities even with `resolve_entities=False`. Claude's experiment confirmed it (`url="https://h/&x;.vtt"` → `EXPANDED`). This was a security gap the plan had missed.
+- **Code review: Claude plus an independent subagent.** The subagent had to prove each bug with a script. Claude re-ran every proof and checked the most consequential one against 10 live podcast feeds:
+  - **Shared links:** The Daily has 64 entries with 1 distinct `<link>`, and a Captivate show has 121 with 1. The v0.1 link dedup therefore recorded only the first episode, ever, and the new transcript matching gave episodes a sibling's transcript.
+  - CJK transcripts without whitespace failed to split.
+  - `SummaryText` dropped lines.
+  - Word-level JSON and caption snippets became one word per paragraph.
+  - A UTF-16 feed bypassed the DOCTYPE byte check.
+  - Nits: redirect spacing, language matching, the namespace prefix, part size, 3-digit hours, group order.
+- **Fix round.** With the user's approval, Claude added D12, task group 8, and spec rules (shared links; transcript ownership; internal DTD entities) on the branch (`ab40245`), then resumed the same Droid session with the evidence. Droid's fix (`c89fa23`, ~0.82M credits; the reported credits are cumulative) passes 342 backend and 35 frontend tests. Claude re-verified:
+  - The reviewer's scripts now give the correct results.
+  - A live preview and confirm of The Daily via the Apple URL records all 64 episodes (5 pending, 59 baseline); before the fix, only 1.
+  - A live check phase gives The Daily `waiting` (no tags) and Buzzsprout `found` (35,559 characters).
+  - Docker smoke 8/8.
+- **A reviewer script misled once.** The public-DOCTYPE script inserted a second DOCTYPE into a fixture that already had one, so it reported 1 candidate. Reading the script resolved it: the fixture alone yields 4. Lesson: when a proof disagrees with a passing test, read the proof too.

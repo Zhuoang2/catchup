@@ -86,3 +86,16 @@ Performed 2026-10-05 by Claude Code with the user on the user's Mac (Docker Desk
 | `cd backend && uv run pytest` | 206 passed |
 | `actionlint .github/workflows/ci.yml .github/workflows/release.yml` | Passed |
 | `openspec validate add-docker-packaging --strict` | Passed |
+
+## Post-merge verification of the published image (2026-10-05)
+
+- Release workflow runs: `main` (edge) ×2 and tag `v0.1.0` all succeeded, each in about 2–3 minutes.
+- **Anonymous** registry query (`ghcr.io/token` without credentials, then `/v2/zhuoang2/catchup/tags/list`) returned `edge`, `0.1.0`, `0.1`, and `latest`. The package is public, so no visibility change was needed.
+- `docker buildx imagetools inspect`:
+  - the image index contains `linux/amd64` and `linux/arm64`, plus the buildx provenance attestation (`unknown/unknown`)
+  - `latest` and `0.1.0` share one digest
+  - `edge` points to the later docs commit on `main`
+- Pulled `ghcr.io/zhuoang2/catchup:latest` after `docker logout ghcr.io`. Labels: `org.opencontainers.image.source=https://github.com/Zhuoang2/catchup`, version `0.1.0`, revision `b5fec1a`.
+  - Pitfall found: a local `docker compose up --build` had earlier tagged its own build as `ghcr.io/zhuoang2/catchup:latest`, because `compose.yaml` has both `image:` and `build:`. Inspecting the "published" tag first showed that local build. The local tag was removed and the image re-pulled.
+- `scripts/docker-smoke.sh ghcr.io/zhuoang2/catchup:latest` (the published image): **all 8 checks pass**.
+- In an empty directory with only `compose.yaml` (no source tree, no local image), `docker compose up -d` (Compose 5.5.1) pulled the published image and started it. Torn down with `down -v`.

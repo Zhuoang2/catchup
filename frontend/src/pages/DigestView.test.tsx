@@ -60,3 +60,33 @@ it('reports an unavailable digest', async () => {
   page()
   expect(await screen.findByRole('alert')).toHaveTextContent('Digest not found.')
 })
+
+it('renders creator updates after topics with saved wait labels', async () => {
+  fetchMock.mockResolvedValue(respond({
+    id: 7, created_at: '2026-10-03T10:00:00Z', model_id: 'test',
+    transcript_wait_days: 10,
+    topics: [{ title: 'Technology', overview: 'News', items: [] }],
+    creator_updates: [
+      { source_name: 'Show', items: [
+        { title: 'Episode', link: 'https://example.test/ep', published_at: null, reason: 'no_transcript' },
+      ] },
+      { source_name: 'Channel', items: [
+        { title: 'Off', link: 'https://example.test/off', published_at: null, reason: 'captions_off' },
+        { title: 'Missing', link: 'https://example.test/missing',
+          published_at: '2026-10-02T10:00:00Z', reason: 'no_captions' },
+        { title: 'Blocked', link: 'https://example.test/blocked', published_at: null, reason: 'blocked' },
+        { title: 'Failed', link: 'https://example.test/failed', published_at: null, reason: 'captions_failed' },
+      ] },
+    ],
+  }))
+  page()
+  const creator = await screen.findByRole('region', { name: 'Creator updates' })
+  expect(creator.compareDocumentPosition(screen.getByRole('region', { name: 'Technology' }))
+    & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
+  expect(screen.getByRole('region', { name: 'Show' })).toHaveTextContent('No transcript within 10 days')
+  expect(screen.getByRole('region', { name: 'Channel' })).toHaveTextContent('Caption fetching is off')
+  expect(screen.getByRole('region', { name: 'Channel' })).toHaveTextContent('This video has no captions')
+  expect(screen.getByRole('region', { name: 'Channel' })).toHaveTextContent('Blocked by YouTube')
+  expect(screen.getByRole('region', { name: 'Channel' })).toHaveTextContent('Captions could not be fetched')
+  expect(screen.getByRole('link', { name: 'Missing' }).closest('li')?.querySelector('time')).toBeTruthy()
+})

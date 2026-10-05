@@ -114,7 +114,7 @@ Implementer notes:
 
 ## 4. Creator updates and once-only delivery
 
-- [ ] 4.1 Implement selection in `digest/runner.py` per design.md D7. Selection is decided by `transcript_status`. Expiry is computed in memory from `discovered_at` with an injected clock: the transcript wait for podcast `to_fetch`/`waiting`/NULL items, and the caption wait for YouTube `caption_wait`/`unplayable_wait` items. The changes:
+- [x] 4.1 Implement selection in `digest/runner.py` per design.md D7. Selection is decided by `transcript_status`. Expiry is computed in memory from `discovered_at` with an injected clock: the transcript wait for podcast `to_fetch`/`waiting`/NULL items, and the caption wait for YouTube `caption_wait`/`unplayable_wait` items. The changes:
   - expiry statuses (`no_transcript`, `no_captions`, `captions_failed`) are written only in the save transaction
   - `waiting_count`/`deferred_count` are written
   - no model call is made for Creator updates items
@@ -125,7 +125,7 @@ Implementer notes:
   - "Episode waiting for a transcript", "Item never repeated", "Only waiting episodes", "Only Creator updates", and "Run fails after a wait ends" (`specs/digest-generation/spec.md`)
   - "Wait ends", "Feed keeps failing", and "Caption wait ends" (`specs/transcripts/spec.md`)
   - a fake client asserting zero calls for Creator updates items
-- [ ] 4.2 Store and serve Creator updates per design.md D7. The changes:
+- [x] 4.2 Store and serve Creator updates per design.md D7. The changes:
   - the `creator_updates` topic with `update_reason` items, and `digests.transcript_wait_days`
   - `GET /api/digests/{id}` returns `topics` (kind `topic` only), `creator_updates` grouped by source, and `transcript_wait_days`
   - `GET /api/digest-runs/{id}` (`api/runs.py`) returns `waiting_count`/`deferred_count`
@@ -135,7 +135,7 @@ Implementer notes:
   - an old-style digest without the topic still returns `creator_updates: []`
   - a failed save leaves the items pending
   - a digest reopened after the configured wait changes still reports its saved `transcript_wait_days` (spec `digest-history` "Open a digest with Creator updates")
-- [ ] 4.3 Render Creator updates in `frontend/src/pages/DigestView.tsx` with the labels from design.md D7 (N from the digest), and show the waiting and deferred counts in `frontend/src/pages/Generate.tsx` with the exact texts from design.md D7 "Run counters", including the no-new-content message. Verify with vitest tests: the section appears after the topics, has a heading per source, and shows each label; the counts appear in both a succeeded run and a no-new-content run.
+- [x] 4.3 Render Creator updates in `frontend/src/pages/DigestView.tsx` with the labels from design.md D7 (N from the digest), and show the waiting and deferred counts in `frontend/src/pages/Generate.tsx` with the exact texts from design.md D7 "Run counters", including the no-new-content message. Verify with vitest tests: the section appears after the topics, has a heading per source, and shows each label; the counts appear in both a succeeded run and a no-new-content run.
 
 ## 5. YouTube captions
 

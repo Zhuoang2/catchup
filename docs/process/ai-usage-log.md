@@ -20,6 +20,12 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Outcome: Added multi-candidate parsing with feedparser fallback, format conversion, and per-check podcast resolution with up to two safe fetches. A transcript replaces cached summaries; missing ones stay waiting. Full checks: 272 backend tests, 25 frontend tests, and frontend build passed.
 - What failed / adjustment: A focused experiment showed libxml expands an internal entity in an attribute even with `resolve_entities=False`. The hardened candidate parser now declines DTD-bearing documents; feedparser's non-expanding single-candidate fallback remains available. Added a regression test for the attribute case.
 
+## 2026-10-05 — Podcast and video sources, group 4 (Factory Droid, GPT-6 Sol)
+
+- Prompt: Same user request, especially "selection is decided by transcript_status as in design.md D7, and expiry statuses are written only in the save transaction."
+- Outcome: Added status-driven selection and atomic delivery, Creator updates snapshots and history API, and wait/deferred counts in the run view. Full checks passed: 278 backend tests, 28 frontend tests, frontend build. A further three backend cases confirmed expiry despite failed feed checks (9 focused cases passed).
+- What failed / adjustment: The first grouping test tried to create two sources with the same feed URL and SQLite rejected the duplicate. Changed the test fixture to reuse a source for multiple items, as the product does.
+
 ## 2026-10-04 — Docker packaging implementation (Factory Droid, GPT-6 Sol)
 
 - Purpose: Implement `add-docker-packaging` (#7), groups 1–4, on a branch from main.

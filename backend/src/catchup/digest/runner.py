@@ -3,6 +3,7 @@
 import logging
 import threading
 from contextlib import closing
+from datetime import timedelta
 
 from cryptography.fernet import InvalidToken
 from fastapi import FastAPI
@@ -25,6 +26,33 @@ from catchup.transcripts.context import TranscriptContext
 ACTIVE = ("queued", "collecting", "summarizing", "grouping")
 _start_lock = threading.Lock()
 logger = logging.getLogger(__name__)
+CREATOR_REASONS = {"captions_off", "no_captions", "blocked", "captions_failed", "no_transcript"}
+
+
+def select_pending(rows, now, transcript_wait_days: int, caption_wait_hours: int):
+    """Classify pending items without mutating expiry statuses before the save."""
+    summaries = []
+    updates: list[tuple[int, str]] = []
+    waiting = deferred = 0
+    for item, source in rows:
+        status = item.transcript_status
+        if status in ("found", "text") or (status is None and source.kind == "feed"):
+            summaries.append((item, source.title))
+        elif status in CREATOR_REASONS:
+            updates.append((item.id, status))
+        elif source.kind == "podcast" and status in (None, "to_fetch", "waiting"):
+            if item.discovered_at + timedelta(days=transcript_wait_days) <= now:
+                updates.append((item.id, "no_transcript"))
+            else:
+                waiting += 1
+        elif status in ("caption_wait", "unplayable_wait"):
+            if item.discovered_at + timedelta(hours=caption_wait_hours) <= now:
+                updates.append((item.id, "no_captions" if status == "caption_wait" else "captions_failed"))
+            else:
+                waiting += 1
+        elif status in (None, "to_fetch") and source.kind == "youtube":
+            deferred += 1
+    return summaries, updates, waiting, deferred
 
 
 def active_run(session) -> DigestRun | None:
@@ -106,19 +134,23 @@ def run_digest(app: FastAPI, run_id: int) -> None:
 
         with factory() as session:
             rows = session.execute(
-                select(Item, Source.title).join(Source, Item.source_id == Source.id)
-                .where(Item.state == "pending")
-                .where(
-                    (Item.transcript_status.in_(("found", "text")))
-                    | ((Item.transcript_status.is_(None)) & (Source.kind == "feed"))
-                ).order_by(Item.id)
+                select(Item, Source).join(Source, Item.source_id == Source.id)
+                .where(Item.state == "pending").order_by(Item.id)
             ).all()
+            ready, creator_updates, waiting, deferred = select_pending(
+                rows, utc_now(), app.state.settings.transcript_wait_days,
+                app.state.settings.caption_wait_hours,
+            )
             inputs = [
                 SummaryInput(item.id, item.title, item.content_text, item.summary, item.summary_language)
-                for item, _ in rows
+                for item, _ in ready
             ]
-            names = {item.id: name for item, name in rows}
-        if not inputs:
+            names = {item.id: name for item, name in ready}
+            run = session.get(DigestRun, run_id)
+            run.waiting_count = waiting
+            run.deferred_count = deferred
+            session.commit()
+        if not inputs and not creator_updates:
             with factory() as session:
                 run = session.get(DigestRun, run_id)
                 run.status = "no_new_content"
@@ -142,17 +174,19 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                 session.commit()
             summaries[result.id] = result
 
-        with closing(app.state.model_client_factory(base_url, key, model_id)) as client:
-            summarize_items(client, inputs, language, app.state.settings.single_call_chars or 60_000, record)
-            _stage(factory, run_id, "grouping")
-            with factory() as session:
-                group_inputs = [
-                    GroupItem(item.id, item.title, names[item.id], summaries[item.id].summary)
-                    for item in session.scalars(
-                        select(Item).where(Item.id.in_([entry.id for entry in inputs])).order_by(Item.id)
-                    )
-                ]
-            topics = group_items(client, group_inputs, language, app.state.settings.grouping_batch_chars)
+        topics = []
+        if inputs:
+            with closing(app.state.model_client_factory(base_url, key, model_id)) as client:
+                summarize_items(client, inputs, language, app.state.settings.single_call_chars or 60_000, record)
+                _stage(factory, run_id, "grouping")
+                with factory() as session:
+                    group_inputs = [
+                        GroupItem(item.id, item.title, names[item.id], summaries[item.id].summary)
+                        for item in session.scalars(
+                            select(Item).where(Item.id.in_([entry.id for entry in inputs])).order_by(Item.id)
+                        )
+                    ]
+                topics = group_items(client, group_inputs, language, app.state.settings.grouping_batch_chars)
 
         # Snapshot and delivery share one transaction: a failed save cannot lose pending items.
         with factory() as session:
@@ -160,7 +194,7 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                 item.id: (item, source_name)
                 for item, source_name in session.execute(
                     select(Item, Source.title).join(Source, Item.source_id == Source.id)
-                    .where(Item.id.in_([entry.id for entry in inputs]))
+                    .where(Item.id.in_([entry.id for entry in inputs] + [id for id, _ in creator_updates]))
                 )
             }
             saved_topics = [
@@ -169,14 +203,17 @@ def run_digest(app: FastAPI, run_id: int) -> None:
             ]
             saved_topics = [(topic, ids) for topic, ids in saved_topics if ids]
             saved_ids = [item_id for _, ids in saved_topics for item_id in ids]
+            updates = [(item_id, reason) for item_id, reason in creator_updates if item_id in items]
             run = session.get(DigestRun, run_id)
-            if not saved_ids:
+            if not saved_ids and not updates:
                 run.status = "no_new_content"
                 run.finished_at = utc_now()
                 session.commit()
                 return
-            digest = Digest(run_id=run_id, model_id=model_id, item_count=len(saved_ids),
-                            source_count=len({items[item_id][0].source_id for item_id in saved_ids}))
+            all_ids = saved_ids + [item_id for item_id, _ in updates]
+            digest = Digest(run_id=run_id, model_id=model_id, item_count=len(all_ids),
+                            source_count=len({items[item_id][0].source_id for item_id in all_ids}),
+                            transcript_wait_days=app.state.settings.transcript_wait_days)
             session.add(digest)
             session.flush()
             for position, (topic, item_ids) in enumerate(saved_topics):
@@ -194,6 +231,29 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                         published_at=item.published_at, summary=summary.summary,
                         summary_unavailable=summary.unavailable,
                     ))
+                    item.state = "delivered"
+            if updates:
+                creator_topic = DigestTopic(
+                    digest_id=digest.id, position=len(saved_topics),
+                    title="Creator updates", overview="", kind="creator_updates",
+                )
+                session.add(creator_topic)
+                session.flush()
+                updates.sort(key=lambda row: (
+                    items[row[0]][1].casefold(),
+                    -(items[row[0]][0].published_at.timestamp()
+                      if items[row[0]][0].published_at else float("-inf")),
+                    row[0],
+                ))
+                for position, (item_id, reason) in enumerate(updates):
+                    item, source_name = items[item_id]
+                    session.add(DigestItem(
+                        digest_id=digest.id, topic_id=creator_topic.id, position=position,
+                        item_id=item.id, title=item.title, link=item.link, source_name=source_name,
+                        published_at=item.published_at, summary=None, summary_unavailable=False,
+                        update_reason=reason,
+                    ))
+                    item.transcript_status = reason
                     item.state = "delivered"
             run.status = "succeeded"
             run.digest_id = digest.id
@@ -223,6 +283,7 @@ def run_detail(session, run: DigestRun) -> dict:
     return {
         "id": run.id, "status": run.status, "items_total": run.items_total,
         "items_done": run.items_done, "error_kind": run.error_kind,
+        "waiting_count": run.waiting_count, "deferred_count": run.deferred_count,
         "error_message": run.error_message, "digest_id": run.digest_id,
         "started_at": run.started_at, "finished_at": run.finished_at,
         "sources_total": session.scalar(select(func.count(Source.id))) or 0,

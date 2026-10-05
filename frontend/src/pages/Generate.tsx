@@ -21,6 +21,8 @@ type Run = {
   error_kind: string | null
   error_message: string | null
   digest_id: number | null
+  waiting_count: number
+  deferred_count: number
 }
 
 const active = (run: Run) => ['queued', 'collecting', 'summarizing', 'grouping'].includes(run.status)
@@ -81,6 +83,8 @@ export default function Generate() {
             ? <p>Sources checked: {run.source_checks.length} of {run.sources_total}</p>
             : <p>Items summarized: {run.items_done} of {run.items_total}</p>}
           {run.status === 'no_new_content' && <p>No new content.</p>}
+          {!!run.waiting_count && <p>{run.waiting_count} items waiting for transcripts or captions</p>}
+          {!!run.deferred_count && <p>{run.deferred_count} videos deferred to the next run</p>}
           {run.status === 'failed' && <p role="alert">{run.error_message || 'Digest generation failed.'}</p>}
           {run.status === 'succeeded' && run.digest_id && (
             <Link to={`/digests/${run.digest_id}`}>View digest</Link>

@@ -178,12 +178,29 @@ def test_provider_url_cannot_embed_credentials(api):
 
 def test_preference_save_and_read(api):
     client, _ = api
-    assert client.get("/api/settings/preferences").json() == {"digest_language": "en"}
+    assert client.get("/api/settings/preferences").json() == {
+        "digest_language": "en", "youtube_captions": False, "youtube_skip_shorts": True,
+    }
     for language in ("zh-Hans", "original", "Français"):
         assert client.put("/api/settings/preferences", json={"digest_language": language}).json() == {
-            "digest_language": language,
+            "digest_language": language, "youtube_captions": False, "youtube_skip_shorts": True,
         }
-        assert client.get("/api/settings/preferences").json() == {"digest_language": language}
+        assert client.get("/api/settings/preferences").json() == {
+            "digest_language": language, "youtube_captions": False, "youtube_skip_shorts": True,
+        }
+
+
+def test_partial_preference_updates_keep_other_values(api):
+    client, _ = api
+    assert client.put("/api/settings/preferences", json={
+        "youtube_captions": True, "youtube_skip_shorts": False,
+    }).json() == {"digest_language": "en", "youtube_captions": True, "youtube_skip_shorts": False}
+    assert client.put("/api/settings/preferences", json={"digest_language": "zh-Hans"}).json() == {
+        "digest_language": "zh-Hans", "youtube_captions": True, "youtube_skip_shorts": False,
+    }
+    assert client.put("/api/settings/preferences", json={"youtube_skip_shorts": True}).json() == {
+        "digest_language": "zh-Hans", "youtube_captions": True, "youtube_skip_shorts": True,
+    }
 
 
 @pytest.mark.parametrize("language", ["", "   ", "x" * 41])

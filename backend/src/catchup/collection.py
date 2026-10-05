@@ -10,7 +10,7 @@ from catchup.config import Settings
 from catchup.models import Item, Source, SourceCheck, utc_now
 from catchup.net.host_spacing import HostSpacer
 from catchup.net.safe_fetch import FetchError, safe_fetch
-from catchup.sources.feeds import FeedEntry, FeedParseError, parse_feed
+from catchup.sources.feeds import FeedEntry, FeedParseError, is_short, parse_feed
 from catchup.transcripts.context import TranscriptContext
 from catchup.transcripts.convert import convert_transcript
 
@@ -111,10 +111,13 @@ def check_source(session: Session, source: Source, run_id: int, settings: Settin
             article_text(entry, fallback_links, settings.short_text_chars, spacer=spacer)
             if transcript_status in (None, "text") else (entry.content_text, "feed")
         )
+        skip_shorts = transcripts.youtube_skip_shorts if transcripts else True
+        state = ("baseline" if source.kind == "youtube" and skip_shorts and is_short(entry.link)
+                 else "pending")
         item = Item(
             source_id=source.id, identity_key=entry.identity_key, link=entry.link,
             title=entry.title, published_at=entry.published_at, discovered_at=now,
-            content_text=text, content_origin=origin, state="pending",
+            content_text=text, content_origin=origin, state=state,
             transcript_status=transcript_status,
         )
         session.add(item)

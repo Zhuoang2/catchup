@@ -22,6 +22,8 @@ from catchup.models import (
 from catchup.net.host_spacing import HostSpacer
 from catchup.net.rate_limit import is_rate_limited
 from catchup.transcripts.context import TranscriptContext
+from catchup.sources.feeds import is_short
+from catchup.transcripts.youtube import fetch_captions
 
 ACTIVE = ("queued", "collecting", "summarizing", "grouping")
 _start_lock = threading.Lock()
@@ -53,6 +55,55 @@ def select_pending(rows, now, transcript_wait_days: int, caption_wait_hours: int
         elif status in (None, "to_fetch") and source.kind == "youtube":
             deferred += 1
     return summaries, updates, waiting, deferred
+
+
+def caption_pass(factory, context: TranscriptContext) -> None:
+    """Resolve YouTube items in recording order, committing every attempted item."""
+    now = utc_now()
+    with factory() as session:
+        items = session.scalars(
+            select(Item).join(Source, Item.source_id == Source.id)
+            .where(Source.kind == "youtube", Item.state == "pending")
+            .where(Item.transcript_status.in_((
+                "to_fetch", "caption_wait", "unplayable_wait", "captions_off",
+            )) | Item.transcript_status.is_(None))
+            .order_by(Item.discovered_at, Item.id)
+        ).all()
+        for item in items:
+            if context.youtube_skip_shorts and item.transcript_status in (None, "to_fetch") and is_short(item.link):
+                item.state = "baseline"
+                session.commit()
+                continue
+            if item.transcript_status in ("caption_wait", "unplayable_wait") and (
+                item.discovered_at + timedelta(hours=context.settings.caption_wait_hours) <= now
+            ):
+                continue
+            if not context.youtube_captions:
+                item.transcript_status = "captions_off"
+            elif context.captions_blocked or context.captions_remaining == 0:
+                if item.transcript_status not in ("caption_wait", "unplayable_wait"):
+                    item.transcript_status = "to_fetch"
+            else:
+                context.captions_remaining -= 1
+                video_id = (item.identity_key.removeprefix("yt:video:")
+                            if item.identity_key.startswith("yt:video:") else "")
+                if video_id:
+                    try:
+                        status, text = fetch_captions(video_id, context.spacer)
+                    except Exception as exc:
+                        logger.warning("Caption fetch failed for item %s (%s)", item.id, type(exc).__name__)
+                        status, text = "captions_failed", None
+                else:
+                    status, text = "captions_failed", None
+                item.transcript_status = status
+                if status == "blocked":
+                    context.captions_blocked = True
+                if status == "found" and text:
+                    item.content_text = text
+                    item.content_origin = "transcript"
+                    item.summary = None
+                    item.summary_language = None
+            session.commit()
 
 
 def active_run(session) -> DigestRun | None:
@@ -131,6 +182,7 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                 if source is not None:
                     check_source(session, source, run_id, app.state.settings,
                                  spacer=spacer, transcripts=transcripts)
+        caption_pass(factory, transcripts)
 
         with factory() as session:
             rows = session.execute(

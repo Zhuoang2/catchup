@@ -139,11 +139,11 @@ Implementer notes:
 
 ## 5. YouTube captions
 
-- [ ] 5.1 Add the YouTube preferences to `api/settings.py` (`GET/PUT /api/settings/preferences`, all PUT fields optional, missing = unchanged) and two toggles with the design.md D8 description on `frontend/src/pages/Settings.tsx`. Verify:
+- [x] 5.1 Add the YouTube preferences to `api/settings.py` (`GET/PUT /api/settings/preferences`, all PUT fields optional, missing = unchanged) and two toggles with the design.md D8 description on `frontend/src/pages/Settings.tsx`. Verify:
   - API tests for defaults (captions off, skip Shorts on), for partial updates, and that a PUT with only `digest_language` keeps both toggles
   - vitest tests for the toggles and the Terms of Service text
-- [ ] 5.2 Skip Shorts per design.md D8: new Shorts as `baseline` at confirm and in checks, and pending NULL/`to_fetch` Shorts set to `baseline` at the start of the caption pass. Verify: tests show a `/shorts/<id>` entry is `baseline`, no caption call is made, it is never in a digest, and a pre-existing pending Short is skipped; with skipping off, it is handled like a normal video.
-- [ ] 5.3 Add `backend/src/catchup/transcripts/youtube.py` per design.md D8:
+- [x] 5.2 Skip Shorts per design.md D8: new Shorts as `baseline` at confirm and in checks, and pending NULL/`to_fetch` Shorts set to `baseline` at the start of the caption pass. Verify: tests show a `/shorts/<id>` entry is `baseline`, no caption call is made, it is never in a digest, and a pre-existing pending Short is skipped; with skipping off, it is handled like a normal video.
+- [x] 5.3 Add `backend/src/catchup/transcripts/youtube.py` per design.md D8:
   - the spaced `requests.Session` subclass (`trust_env=False`, spacer, User-Agent, timeout)
   - the API factory
   - track choice (original language, manual > auto, best effort without an auto track, no `translate()`)
@@ -153,7 +153,7 @@ Implementer notes:
   - a fake transport adapter test proving `spacer.wait` runs before each request, the User-Agent and timeout are set, and `trust_env` is False
   - fake-transcript-list tests for both "Use captions in the video's original language" scenarios, the no-auto-track fallback, and `translate()` never called
   - a test per exception class, including `TranscriptsDisabled` → `caption_wait`, `VideoUnplayable` → `unplayable_wait`, `IpBlocked` → `blocked`, and a plain `KeyError` → `captions_failed`
-- [ ] 5.4 Add the caption pass to `digest/runner.py` per design.md D8. It runs after all source checks, over pending YouTube `to_fetch`/NULL items and unexpired `caption_wait`/`unplayable_wait` items, ordered by `discovered_at`, `id`, with the video id taken from `identity_key`:
+- [x] 5.4 Add the caption pass to `digest/runner.py` per design.md D8. It runs after all source checks, over pending YouTube `to_fetch`/NULL items and unexpired `caption_wait`/`unplayable_wait` items, ordered by `discovered_at`, `id`, with the video id taken from `identity_key`:
   - setting off → `captions_off` with no library call
   - the per-run cap with deferral
   - stopping after the first `blocked`
@@ -167,7 +167,7 @@ Implementer notes:
   - with a cap of 1, one `caption_wait` item and one NULL item: the wait item is retried; the NULL item becomes `to_fetch` and is counted as deferred
   - a wait item skipped after a block keeps its wait status and counts as waiting
   - a pre-existing `feed` YouTube source upgraded with its pending videos following the caption rules
-- [ ] 5.5 Rewrite README "Supported sources" per design.md Rollout:
+- [x] 5.5 Rewrite README "Supported sources" per design.md Rollout:
   - podcasts with published transcripts and the wait variable
   - the caption wait variable
   - Apple Podcasts URLs

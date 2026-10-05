@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react'
 import { ApiError, request } from '../api/client'
 
 type ModelSettings = { base_url: string; model_id: string; key_set: boolean; api_key_last4: string | null }
-type Preferences = { digest_language: string }
+type Preferences = {
+  digest_language: string
+  youtube_captions: boolean
+  youtube_skip_shorts: boolean
+}
 type TestResult = { ok: true; models: string[] }
 
 const languageOptions = ['en', 'zh-Hans', 'original']
@@ -30,6 +34,8 @@ export default function Settings() {
   const [models, setModels] = useState<string[]>([])
   const [language, setLanguage] = useState('en')
   const [otherLanguage, setOtherLanguage] = useState('')
+  const [youtubeCaptions, setYoutubeCaptions] = useState(false)
+  const [skipShorts, setSkipShorts] = useState(true)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(true)
@@ -46,6 +52,8 @@ export default function Settings() {
       const selected = preferences.digest_language
       setLanguage(languageOptions.includes(selected) ? selected : 'other')
       if (!languageOptions.includes(selected)) setOtherLanguage(selected)
+      setYoutubeCaptions(preferences.youtube_captions)
+      setSkipShorts(preferences.youtube_skip_shorts)
     }).catch((err: unknown) => setError(errorMessage(err)))
       .finally(() => setLoading(false))
   }, [])
@@ -80,7 +88,10 @@ export default function Settings() {
       await request<Preferences>('/settings/preferences', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ digest_language: language === 'other' ? otherLanguage : language }),
+        body: JSON.stringify({
+          digest_language: language === 'other' ? otherLanguage : language,
+          youtube_captions: youtubeCaptions, youtube_skip_shorts: skipShorts,
+        }),
       })
       setLast4(saved.api_key_last4)
       setKey('')
@@ -112,6 +123,11 @@ export default function Settings() {
           </select></label></p>
           {language === 'other' && <p><label>Other language <input value={otherLanguage} maxLength={40}
             onChange={event => setOtherLanguage(event.target.value)} required /></label></p>}
+          <p><label><input type="checkbox" checked={youtubeCaptions}
+            onChange={event => setYoutubeCaptions(event.target.checked)} /> Fetch captions locally</label></p>
+          <p>Fetches captions from YouTube from this computer. YouTube's Terms of Service do not allow automated access, so turn this on only if you accept that risk. When off, new videos are listed under Creator updates without a summary.</p>
+          <p><label><input type="checkbox" checked={skipShorts}
+            onChange={event => setSkipShorts(event.target.checked)} /> Skip Shorts</label></p>
           <button type="submit">Save</button>
         </form>
       )}

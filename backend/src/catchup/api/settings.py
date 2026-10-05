@@ -33,7 +33,9 @@ class TestInput(BaseModel):
 
 
 class PreferenceInput(BaseModel):
-    digest_language: str
+    digest_language: str | None = None
+    youtube_captions: bool | None = None
+    youtube_skip_shorts: bool | None = None
 
 
 def get_model_client_factory() -> Callable[..., ModelClient]:
@@ -133,21 +135,30 @@ def test_model(
 
 
 @router.get("/preferences")
-def read_preferences(session: Session = Depends(get_session)) -> dict[str, str]:
+def read_preferences(session: Session = Depends(get_session)) -> dict:
     row = session.get(AppSettings, 1)
-    return {"digest_language": row.digest_language if row else "en"}
+    return {
+        "digest_language": row.digest_language if row else "en",
+        "youtube_captions": row.youtube_captions if row else False,
+        "youtube_skip_shorts": row.youtube_skip_shorts if row else True,
+    }
 
 
 @router.put("/preferences")
-def save_preferences(data: PreferenceInput, session: Session = Depends(get_session)) -> dict[str, str]:
-    language = data.digest_language.strip()
-    if not language or len(language) > 40:
+def save_preferences(data: PreferenceInput, session: Session = Depends(get_session)) -> dict:
+    language = data.digest_language.strip() if data.digest_language is not None else None
+    if language is not None and (not language or len(language) > 40):
         raise AppError("invalid_language", "Choose a digest language of at most 40 characters.", 422)
     row = session.get(AppSettings, 1)
     if row is None:
-        session.add(AppSettings(id=1, digest_language=language))
-    else:
+        row = AppSettings(id=1)
+        session.add(row)
+    if language is not None:
         row.digest_language = language
-        row.updated_at = utc_now()
+    if data.youtube_captions is not None:
+        row.youtube_captions = data.youtube_captions
+    if data.youtube_skip_shorts is not None:
+        row.youtube_skip_shorts = data.youtube_skip_shorts
+    row.updated_at = utc_now()
     session.commit()
-    return {"digest_language": language}
+    return read_preferences(session)

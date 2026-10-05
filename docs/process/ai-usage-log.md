@@ -26,6 +26,12 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Outcome: Added status-driven selection and atomic delivery, Creator updates snapshots and history API, and wait/deferred counts in the run view. Full checks passed: 278 backend tests, 28 frontend tests, frontend build. A further three backend cases confirmed expiry despite failed feed checks (9 focused cases passed).
 - What failed / adjustment: The first grouping test tried to create two sources with the same feed URL and SQLite rejected the duplicate. Changed the test fixture to reuse a source for multiple items, as the product does.
 
+## 2026-10-05 — Podcast and video sources, group 5 (Factory Droid, GPT-6 Sol)
+
+- Prompt: Same user request, emphasizing no real YouTube calls in tests, injected spacing and clocks, and never logging fetched content.
+- Outcome: Added optional caption preferences and UI warnings, Shorts baseline rules, a spaced requests client with original-language track choice and exception mapping, a per-run capped caption pass, and supported-sources documentation. After updating the tests for the new caption pass, 310 backend tests, 29 frontend tests, frontend build, and README/config variable cross-check passed.
+- What failed / adjustment: Two earlier Creator updates tests expected unfetched YouTube videos to remain deferred even with caption fetching off. With the real pass enabled, those videos correctly become `captions_off`; the tests now expect that state. A separate waiting/deferred test uses caption opt-in and a cap of one to exercise the intended held-item path.
+
 ## 2026-10-04 — Docker packaging implementation (Factory Droid, GPT-6 Sol)
 
 - Purpose: Implement `add-docker-packaging` (#7), groups 1–4, on a branch from main.

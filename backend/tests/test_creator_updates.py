@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import event, select
 
-from catchup.models import Digest, DigestItem, DigestTopic, Item, Source, SourceCheck
+from catchup.models import AppSettings, Digest, DigestItem, DigestTopic, Item, Source, SourceCheck
 from test_digest_runner import FakeModel, environment, execute, seed, stub_collection
 
 NOW = datetime(2026, 10, 10, tzinfo=timezone.utc)
@@ -22,7 +22,10 @@ def add_item(client, kind, status, *, days_ago=0, title="Item", source_title="Sh
             session.add(source)
             session.flush()
         item = Item(
-            source_id=source.id, identity_key=title, link=f"https://site.example/{title}",
+            source_id=source.id,
+            identity_key=f"yt:video:{title}" if kind == "youtube" else title,
+            link=f"https://www.youtube.com/watch?v={title}" if kind == "youtube"
+                 else f"https://site.example/{title}",
             title=title, published_at=published, discovered_at=NOW - timedelta(days=days_ago),
             content_text="Descriptions must not reach the model", content_origin="feed",
             state="pending", transcript_status=status,
@@ -77,13 +80,13 @@ def test_only_held_items_and_failed_feed_still_expire(ready):
     add_item(client, "youtube", "unplayable_wait", days_ago=2, source_title="Premiere")
     add_item(client, "youtube", "to_fetch", days_ago=1, source_title="Deferred")
     result = execute(client)
-    assert result["status"] == "succeeded" and result["deferred_count"] == 1
+    assert result["status"] == "succeeded" and result["deferred_count"] == 0
     reasons = {
         group["source_name"]: group["items"][0]["reason"]
         for group in client.get(f"/api/digests/{result['digest_id']}").json()["creator_updates"]
     }
     assert reasons == {"Show": "no_transcript", "Channel": "no_captions",
-                       "Premiere": "captions_failed"}
+                       "Premiere": "captions_failed", "Deferred": "captions_off"}
     assert execute(client)["status"] == "no_new_content"
 
 
@@ -107,8 +110,14 @@ def test_expired_podcast_item_is_selected_even_when_feed_fails(ready, monkeypatc
         assert session.get(Item, item_id).transcript_status == "no_transcript"
 
 
-def test_no_new_content_includes_wait_and_deferred_counts(ready):
+def test_no_new_content_includes_wait_and_deferred_counts(ready, monkeypatch):
     client, fake = ready
+    client.app.state.settings = replace(client.app.state.settings, captions_per_run=1)
+    with client.app.state.session_factory() as session:
+        session.get(AppSettings, 1).youtube_captions = True
+        session.commit()
+    monkeypatch.setattr("catchup.digest.runner.fetch_captions",
+                        lambda *_args: ("caption_wait", None))
     add_item(client, "podcast", None, days_ago=1)
     add_item(client, "youtube", "caption_wait", days_ago=0)
     add_item(client, "youtube", "to_fetch", days_ago=0, source_title="Other")

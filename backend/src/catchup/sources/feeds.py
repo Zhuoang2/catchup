@@ -95,6 +95,10 @@ def plain_text(html: str) -> str:
     return " ".join(" ".join(parser.fragments).split())
 
 
+def is_short(link: str) -> bool:
+    return urlsplit(link).path.startswith("/shorts/")
+
+
 def _entry_title(title: str, content_text: str) -> str:
     if title:
         return title

@@ -16,7 +16,7 @@ from catchup.net.host_spacing import HostSpacer
 from catchup.net.rate_limit import is_rate_limited
 from catchup.net.safe_fetch import FetchError, safe_fetch
 from catchup.sources.discovery import discover
-from catchup.sources.feeds import FeedParseError, parse_feed
+from catchup.sources.feeds import FeedParseError, is_short, parse_feed
 
 router = APIRouter(prefix="/api/sources")
 
@@ -103,6 +103,8 @@ def confirm(data: ConfirmInput, request: Request, session: Session = Depends(get
 
     now = utc_now()
     settings = request.app.state.settings
+    preferences = session.get(AppSettings, 1)
+    skip_shorts = preferences.youtube_skip_shorts if preferences else True
     lookback = now - timedelta(days=settings.first_add_days)
     entries = list(_unique_entries(feed))
     recent = [entry for entry in entries if entry.published_at and lookback <= entry.published_at <= now]
@@ -119,6 +121,8 @@ def confirm(data: ConfirmInput, request: Request, session: Session = Depends(get
     spacer = HostSpacer()
     for entry in entries:
         state = "pending" if entry.identity_key in selected else "baseline"
+        if feed.kind == "youtube" and skip_shorts and is_short(entry.link):
+            state = "baseline"
         pending_count += state == "pending"
         transcript_status = ("to_fetch" if feed.kind == "youtube" or
                              (feed.kind == "podcast" and entry.has_audio) else

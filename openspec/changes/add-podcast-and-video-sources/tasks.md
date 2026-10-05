@@ -70,7 +70,7 @@ Implementer notes:
 
 ## 3. Podcast transcripts
 
-- [ ] 3.1 Extract transcript candidates in `sources/feeds.py` per design.md D5:
+- [x] 3.1 Extract transcript candidates in `sources/feeds.py` per design.md D5:
   - a hardened lxml parser with `recover=True`
   - BOM and whitespace stripped first
   - matching by guid, else link
@@ -89,13 +89,13 @@ Implementer notes:
   - an internal entity declaration is not expanded
   - garbage bytes yield no candidates without failing `parse_feed`
   - when lxml fails entirely but feedparser exposes `podcast_transcript`, that candidate is used
-- [ ] 3.2 Add `backend/src/catchup/transcripts/convert.py` per design.md D5: VTT, SRT, JSON (including string `startTime` and word-level segments), HTML, and plain text. A listed declared type decides the format; otherwise the body is sniffed after BOM stripping. Verify with unit tests per format:
+- [x] 3.2 Add `backend/src/catchup/transcripts/convert.py` per design.md D5: VTT, SRT, JSON (including string `startTime` and word-level segments), HTML, and plain text. A listed declared type decides the format; otherwise the body is sniffed after BOM stripping. Verify with unit tests per format:
   - speaker labels kept
   - timing lines removed
   - same-speaker cues merged
   - an SRT body with a BOM and no declared type is sniffed correctly
   - empty input → None
-- [ ] 3.3 Resolve podcast transcripts in `check_source` per design.md D6. The changes:
+- [x] 3.3 Resolve podcast transcripts in `check_source` per design.md D6. The changes:
   - a `TranscriptContext` is created in `digest/runner.py` beside the `HostSpacer`
   - confirm stores `to_fetch` for podcast and YouTube items and skips `article_text()`
   - `check_source` handles new, `to_fetch`, `waiting`, and NULL-status podcast items matched in this fetch

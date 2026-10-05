@@ -14,6 +14,12 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Outcome: Added configurable 32 MiB feed fetches while keeping articles at 5 MiB and the cache at 5 MiB per entry; classified feeds by YouTube host or majority audio enclosures; showed source kinds in preview; resolved Apple Podcasts pages through a mocked iTunes lookup. The interim runner excludes items awaiting transcripts so a partially implemented change cannot summarize descriptions. Full checks: 257 backend tests, 25 frontend tests and frontend build passed.
 - Problems / adjustment: The first patch for the safe-fetch test missed its context; reapplied only that test. Confirmed that pending audio and video would otherwise reach the old summary path before the later selection task, so restricted the interim summary query to transcript-ready items.
 
+## 2026-10-05 — Podcast and video sources, group 3 (Factory Droid, GPT-6 Sol)
+
+- Prompt: Same user request as groups 1–2, with the reviewer requirement to keep lxml recovery hardened and never log fetched content.
+- Outcome: Added multi-candidate parsing with feedparser fallback, format conversion, and per-check podcast resolution with up to two safe fetches. A transcript replaces cached summaries; missing ones stay waiting. Full checks: 272 backend tests, 25 frontend tests, and frontend build passed.
+- What failed / adjustment: A focused experiment showed libxml expands an internal entity in an attribute even with `resolve_entities=False`. The hardened candidate parser now declines DTD-bearing documents; feedparser's non-expanding single-candidate fallback remains available. Added a regression test for the attribute case.
+
 ## 2026-10-04 — Docker packaging implementation (Factory Droid, GPT-6 Sol)
 
 - Purpose: Implement `add-docker-packaging` (#7), groups 1–4, on a branch from main.

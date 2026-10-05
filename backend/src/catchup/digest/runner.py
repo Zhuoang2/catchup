@@ -20,6 +20,7 @@ from catchup.models import (
 )
 from catchup.net.host_spacing import HostSpacer
 from catchup.net.rate_limit import is_rate_limited
+from catchup.transcripts.context import TranscriptContext
 
 ACTIVE = ("queued", "collecting", "summarizing", "grouping")
 _start_lock = threading.Lock()
@@ -84,17 +85,24 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                 raise AppError("model_not_configured", "Set up a model in Settings before generating.")
             language_row = session.get(AppSettings, 1)
             language = language_row.digest_language if language_row else "en"
+            captions_enabled = language_row.youtube_captions if language_row else False
+            skip_shorts = language_row.youtube_skip_shorts if language_row else True
             # Configuration and language are read once, before any source check.
             base_url, model_id = config.base_url, config.model_id
             key = decrypt_key(config.api_key_encrypted, app.state.settings.secret_key)
             source_ids = session.scalars(select(Source.id).order_by(Source.id)).all()
         _stage(factory, run_id, "collecting")
         spacer = HostSpacer()
+        transcripts = TranscriptContext(
+            spacer=spacer, settings=app.state.settings, youtube_captions=captions_enabled,
+            youtube_skip_shorts=skip_shorts, captions_remaining=app.state.settings.captions_per_run,
+        )
         for source_id in source_ids:
             with factory() as session:
                 source = session.get(Source, source_id)
                 if source is not None:
-                    check_source(session, source, run_id, app.state.settings, spacer=spacer)
+                    check_source(session, source, run_id, app.state.settings,
+                                 spacer=spacer, transcripts=transcripts)
 
         with factory() as session:
             rows = session.execute(

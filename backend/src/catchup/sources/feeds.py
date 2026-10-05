@@ -7,12 +7,77 @@ from html.parser import HTMLParser
 from urllib.parse import urlsplit
 
 import feedparser
+from lxml import etree
 
 from catchup.net.safe_fetch import FetchResponse
 
 
 class FeedParseError(Exception):
     pass
+
+
+PODCAST_NAMESPACE = "https://podcastindex.org/namespace/1.0"
+TRANSCRIPT_TYPES = {
+    "text/plain": 0, "text/vtt": 1, "application/x-subrip": 2,
+    "application/srt": 2, "application/json": 3, "text/html": 4,
+}
+
+
+@dataclass(frozen=True)
+class TranscriptCandidate:
+    url: str
+    type: str = ""
+    language: str = ""
+    rel: str = ""
+
+
+def ordered_candidates(candidates: tuple[TranscriptCandidate, ...],
+                       language: str = "") -> tuple[TranscriptCandidate, ...]:
+    return tuple(sorted(candidates, key=lambda candidate: (
+        TRANSCRIPT_TYPES.get(candidate.type.lower().split(";")[0].strip(), 5),
+        candidate.language.lower() != language.lower() if language else False,
+    )))
+
+
+def _transcript_candidates(body: bytes) -> dict[str, tuple[TranscriptCandidate, ...]]:
+    """Read every podcast transcript while refusing network, DTD and entity expansion."""
+    # libxml can expand internal entities in attribute values even with
+    # resolve_entities=False. Do not parse a document that declares a DTD.
+    if b"<!DOCTYPE" in body.upper():
+        return {}
+    try:
+        parser = etree.XMLParser(recover=True, resolve_entities=False, no_network=True, load_dtd=False)
+        root = etree.fromstring(body.lstrip(b"\xef\xbb\xbf \t\r\n"), parser=parser)
+        if root is None:
+            return {}
+        namespace = root.nsmap.get("podcast")
+        found: dict[str, tuple[TranscriptCandidate, ...]] = {}
+        for item in root.iter():
+            if not isinstance(item.tag, str) or etree.QName(item).localname != "item":
+                continue
+            guid = link = ""
+            candidates = []
+            for child in item:
+                if not isinstance(child.tag, str):
+                    continue
+                name = etree.QName(child)
+                if name.localname == "guid":
+                    guid = (child.text or "").strip()
+                elif name.localname == "link":
+                    link = (child.text or "").strip()
+                elif name.localname == "transcript" and name.namespace in {PODCAST_NAMESPACE, namespace}:
+                    if child.get("url"):
+                        candidates.append(TranscriptCandidate(
+                            url=child.get("url", ""), type=child.get("type", ""),
+                            language=child.get("language", ""), rel=child.get("rel", ""),
+                        ))
+            if candidates and (guid or link):
+                found[guid or link] = tuple(candidates)
+                if guid and link:
+                    found[link] = tuple(candidates)
+        return found
+    except (etree.LxmlError, ValueError, TypeError):
+        return {}
 
 
 class _Text(HTMLParser):
@@ -51,6 +116,7 @@ class FeedEntry:
     published_at: datetime | None
     content_text: str
     has_audio: bool = False
+    transcripts: tuple[TranscriptCandidate, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -75,6 +141,8 @@ def parse_feed(response: FetchResponse) -> Feed:
     parsed = feedparser.parse(response.content)
     if not parsed.version:
         raise FeedParseError("The content is not a parsable RSS or Atom feed.")
+    transcript_candidates = _transcript_candidates(response.content)
+    language = parsed.feed.get("language", "")
     entries = []
     for entry in parsed.entries:
         stamp = entry.get("published_parsed") or entry.get("updated_parsed")
@@ -92,11 +160,20 @@ def parse_feed(response: FetchResponse) -> Feed:
         identity = entry.get("id") or (link if link != response.url else "")
         if not identity:
             identity = hashlib.sha256(f"{title}{published_at.isoformat() if published_at else ''}".encode()).hexdigest()
+        candidates = transcript_candidates.get(entry.get("id") or "", ()) or transcript_candidates.get(
+            original_link, ())
+        if not candidates and (fallback := entry.get("podcast_transcript")):
+            if isinstance(fallback, dict) and fallback.get("url"):
+                candidates = (TranscriptCandidate(
+                    url=fallback["url"], type=fallback.get("type", ""),
+                    language=fallback.get("language", ""), rel=fallback.get("rel", ""),
+                ),)
         has_audio = any(str(enclosure.get("type", "")).lower().startswith("audio/")
                         for enclosure in entry.get("enclosures", []))
         entries.append(FeedEntry(
             identity_key=identity, link=link, title=title,
             published_at=published_at, content_text=content_text, has_audio=has_audio,
+            transcripts=ordered_candidates(candidates, language),
         ))
     site_url = parsed.feed.get("link") or f"{urlsplit(response.url).scheme}://{urlsplit(response.url).netloc}/"
     parts = urlsplit(response.url)

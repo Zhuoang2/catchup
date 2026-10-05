@@ -69,7 +69,7 @@ def seed(client, count=1, sources=1, language="en"):
 
 
 def stub_collection(monkeypatch, on_check=None):
-    def check(session, source, run_id, _settings, *, spacer=None):
+    def check(session, source, run_id, _settings, *, spacer=None, transcripts=None):
         if on_check:
             on_check()
         row = SourceCheck(run_id=run_id, source_id=source.id, status="no_new_items",
@@ -260,7 +260,7 @@ def test_missing_group_ref_goes_to_other_and_unknown_ref_is_ignored(environment,
 def test_no_content_reports_failed_source_without_digest(environment, monkeypatch):
     seed(environment, count=0, sources=2)
 
-    def check(session, source, run_id, _settings, *, spacer=None):
+    def check(session, source, run_id, _settings, *, spacer=None, transcripts=None):
         row = SourceCheck(run_id=run_id, source_id=source.id, status="failed",
                           error="offline", possible_gap=True)
         session.add(row)

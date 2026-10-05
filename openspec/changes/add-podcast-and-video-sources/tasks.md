@@ -181,7 +181,7 @@ Implementer notes:
 
 ## 6. Long texts and token usage
 
-- [ ] 6.1 Learn the context window per design.md D9:
+- [x] 6.1 Learn the context window per design.md D9:
   - `ModelClient.list_models()` returns `ModelInfo` with strict int parsing from `model_extra`, and callers (`api/settings.py:123`) are updated with an unchanged response shape
   - `PUT /model` clears `context_window` when the base URL or model changes
   - the runner fills it once at run start when NULL, matching the configured model id and catching any exception
@@ -192,12 +192,12 @@ Implementer notes:
   - the cached value is reused (request count)
   - a model change clears it
   - a `/models` failure or a fake without `list_models` at run start does not fail the run
-- [ ] 6.2 Implement the single-call budget, parts, and combine in `digest/summarize.py` and prompts in `llm/prompts.py` per design.md D9 (budget formula, split order, part and combine prompts, the long-transcript prompt with key points). Render "- " lines as a list in `DigestView.tsx`. Verify with fake-client tests covering the three "Summarize long texts in full" scenarios, with fixtures made of 1,000-character paragraphs: 1 call at 169,961 characters with a 1M window; 3 parts + 1 combine with an unknown window; 3 + 1 with `CATCHUP_SINGLE_CALL_CHARS=20000` on 50,000 characters. Also check:
+- [x] 6.2 Implement the single-call budget, parts, and combine in `digest/summarize.py` and prompts in `llm/prompts.py` per design.md D9 (budget formula, split order, part and combine prompts, the long-transcript prompt with key points). Render "- " lines as a list in `DigestView.tsx`. Verify with fake-client tests covering the three "Summarize long texts in full" scenarios, with fixtures made of 1,000-character paragraphs: 1 call at 169,961 characters with a 1M window; 3 parts + 1 combine with an unknown window; 3 + 1 with `CATCHUP_SINGLE_CALL_CHARS=20000` on 50,000 characters. Also check:
   - no text is dropped (the concatenated part inputs equal the original after whitespace normalization)
   - the long-transcript prompt is used only for transcripts over `CATCHUP_LONG_ITEM_CHARS`
   - a part failure → `summary_unavailable`
   - a vitest test for list rendering
-- [ ] 6.3 Record token usage per design.md D10:
+- [x] 6.3 Record token usage per design.md D10:
   - thread-safe accumulation in `llm/client.py`
   - totals written at every run end in `digest/runner.py`, tolerating clients without usage
   - exposed in `GET /api/digest-runs/{id}` and `GET /api/digests/{id}`

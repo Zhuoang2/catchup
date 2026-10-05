@@ -90,3 +90,31 @@ it('renders creator updates after topics with saved wait labels', async () => {
   expect(screen.getByRole('region', { name: 'Channel' })).toHaveTextContent('Captions could not be fetched')
   expect(screen.getByRole('link', { name: 'Missing' }).closest('li')?.querySelector('time')).toBeTruthy()
 })
+
+it('shows transcript key points as a list', async () => {
+  fetchMock.mockResolvedValue(respond({
+    id: 7, created_at: '2026-10-03T10:00:00Z', model_id: 'test',
+    topics: [{ title: 'Podcast', overview: 'Overview', items: [{
+      title: 'Episode', link: 'https://example.test/ep', source_name: 'Show',
+      published_at: null, summary: 'Overview.\n- First point\n- Final point',
+      summary_unavailable: false,
+    }] }],
+    creator_updates: [],
+  }))
+  page()
+  expect(await screen.findByRole('region', { name: 'Podcast' })).toHaveTextContent('Overview.')
+  expect(screen.getByText('First point').tagName).toBe('LI')
+  expect(screen.getByText('Final point').tagName).toBe('LI')
+})
+
+it.each([
+  [12, 4, 'Tokens: 12 in / 4 out'],
+  [null, null, 'Tokens: not reported'],
+])('shows saved token totals %s / %s', async (prompt, completion, text) => {
+  fetchMock.mockResolvedValue(respond({
+    id: 7, created_at: '2026-10-03T10:00:00Z', model_id: 'test',
+    topics: [], creator_updates: [], prompt_tokens: prompt, completion_tokens: completion,
+  }))
+  page()
+  expect(await screen.findByText(text)).toBeInTheDocument()
+})

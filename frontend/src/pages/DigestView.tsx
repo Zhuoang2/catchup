@@ -18,6 +18,7 @@ type CreatorUpdate = {
 type Digest = {
   id: number; created_at: string; model_id: string; topics: Topic[]
   creator_updates?: CreatorUpdate[]; transcript_wait_days?: number
+  prompt_tokens?: number | null; completion_tokens?: number | null
 }
 
 function reasonLabel(reason: string, days: number) {
@@ -29,6 +30,18 @@ function reasonLabel(reason: string, days: number) {
     no_transcript: `No transcript within ${days} days`,
   }
   return labels[reason] ?? reason
+}
+
+function SummaryText({ text }: { text: string | null }) {
+  if (!text) return null
+  const lines = text.split('\n')
+  const firstPoint = lines.findIndex(line => line.startsWith('- '))
+  if (firstPoint < 0) return <p>{text}</p>
+  return <>
+    {lines.slice(0, firstPoint).join('\n').trim() && <p>{lines.slice(0, firstPoint).join('\n').trim()}</p>}
+    <ul>{lines.slice(firstPoint).filter(line => line.startsWith('- '))
+      .map((line, index) => <li key={index}>{line.slice(2)}</li>)}</ul>
+  </>
 }
 
 export default function DigestView() {
@@ -53,6 +66,9 @@ export default function DigestView() {
           <p>Created <time dateTime={digest.created_at}>
             {new Date(digest.created_at).toLocaleString()}
           </time></p>
+          <p>{digest.prompt_tokens != null && digest.completion_tokens != null
+            ? `Tokens: ${digest.prompt_tokens} in / ${digest.completion_tokens} out`
+            : 'Tokens: not reported'}</p>
           {digest.topics.map((topic, index) => (
             <section key={index} aria-label={topic.title}>
               <h3>{topic.title}</h3>
@@ -66,7 +82,7 @@ export default function DigestView() {
                         {new Date(item.published_at).toLocaleString()}
                       </time></>}
                     </p>
-                    <p>{item.summary_unavailable ? 'Summary unavailable' : item.summary}</p>
+                    {item.summary_unavailable ? <p>Summary unavailable</p> : <SummaryText text={item.summary} />}
                   </li>
                 ))}
               </ul>

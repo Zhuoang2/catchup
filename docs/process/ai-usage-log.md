@@ -32,6 +32,12 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Outcome: Added optional caption preferences and UI warnings, Shorts baseline rules, a spaced requests client with original-language track choice and exception mapping, a per-run capped caption pass, and supported-sources documentation. After updating the tests for the new caption pass, 310 backend tests, 29 frontend tests, frontend build, and README/config variable cross-check passed.
 - What failed / adjustment: Two earlier Creator updates tests expected unfetched YouTube videos to remain deferred even with caption fetching off. With the real pass enabled, those videos correctly become `captions_off`; the tests now expect that state. A separate waiting/deferred test uses caption opt-in and a cap of one to exercise the intended held-item path.
 
+## 2026-10-05 — Podcast and video sources, group 6 (Factory Droid, GPT-6 Sol)
+
+- Prompt: Same user request, including updating existing model fakes instead of weakening assertions and logging no fetched content.
+- Outcome: Added strict context-window metadata parsing and caching, complete-text part/combine summaries and transcript key points, and thread-safe token accounting through the run, digest API and UI. Full checks passed: 327 backend tests, 34 frontend tests, and frontend build.
+- Adjustment: The old truncation test was updated to assert both halves of the original input reach part prompts, rather than accepting a cut-off suffix. Existing model fakes were updated to return structured model metadata and usage totals.
+
 ## 2026-10-04 — Docker packaging implementation (Factory Droid, GPT-6 Sol)
 
 - Purpose: Implement `add-docker-packaging` (#7), groups 1–4, on a branch from main.

@@ -3,7 +3,7 @@ import threading
 import pytest
 
 from catchup.digest.group import GroupItem, group_items
-from catchup.digest.summarize import SummaryInput, summarize_items
+from catchup.digest.summarize import SummaryInput, split_parts, summarize_items
 from catchup.llm.client import AuthFailed, ProviderError
 from catchup.llm.prompts import grouping_max_tokens, summary_messages
 
@@ -20,10 +20,16 @@ class FakeModel:
             raise answer
         return answer
 
+    def list_models(self):
+        return []
 
-def test_summary_cache_language_prompt_truncation_and_unavailable():
+    def usage_totals(self):
+        return None
+
+
+def test_summary_cache_language_full_text_and_unavailable():
     cached = SummaryInput(1, "Cached", "content", "In English", "en")
-    new = SummaryInput(2, "Fresh", "1234567890", None, None)
+    new = SummaryInput(2, "Fresh", "12345 67890", None, None)
     failing = SummaryInput(3, "Fails", "failure", None, None)
     class PerItemModel(FakeModel):
         def chat_json(self, messages, max_tokens):
@@ -34,13 +40,14 @@ def test_summary_cache_language_prompt_truncation_and_unavailable():
 
     client = PerItemModel()
     results = []
-    summarize_items(client, [cached, new, failing], "en", 5, results.append)
-    assert len(client.calls) == 2
+    summarize_items(client, [cached, new, failing], "en", 6, results.append)
+    assert len(client.calls) == 3
     assert next(r for r in results if r.id == 1).summary == "In English"
     assert next(r for r in results if r.id == 3).unavailable
     assert any("12345" in str(call) and "English" in str(call) and "json" in str(call)
                for call in client.calls)
-    assert all("1234567890" not in str(call) and tokens == 4096 for call, tokens in client.calls)
+    assert any("67890" in str(call) for call in client.calls)
+    assert all(tokens == 4096 for _, tokens in client.calls)
 
     changed = FakeModel([{"summary": "中文摘要"}])
     output = []

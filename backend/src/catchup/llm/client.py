@@ -3,6 +3,8 @@
 import json
 import logging
 import time
+import threading
+from dataclasses import dataclass
 from collections.abc import Callable
 from typing import Any
 
@@ -38,6 +40,12 @@ class ConnectionFailed(ModelError):
     code = "connection_failed"
 
 
+@dataclass(frozen=True)
+class ModelInfo:
+    id: str
+    context_window: int | None = None
+
+
 class ModelClient:
     def __init__(
         self,
@@ -51,6 +59,10 @@ class ModelClient:
         self.base_url = base_url
         self.model = model
         self._sleep = sleep
+        self._usage_lock = threading.Lock()
+        self._prompt_tokens = 0
+        self._completion_tokens = 0
+        self._usage_reported = False
         self._client = openai.OpenAI(
             base_url=base_url, api_key=api_key, max_retries=0, http_client=http_client,
         )
@@ -82,9 +94,24 @@ class ModelClient:
             self._sleep(0.25 * (2 ** attempt))
         raise AssertionError("unreachable")
 
-    def list_models(self) -> list[str]:
+    def list_models(self) -> list[ModelInfo]:
         result = self._call(lambda: self._client.models.list(timeout=15.0))
-        return [entry.id for entry in result.data]
+        models = []
+        for entry in result.data:
+            extra = entry.model_extra or {}
+            value = extra.get("context_window")
+            if value is None:
+                value = extra.get("context_length")
+            models.append(ModelInfo(
+                entry.id, value if type(value) is int and value > 0 else None,
+            ))
+        return models
+
+    def usage_totals(self) -> tuple[int, int] | None:
+        with self._usage_lock:
+            if not self._usage_reported:
+                return None
+            return self._prompt_tokens, self._completion_tokens
 
     def chat_json(self, messages: list[dict[str, str]], max_tokens: int) -> dict[str, Any]:
         def chat() -> str | None:
@@ -95,6 +122,12 @@ class ModelClient:
                 response_format={"type": "json_object"},
                 timeout=httpx2.Timeout(connect=10.0, read=300.0, write=10.0, pool=10.0),
             )
+            usage = result.usage
+            if usage is not None:
+                with self._usage_lock:
+                    self._usage_reported = True
+                    self._prompt_tokens += usage.prompt_tokens or 0
+                    self._completion_tokens += usage.completion_tokens or 0
             return result.choices[0].message.content if result.choices else None
 
         content = self._call(chat)

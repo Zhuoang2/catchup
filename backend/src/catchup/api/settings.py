@@ -99,6 +99,8 @@ def save_model(data: ModelInput, request: Request, session: Session = Depends(ge
                           api_key_encrypted=encrypted, api_key_last4=last4)
         session.add(row)
     else:
+        if row.base_url != base_url or row.model_id != model_id:
+            row.context_window = None
         row.base_url, row.model_id = base_url, model_id
         row.api_key_encrypted, row.api_key_last4 = encrypted, last4
         row.updated_at = utc_now()
@@ -131,7 +133,7 @@ def test_model(
         raise AppError(exc.code, str(exc), 429) from exc
     except (ConnectionFailed, ProviderError) as exc:
         raise AppError(exc.code, str(exc), 502) from exc
-    return {"ok": True, "models": models}
+    return {"ok": True, "models": [model.id for model in models]}
 
 
 @router.get("/preferences")

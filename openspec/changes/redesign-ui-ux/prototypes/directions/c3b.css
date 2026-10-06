@@ -2,8 +2,11 @@
 /* One family everywhere except inputs: small text uses serif small caps instead of the system sans inherited from C. */
 .app .eyebrow, .app .item-meta, .app .hero-meta, .app .tokens, .app .toc, .app .chip, .app .badge, .app .reason,
 .app .section-label, .app .field-label, .app .btn, .app .source-feed, .app .digest-meta, .app .masthead-line, .app .app-nav { font-family: var(--font-body); }
-.app .eyebrow, .app .section-label, .app .chip, .app .badge, .app .reason, .app .toc-title { font-variant: small-caps; text-transform: lowercase; letter-spacing: .08em; }
-.app .chip, .app .badge, .app .reason { font-size: .82em; font-weight: 600; }
+/* all-small-caps keeps the real text (e.g. "YouTube") in the DOM; no text-transform lowercasing */
+.app .eyebrow, .app .section-label, .app .chip, .app .badge, .app .toc-title { font-variant-caps: all-small-caps; text-transform: none; letter-spacing: .08em; }
+.app .chip, .app .badge { font-size: .86em; font-weight: 600; }
+/* Reasons explain why an item has no summary: sentence case, readable size */
+.app .reason { font-variant-caps: normal; text-transform: none; letter-spacing: 0; font-size: .88em; font-weight: 600; }
 /* Fewer rules: a double rule under the masthead, one rule above each topic */
 .app-header { box-shadow: none; border-bottom: 3px double var(--border-strong); }
 .masthead-line { border-bottom: 0; }

@@ -558,3 +558,20 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - A hash-only navigation does not reload the page, so CSS edits looked unapplied twice. Claude switched the preview server to `Cache-Control: no-store`, reloaded explicitly, and confirmed computed styles before concluding anything.
   - The contrast script initially got the CSS cascade wrong. Re-deriving the merge order from CSS specificity found two more misses.
   - Measuring real sites with JavaScript produced concrete numbers (container, columns, column widths) that a screenshot alone would not. Those numbers settled the "centered or aligned" question.
+- **Design plugin review of C7 (2026-10-06).** The user asked: "在新会话里让Design 插件对 C7 做一次设计评审和无障碍检查，等他结束之后检查结果" (In a new session, have the Design plugin run a design critique and an accessibility check on C7; check the results when it finishes).
+  - In the new session the plugin skills loaded. Claude ran them through an independent subagent (`design:design-critique`, then `design:accessibility-review`) that had no access to the design discussion. The plugin's own MCP connectors (Figma, Notion, …) needed authorization and were not used.
+  - **Findings:** 0 critical, 12 major critique findings, and 15 WCAG 2.1 AA issues (7 major, 8 minor), each with a measurement or a CSS selector.
+  - **Claude's verification** re-measured the key ones and confirmed them all: `--subtle` 4.15:1; switch track 1.24:1; error ≈ warn; the first topic at 70% of the viewport; "No. 3" vs "No. 1"; no `lang` on Chinese text; scroll without focus; a live region that disappears; dates a day early.
+  - **Own errors the review exposed:**
+    - Claude's earlier contrast script had used 3:1 for informative `--subtle` text.
+    - Its own "error separate from brand red" fix had made error nearly identical to warn.
+    - Its margin-note placement put the YouTube risk note about 550 px from its toggle. The reviewer was right to reverse this.
+  - **The user approved the fix plan:** "可以，按这个方案改吧" (OK, change it according to this plan).
+  - **Fixes applied** to the shared renderer and the C-family styles (listed in `openspec/changes/redesign-ui-ux/design-review-c7.md`, "Resolution"). They were re-verified by measurement:
+    - the first topic now starts at 45% of the viewport
+    - the narrow header shrank from 250 to 113 px
+    - focus moves to `#main` and `#t0`
+    - 12 `lang="zh-Hans"` elements
+    - the switch hit area is 220×26 px
+    - a single primary action per Generate state
+    - strict contrast passes in both themes

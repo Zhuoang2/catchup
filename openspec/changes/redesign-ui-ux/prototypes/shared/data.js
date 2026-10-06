@@ -3,42 +3,46 @@
 window.SAMPLE = {
   run: {
     collecting: {
-      status: 'collecting', sources_total: 4, items_total: 0, items_done: 0,
+      status: 'collecting', sources_total: 5, items_total: 0, items_done: 0,
       checks: [
         { title: 'The Daily', status: 'no_new_items' },
         { title: 'How to Start a Podcast', status: 'new_items' },
       ],
     },
     summarizing: {
-      status: 'summarizing', sources_total: 4, items_total: 12, items_done: 5,
+      status: 'summarizing', sources_total: 5, items_total: 12, items_done: 5,
       checks: [
         { title: 'The Daily', status: 'no_new_items' },
         { title: 'How to Start a Podcast', status: 'new_items' },
         { title: 'Google for Developers', status: 'failed', error: 'The source could not be fetched.' },
         { title: 'Astral Codex Ten', status: 'new_items', possible_gap: true },
+        { title: 'Simon Willison’s Weblog', status: 'new_items' },
       ],
     },
     succeeded: {
-      status: 'succeeded', sources_total: 4, items_total: 12, items_done: 12,
+      status: 'succeeded', sources_total: 5, items_total: 12, items_done: 12,
       waiting: 5, deferred: 2, tokens: [8663, 1893],
       checks: [
         { title: 'The Daily', status: 'no_new_items' },
         { title: 'How to Start a Podcast', status: 'new_items' },
         { title: 'Google for Developers', status: 'rate_limited' },
         { title: 'Astral Codex Ten', status: 'new_items' },
+        { title: 'Simon Willison’s Weblog', status: 'new_items' },
       ],
     },
     none: {
-      status: 'no_new_content', sources_total: 3, items_total: 0, items_done: 0,
+      status: 'no_new_content', sources_total: 5, items_total: 0, items_done: 0,
       waiting: 5, deferred: 0, tokens: [0, 0],
       checks: [
         { title: 'The Daily', status: 'no_new_items' },
         { title: 'How to Start a Podcast', status: 'no_new_items' },
         { title: 'Google for Developers', status: 'failed', error: 'The source could not be fetched.' },
+        { title: 'Astral Codex Ten', status: 'no_new_items' },
+        { title: 'Simon Willison’s Weblog', status: 'no_new_items' },
       ],
     },
     failed: {
-      status: 'failed', sources_total: 4, items_total: 12, items_done: 3, tokens: [1240, 310],
+      status: 'failed', sources_total: 5, items_total: 12, items_done: 3, tokens: [1240, 310],
       error: 'The provider rejected the API key. Check the model settings.',
       checks: [
         { title: 'The Daily', status: 'no_new_items' },
@@ -46,11 +50,11 @@ window.SAMPLE = {
       ],
     },
   },
-  lastDigest: { id: 3, created: '2026-10-05T22:23:58', items: 12, sources: 4 },
+  lastDigest: { id: 3, created: '2026-10-05T22:23:58', items: 1, sources: 1 },
 
   digests: {
     zh: {
-      id: 1, created: '2026-10-05T21:48:34', model: 'deepseek-flash', tokens: [8663, 1893], items: 4, sources: 3, waitDays: 7,
+      id: 1, lang: 'zh-Hans', created: '2026-10-05T19:48:34', model: 'deepseek-flash', tokens: [8663, 1893], items: 4, sources: 3, waitDays: 7,
       topics: [
         {
           title: '播客脱颖而出的制作与定位策略',
@@ -101,7 +105,7 @@ window.SAMPLE = {
       ],
     },
     en: {
-      id: 1, created: '2026-10-05T21:48:34', model: 'deepseek-flash', tokens: [8102, 1764], items: 2, sources: 2, waitDays: 7,
+      id: 1, lang: 'en', created: '2026-10-05T19:48:34', model: 'deepseek-flash', tokens: [8102, 1764], items: 2, sources: 2, waitDays: 7,
       topics: [
         {
           title: 'How podcasts stand out: positioning and craft',
@@ -131,7 +135,7 @@ window.SAMPLE = {
       creator: [],
     },
     creatorOnly: {
-      id: 2, created: '2026-10-05T20:31:02', model: 'deepseek-flash', tokens: [0, 0], items: 1, sources: 1, waitDays: 7,
+      id: 2, lang: 'zh-Hans', created: '2026-10-05T20:31:02', model: 'deepseek-flash', tokens: [0, 0], items: 1, sources: 1, waitDays: 7,
       topics: [],
       creator: [
         { source: 'Google for Developers', kind: 'youtube', items: [
@@ -153,19 +157,19 @@ window.SAMPLE = {
       title: 'The Daily', kind: 'podcast', feed: 'https://feeds.simplecast.com/Sl5CSM3S', site: 'https://www.nytimes.com/the-daily',
       notice: 'show',
       entries: [
-        { title: '(episode title 1)', published: '2026-10-05' }, { title: '(episode title 2)', published: '2026-10-04' },
-        { title: '(episode title 3)', published: '2026-10-03' }, { title: '(episode title 4)', published: '2026-10-02' },
-        { title: '(episode title 5)', published: '2026-10-01' },
+        { title: '(episode title 1)', published: '2026-10-05T12:00:00' }, { title: '(episode title 2)', published: '2026-10-04T12:00:00' },
+        { title: '(episode title 3)', published: '2026-10-03T12:00:00' }, { title: '(episode title 4)', published: '2026-10-02T12:00:00' },
+        { title: '(episode title 5)', published: '2026-10-01T12:00:00' },
       ],
     },
     youtube: {
       title: 'Google for Developers', kind: 'youtube', captions: false,
       feed: 'https://www.youtube.com/feeds/videos.xml?channel_id=UC_x5XG1OV2P6uZZ5FSM9Ttw', site: 'https://www.youtube.com/channel/UC_x5XG1OV2P6uZZ5FSM9Ttw',
       entries: [
-        { title: 'How to transform audio into physical prints using Gemini and Google AI Studio', published: '2026-10-01' },
-        { title: 'Per-Layer Embeddings (PLE) in Gemma 4 explained', published: '2026-09-25' },
-        { title: 'The next generation of voice AI with Google DeepMind', published: '2026-09-24' },
-        { title: 'Gemma 4 12B: The encoder-free model explained', published: '2026-09-22' },
+        { title: 'How to transform audio into physical prints using Gemini and Google AI Studio', published: '2026-10-01T12:00:00' },
+        { title: 'Per-Layer Embeddings (PLE) in Gemma 4 explained', published: '2026-09-25T12:00:00' },
+        { title: 'The next generation of voice AI with Google DeepMind', published: '2026-09-24T12:00:00' },
+        { title: 'Gemma 4 12B: The encoder-free model explained', published: '2026-09-22T12:00:00' },
       ],
     },
   },

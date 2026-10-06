@@ -16,17 +16,19 @@
 .page-digest .toc { grid-column: 1 / -1; margin-top: -1rem; border-top: 0; }
 .topic, .creator { grid-column: 1 / -1 !important; display: grid; grid-template-columns: subgrid; column-gap: var(--gutter); border-top: 3px solid var(--fg); padding-top: .9rem; }
 .topic > .topic-title, .topic > .topic-overview, .creator > .creator-title, .creator > .creator-lede { grid-column: 1 / span 3; }
-.topic > .topic-overview, .creator > .creator-lede { font-size: .95em; color: var(--muted); }
+.topic > .topic-overview { font-size: 1em; color: var(--fg); }
+.creator > .creator-lede { font-size: .95em; color: var(--muted); }
 .topic > .topic-title { font-size: 1.45rem; line-height: 1.3; }
 .topic > .items { grid-column: 4 / -1; grid-row: 1 / span 3; display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); column-gap: var(--gutter); row-gap: 1.25rem; }
-.items > .item { grid-column: span 6; padding: 0; border: 0; }
+.items > .item { padding: 0; border: 0; align-content: start; align-self: start; }
+.topic > .items { align-content: start; }
+/* Width follows content, never position: long items (key points, long summaries) get 6 of 9 columns, short ones 3. */
+.app .items > .item-long { grid-column: span 6; } .app .items > .item-short { grid-column: span 3; }
 .app .items > .item:only-child { grid-column: 1 / span 6; }
-.topic > .items { align-content: start; } .items > .item { align-content: start; align-self: start; }
-.items > .item + .item { grid-column: span 3; border-left: 1px solid var(--border); padding-left: calc(var(--gutter) / 2); margin-left: calc(var(--gutter) / -2); }
-.items > .item:nth-child(n+3) { grid-column: span 3; }
-.items > .item:nth-child(3n+3) { border-left: 0; padding-left: 0; margin-left: 0; }
-.items > .item + .item .item-title { font-size: 1.05em; }
+.items > .item + .item { border-left: 1px solid var(--border); padding-left: calc(var(--gutter) / 2); margin-left: calc(var(--gutter) / -2); }
+.items > .item-long + .item-long { border-left: 0; padding-left: 0; margin-left: 0; border-top: 1px solid var(--border); padding-top: 1rem; grid-column: 1 / span 6; }
 .creator { border-top: 1px solid var(--border-strong); }
+.creator.creator-only { border-top: 3px solid var(--fg); }
 .creator > .creator-group { grid-column: span 3; }
 .creator > .creator-group:nth-of-type(3n+1) { grid-column: 4 / span 3; }
 .creator-list { border: 0; background: transparent; } .creator-item { padding: .5rem 0; }
@@ -35,20 +37,46 @@
 .page-generate > :not(.page-head):not(.rail), .page-sources > :not(.page-head):not(.rail), .page-history > :not(.page-head):not(.rail) { grid-column: 1 / span 8; }
 .app .page > .rail { grid-column: 9 / -1; grid-row: 2 / span 20; border-left: 1px solid var(--border); padding-left: var(--gutter); }
 .rail-box + .rail-box { border-top: 1px solid var(--border); padding-top: 1rem; }
-.rail-title { font-variant: small-caps; text-transform: lowercase; letter-spacing: .08em; color: var(--accent); font-size: .9em; }
+.rail-title { font-variant-caps: all-small-caps; text-transform: none; letter-spacing: .08em; color: var(--accent); font-size: .9em; }
 /* Settings: section rows like digest topics — title in columns 1–3, fields in columns 4–12 */
 .page-settings > .settings-form { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; row-gap: 1.75rem; }
 .settings-section { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; row-gap: 1rem; background: transparent; border: 0; border-top: 3px solid var(--fg); border-radius: 0; box-shadow: none; padding: .9rem 0 0; }
 .settings-section > .settings-title { grid-column: 1 / span 3; grid-row: 1; align-self: start; font-size: 1.3rem; }
 .settings-section > :not(.settings-title) { grid-column: 4 / span 6; }
-/* Margin notes: explanations sit in the right columns beside the fields they explain */
-.settings-section > .note, .settings-section > .risk { grid-column: 10 / -1; grid-row: 1 / span 2; align-self: start; font-size: .85em; }
-.settings-section > .risk { background: transparent; padding: 0 0 0 .75rem; border-left: 3px solid var(--warn); border-radius: 0; }
-.settings-section > .note { padding-left: .75rem; border-left: 1px solid var(--border); }
+/* Neutral margin note beside the fields; the caption risk stays directly under its toggle (design review U8) */
+.settings-section > .note { grid-column: 10 / -1; grid-row: 1 / span 2; align-self: start; font-size: .85em; padding-left: .75rem; border-left: 1px solid var(--border); }
+.settings-section > .risk { padding: .6rem .8rem; border-left: 3px solid var(--warn); border-radius: 0; }
+/* The switch hit area is only the track and its label */
+.settings-section > .switch { justify-self: start; align-self: start; }
 .save-bar { grid-column: 4 / span 6; border-top: 1px solid var(--border); padding-top: 1rem; }
-.page-offline { display: grid !important; place-items: center; } .page-offline > * { grid-column: 1 / -1 !important; }
+.app .page.page-offline { display: grid !important; align-items: center; justify-items: center; min-height: 80vh; } .page-offline > * { grid-column: 1 / -1 !important; }
+.offline-brand { font-family: var(--font-heading); font-size: 2rem; }
+.page-offline .logo { display: none; }
+
+/* Rules, not boxes: run results, the add form, source rows and history rows follow the broadsheet (preview and alerts stay boxed) */
+.page-generate .card, .page-sources .add-form { background: transparent; border: 0; border-top: 1px solid var(--border-strong); border-radius: 0; box-shadow: none; padding: .9rem 0 0; }
+.source-list { background: transparent; border: 0; border-top: 1px solid var(--border-strong); border-radius: 0; }
+.source-row { padding-left: 0; padding-right: 0; } .source-row + .source-row { border-top: 1px solid var(--border); }
+.source-confirm { padding: .7rem .8rem; }
+.history-list { gap: 0; border-top: 1px solid var(--border-strong); }
+.history-link { background: transparent; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; padding: .8rem 0; }
+.history-link:hover { background: var(--hover); }
+/* "Last digest" lives in the rail on wide windows, in the hero on narrow ones */
+.hero-last { display: none; }
+/* Compact one-row masthead on the digest, so reading starts above the fold (design review U1) */
+.app[data-screen="digest"] .app-header { flex-direction: row; flex-wrap: wrap; justify-content: space-between; align-items: center; padding-top: .7rem; gap: .5rem 1.5rem; }
+.app[data-screen="digest"] .brand { font-size: 1.9rem; }
+.app[data-screen="digest"] .masthead-line { display: none; }
+.app[data-screen="digest"] .app-header::after { margin-top: 0; }
 
 @container (max-width: 900px) {
+  .hero-last { display: block; }
+  /* Compact masthead everywhere on narrow windows: wordmark row, then one nav row */
+  .app .app-header { padding-top: .6rem; gap: .25rem; }
+  .app .brand { font-size: 1.7rem; }
+  .app .masthead-line { display: none; }
+  .app .app-nav { flex-wrap: nowrap; gap: 0; font-size: .82rem; letter-spacing: .06em; }
+  .app .app-nav .nav-link { padding: .35rem .45rem; }
   .app { --margin: 1rem; }
   .app .page { grid-template-columns: minmax(0, 1fr); }
   .app .page > *, .app .page > .page-head, .topic, .creator, .page-digest .toc { grid-column: 1 / -1 !important; }

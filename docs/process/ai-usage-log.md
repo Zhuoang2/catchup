@@ -512,3 +512,49 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - A 404 on a declared feed is reported as "The declared feed could not be parsed" (pre-existing). Filed as a new issue.
   - One confirm returned 422 and could not be reproduced. The cache was verified with a stable feed; the likely cause is the YouTube 404 flapping.
 - Lesson: an assumption the plan explicitly marked "unverified" failed in the first real test. Marking it made the cause quick to find. Testing with a real multi-language video earlier, during research, would have caught it before implementation.
+
+## 2026-10-05 to 2026-10-06 — `redesign-ui-ux`: research, design brief, and prototype rounds (Claude Code, Opus 5.5, with the user)
+
+- **Kickoff.** After D-014 (local web app, installable as a PWA), the user asked: "我觉得下一步我们可以先去设计一下 UI 和 UX。你觉得呢？" (I think the next step could be designing the UI and UX first. What do you think?)
+  - `/reppit-research` documented the frontend as it is: five pages, about 620 lines, a 4-line stylesheet, every state and API shape, and how FastAPI serves `dist/`.
+  - It also checked the PWA facts: Chrome install criteria; localhost counts as a secure context; Safari "Add to Dock"; no Firefox install on macOS; `.webmanifest` MIME type in the published image.
+  - Claude then wrote `design-brief.md` for Claude Design (claude.ai/design), with real zh-Hans sample content from the manual test.
+- **Claude Design was unavailable.** The user reported: "我这个账号好像用不了design功能，这几个插件你有什么推荐吗" (my account doesn't seem to have the Design feature; any recommendation among these plugins?).
+  - Claude recommended the Design plugin for critique and accessibility later, and HTML prototypes now.
+  - The user installed the plugin on claude.ai. Its skills did not load into the running session, so it was deferred to a new session.
+- **Round 1.** The user asked: "好，做5个吧，开始做原型吧" (OK, make five; start the prototypes).
+  - Claude built a shared renderer (`shared/data.js`, `render.js`, `base.css`): all six screens and 22 states, with a control bar for direction, screen, state, theme, and a 420 px width, using container queries.
+  - It built five direction stylesheets: A quiet reader, B focused workspace, C morning briefing, D soft cards, E native desktop.
+  - A token contrast script found 4 AA misses, which were fixed.
+  - Invented article titles were replaced with labeled placeholders.
+- **The user chose C:** "我比较喜欢C · 晨报那种newspaper的风格" (I prefer C, the morning-briefing newspaper style). Via a question, the user decided:
+  - error color separate from the brand red
+  - a masthead with date and edition number
+  - two body-font versions to compare (C2)
+- **The user asked for more variants:** "感觉差不多，我觉得以C为模版重新设计几版吧" (they feel about the same; redesign a few versions using C as the template).
+  - Claude built C3 Broadsheet, C4 Salmon paper, C5 Tabloid, and C6 Swiss grid.
+  - It fixed narrow-window navigation, which vanished in the C family, and disabled-button specificity.
+  - It also fixed its own contrast script, which merged dark-theme variables in the wrong cascade order.
+- **"C3确实看上去挺好，但是总感觉哪里怪怪的"** (C3 does look good, but something feels off). Claude diagnosed six causes from a full-size screenshot:
+  - two-column splits of short summaries
+  - justified mixed CJK/Latin text stretching letter spacing
+  - a CJK drop cap
+  - three typefaces, including a system sans inherited from C
+  - about eight horizontal rules in the first screen
+  - a web-style TOC sidebar
+
+  The fix was C3b.
+- **"C3b正文的部分和其他部分的宽窄不一样，我觉的可以学习一下报纸网站的风格和排版"** (C3b's body is a different width from everything else; learn from newspaper websites).
+  - nytimes.com was blocked in the browser pane, and the hidden pane could not take screenshots, so Claude measured layouts with JavaScript instead:
+    - Guardian front: a 1300 px container, 16×60 px columns, a 20 px gap, a 3-column section-title column, and 1 px column rules.
+    - Guardian article: a 220 px meta column, a 620 px (8-column) centre column that is aligned, not centered, and a 4-column rail.
+    - FT: a 1228 px container, a centered logo, and left-aligned sections.
+  - The result is C7: one container, 12 columns, topic section rows with the title in columns 1–3 and newspaper columns of items.
+- **"这些地方没有居中不太好看吧"** (these parts not being centered doesn't look good, does it?), about Settings.
+  - Claude kept the grid alignment rather than centering, which would reintroduce C3b's misaligned edges.
+  - It filled the width the way newspaper sites do: a 4-column rail with a rule on Generate, Sources, and History, and Settings as section rows with margin notes.
+- **The user settled:** "好，先用 C7，提交原型吧" (OK, go with C7 for now; commit the prototypes).
+- **Failures and lessons:**
+  - A hash-only navigation does not reload the page, so CSS edits looked unapplied twice. Claude switched the preview server to `Cache-Control: no-store`, reloaded explicitly, and confirmed computed styles before concluding anything.
+  - The contrast script initially got the CSS cascade wrong. Re-deriving the merge order from CSS specificity found two more misses.
+  - Measuring real sites with JavaScript produced concrete numbers (container, columns, column widths) that a screenshot alone would not. Those numbers settled the "centered or aligned" question.

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CatchUp UI prototypes</title>
+  <style>
+    body { margin: 0; font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif; background: #f4f4f6; color: #1d1d21; }
+    main { max-width: 64rem; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
+    h1 { font-size: 1.8rem; margin: 0 0 .4rem; } .lede { color: #5a5a63; margin: 0 0 2rem; max-width: 46rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 1rem; }
+    .card { background: #fff; border: 1px solid #e3e3e8; border-radius: 12px; padding: 1.2rem; display: grid; gap: .6rem; }
+    .card h2 { font-size: 1.1rem; margin: 0; } .card p { margin: 0; color: #55555e; font-size: .93rem; }
+    .swatches { display: flex; gap: .3rem; } .swatches span { width: 1.4rem; height: 1.4rem; border-radius: 50%; border: 1px solid rgba(0,0,0,.08); }
+    .links { display: flex; flex-wrap: wrap; gap: .4rem; } .links a { font-size: .85rem; padding: .25rem .6rem; border-radius: 6px; background: #f1f1f4; color: #1d1d21; text-decoration: none; }
+    .links a:hover { background: #e5e5ea; } .notes { margin-top: 2rem; color: #5a5a63; font-size: .9rem; }
+  </style>
+</head>
+<body><main>
+  <h1>CatchUp UI prototypes</h1>
+  <p class="lede">Five visual directions (plus C2, a variant of the chosen C) for change <code>redesign-ui-ux</code> (#24). All five render the same screens, states, and real sample content from <code>shared/data.js</code>, so they differ only in design. Use the bar at the top of each prototype to switch direction, screen, state, light/dark, and a narrow 420&nbsp;px window.</p>
+  <p style="margin:0 0 1.5rem;padding:.8rem 1rem;background:#151412;color:#f4f0e6;border-radius:8px">Chosen for implementation (2026-10-06): <a style="color:#f0a37c" href="directions/c7.html#digest/zh">C7 · Front page grid</a>. Round 1 picked C; round 2 explored variations; C3b fixed C3's typography; C7 put it on a newspaper-site grid.</p>
+  <h2 style="font-size:1.2rem;margin:0 0 .8rem">Round 2 · variations on C</h2>
+  <div class="grid" style="margin-bottom:2.5rem">
+    <section class="card" style="border-color:#151412"><h2>C7 · Front page grid</h2><div class="swatches"><span style="background:#f4f0e6"></span><span style="background:#151412"></span><span style="background:#8a1c14"></span></div>
+      <p>C3b's type on a newspaper-website grid: one container for masthead, nav, and content; 12 columns; each topic is a section row with its title in a left column and items in newspaper columns. Patterns measured on theguardian.com and ft.com.</p>
+      <div class="links"><a href="directions/c7.html#digest/zh">Digest</a><a href="directions/c7.html#generate/succeeded">Generate</a><a href="directions/c7.html#sources/preview-podcast">Sources</a><a href="directions/c7.html#history/list">History</a></div></section>
+    <section class="card"><h2>C3 · Broadsheet</h2><div class="swatches"><span style="background:#f4f0e6"></span><span style="background:#151412"></span><span style="background:#8a1c14"></span></div>
+      <p>Classic broadsheet: newsprint, huge old-style masthead, small-caps navigation, a drop cap, justified text, and two-column summaries on wide windows.</p>
+      <div class="links"><a href="directions/c3.html#digest/zh">Digest</a><a href="directions/c3.html#generate/succeeded">Generate</a><a href="directions/c3.html#sources/preview-podcast">Sources</a><a href="directions/c3.html#history/list">History</a></div></section>
+    <section class="card"><h2>C3b · Broadsheet, revised</h2><div class="swatches"><span style="background:#f4f0e6"></span><span style="background:#151412"></span><span style="background:#8a1c14"></span></div>
+      <p>C3 with the odd parts fixed: one serif family (small caps for labels), a single reading column, no justified Chinese, no drop cap, fewer rules, and an "In this digest" index strip instead of a sidebar.</p>
+      <div class="links"><a href="directions/c3b.html#digest/zh">Digest</a><a href="directions/c3b.html#generate/succeeded">Generate</a><a href="directions/c3b.html#sources/preview-podcast">Sources</a><a href="directions/c3b.html#history/list">History</a></div></section>
+    <section class="card"><h2>C4 · Salmon paper</h2><div class="swatches"><span style="background:#fff1e5"></span><span style="background:#33302e"></span><span style="background:#990f3d"></span></div>
+      <p>Financial-paper feel: salmon paper, claret and teal accents, serif headlines with a sans body, numbered topics, teal source labels.</p>
+      <div class="links"><a href="directions/c4.html#digest/zh">Digest</a><a href="directions/c4.html#generate/succeeded">Generate</a><a href="directions/c4.html#sources/preview-podcast">Sources</a><a href="directions/c4.html#history/list">History</a></div></section>
+    <section class="card"><h2>C5 · Tabloid</h2><div class="swatches"><span style="background:#0a0a0a"></span><span style="background:#ffffff"></span><span style="background:#d7141a"></span></div>
+      <p>Loud and scannable: black masthead bar, condensed heavy headlines, solid red section tags, maximum contrast.</p>
+      <div class="links"><a href="directions/c5.html#digest/zh">Digest</a><a href="directions/c5.html#generate/succeeded">Generate</a><a href="directions/c5.html#sources/preview-podcast">Sources</a><a href="directions/c5.html#history/list">History</a></div></section>
+    <section class="card"><h2>C6 · Swiss grid</h2><div class="swatches"><span style="background:#ffffff"></span><span style="background:#111111"></span><span style="background:#e3000f"></span></div>
+      <p>Swiss modernist newspaper: Helvetica-style sans, big red numerals, a label column beside the content on wide windows, lots of white space.</p>
+      <div class="links"><a href="directions/c6.html#digest/zh">Digest</a><a href="directions/c6.html#generate/succeeded">Generate</a><a href="directions/c6.html#sources/preview-podcast">Sources</a><a href="directions/c6.html#history/list">History</a></div></section>
+  </div>
+  <h2 style="font-size:1.2rem;margin:0 0 .8rem">Round 1 · five directions</h2>
+  <div class="grid">
+    <section class="card"><h2>A · Quiet reader</h2><div class="swatches"><span style="background:#f6f1e9"></span><span style="background:#2b2520"></span><span style="background:#a84b24"></span></div>
+      <p>Editorial and calm: warm paper, serif headings, one reading column, items separated by rules instead of boxes.</p>
+      <div class="links"><a href="directions/a.html#digest/zh">Digest</a><a href="directions/a.html#generate/succeeded">Generate</a><a href="directions/a.html#sources/preview-podcast">Sources</a><a href="directions/a.html#settings/first-run">Settings</a></div></section>
+    <section class="card"><h2>B · Focused workspace</h2><div class="swatches"><span style="background:#f7f7f9"></span><span style="background:#18181b"></span><span style="background:#4f46e5"></span></div>
+      <p>Tool-like: left sidebar, cool neutrals, compact density, crisp status chips; closest to Linear-style apps.</p>
+      <div class="links"><a href="directions/b.html#digest/zh">Digest</a><a href="directions/b.html#generate/succeeded">Generate</a><a href="directions/b.html#sources/preview-podcast">Sources</a><a href="directions/b.html#settings/first-run">Settings</a></div></section>
+    <section class="card"><h2>C · Morning briefing</h2><div class="swatches"><span style="background:#fbfaf6"></span><span style="background:#111111"></span><span style="background:#c8102e"></span></div>
+      <p>Newspaper hierarchy: masthead, heavy serif headlines, rules between sections, topics as two-column grids on wide windows.</p>
+      <div class="links"><a href="directions/c.html#digest/zh">Digest</a><a href="directions/c.html#generate/succeeded">Generate</a><a href="directions/c.html#sources/preview-podcast">Sources</a><a href="directions/c.html#settings/first-run">Settings</a></div></section>
+    <section class="card"><h2>C2 · Briefing, sans body</h2><div class="swatches"><span style="background:#fbfaf6"></span><span style="background:#111111"></span><span style="background:#c8102e"></span></div>
+      <p>Same as C, but summaries and overviews use a sans-serif body (PingFang / Hei for Chinese) for easier long reading. Serif stays for the masthead and headlines.</p>
+      <div class="links"><a href="directions/c2.html#digest/zh">Digest</a><a href="directions/c2.html#generate/succeeded">Generate</a><a href="directions/c2.html#sources/preview-podcast">Sources</a><a href="directions/c2.html#settings/first-run">Settings</a></div></section>
+    <section class="card"><h2>D · Soft cards</h2><div class="swatches"><span style="background:#f1f4fa"></span><span style="background:#1f2633"></span><span style="background:#0b7a7c"></span></div>
+      <p>Friendly and airy: rounded cards, pill navigation, gentle shadows; each topic is its own card.</p>
+      <div class="links"><a href="directions/d.html#digest/zh">Digest</a><a href="directions/d.html#generate/succeeded">Generate</a><a href="directions/d.html#sources/preview-podcast">Sources</a><a href="directions/d.html#settings/first-run">Settings</a></div></section>
+    <section class="card"><h2>E · Native desktop</h2><div class="swatches"><span style="background:#f2f2f6"></span><span style="background:#1d1d1f"></span><span style="background:#0a64d8"></span></div>
+      <p>Feels like a macOS app in its PWA window: translucent sidebar, system font and blue, compact controls, list-style items.</p>
+      <div class="links"><a href="directions/e.html#digest/zh">Digest</a><a href="directions/e.html#generate/succeeded">Generate</a><a href="directions/e.html#sources/preview-podcast">Sources</a><a href="directions/e.html#settings/first-run">Settings</a></div></section>
+  </div>
+  <p class="notes">Prototypes only: links and buttons do not call the backend. Titles marked "placeholder" stand in for real ones. Fonts are system fonts with CJK fallbacks, so they render offline.</p>
+</main></body>
+</html>

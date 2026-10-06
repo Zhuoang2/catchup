@@ -1,0 +1,32 @@
+/* D · Soft cards — friendly, rounded, airy; pill navigation and gentle shadows. */
+.app {
+  --font-body: ui-rounded, "SF Pro Rounded", -apple-system, "Segoe UI", var(--cjk), sans-serif;
+  --font-heading: var(--font-body);
+  --bg: #f1f4fa; --surface: #ffffff; --fg: #1f2633; --muted: #5d6676; --subtle: #8a93a3;
+  --border: #e3e8f1; --border-strong: #d3dae6; --hover: #eef2f9; --nav-active: #ffffff;
+  --accent: #096b6d; --accent-fg: #ffffff; --accent-soft: #dff2f1;
+  --ok: #1d7a45; --ok-soft: #e0f4e8; --warn: #8f5e00; --warn-soft: #fbefd6; --error: #c03544; --error-soft: #fde6e8;
+  --neutral-soft: #edf1f7; --info-soft: #e6f4f4; --disabled: #dfe5ee;
+  --content: 48rem; --radius: 18px; --radius-sm: 12px; --title-size: 2rem; --heading-weight: 700; --topic-size: 1.35rem; --btn-radius: 999px;
+  --shadow: 0 6px 20px rgba(31,38,51,.06), 0 1px 2px rgba(31,38,51,.04);
+}
+.app[data-theme="dark"] {
+  --bg: #11141a; --surface: #1a1f28; --fg: #e8edf5; --muted: #a6afbf; --subtle: #7b8494;
+  --border: #262c38; --border-strong: #323a48; --hover: #1f2530; --nav-active: #262d3a;
+  --accent: #4fd1c5; --accent-fg: #0b1a1a; --accent-soft: #163233;
+  --ok: #67d391; --ok-soft: #16301f; --warn: #f1bf5a; --warn-soft: #302714; --error: #ff8592; --error-soft: #36191e;
+  --neutral-soft: #212734; --info-soft: #152a2b; --disabled: #2c3341; --shadow: 0 6px 20px rgba(0,0,0,.3);
+}
+.app-header { justify-content: space-between; border-bottom: 0; padding: 1rem 1.5rem; }
+.app-nav { background: var(--neutral-soft); padding: .3rem; border-radius: 999px; }
+.nav-link { border-radius: 999px; }
+.nav-link[aria-current="page"] { box-shadow: var(--shadow); }
+.logo { border-radius: 9px; background: linear-gradient(135deg, var(--accent), #5b8def); }
+.item, .toc, .creator-list, .source-list, .history-link { box-shadow: var(--shadow); border-color: transparent; }
+.topic { background: var(--surface); border-radius: var(--radius); padding: 1.4rem; box-shadow: var(--shadow); }
+.topic .item { box-shadow: none; background: var(--neutral-soft); }
+.app[data-theme="dark"] .topic .item { background: #202633; }
+.points li::before { background: var(--accent); }
+.hero { background: linear-gradient(135deg, var(--accent-soft), var(--surface)); padding: 1.75rem; border-radius: var(--radius); }
+.chip, .badge, .reason { padding: .2rem .65rem; }
+.history-date { border-radius: 12px; }

@@ -1,0 +1,31 @@
+/* B · Focused workspace — tool-like sidebar, cool neutrals, compact density, crisp chips. */
+.app {
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", var(--cjk), sans-serif;
+  --font-heading: var(--font-body);
+  --bg: #ffffff; --surface: #ffffff; --fg: #18181b; --muted: #5f5f6b; --subtle: #8b8b97;
+  --border: #e7e7ec; --border-strong: #d6d6de; --hover: #f2f2f6; --header-bg: #f7f7f9; --nav-active: #e9e9f0;
+  --accent: #4f46e5; --accent-fg: #ffffff; --accent-soft: #eceafe;
+  --ok: #12703a; --ok-soft: #e3f5e8; --warn: #9a5b00; --warn-soft: #fbf0d9; --error: #c4252f; --error-soft: #fde8e9;
+  --neutral-soft: #f1f1f5; --info-soft: #eef0fe; --disabled: #e2e2e8;
+  --content: 52rem; --radius: 8px; --radius-sm: 6px; --title-size: 1.55rem; --topic-size: 1.15rem; --text: 14.5px; --heading-weight: 650;
+}
+.app[data-theme="dark"] {
+  --bg: #111114; --surface: #17171b; --fg: #ececf1; --muted: #a3a3b0; --subtle: #757583;
+  --border: #26262d; --border-strong: #34343d; --hover: #1f1f25; --header-bg: #0c0c0f; --nav-active: #23232b;
+  --accent: #8b85ff; --accent-fg: #111114; --accent-soft: #24233d;
+  --ok: #5fd08a; --ok-soft: #15291d; --warn: #f0b551; --warn-soft: #2e2413; --error: #ff7a80; --error-soft: #331a1d;
+  --neutral-soft: #1e1e24; --info-soft: #1d1d33; --disabled: #2a2a32;
+}
+.app-main { padding-top: 1.5rem; }
+.page-head { padding-bottom: .9rem; border-bottom: 1px solid var(--border); }
+.hero { border-bottom: 0; }
+.card, .item { box-shadow: 0 1px 2px rgba(16,16,24,.04); }
+.items { gap: .5rem; } .item { padding: .85rem 1rem; }
+.topic { gap: .55rem; } .digest-body { gap: 1.75rem; }
+.topic-title::before { content: "#"; color: var(--subtle); margin-right: .35rem; font-weight: 500; }
+.item-title { font-size: 1.02em; }
+.chip, .badge, .reason { border-radius: 5px; font-size: .74em; }
+.toc { padding: .8rem; } .toc li { font-size: .88em; }
+.btn { font-size: .9em; } .btn-lg { padding: .6rem 1.1rem; font-size: .95em; }
+.history-link { padding: .65rem .9rem; } .history-date { width: 2.6rem; }
+.source-row { padding: .6rem .9rem; }

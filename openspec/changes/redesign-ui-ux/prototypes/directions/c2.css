@@ -1,0 +1,5 @@
+/* C2 · Morning briefing with sans-serif body: serif stays for masthead, headlines, and topic titles. */
+.app { --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", var(--cjk), sans-serif; --text: 16px; }
+.summary, .topic-overview, .lede, .creator-lede { font-family: var(--font-body); }
+.topic-overview { font-size: 1.05em; }
+.summary { line-height: 1.8; }

@@ -1,0 +1,27 @@
+/* C3b · Broadsheet, revised — one serif family, single reading column, fewer rules, index strip instead of a sidebar. */
+/* One family everywhere except inputs: small text uses serif small caps instead of the system sans inherited from C. */
+.app .eyebrow, .app .item-meta, .app .hero-meta, .app .tokens, .app .toc, .app .chip, .app .badge, .app .reason,
+.app .section-label, .app .field-label, .app .btn, .app .source-feed, .app .digest-meta, .app .masthead-line, .app .app-nav { font-family: var(--font-body); }
+.app .eyebrow, .app .section-label, .app .chip, .app .badge, .app .reason, .app .toc-title { font-variant: small-caps; text-transform: lowercase; letter-spacing: .08em; }
+.app .chip, .app .badge, .app .reason { font-size: .82em; font-weight: 600; }
+/* Fewer rules: a double rule under the masthead, one rule above each topic */
+.app-header { box-shadow: none; border-bottom: 3px double var(--border-strong); }
+.masthead-line { border-bottom: 0; }
+.page-head { border-bottom: 0; padding-bottom: 0; }
+.item { border-top: 0; padding-top: .4rem; }
+.items { gap: 1.4rem; }
+/* Single reading column; no justified CJK, no drop cap, no split summaries */
+.page-digest { max-width: 44rem; }
+.summary, .topic-overview { text-align: left; hyphens: manual; }
+.digest-body .topic:first-child .topic-overview::first-letter { float: none; font: inherit; padding: 0; color: inherit; line-height: inherit; }
+@container (min-width: 900px) { .summary > p { columns: auto; column-rule: none; } .digest-layout:has(.toc) { grid-template-columns: 1fr; } .toc { position: static; } }
+/* Newspaper index strip under the headline */
+.toc { border: 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); border-radius: 0; padding: .55rem 0; background: transparent; display: flex; gap: .4rem 1rem; flex-wrap: wrap; align-items: baseline; }
+.toc-title { margin: 0; color: var(--accent); }
+.toc ol { display: flex; flex-wrap: wrap; gap: .3rem 1.1rem; }
+.toc li { display: inline; font-size: .95em; } .toc-count { display: none; }
+/* Hierarchy: the date headline and topic titles share the display face */
+.page-title { font-weight: 600; }
+.topic-title { font-family: var(--font-heading); font-weight: 600; font-size: 1.65rem; }
+.item-title { font-family: var(--font-heading); font-weight: 600; font-size: 1.25em; }
+.item-meta { font-style: italic; }

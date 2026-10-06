@@ -1,0 +1,30 @@
+/* C3 · Broadsheet — classic newspaper: newsprint, huge old-style masthead, small caps, drop cap, justified text, two columns. */
+.app {
+  --font-body: "Iowan Old Style", "Hoefler Text", Georgia, "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+  --font-heading: "Big Caslon", "Baskerville", "Hoefler Text", Georgia, "Songti SC", "Noto Serif CJK SC", serif;
+  --bg: #f4f0e6; --surface: #f8f5ed; --fg: #151412; --muted: #4a4741; --subtle: #77736a;
+  --border: #d4cdbd; --border-strong: #151412; --hover: #ebe5d7;
+  --accent: #8a1c14; --accent-fg: #fbf7ef; --accent-soft: #efdcd5; --link: #151412;
+  --error: #8a4b00; --error-soft: #f3e4cf; --error-border: #8a4b00;
+  --neutral-soft: #e9e3d5; --info-soft: #ece6d8;
+  --content: 64rem; --title-size: 2.4rem; --topic-size: 1.8rem;
+}
+.app[data-theme="dark"] {
+  --bg: #161513; --surface: #1c1b18; --fg: #ece7dc; --muted: #b8b2a5; --subtle: #8c8679;
+  --border: #33302a; --border-strong: #ece7dc; --hover: #24221e;
+  --accent: #e0796d; --accent-fg: #161513; --accent-soft: #3a211d; --link: #ece7dc;
+  --error: #f0b062; --error-soft: #33271a; --error-border: #f0b062; --neutral-soft: #24221e; --info-soft: #22201c;
+}
+.brand { font-size: 3.4rem; letter-spacing: .01em; font-weight: 400; }
+.app-header { border-bottom: 1px solid var(--border-strong); box-shadow: 0 4px 0 -1px var(--bg), 0 5px 0 0 var(--border-strong); }
+.app-nav { font-variant: small-caps; text-transform: lowercase; letter-spacing: .1em; font-size: .95rem; font-family: var(--font-heading); }
+.masthead-line { font-family: var(--font-heading); font-style: italic; text-transform: none; letter-spacing: .02em; font-size: .9rem; }
+.page-title { font-weight: 400; } .topic-title { font-weight: 700; letter-spacing: -0.01em; }
+.summary, .topic-overview { text-align: justify; hyphens: auto; }
+.digest-body .topic:first-child .topic-overview::first-letter { float: left; font-family: var(--font-heading); font-size: 3.6em; line-height: .85; padding: .05em .1em 0 0; color: var(--accent); }
+@container (min-width: 900px) { .summary > p { column-count: 2; column-gap: 2rem; column-rule: 1px solid var(--border); } .items { grid-template-columns: 1fr; } }
+.item { border-top: 1px solid var(--border-strong); }
+.item-title { font-size: 1.4em; font-weight: 700; }
+.toc { border: 0; border-top: 3px solid var(--fg); border-bottom: 1px solid var(--fg); background: transparent; }
+.points li::before { content: "■"; background: none; width: auto; height: auto; top: 0; color: var(--accent); font-size: .6em; line-height: 2.6; }
+.btn-primary { font-family: var(--font-heading); font-variant: small-caps; text-transform: lowercase; letter-spacing: .12em; font-size: .95em; }

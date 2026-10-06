@@ -1,0 +1,35 @@
+/* C4 · Salmon financial paper — pink paper, claret and teal accents, serif headlines with a sans body, numbered topics. */
+.app {
+  --font-body: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", var(--cjk), sans-serif;
+  --font-heading: Georgia, "Iowan Old Style", "Songti SC", "Noto Serif CJK SC", serif;
+  --bg: #fff1e5; --surface: #fff7ef; --fg: #33302e; --muted: #5c5650; --subtle: #807870;
+  --border: #ead7c6; --border-strong: #33302e; --hover: #fbe5d3;
+  --accent: #990f3d; --accent-fg: #fff7ef; --accent-soft: #f6dcdc; --link: #0d6b73;
+  --ok: #1e6b3a; --ok-soft: #e3efe0; --warn: #7d5200; --warn-soft: #f8e7cc; --error: #a33a00; --error-soft: #fbe2cf; --error-border: #a33a00;
+  --neutral-soft: #f7e3d2; --info-soft: #f6e6d8;
+  --content: 60rem; --title-size: 2.3rem; --topic-size: 1.55rem; --text: 16px;
+}
+.app[data-theme="dark"] {
+  --bg: #262a33; --surface: #2d323c; --fg: #f2eee8; --muted: #c4bdb5; --subtle: #98918a;
+  --border: #3d434f; --border-strong: #f2eee8; --hover: #343a45;
+  --accent: #ff7aa2; --accent-fg: #262a33; --accent-soft: #48303c; --link: #5fd3dc;
+  --ok: #8fd6a4; --ok-soft: #22352b; --warn: #f2c06b; --warn-soft: #3c3324; --error: #ffad7a; --error-soft: #43312a; --error-border: #ffad7a;
+  --neutral-soft: #343a45; --info-soft: #313742;
+}
+.app-header { border-bottom: 4px solid var(--fg); }
+.brand { font-family: var(--font-heading); font-size: 2.6rem; font-weight: 400; }
+.masthead-line { border: 0; color: var(--muted); }
+.app-nav { font-family: var(--font-body); text-transform: none; letter-spacing: 0; font-size: .9rem; }
+.nav-link[aria-current="page"] { color: var(--fg) !important; box-shadow: inset 0 -3px 0 var(--accent); border-radius: 0; }
+.eyebrow, .edition { color: var(--link); }
+.digest-body { counter-reset: topic; }
+.topic { border-top: 1px solid var(--border-strong); counter-increment: topic; }
+.topic-title::before { content: counter(topic) "."; color: var(--accent); margin-right: .5rem; font-weight: 400; }
+.topic-overview { font-family: var(--font-heading); font-size: 1.15em; }
+.item { background: var(--surface); padding: .9rem 1rem; border: 0; border-left: 3px solid var(--link); }
+.item-meta .item-source { color: var(--link); font-weight: 700; text-transform: uppercase; font-size: .9em; letter-spacing: .04em; }
+.item-title { font-family: var(--font-heading); }
+.points li::before { background: var(--link); border-radius: 50%; }
+.btn-primary { background: var(--link); color: #fff !important; border-radius: 0; }
+.app[data-theme="dark"] .btn-primary { background: var(--link); color: var(--bg) !important; }
+.chip, .badge, .reason { border-radius: 2px; }

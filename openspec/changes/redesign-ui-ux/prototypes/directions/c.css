@@ -1,0 +1,56 @@
+/* C · Morning briefing — newspaper hierarchy, masthead, rules, one confident red accent. */
+.app {
+  --font-body: Georgia, "Iowan Old Style", "Songti SC", "Noto Serif CJK SC", serif;
+  --font-heading: "Didot", "Bodoni 72", "Playfair Display", Georgia, "Songti SC", "Noto Serif CJK SC", serif;
+  --bg: #fbfaf6; --surface: #ffffff; --fg: #111111; --muted: #4f4f4f; --subtle: #7a7a7a;
+  --border: #dedbd2; --border-strong: #111111; --hover: #f1efe8; --nav-active: transparent;
+  --accent: #c8102e; --accent-fg: #ffffff; --accent-soft: #fbe4e7; --link: #111111;
+  --ok: #1e6b34; --ok-soft: #e2f0e5; --warn: #8a5300; --warn-soft: #f6ead2; --error: #9a3412; --error-soft: #fbeadf; --error-border: #9a3412;
+  --neutral-soft: #efede6; --info-soft: #f3f1ea; --disabled: #dcd9d0;
+  --content: 60rem; --radius: 0; --radius-sm: 0; --title-size: 2.8rem; --heading-weight: 700; --topic-size: 1.7rem; --text: 16.5px; --title-tracking: -0.02em;
+}
+.app[data-theme="dark"] {
+  --bg: #121212; --surface: #191919; --fg: #f3f1ec; --muted: #bdbab3; --subtle: #8e8b85;
+  --border: #2e2d2a; --border-strong: #f3f1ec; --hover: #222220;
+  --accent: #ff4d5e; --accent-fg: #121212; --accent-soft: #3a1a1e; --link: #f3f1ec;
+  --ok: #7fd08f; --ok-soft: #1a2b1e; --warn: #f2b65e; --warn-soft: #30261a; --error: #ffa36b; --error-soft: #35231a; --error-border: #ffa36b;
+  --neutral-soft: #222220; --info-soft: #1f1e1c; --disabled: #33322f;
+}
+.app-header { flex-direction: column; gap: .5rem; padding: 1.4rem 1.5rem .2rem; border-bottom: 3px double var(--border-strong); }
+.brand { font-family: var(--font-heading); font-size: 2.2rem; letter-spacing: .02em; }
+.logo { display: none; }
+.app-nav { font-family: -apple-system, "Segoe UI", var(--cjk), sans-serif; text-transform: uppercase; letter-spacing: .08em; font-size: .78rem; }
+.nav-link .icon { display: none; } .nav-link[aria-current="page"] { color: var(--accent) !important; }
+.btn, .input, .chip, .badge, .reason, .field-label, .section-label, .eyebrow, .item-meta, .hero-meta, .tokens, .toc, .source-feed { font-family: -apple-system, "Segoe UI", var(--cjk), sans-serif; }
+.eyebrow { color: var(--accent); }
+.page-head { border-bottom: 1px solid var(--border-strong); padding-bottom: 1rem; }
+.btn-primary { background: var(--fg); color: var(--bg) !important; text-transform: uppercase; letter-spacing: .06em; font-size: .8em; }
+.app[data-theme="dark"] .btn-primary { background: var(--fg); color: var(--bg) !important; }
+.digest-body { gap: 2rem; }
+.topic { border-top: 3px solid var(--fg); padding-top: .8rem; }
+.topic-overview { font-size: 1.12em; color: var(--fg); }
+@container (min-width: 820px) { .items { grid-template-columns: 1fr 1fr; } .items .item:only-child { grid-column: 1 / -1; } }
+.item { border: 0; border-top: 1px solid var(--border); padding: .9rem 0 0; background: transparent; }
+.item-title { font-family: var(--font-heading); font-size: 1.3em; }
+.points li::before { border-radius: 0; background: var(--accent); width: .45rem; height: .45rem; }
+.card, .toc, .creator-list, .source-list, .history-link { border-color: var(--border); }
+.creator { border-top: 3px double var(--border-strong); }
+.creator-title { text-transform: uppercase; letter-spacing: .08em; font-size: 1rem; }
+.chip, .badge, .reason { border-radius: 0; text-transform: uppercase; letter-spacing: .05em; font-size: .68em; }
+.history-date { background: var(--fg); color: var(--bg); }
+.step-num { background: var(--fg); color: var(--bg); }
+/* Masthead dateline and edition numbers */
+.masthead-line, .edition { display: inline; }
+.masthead-line { display: block; font-family: -apple-system, "Segoe UI", var(--cjk), sans-serif; font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+  border-top: 1px solid var(--border-strong); border-bottom: 1px solid var(--border-strong); padding: .3rem 1.5rem; width: 100%; max-width: 60rem; text-align: center; }
+.edition { color: var(--accent); }
+/* Errors are not brand red: burnt orange, a solid rule, and an icon */
+.alert-error { border: 0; border-left: 4px solid var(--error); }
+.chip-error { background: var(--error-soft); color: var(--error); }
+.check-error, .field-error { color: var(--error); }
+/* Narrow windows: keep the text labels (C hides nav icons), wrapped and centered */
+@container (max-width: 640px) {
+  .app-nav { flex-wrap: wrap; justify-content: center; }
+  .app-nav .nav-link span { display: inline; }
+  .app-nav .nav-link { padding: .35rem .5rem; }
+}

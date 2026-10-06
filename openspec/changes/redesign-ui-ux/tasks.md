@@ -20,7 +20,7 @@ Implementer notes:
 
 ## 1. Snapshot fields for saved digests (backend)
 
-- [ ] 1.1 Add Alembic migration `0003` with `digests.language` (String(40), nullable) and `digest_items.source_kind` (String(16), nullable), and add them to `backend/src/catchup/models.py`. In `digest/runner.py`, write `language` (the language read at run start) and each saved item's `Source.kind` at save time, for both topic items and Creator updates items. Return them from `GET /api/digests/{id}` in `api/digests.py`: `language`, `source_kind` on topic items, and `source_kind` on Creator updates groups and items. Verify with pytest:
+- [x] 1.1 Add Alembic migration `0003` with `digests.language` (String(40), nullable) and `digest_items.source_kind` (String(16), nullable), and add them to `backend/src/catchup/models.py`. In `digest/runner.py`, write `language` (the language read at run start) and each saved item's `Source.kind` at save time, for both topic items and Creator updates items. Return them from `GET /api/digests/{id}` in `api/digests.py`: `language`, `source_kind` on topic items, and `source_kind` on Creator updates groups and items. Verify with pytest:
   - the migration upgrades from `0002` with existing rows reading NULL, and downgrades
   - a run in zh-Hans saves `language='zh-Hans'` and the right kinds
   - changing `digest_language` or deleting the source afterwards does not change the API response (spec `digest-history` scenarios "Language changed after saving" and "Source deleted after saving")

@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi.testclient import TestClient
 
 from catchup.main import create_app
-from catchup.models import Digest, DigestItem, DigestRun, DigestTopic, Item, Source, SourceCheck
+from catchup.models import AppSettings, Digest, DigestItem, DigestRun, DigestTopic, Item, Source, SourceCheck
 
 
 def seed_history(client):
@@ -73,6 +73,7 @@ def test_digest_detail_uses_snapshot_positions_and_survives_source_deletion(test
         assert response.status_code == 200
         before = response.json()
         assert before["model_id"] == "test"
+        assert before["language"] is None
         assert [topic["title"] for topic in before["topics"]] == ["First", "Second"]
         assert [item["title"] for item in before["topics"][0]["items"]] == [
             "Saved first", "Saved second",
@@ -80,7 +81,7 @@ def test_digest_detail_uses_snapshot_positions_and_survives_source_deletion(test
         assert before["topics"][0]["overview"] == "Earlier"
         assert before["topics"][0]["items"][0] == {
             "title": "Saved first", "link": "https://example.test/first",
-            "source_name": "Saved source", "published_at": before["created_at"],
+            "source_name": "Saved source", "source_kind": None, "published_at": before["created_at"],
             "summary": "Saved summary", "summary_unavailable": False,
         }
         assert before["topics"][0]["items"][1]["summary_unavailable"] is True
@@ -88,6 +89,26 @@ def test_digest_detail_uses_snapshot_positions_and_survives_source_deletion(test
         assert client.delete(f"/api/sources/{source_id}").status_code == 204
         assert client.get("/api/digests/1").json() == before
         assert client.get("/api/digests/999").json()["error"]["code"] == "not_found"
+
+
+def test_saved_language_and_kind_survive_setting_change_and_source_deletion(test_settings):
+    with TestClient(create_app(test_settings)) as client:
+        source_id = seed_history(client)
+        with client.app.state.session_factory() as session:
+            session.get(Digest, 1).language = "zh-Hans"
+            session.add(AppSettings(id=1, digest_language="zh-Hans"))
+            session.query(DigestItem).filter(DigestItem.digest_id == 1).update(
+                {"source_kind": "podcast"}
+            )
+            session.commit()
+        saved = client.get("/api/digests/1").json()
+        assert saved["language"] == "zh-Hans"
+        assert saved["topics"][0]["items"][0]["source_kind"] == "podcast"
+        with client.app.state.session_factory() as session:
+            session.get(AppSettings, 1).digest_language = "en"
+            session.commit()
+        assert client.delete(f"/api/sources/{source_id}").status_code == 204
+        assert client.get("/api/digests/1").json() == saved
 
 
 def test_digest_history_survives_new_app_on_same_data_directory(test_settings):

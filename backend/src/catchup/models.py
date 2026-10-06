@@ -135,6 +135,7 @@ class Digest(Base):
     item_count: Mapped[int] = mapped_column(Integer)
     source_count: Mapped[int] = mapped_column(Integer)
     transcript_wait_days: Mapped[int] = mapped_column(Integer, default=7, server_default="7")
+    language: Mapped[str | None] = mapped_column(String(40))
 
 
 class DigestTopic(Base):
@@ -159,6 +160,7 @@ class DigestItem(Base):
     title: Mapped[str] = mapped_column(Text)
     link: Mapped[str] = mapped_column(Text)
     source_name: Mapped[str] = mapped_column(Text)
+    source_kind: Mapped[str | None] = mapped_column(String(16))
     published_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     summary: Mapped[str | None] = mapped_column(Text)
     summary_unavailable: Mapped[bool] = mapped_column(Boolean, default=False)

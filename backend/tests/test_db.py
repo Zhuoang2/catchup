@@ -42,6 +42,7 @@ def test_migrations_live_inside_package() -> None:
     assert (migrations / "script.py.mako").is_file()
     assert (migrations / "versions" / "0001_initial.py").is_file()
     assert (migrations / "versions" / "0002_transcripts.py").is_file()
+    assert (migrations / "versions" / "0003_digest_snapshot.py").is_file()
 
 
 def test_existing_database_at_old_revision_is_unchanged(tmp_path) -> None:
@@ -59,7 +60,7 @@ def test_existing_database_at_old_revision_is_unchanged(tmp_path) -> None:
             ).scalars().all()
         migrate(engine)
         with engine.connect() as connection:
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0002_transcripts"
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0003_digest_snapshot"
             assert connection.execute(text("SELECT digest_language FROM app_settings WHERE id=1")).scalar_one() == "zh-Hans"
             assert connection.execute(
                 text("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -119,10 +120,50 @@ def test_upgrade_existing_rows_and_downgrade(tmp_path) -> None:
                 "SELECT youtube_captions, youtube_skip_shorts FROM app_settings"
             )).one() == (0, 1)
             assert connection.execute(text("SELECT update_reason FROM digest_items")).scalar_one() is None
+            assert connection.execute(text("SELECT language FROM digests")).scalar_one() is None
+            assert connection.execute(text("SELECT source_kind FROM digest_items")).scalar_one() is None
         command.downgrade(config, "0001_initial")
         with engine.connect() as connection:
             assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0001_initial"
             assert "kind" not in {col["name"] for col in inspect(engine).get_columns("sources")}
             assert connection.execute(text("SELECT title FROM digest_items")).scalar_one() == "Episode"
+    finally:
+        engine.dispose()
+
+
+def test_snapshot_migration_from_0002_preserves_existing_rows(tmp_path) -> None:
+    engine = make_engine(tmp_path)
+    config = Config()
+    config.set_main_option("script_location", str(Path(catchup.__file__).resolve().parent / "migrations"))
+    config.attributes["connection"] = engine
+    try:
+        command.upgrade(config, "0002_transcripts")
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO digest_runs (id, status, items_total, items_done, started_at) "
+                "VALUES (1, 'succeeded', 1, 1, '2026-10-04')"
+            ))
+            connection.execute(text(
+                "INSERT INTO digests (id, run_id, created_at, model_id, item_count, source_count) "
+                "VALUES (1, 1, '2026-10-04', 'model', 1, 1)"
+            ))
+            connection.execute(text(
+                "INSERT INTO digest_topics (id, digest_id, position, title, overview) "
+                "VALUES (1, 1, 0, 'Topic', 'Overview')"
+            ))
+            connection.execute(text(
+                "INSERT INTO digest_items (id, digest_id, topic_id, position, title, link, "
+                "source_name, summary_unavailable) VALUES "
+                "(1, 1, 1, 0, 'Title', 'https://example.test/item', 'Source', 0)"
+            ))
+        command.upgrade(config, "head")
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT language FROM digests")).scalar_one() is None
+            assert connection.execute(text("SELECT source_kind FROM digest_items")).scalar_one() is None
+        command.downgrade(config, "0002_transcripts")
+        assert "language" not in {col["name"] for col in inspect(engine).get_columns("digests")}
+        assert "source_kind" not in {col["name"] for col in inspect(engine).get_columns("digest_items")}
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT title FROM digest_items")).scalar_one() == "Title"
     finally:
         engine.dispose()

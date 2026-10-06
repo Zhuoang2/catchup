@@ -116,3 +116,18 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Install works in Chrome and Edge, and in Safari on macOS via "Add to Dock". Firefox desktop has no install, but works as a web page.
   - `localhost` counts as a secure context, so local installs work.
   - The tech spec (#16) describes the architecture as a local web app plus PWA.
+
+## D-015 UI built as a hand-written CSS design system ported from the C7 prototype; network-first service worker with an offline page only — accepted (2026-10-06)
+
+- **Decision** (change `redesign-ui-ux`, #24): the new interface ports the reviewed C7 prototype CSS into owned stylesheets (tokens, base, layout, components) and small React components, with no runtime UI dependencies.
+  - The theme follows the system, and fonts are system stacks with CJK fallbacks.
+  - The PWA is a manifest, icons, and a minimal service worker that serves an offline page only when a navigation fails. App code and API responses are never cached.
+  - The edition number shown on digests is the digest id.
+- **Alternatives:** CSS Modules with Radix UI primitives and `vite-plugin-pwa` (Workbox precache and an update prompt). It was rejected because:
+  - The prototype's measured contrast, focus, and grid results would need re-verification after translation.
+  - A precache adds stale-shell risk for an app that cannot work without its server.
+  - It brings about 7 new dependencies.
+  - A modal dialog replaces the reviewed inline delete confirmation.
+- **Consequences:**
+  - Accessibility details are owned, and checked by axe scans and a token contrast test.
+  - Saved digests gain `language` and per-item `source_kind` (migration `0003`) so that the UI can mark language and kinds after settings or sources change.

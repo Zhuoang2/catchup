@@ -1,161 +1,251 @@
-# Design: redesign-ui-ux
+# Design
 
-Status: Proposal 1 chosen by the user on 2026-10-06. Open questions resolved as recommended:
-- theme follows the system only (no setting)
+Status: Proposal 1 chosen by the user on 2026-10-06 (port the C7 prototype CSS as a hand-written design system, with a minimal service worker). Open questions resolved as recommended:
+- the theme follows the system only
 - the edition number is the digest id
 - `prototypes/` stays in the archived change as design evidence
 
-## Solution Proposals
+The two-proposal comparison is in git history (`26c9d64`). The rejected alternative is recorded under D1.
 
-Context:
-- **Request.** Turn the chosen visual direction, **C7 · Front page grid**, into the real React frontend, and make CatchUp installable as a PWA with an offline page (D-014, issue #24).
-  - The prototype is `prototypes/directions/c7.html`: `shared/base.css` + `c.css` + `c3.css` + `c3b.css` + `c7.css`, with markup from `shared/render.js`.
-  - It was refined by the Design plugin review; findings and fixes are in `design-review-c7.md`.
-  - It covers six screens and 23 states, light and dark, and a 420 px window.
-- **Research source:** `research.md`, sections:
-  - Build and dependencies
-  - Styling
-  - each page section
-  - API shapes consumed by the UI
-  - Accessibility as implemented
-  - Frontend tests
-  - How the backend serves the frontend
-  - External facts: installable PWA
+## Context
 
-### Shared by both proposals
+See `proposal.md` for motivation, `research.md` for the current frontend, `prototypes/` for the chosen design, and `design-review-c7.md` for the verified review and its resolution.
 
-- **Scope.**
-  - The five pages are rebuilt to C7's structure and copy, plus the offline page: Generate, Sources, Settings, History, Digest (`frontend/src/pages/*.tsx`).
-  - They keep today's routes (`frontend/src/App.tsx:8-31`) and the API client (`frontend/src/api/client.ts:1-31`).
-  - No new API endpoints. The behaviors from the review are required:
-    - compact digest masthead
-    - content-driven item widths
-    - state-aware rail
-    - one primary action per state
-    - caption risk note under its toggle
-    - `lang` on generated text
-    - focus moves for the skip link and the index
-    - one `role="status"` region
-    - AA tokens with distinct error and warn hues
-    - delete confirmation
-- **Two snapshot fields (backend).** A saved digest does not record its language, and digest items store only `source_name` (`backend/src/catchup/models.py:128-161`; `api/digests.py:26-70`). C7 needs both:
-  - `lang` on summaries, because the digest language can change after saving
-  - the source-kind icon and label on items and Creator updates
+**Today's frontend:**
+- React 19.3, React Router 7.18, Vite 8.3, TypeScript 7.0.
+- Five pages and no shared components (`frontend/src/pages/*.tsx`).
+- A 4-line stylesheet (`frontend/src/style.css:1-4`).
+- A small `request()` client (`frontend/src/api/client.ts:1-31`).
+- 35 vitest tests that select by role and text.
 
-  Migration `0003` adds `digests.language` and `digest_items.source_kind`, filled at save time (`digest/runner.py`, where the language is read at `:174-175`). Old rows stay NULL: the UI then omits `lang` and the icon. `GET /api/digests/{id}` returns both.
-- **Theme.** Follow `prefers-color-scheme` by default. Light and dark tokens are taken from `c3.css` with the review's fixes (light `--subtle #66625a`, error `#a33a00`, warn `#6b5e00`; dark `#ff9a62` / `#d9c25a`).
-- **Fonts.** System stacks only, with the C7 CJK fallbacks. Nothing is bundled, because CJK web fonts are tens of MB.
-- **PWA shell.**
-  - `frontend/public/manifest.webmanifest`: `name`/`short_name` "CatchUp", `start_url: "/"`, `display: "standalone"`, theme and background colors from the tokens.
-  - Icons: 192 px, 512 px, a maskable 512 px, and a 1024 px Safari icon from one SVG wordmark (the C7 "C").
-  - A `<link rel="manifest">` and `theme-color` in `index.html` (`frontend/index.html:1-12`).
-  - Vite copies `public/` into the `dist/` root, and the SPA fallback already serves root files with the right MIME types (`backend/src/catchup/main.py:93-102`; research verified `.webmanifest` → `application/manifest+json` in the published image).
-  - `/api/*` is never cached.
-  - Specs: new capability **`user-interface`** (layout, states, primary actions, accessibility, themes); **`local-deployment`** modified (installable, offline page); **`digest-history`** modified (a saved digest keeps its language and source kinds).
-- **Tests.** Existing vitest tests select by role and text (research, "Frontend tests"), so they are rewritten with the new copy, not deleted. New checks:
-  - an automated axe scan per page state (`vitest-axe`, dev only)
-  - a token contrast test that fails below 4.5:1 for text and 3:1 for UI boundaries, a port of the prototype check
-  - Docker smoke additions: `/manifest.webmanifest` 200 with the manifest MIME type; `/sw.js` 200
+FastAPI serves `dist/` through an `/assets` mount and an SPA fallback that serves any other file in `dist/` (`backend/src/catchup/main.py:83-102`).
 
----
+**The prototype is the visual and markup reference:**
+- C7's cascade is `shared/base.css` → `directions/c.css` → `c3.css` → `c3b.css` → `c7.css`.
+- Screens and states come from `shared/render.js`; sample data from `shared/data.js`.
+- It is not shipped or imported; it is ported.
 
-### Proposal 1 — Port the prototype CSS as a hand-written design system; hand-written minimal service worker
+## Goals / Non-Goals
 
-- **Overview.** Flatten C7's five-file cascade into a small, owned stylesheet set: tokens, base, layout grid, components. Build a dozen small React components that reproduce the prototype markup.
-  - No runtime dependencies are added; the app stays React + React Router.
-  - The service worker is about 40 lines and only serves an offline page when a navigation fails. It never caches the app or the API.
-- **Key Changes:**
-  - **Styles.** `frontend/src/styles/` replaces the 4-line `style.css` (`frontend/src/style.css:1-4`):
-    - `tokens.css`: light/dark custom properties, fonts, spacing; no hard-coded colors elsewhere
-    - `base.css`: element defaults, focus ring, `sr-only`, reduced motion
-    - `layout.css`: the 78rem container and 12-column grid with subgrid section rows, the rail, the compact masthead, and container queries at 900 px and 640 px
-    - `components.css`
-  - **Components** in `frontend/src/components/`:
-    - `AppShell` (masthead, nav with `aria-current`, skip link that moves focus)
-    - `SectionRow`, `Rail`, `Button`, `Chip`/`Badge`, `Alert`, `Switch` (native checkbox with `role="switch"`), `Stepper`, `Progress`
-    - `StatusRegion` (one persistent `role="status"`)
-    - `SummaryText` (keeps today's bullet handling, `DigestView.tsx:35-50`)
-    - `ReasonLabel`
-  - **Pages.** The five pages and states are rebuilt to `render.js`. Data comes from today's endpoints. The rail and empty states are computed from the same responses: model configured, sources by `kind`, last digest from `GET /api/digests`.
-  - **Service worker.** `frontend/public/sw.js`:
-    - `install` caches `/offline.html`, which is a static page with inline CSS
-    - `fetch`: for `navigate` requests, try the network and fall back to `offline.html`; other requests pass through
-    - registered in `main.tsx` only in production builds
+**Goals:**
+- **Fidelity:** the real app matches C7 in every prototype state, in both themes, at 1440 px and 420 px.
+- **Review outcomes carried into the app**, each measured again in review:
+  - the first digest topic starts within 50% of a 900 px viewport
+  - the header is ≤ 120 px at 420 px
+  - strict AA contrast
+  - focus moves, `lang` marks, and a single status region
+- **Installable** in Chrome, Edge, and Safari on macOS, with an honest offline page.
 
-    The app shell is not precached, so an update is just a reload and stale assets are impossible.
-  - **Backend.**
-    - Migration `0003`, with the snapshot fields written in `runner.py` and returned by `api/digests.py`.
-    - No change to static serving.
-- **Trade-offs:**
-  - **Benefits:**
-    - The verified prototype CSS (contrast, small caps, grid) carries over almost one to one, so the review's measurements stay valid.
-    - Zero new runtime dependencies, which fits the about 620-line codebase (research, "Build and dependencies").
-    - The service worker cannot serve stale code or touch the API.
-    - Easy to review and for Droid to follow, because the prototype is the spec.
-  - **Costs:**
-    - We own accessibility details that a library would provide. That is acceptable here, because the widgets are simple: a native switch, an inline confirm row, no dialogs, menus, or popovers.
-    - Global CSS needs naming discipline.
-    - Without a precache, the installed window shows the offline page, not a cached UI, when the server is down. That matches the product: nothing works without the backend.
-- **Validation:**
-  - vitest component and page tests for every prototype state, plus axe scans and the token contrast test.
-  - `npm run build`.
-  - Docker smoke checks the manifest, `sw.js`, and the offline page.
-  - Review (Claude): side-by-side screenshots of prototype vs app for each state at 1440 and 420 px, in both themes. Also a keyboard pass (skip link, index, settings), and JS measurements of the review's metrics: first topic within 50% of a 900 px viewport, header ≤ 120 px at 420 px, 12+ `lang` elements on the zh digest.
-  - Manual test with the user:
-    - install in Chrome and add to the Dock in Safari
-    - stop the container and reopen the app: the offline page appears
-    - start it again and reload: the app returns
-    - real digest reading in zh-Hans
-- **Open Questions:**
-  - Manual theme override in Settings, or system only? System only is proposed; it adds no setting.
-  - Should the edition number be the digest id? Ids are sequential, and digests are never deleted.
-  - Keep `prototypes/` after implementation? It is proposed to stay in the archived change as design evidence.
+**Non-Goals:**
+- Precaching the app or the API, or working offline (rejected with Proposal 2).
+- A manual theme switch, web fonts, or UI or CSS libraries.
+- New API endpoints, new routes, or features not shown in the prototype (bookmarks, likes, editing sources).
+- Firefox installation (no desktop install on macOS; it works as a web page).
 
----
+## Decisions
 
-### Proposal 2 — Component-scoped styles with headless accessible primitives and a generated PWA
+### D1. A ported, hand-written CSS design system (Proposal 1)
+- **Decision.** C7's verified CSS is re-expressed as four owned stylesheets plus small React components, with no runtime dependencies.
+- **Alternative considered (Proposal 2):**
+  - What it was:
+    - CSS Modules per component
+    - Radix UI primitives (Switch, AlertDialog, Tooltip, Toast)
+    - `vite-plugin-pwa` with Workbox precache and an update prompt
+  - Why it was rejected:
+    - The prototype's measured contrast, focus, and grid results would have to be re-verified after translating them into modules.
+    - Precaching adds a stale-shell risk for an app that cannot work without its server.
+    - It adds about 7 dependencies, and a modal dialog departs from the reviewed inline confirmation.
 
-- **Overview.**
-  - Rebuild the UI as CSS Modules per component, with design tokens in one shared file.
-  - Use Radix UI primitives for interactive widgets: Switch, AlertDialog for delete confirmation, Tooltip for "Possible gap", Toast for saved messages.
-  - Generate the PWA with `vite-plugin-pwa` (Workbox): precache the app shell, show a runtime offline fallback, and generate the icon set with `@vite-pwa/assets-generator`.
-- **Key Changes:**
-  - **Styling and components.**
-    - `*.module.css` per component, plus `tokens.css`.
-    - Components similar to Proposal 1, but built on `@radix-ui/react-switch`, `-alert-dialog`, `-tooltip`, and `-toast`.
-    - Delete becomes a modal dialog instead of the prototype's inline confirm row.
-  - **PWA.**
-    - `vite-plugin-pwa` in `frontend/vite.config.ts:1-15` with `registerType: 'prompt'`.
-    - The app shell is precached. A `NetworkOnly` rule covers `/api/*`, and an offline fallback is shown for navigations.
-    - An "Update available — reload" toast is shown when a new build is deployed.
-    - The manifest and icons are generated at build time.
-  - **Backend:** same as shared (migration `0003`).
-  - **Dependencies:** about 5 runtime packages and 2 dev packages added to `frontend/package.json`.
-- **Trade-offs:**
-  - **Benefits:**
-    - Battle-tested focus management and ARIA for dialogs, tooltips, and toasts.
-    - Scoped CSS avoids global naming collisions as the app grows.
-    - An installed window opens instantly from the precache.
-    - Icon generation is automated.
-  - **Costs:**
-    - The prototype's CSS must be translated into per-component modules, so the reviewed cascade is re-expressed and the review's measurements must be re-verified rather than carried over.
-    - Workbox precache adds the stale-app risk. An old shell can talk to a new API after an upgrade, so this needs an update prompt and testing.
-    - Dependencies grow for a local single-user app; the bundle grows and there are more upgrade chores.
-    - A modal delete dialog departs from the reviewed inline pattern.
-    - With the backend down, a precached UI still loads and then fails every request, which is arguably more confusing than an honest offline page.
-- **Validation:**
-  - Everything in Proposal 1.
-  - Workbox update-flow tests: a build, then a second build, then the prompt and the reload.
-  - Radix components in vitest with user-event.
-  - Lighthouse installability.
-  - Checks that `/api` responses are never cached (DevTools Application panel, during review).
-- **Open Questions:**
-  - Is the precache wanted at all, given that nothing works offline?
-  - Should the dialog replace the inline confirm, and how does it interact with the reviewed copy?
-  - Which Radix version supports React 19.3? To be checked before planning.
+### D2. Stylesheets and tokens
+- **Files** in `frontend/src/styles/`, imported in this order from `main.tsx`. `style.css` is deleted.
+  - `tokens.css`: custom properties on `:root`, dark values under `@media (prefers-color-scheme: dark)`. No color literals appear outside this file, except `#fff` for the switch thumb.
+  - `base.css`: element defaults, the focus ring (2 px `--accent` outline, 2 px offset), `.sr-only`, reduced-motion rules, and `::placeholder { color: var(--muted) }`.
+  - `layout.css`:
+    - the `.page-frame` container (`max-width: 78rem`, `--margin: 2rem`, `--gutter: 1.5rem`), shared by the header and `main`
+    - the 12-column page grid, with section rows on `subgrid`, and the rail (columns 9–12 with a left rule)
+    - the compact masthead
+    - container queries on the root wrapper at 900 px (single column, compact masthead everywhere, rail below content) and 640 px (vertical stepper, nav labels kept on one row)
+  - `components.css`: one block per component in D3.
+- **Effective C7 values** (merged from the prototype cascade, including the review fixes):
 
----
+  | Token | Light | Dark |
+  |---|---|---|
+  | `--bg` | `#f4f0e6` | `#161513` |
+  | `--surface` | `#f8f5ed` | `#1c1b18` |
+  | `--fg` | `#151412` | `#ece7dc` |
+  | `--muted` | `#4a4741` | `#b8b2a5` |
+  | `--subtle` | `#66625a` | `#8c8679` |
+  | `--border` | `#d4cdbd` | `#33302a` |
+  | `--border-strong` | `#151412` | `#ece7dc` |
+  | `--hover` | `#ebe5d7` | `#24221e` |
+  | `--accent` | `#8a1c14` | `#e0796d` |
+  | `--accent-fg` | `#fbf7ef` | `#161513` |
+  | `--accent-soft` | `#efdcd5` | `#3a211d` |
+  | `--link` | `#151412` | `#ece7dc` |
+  | `--ok` / `--ok-soft` | `#1e6b34` / `#e2f0e5` | `#7fd08f` / `#1a2b1e` |
+  | `--warn` / `--warn-soft` | `#6b5e00` / `#f1ecc8` | `#d9c25a` / `#2f2b16` |
+  | `--error` / `--error-soft` | `#a33a00` / `#fbe3d6` | `#ff9a62` / `#3a2418` |
+  | `--neutral-soft` | `#e9e3d5` | `#24221e` |
+  | `--info-soft` | `#ece6d8` | `#22201c` |
+  | `--disabled` | `#dcd9d0` | `#33322f` |
 
-Recommendation: Proposal 1.
-- C7 was designed and verified as plain CSS, with measured contrast, focus behavior, and grid alignment. Porting it directly keeps those results, adds no runtime dependencies, and suits a small local app.
-- A network-first service worker with only an offline page gives the D-014 install experience without the stale-shell problems that a precaching PWA brings for an app that cannot work offline anyway.
+- **Fonts.**
+  - Body: `"Iowan Old Style", "Hoefler Text", Georgia, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Microsoft YaHei", serif`.
+  - Heading: the same, starting with `"Big Caslon", "Baskerville"`.
+  - Inputs use the system sans.
+  - Labels, chips, badges, and nav use `font-variant-caps: all-small-caps`, never `text-transform: lowercase`. Reasons use sentence case at `0.88em`.
+- **Visual rules:**
+  - rules instead of boxes for run results, the add form, source rows, and history rows
+  - boxes only for the source preview, alerts, and the delete confirmation
+  - a 3 px rule above each topic and settings section
+  - a double rule under the masthead
+  - the switch has a 1.5 px `--muted` boundary in the off state
+
+### D3. Components (`frontend/src/components/`)
+- **`AppShell`.**
+  - Contains the skip link, the masthead (wordmark, today's date line, nav with `aria-current`), and `main#main[tabindex=-1]`.
+  - It is compact on the digest route and below 900 px.
+- **Layout and content:**
+  - `PageHead` (title, lede, actions)
+  - `SectionRow` (title column, content columns, optional margin note)
+  - `Rail` (receives content per state)
+  - `Stepper` (steps with visually hidden "(done)", "(in progress)", "(next)")
+  - `Progress` (`aria-labelledby` its visible label)
+  - `SummaryText` (paragraphs, plus "- " lines as `<ul>`; keeps today's logic, `frontend/src/pages/DigestView.tsx:35-50`; accepts `lang`)
+- **Controls and status:**
+  - `Button` (variants `primary`, `secondary`, `ghost`, `danger`, `danger-solid`; sizes `sm`, `lg`)
+  - `Chip` (tones `ok`, `neutral`, `warn`, `error`)
+  - `KindBadge` (Website feed / Podcast / YouTube channel, with icon)
+  - `ReasonLabel`
+  - `Alert` (`info`, `error` with `role="alert"`)
+  - `Switch` (a native checkbox with `role="switch"`; the label holds only the track and text; optional `describedBy`)
+  - `StatusRegion` (one persistent visually hidden `role="status"` per page)
+- **Helpers:**
+  - `Icon` (the inline SVG set from `render.js`)
+  - `useJump(id)`: scrolls with `behavior: 'auto'` under reduced motion and `'smooth'` otherwise, then calls `focus({ preventScroll: true })`.
+
+### D4. Pages and their states
+Each page reproduces the corresponding `render.js` function, including its copy. The state comes from the existing endpoints (`research.md`, "API shapes consumed by the UI").
+
+- **Generate** (`render.js generate()`).
+  - Its state is derived from:
+    - `GET /api/settings/model`: `key_set` false means first run
+    - `GET /api/sources`: none means an "add sources" hint
+    - `GET /api/digest-runs/active` and polling, as today (`Generate.tsx:37-53`)
+    - the run `status`
+  - Primary action per state:
+
+    | State | Primary action | Secondary |
+    |---|---|---|
+    | First run | Set up your model | Generate, disabled with reason |
+    | Idle | Generate digest | — |
+    | Succeeded | View digest | Generate digest |
+    | No new content | — | Generate digest |
+    | Failed (`auth_failed`, `insufficient_balance`, `model_not_configured`, `connection_failed`) | Check settings | Try again |
+    | Failed (other) | Try again | — |
+
+  - The failed copy states that summaries are reused and nothing was saved.
+  - The rail shows Last digest (from `GET /api/digests`[0]: "No. id · date, time"), Your sources by kind, and How it works. On first run it shows Getting started instead.
+  - The status region text is "Checking sources, N of M", "Summarizing, N of M", "Digest ready: N items", or "No new content".
+- **Digest** (`render.js digest()`).
+  - Compact masthead. The headline shows "No. {id}", the long date, and " · HH:MM".
+  - The index is shown only when there are 2 or more sections.
+  - Topic section rows: the title and overview (body color) in columns 1–3, items in 4–12 as a 9-column subgrid.
+    - An item is long when it has `points` or its summary is longer than 140 characters. Long items span 6 columns, short ones 3.
+    - A long item following a long item starts a new row with a top rule.
+    - Short items next to each other get a 1 px vertical rule.
+  - Creator updates: a section row with groups in columns of 3. A Creator-updates-only digest has a 3 px rule and the line "Nothing could be summarized this time. Here is what your sources published."
+  - `lang` uses `digest.language` (D6) on topic titles, overviews, summaries, and index entries. Item titles have no `lang`.
+  - The source kind uses `item.source_kind`: the icon plus a visually hidden kind label.
+- **History.**
+  - Rows show "No. {id} · long date · time", the topic previews, and the counts.
+  - The rail shows Archive (hidden when empty) and "Kept as saved".
+- **Sources.**
+  - Add form (rule style). The URL input has `aria-describedby` set to the hint id, plus the error id in the error state with `aria-invalid="true"`.
+  - Preview becomes `secondary` while a preview is open.
+  - Rows show the `KindBadge`, a feed URL wrapped to 2 lines with `title`, the status chip (rate limited reads "Rate limited · try later"; "Possible gap" has an explanatory `title`), the time, and Delete.
+  - Delete swaps the row for an inline confirmation in place of `window.confirm` (`Sources.tsx:83-92`).
+  - The rail shows "What you can add" and Checks (Checks is hidden when there are no sources).
+- **Settings.**
+  - Three section rows (Model provider, Digest, YouTube). Step numbers are `aria-hidden`, followed by visually hidden "Step N: ".
+  - The privacy note sits in the margin (columns 10–12).
+  - A saved key shows "Saved key ending in {last4}" as text, with an empty input "Paste a new key to replace it" (`aria-describedby` links the saved text, the hint, and the error).
+  - The caption risk note sits directly under its switch and is linked by `aria-describedby`.
+  - Today's save flow and error copy are kept (`Settings.tsx:14-27,78-102`).
+
+### D5. Accessibility mechanics
+- **The prototype's verified behaviors carry over:**
+  - `lang` (D4)
+  - focus moves (`useJump` for the skip link and the index)
+  - `StatusRegion`
+  - `Progress` names
+  - linked hints and errors
+  - reduced motion
+  - switch hit area
+  - stepper text
+  - visible kind labels
+- **Tests:**
+  - `vitest-axe` runs `axe` on every page state in the tests, and fails on any violation.
+  - A token test parses `tokens.css` and asserts the contrast pairs listed in the review (text ≥ 4.5:1, the switch boundary ≥ 3:1) for both themes. It is a port of the prototype check, with the correct cascade.
+
+### D6. Snapshot fields (backend)
+- Alembic `0003`:
+  - `digests.language` (String(40), nullable)
+  - `digest_items.source_kind` (String(16), nullable)
+- `digest/runner.py` writes `language` (the language read at run start, `runner.py:174-175`) and, for every saved digest item, the item's `Source.kind` at save time.
+- `GET /api/digests/{id}` returns `language`, and `source_kind` on topic items and on Creator updates groups and items (`api/digests.py:26-70`).
+- Old rows return `null`; the UI then omits `lang` and the kind icon.
+- Downgrade drops both columns.
+
+### D7. Installable app and offline page
+- `frontend/public/manifest.webmanifest`:
+  - `name` and `short_name` "CatchUp", `start_url` and `scope` "/", `display: "standalone"`
+  - `background_color: #f4f0e6`, `theme_color: #151412`
+  - icons `icon-192.png`, `icon-512.png`, `icon-maskable-512.png` (`purpose: "maskable"`, mark inside the 80% safe zone), `icon-1024.png`
+- `index.html` adds the manifest link, `theme-color` meta tags (light and dark), and `apple-touch-icon` (`frontend/index.html:1-12`).
+- **Icon:**
+  - The C7 mark is a `--fg` square with two `--bg` horizontal rules, like the prototype's `.logo`.
+  - It is drawn by `frontend/scripts/make-icons.py`, a standard-library Python PNG writer (zlib, no dependencies), which also writes `icon.svg`.
+  - The generated PNGs are committed, and the script is re-runnable.
+- **`frontend/public/sw.js`** (about 40 lines, plain JS):
+  - `CACHE = 'catchup-offline-v1'`
+  - `install`: cache `/offline.html`, then `skipWaiting()`
+  - `activate`: delete other caches, then `clients.claim()`
+  - `fetch`: only for `request.mode === 'navigate'`, `fetch(request)`, and on a network error (rejection) respond with the cached `/offline.html`. Responses (4xx/5xx) pass through, and all other requests are not intercepted. It never calls `cache.put` for anything else, so app code and `/api` are never cached.
+- **`frontend/public/offline.html`:** a self-contained page with inline CSS that uses the D2 tokens (both themes through `prefers-color-scheme`), the wordmark, the message and the two commands from the prototype, and a Reload button.
+- **Registration:** in `main.tsx`, only when `import.meta.env.PROD` and `'serviceWorker' in navigator`, register `/sw.js` with scope `/`.
+- **Serving:** no backend change. Vite copies `public/` to the `dist/` root, and the SPA fallback serves those files (`main.py:93-102`). The manifest MIME type was verified in research.
+
+### D8. Tests and parity
+- **Frontend tests:**
+  - Existing tests are rewritten for the new copy and roles, with no lower coverage.
+  - New tests per component, one test per prototype state per page, an axe scan in each, and the token test.
+  - `sw.js` is tested in vitest by loading it with a fake `self`, `caches`, and `fetch`:
+    - a navigation with a network error gets `offline.html`
+    - API and asset requests are not intercepted
+    - nothing besides `offline.html` is put in the cache
+- **Backend tests:** the migration upgrades and downgrades, the runner writes the snapshot fields, the API returns them, and old rows return `null`.
+- **Docker smoke** (`scripts/docker-smoke.sh`): `/manifest.webmanifest` returns 200 with `application/manifest+json`, `/sw.js` returns 200 with a JavaScript type, and `/offline.html` returns 200.
+- **Parity review (Claude):**
+  - screenshots of the prototype and the app side by side for every state, in both themes, at 1440 and 420 px
+  - the D5 measurements again
+  - a keyboard pass
+  - Chrome installability (DevTools) and the offline page with the container stopped
+
+## Risks / Trade-offs
+
+- [Pixel drift from the prototype during porting] → the prototype is the reference, and parity screenshots and the D5 measurements are part of review. Tasks quote the prototype function and CSS for each part.
+- [Global CSS naming collisions as the app grows] → one block per component, with class names prefixed by component, in `components.css`.
+- [Tests coupled to copy] → copy comes from the prototype and is intentional. Tests use roles first and text second.
+- [`subgrid` support] → supported in current Chrome, Edge, Safari, and Firefox. Narrow windows fall back to a single column regardless.
+- [Service-worker mistakes can trap users on old code] → the worker caches only `offline.html`, has a test that nothing else is cached, and uses `skipWaiting` + `clients.claim` with a versioned cache name. To remove a broken worker, unregister it in DevTools; this is documented in the README.
+- [CJK fallbacks differ by OS] → the stacks list macOS, Linux, and Windows faces. Review checks macOS; the others are documented as best effort.
+
+## Migration Plan
+
+- **Deploy:** migration `0003` runs at startup. Older digests show without a language mark or kind icons. The new frontend ships in the same image.
+- **Rollback:** an image without the change ignores the new columns, or downgrade `0003`. An installed worker keeps serving only the offline page on network errors, which is harmless; unregister it if needed.
+
+## Open Questions
+
+- None blocking. Exact screenshots for the README install section are produced during the manual test.

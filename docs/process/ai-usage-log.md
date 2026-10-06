@@ -575,3 +575,6 @@ Real usage records for the technical spec, alpha reflection, and final report. E
     - the switch hit area is 220×26 px
     - a single primary action per Generate state
     - strict contrast passes in both themes
+- **Proposal and plan (2026-10-06).** `/reppit-proposal` compared two approaches. P1 ported the prototype CSS with a minimal service worker; P2 used CSS Modules, Radix, and a Workbox precache. Before proposing, Claude found that saved digests lack a language and item source kinds (`models.py:128-161`), which C7 needs for `lang` and kind icons, so both proposals included migration `0003`.
+  - The user replied: "选方案一，按你的建议，提交后开始 /reppit-plan" (Choose Proposal 1, following your recommendations; commit, then start /reppit-plan).
+  - `/reppit-plan` wrote `proposal.md`, three spec deltas (new `user-interface`; modified `local-deployment` and `digest-history`), the final `design.md` (D1–D8, with the effective C7 token table extracted programmatically from the prototype cascade), and `tasks.md` (9 groups, 14 tasks). `openspec validate --strict` passes.

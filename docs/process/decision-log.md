@@ -80,3 +80,23 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - With required checks in place, `gh pr merge --auto` waits for green CI instead of merging at once (compare the PR #19 slip in `ai-usage-log.md`).
   - Requiring `docker` means no merge can break the published image.
 - First use: PR #20. Auto-merge was enabled after all six check runs on its head (`d97b79e`) had already succeeded, so it merged immediately, correctly (`b5fec1a`).
+
+## D-013 Podcasts and YouTube use transcripts only; captions are opt-in; no speech-to-text — accepted (2026-10-05)
+
+- **Decision** (change `add-podcast-and-video-sources`, #5 and #6):
+  - Podcast episodes are summarized only from transcripts their feeds publish (`<podcast:transcript>`).
+  - YouTube videos are summarized only from captions in the video's original language. CatchUp fetches them locally only when the user turns caption fetching on: off by default, with the YouTube Terms of Service conflict stated.
+  - Items without a transcript appear once, unsummarized, under "Creator updates":
+    - podcasts after a configurable wait (default 7 days)
+    - YouTube after a caption wait (default 24 hours) or at once for other failures
+  - Long texts are summarized in full, with a single-call budget derived from the model's `context_window`.
+- **Alternatives:**
+  - Summarizing show notes and descriptions: rejected, because it would claim to cover content that was not processed.
+  - The official YouTube Data API: captions can be downloaded only for videos the caller can edit.
+  - A third-party transcript service (suggested on #6): it needs a paid account and sends data to a third party.
+  - Speech-to-text of podcast audio through a user-supplied key, with ffmpeg in the image (Proposal 2): larger change, and not committed (`docs/handoff.md`). It remains a possible follow-up.
+  - Downloading YouTube audio with yt-dlp: the Terms of Service forbid downloading, and it needs PO tokens.
+- **Consequences:**
+  - Coverage depends on publishers: about 4% of indexed podcast episodes carry transcripts.
+  - YouTube RSS itself is intermittently unavailable (404 for all channels for 40+ minutes during testing).
+  - Track choice relies on private fields of `youtube-transcript-api`, which is pinned `<1.3`.

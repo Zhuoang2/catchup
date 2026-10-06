@@ -372,12 +372,17 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 
 ## 2026-10-04 — `add-podcast-and-video-sources`: merge decision and supplementary research (Claude Code, Opus 5.5, with a general-purpose subagent)
 
-- Prompt (user, in Chinese, excerpt): "Merge #5 and #6, then start the supplementary research", covering `<podcast:transcript>` formats, iTunes Lookup, DeepSeek context and output limits, and token counts for the 3.6-hour sample under different processing approaches. Before this, the user had made long-transcript truncation a must-handle item and asked whether their Bilibili workflow (a speech-to-text model on the audio, then an AI summary) would work for YouTube.
+- Prompts (user, verbatim, with English translations):
+  - "另外，你提的第 1 点（长字幕截断）很重要，请在方案里一并处理。" (Also, your point 1, long-transcript truncation, is important; handle it in the plan as well.)
+  - "哦，先不要合并。再尝试一下别的能处理 YouTube 视频的方法。我之前处理哔哩哔哩的视频是用一个语音转文字的模型去识别视频来获取字幕，来获取说话的内容，然后再让 AI 总结的。这套流程可以在 YouTube 上面用吗？" (Oh, don't merge yet. Try other ways of handling YouTube videos. For Bilibili videos I used a speech-to-text model to get captions of what is said, then had an AI summarize them. Can this pipeline work on YouTube?)
+  - "OK，我明白了。那我们就先合并五和六，然后开始补充调研吧。" (OK, I understand. Then let's merge #5 and #6 first and start the supplementary research.)
+
+  The research covered `<podcast:transcript>` formats, iTunes Lookup, DeepSeek context and output limits, and token counts for the 3.6-hour sample under different processing approaches.
 - Claude renamed the change folder, moved #5 to In Progress on the board, and ran `/reppit-research` in OpenSpec mode. A background subagent fetched the podcast namespace spec, six real transcript feeds, five feeds without transcripts, feedparser behavior, iTunes Lookup, and adoption statistics. In parallel, Claude read the code path and ran the current `discover()` live against podcast URLs.
 - Claude re-checked the two subagent findings that affect the design before writing them down:
   - Feed sizes against the 5 MB fetch limit: The Daily's full archive is 20.3 MB, and The Vergecast fails on main today.
   - feedparser keeping only the last `<podcast:transcript>` tag: 4 tags in the raw XML, 1 returned.
-- Token counts: Claude first asked to download DeepSeek's 1.9 MB offline tokenizer. The user asked why token counts were needed. Claude explained that they decide between a single call and chunking, and pointed out that `deepseek-flash`'s 1M-token context makes exact counts unnecessary. With the user's agreement, it used DeepSeek's documented character ratios instead: about 51k tokens for the 3.6-hour sample. Lesson: check the limit that drives the decision before asking for precise measurements.
+- Token counts: Claude first asked to download DeepSeek's 1.9 MB offline tokenizer. The user asked "为什么需要知道 token 数？" (Why do you need to know the token count?). Claude explained that they decide between a single call and chunking, and pointed out that `deepseek-flash`'s 1M-token context makes exact counts unnecessary. With the user's agreement, it used DeepSeek's documented character ratios instead: about 51k tokens for the 3.6-hour sample. Lesson: check the limit that drives the decision before asking for precise measurements.
 - Speech-to-text facts were recorded as context only. No audio was downloaded. YouTube's terms forbid downloading, and the handoff does not commit to transcription.
 - Date correction: entries above dated 2026-10-05 actually happened on 2026-10-04 (local time, per commit timestamps).
 
@@ -388,12 +393,12 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - P2: a digest-time provider chain; always chunked; speech-to-text for podcast audio through a user-supplied key; ffmpeg in the image.
 
   Claude recommended P1.
-- The user chose P1 and, before planning, sent five amendments (translated excerpt):
-  - "change 'not summarized' into a positive 'Creator updates' section … grouped by creator / show … no model call"
-  - "fix the contradiction between late transcripts and no repeats: podcast episodes wait up to 7 days … each item appears in only one digest"
-  - "do not hard-code the single-call limit: derive it from `context_window` returned by `/models`; fall back to 60,000 characters"
-  - "the captions library bypasses safe_fetch's spacing: fetch videos sequentially with the same host spacer, cap videos per run, record 'blocked' separately from 'no captions'"
-  - "prefer the video's original-language captions (manual > auto), never machine-translated"
+- The user chose P1 and, before planning, sent five amendments (verbatim excerpts, with English translations):
+  - "把"未总结（无字幕）"改成一个正面的版块"创作者更新"（Creator updates），放在主题摘要之后 … 按创作者 / 节目分组 … 不调用模型。" (Turn "not summarized (no captions)" into a positive "Creator updates" section after the topic summaries … grouped by creator / show … no model call.)
+  - "修正"晚到的字幕"和"不重复出现"的矛盾 … 播客条目没有文字稿时，先不进简报，最多等待 7 天 … 每个条目在所有简报里只出现一次。" (Fix the contradiction between "late transcripts" and "no repeats" … a podcast item without a transcript stays out of digests and waits up to 7 days … every item appears in exactly one digest.)
+  - "一次调用的上限不要写死 … 优先根据模型 /models 返回的 context_window 自动推算单次调用的字符上限；拿不到时退回 60,000 字符。" (Do not hard-code the single-call limit … derive it from the `context_window` returned by `/models`; fall back to 60,000 characters.)
+  - "它虽然没有 SSRF 风险，但绕过了 safe_fetch 的请求间隔和限流 … 逐个视频顺序获取，使用同一个 host spacer；每次运行设置获取字幕的视频数上限；把"被 YouTube 屏蔽"和"视频本身没有字幕"分开记录、分开显示。" (It has no SSRF risk, but it bypasses safe_fetch's spacing and rate limiting … fetch videos one by one with the same host spacer; cap the videos per run; record and show "blocked by YouTube" separately from "the video has no captions".)
+  - "优先使用视频原语言的字幕（人工字幕 > 自动字幕），不使用 YouTube 的机器翻译字幕；摘要语言由模型负责转换。" (Prefer captions in the video's original language (manual > auto), never YouTube's machine-translated captions; the model handles the summary language.)
 - **What the amendments fixed.** The user found a real flaw in Claude's design: "listed once" and "re-checked for 7 days" contradicted each other under the existing delivered/pending states. Claude had also left the single-call budget as a fixed number that suited only large-context models. Lesson: when a design adds a waiting state, walk through an item's full lifecycle across several runs before proposing it.
 - **What Claude added while revising, and the user accepted:**
   - a fifth reason, `captions_failed`
@@ -409,7 +414,7 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 
   `openspec validate --strict` passes.
 - **A drafting slip, caught before validation:** spec wording used "MAY" and "may" for normative rules, which the OpenSpec instructions forbid. Claude rewrote the sentences with SHALL/MUST.
-- **Independent plan review.** The user asked for a separate conversation to review the plan, and said its suggestions should not be accepted wholesale: each should be checked against the code before any change. Claude ran a fresh general-purpose subagent with no access to the planning conversation. Its instructions were to report only evidence-backed problems, without editing files.
+- **Independent plan review.** The user asked: "开另一个对话审查一遍你的计划，不要直接全盘接收他的修改建议，对照他的回答进行核实，确认真有问题了再进行修改" (Open another conversation to review your plan; don't accept its suggestions wholesale; verify them against its answers, and change things only once a problem is confirmed). Claude ran a fresh general-purpose subagent with no access to the planning conversation. Its instructions were to report only evidence-backed problems, without editing files.
   - The reviewer reported 20 findings: 1 blocker, 5 major, 14 minor or unverified.
 - **Claude's verification of each finding:**
   - Code reads:
@@ -442,7 +447,7 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - A lower fallback than 60,000 characters: the user set that value; small local models are documented instead.
 - **Raised with the user instead of changed:** whether newly uploaded videos without auto-captions yet deserve a grace period (unverified; it would change the user's "list once immediately" rule).
 - Lesson: the reviewer's highest-value findings were lifecycle bugs across runs and failure paths, which the planner had walked only on the happy path. Checking every claim also caught one wrong claim, which would have removed agreed scope.
-- **Second review round.** The user approved the caption wait suggested by the reviewer's #17, and asked for the revised plan to be re-checked by the same review conversation. Claude added `caption_wait`/`unplayable_wait` with `CATCHUP_CAPTION_WAIT_HOURS` (default 24). Reading the library source (1.2.4) showed why both cases must wait:
+- **Second review round.** The user replied "可以加等待期，修改完让审查对话重新检查一下" (Add the waiting period, then have the review conversation check again). Claude added `caption_wait`/`unplayable_wait` with `CATCHUP_CAPTION_WAIT_HOURS` (default 24). Reading the library source (1.2.4) showed why both cases must wait:
   - `TranscriptsDisabled` is raised whenever `captionTracks` is missing, so uploader-disabled and not-yet-generated captions cannot be told apart.
   - Upcoming premieres raise `VideoUnplayable`.
 - **The re-review found no blockers.**
@@ -485,3 +490,25 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - A live check phase gives The Daily `waiting` (no tags) and Buzzsprout `found` (35,559 characters).
   - Docker smoke 8/8.
 - **A reviewer script misled once.** The public-DOCTYPE script inserted a second DOCTYPE into a fixture that already had one, so it reported 1 candidate. Reading the script resolved it: the fixture alone yields 4. Lesson: when a proof disagrees with a passing test, read the proof too.
+
+## 2026-10-05 — `add-podcast-and-video-sources`: manual test with the user (Claude Code, Opus 5.5; Factory Droid session `72e07ca6`)
+
+- **Setup.** The image was built from the branch and run on `127.0.0.1:8000` with a throwaway volume. The user entered their DeepSeek key in Settings; Claude never handled it.
+- **Results:**
+  - Buzzsprout: a 35k-character transcript was summarized as an overview plus 6 key points, in zh-Hans.
+  - The Daily (added through its Apple URL): 64 episodes recorded, and 5 waiting for transcripts.
+  - Token totals of 8,663/1,893 matched the DeepSeek usage page (checked by the user).
+  - The live `/models` response gave `context_window` 1,048,576, which closed the plan's only open question.
+  - With captions off, a Creator-updates-only digest listed the Google for Developers video with `captions_off`; the Short did not appear.
+- **YouTube RSS outage.** Every channel's `feeds/videos.xml` returned 404 for more than 40 minutes, with any User-Agent. This is the intermittent outage noted in #6.
+  - For the captions-on step, with the user's choice ("选 B" (option B)), Claude reset the already delivered test video to `to_fetch` in the throwaway database, which simulates a new upload. The caption fetch and summary then ran for real.
+- **The test found two defects:**
+  - **Wrong caption language.** CatchUp summarized **Arabic** captions of an English video. YouTube had listed an auto-generated track for each of 20 auto-dub languages, Arabic first, which refuted the plan's unverified assumption that "the first auto-generated track is the original".
+    - Claude inspected the player data: `audioTracks[defaultAudioTrackIndex]` is `en-US.4` (dubs are `.10`), and its `defaultCaptionTrackIndex` points at the manual English track.
+    - The user approved the revised rule (YouTube's default-audio caption, then public heuristics, never a guess). Claude planned it (`fd95f85`, task group 9), and Droid implemented it (`1ce6342`, ~0.48M credits).
+    - The retest picked the 893-character manual English track. The summary now uses the original name "Journal Receipts" instead of a translated one.
+  - **Misleading token display.** Runs without model calls showed "Tokens: not reported". Claude fixed it directly as a small change with tests and a spec scenario (`40ff3d2`); the retest shows 0/0.
+- **Follow-ups (not in this change):**
+  - A 404 on a declared feed is reported as "The declared feed could not be parsed" (pre-existing). Filed as a new issue.
+  - One confirm returned 422 and could not be reproduced. The cache was verified with a stable feed; the likely cause is the YouTube 404 flapping.
+- Lesson: an assumption the plan explicitly marked "unverified" failed in the first real test. Marking it made the cause quick to find. Testing with a real multi-language video earlier, during research, would have caught it before implementation.

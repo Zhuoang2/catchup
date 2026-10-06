@@ -2,6 +2,12 @@
 
 Real usage records for the technical spec, alpha reflection, and final report. Each entry: date, tool/model, purpose, prompt (verbatim or faithful excerpt), outcome, problems, adjustment.
 
+## 2026-10-05 — Podcast and video sources, manual-test fixes (Factory Droid)
+
+- Prompt (faithful excerpt): "Manual-test round for add-podcast-and-video-sources ... two new commits ... track choice ... pull the branch's latest commit first, then implement tasks 9.1-9.2 in order ... no real network in tests, no real sleeps ... commit once after group 9."
+- Outcome: Starting worktree was already clean at `fd95f85`; no remote branch existed to pull. Replaced first-generated-track guessing with the pinned YouTube library's player caption JSON and default audio/caption indices, falling back to ordered public track heuristics when metadata is invalid or missing. Offline fakes reproduce the 21-track auto-dub case. Full checks: 349 backend tests at 96% coverage, 35 frontend tests, build, strict OpenSpec validation, Docker build and smoke passed.
+- Adjustment: Installed the missing backend and frontend dependencies from their lockfiles. No test required live YouTube or model access; the manual observations came from the user's review.
+
 ## 2026-10-05 — Podcast and video sources, review round 1 (Factory Droid)
 
 - Prompt (faithful excerpt): "Implement review fixes 8.1–8.7 on `add-podcast-and-video-sources` in task order ... use offline tests ... one group-8 commit ... Docker verification ... stop if D12 conflicts with earlier decisions; do not edit planning artifacts, push, tag, or open a PR."

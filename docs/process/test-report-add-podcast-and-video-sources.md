@@ -44,6 +44,27 @@ used in tests. Live providers and manual digest evaluation remain untested;
 no CI workflow ran locally. No image was pushed or tagged as a release.
 
 ## Requirement checks
+## Manual-test track choice fix, group 9 (2026-10-05)
+
+| Check | Result |
+| --- | --- |
+| `cd backend && uv run pytest --cov=catchup --cov-report=term` | **349 passed**, 96% statement coverage (1781/1859) |
+| `cd frontend && npm test -- --run` | **35 passed** |
+| `cd frontend && npm run build` | TypeScript and Vite build passed |
+| `openspec validate add-podcast-and-video-sources --strict` | Passed |
+| `docker build -t catchup:podcast-video-local .` | Passed on Docker Desktop 29.8.0 |
+| `scripts/docker-smoke.sh catchup:podcast-video-local` | Passed: health, API/UI, saved settings after restart, non-root process, volume, image contents |
+
+`test_youtube_captions.py` now covers the auto-dubbed 21-track case
+(Arabic first, manual English selected through the default audio/caption
+indices), reordered audio tracks, audio-language fallback, public
+manual/generated overlap, ambiguous original language, malformed metadata,
+and an offline fetch with the pinned library's real `TranscriptList.build`.
+The existing exception mapping, spacing, and caption-pass tests also pass.
+No live YouTube requests or model calls were made during this implementation;
+the manual findings were supplied by the reviewer. No CI workflow ran
+locally and no image was pushed or tagged as a release.
+
 
 - **Source recognition / limits / Apple:** `test_sources_api.py`,
   `test_safe_fetch.py` and `test_feed_cache.py` check majority-audio and

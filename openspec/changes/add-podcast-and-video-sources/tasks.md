@@ -259,7 +259,7 @@ Implementer notes:
 
 ## 9. Manual-test fixes
 
-- [ ] 9.1 Revise YouTube track choice in `backend/src/catchup/transcripts/youtube.py` per design.md D8 "Track choice (revised)": read the player caption metadata via the library's fetcher, determine the original language (default audio track's default caption → its audio language → public heuristics → `captions_failed`), and prefer the manual track in that language. Verify with fake captions JSON and fake transcript lists:
+- [x] 9.1 Revise YouTube track choice in `backend/src/catchup/transcripts/youtube.py` per design.md D8 "Track choice (revised)": read the player caption metadata via the library's fetcher, determine the original language (default audio track's default caption → its audio language → public heuristics → `captions_failed`), and prefer the manual track in that language. Verify with fake captions JSON and fake transcript lists:
   - "Auto-dubbed video": 21 `asr` tracks with Arabic first, manual `en`, and `audioTracks` whose default is `en-US.4` with `defaultCaptionTrackIndex` pointing at manual `en` → manual `en`
   - a default audio track without `defaultCaptionTrackIndex` → its `audioTrackId` language, manual preferred
   - no `audioTracks`, manual `en` + `asr` `en` → manual `en`
@@ -267,4 +267,4 @@ Implementer notes:
   - a metadata parsing error falls back to the heuristics
   - `.translate()` is never called
   - existing spacing, User-Agent, `trust_env`, and exception-mapping tests still pass
-- [ ] 9.2 Re-run the full checks from 7.1 and update `docs/process/test-report-add-podcast-and-video-sources.md`. Verify: all pass; report any skipped check with its reason.
+- [x] 9.2 Re-run the full checks from 7.1 and update `docs/process/test-report-add-podcast-and-video-sources.md`. Verify: all pass; report any skipped check with its reason.

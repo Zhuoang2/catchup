@@ -4,6 +4,7 @@ import logging
 
 import requests
 from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api._transcripts import TranscriptList
 from youtube_transcript_api._errors import (
     NoTranscriptFound, PoTokenRequired, RequestBlocked,
     TranscriptsDisabled, VideoUnplayable,
@@ -33,13 +34,51 @@ class SpacedSession(requests.Session):
         return super().send(request, **kwargs)
 
 
-def choose_track(tracks):
+def _primary(language: str) -> str:
+    return language.split("-", 1)[0].lower()
+
+
+def _player_language(captions_json: dict) -> str | None:
+    audio_tracks = captions_json.get("audioTracks")
+    index = captions_json.get("defaultAudioTrackIndex")
+    if not isinstance(audio_tracks, list) or type(index) is not int or not 0 <= index < len(audio_tracks):
+        return None
+    audio = audio_tracks[index]
+    captions = captions_json.get("captionTracks")
+    caption_index = audio.get("defaultCaptionTrackIndex")
+    if (isinstance(captions, list) and type(caption_index) is int
+            and 0 <= caption_index < len(captions)):
+        language = captions[caption_index].get("languageCode")
+        if isinstance(language, str) and language.strip():
+            return language
+    audio_id = audio.get("audioTrackId")
+    if isinstance(audio_id, str):
+        return audio_id.split(".", 1)[0] or None
+    return None
+
+
+def _inferred_language(tracks: list) -> str | None:
+    manual = [track for track in tracks if not track.is_generated]
+    auto = [track for track in tracks if track.is_generated]
+    generated_languages = {_primary(track.language_code) for track in auto}
+    match = next((track for track in manual if _primary(track.language_code) in generated_languages), None)
+    if match is not None:
+        return match.language_code
+    if len(auto) == 1:
+        return auto[0].language_code
+    if len(manual) == 1:
+        return manual[0].language_code
+    return None
+
+
+def choose_track(tracks, language: str):
     listed = list(tracks)
-    auto = next((track for track in listed if track.is_generated), None)
-    if auto is not None:
-        return next((track for track in listed
-                     if not track.is_generated and track.language_code == auto.language_code), auto)
-    return next((track for track in listed if not track.is_generated), None)
+    primary = _primary(language)
+    return next((track for track in listed if not track.is_generated
+                 and _primary(track.language_code) == primary), None) or next(
+                     (track for track in listed if track.is_generated
+                      and _primary(track.language_code) == primary), None,
+                 )
 
 
 def _join_snippets(snippets) -> str:
@@ -58,8 +97,20 @@ def _join_snippets(snippets) -> str:
 def fetch_captions(video_id: str, spacer: HostSpacer) -> tuple[str, str | None]:
     try:
         with SpacedSession(spacer) as session:
-            tracks = api_factory(http_client=session).list(video_id)
-            track = choose_track(tracks)
+            api = api_factory(http_client=session)
+            captions_json = api._fetcher._fetch_captions_json(video_id)
+            tracks = list(TranscriptList.build(api._fetcher._http_client, video_id, captions_json))
+            if not tracks:
+                return "caption_wait", None
+            try:
+                language = _player_language(captions_json)
+            except Exception:
+                language = None
+            if not language:
+                language = _inferred_language(tracks)
+            if not language:
+                return "captions_failed", None
+            track = choose_track(tracks, language)
             if track is None:
                 return "caption_wait", None
             snippets = track.fetch()

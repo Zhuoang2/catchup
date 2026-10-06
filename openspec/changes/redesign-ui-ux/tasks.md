@@ -11,7 +11,7 @@ Implementer notes:
   - Tests use **no real sleeps** (fake timers for polling).
   - Tests write nothing outside temp dirs.
   - No new runtime dependencies in `frontend/package.json`. Allowed new dev dependencies: `vitest-axe` and `axe-core`.
-  - No color literals outside `frontend/src/styles/tokens.css`, except `#fff` for the switch thumb, its `rgba(0, 0, 0, .25)` shadow, and the inline CSS of `offline.html`, which mirrors the tokens.
+  - No color literals in the app's stylesheets and components (`.css` and `.tsx` files and non-test `.ts` files under `frontend/src/`) outside `frontend/src/styles/tokens.css`, except `#fff` for the switch thumb and its `rgba(0, 0, 0, .25)` shadow. The rule does not apply to files that must state colors literally and mirror the D2 tokens: the inline CSS of `offline.html`, the `background_color` and `theme_color` in `manifest.webmanifest`, the `theme-color` meta tags in `index.html` (light `#f4f0e6`, dark `#161513`), `make-icons.py` and the icons it writes, and test files (for example the `#77736a` case in `tokens.test.ts`).
   - Keep the CI job names `backend`, `frontend`, and `docker`.
   - Never push, tag, or open a PR.
 - Backend commands run from `backend/` with uv; frontend commands run from `frontend/` with npm.

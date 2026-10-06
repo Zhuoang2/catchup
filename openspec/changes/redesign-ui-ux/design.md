@@ -60,7 +60,7 @@ FastAPI serves `dist/` through an `/assets` mount and an SPA fallback that serve
 
 ### D2. Stylesheets and tokens
 - **Files** in `frontend/src/styles/`, imported in this order from `main.tsx`. `style.css` is deleted.
-  - `tokens.css`: custom properties on `:root`, dark values under `@media (prefers-color-scheme: dark)`. No color literals appear outside this file, except `#fff` for the switch thumb, its `rgba(0, 0, 0, .25)` shadow, and the inline CSS of `offline.html`.
+  - `tokens.css`: custom properties on `:root`, dark values under `@media (prefers-color-scheme: dark)`. No color literals appear in the app's stylesheets and components outside this file, except `#fff` for the switch thumb and its `rgba(0, 0, 0, .25)` shadow. Files that must state colors literally mirror these tokens: `offline.html`, the manifest, the `theme-color` meta tags, the icon script and icons (D7), and tests.
   - `base.css`: element defaults, the focus ring (2 px `--accent` outline, 2 px offset), `.sr-only`, reduced-motion rules, and `::placeholder { color: var(--muted) }`.
   - `layout.css`:
     - the `.page-frame` container (`max-width: 78rem`, `--margin: 2rem`, `--gutter: 1.5rem`), shared by the header and `main`
@@ -207,7 +207,7 @@ Each page reproduces the corresponding `render.js` function, including its copy.
   - `name` and `short_name` "CatchUp", `start_url` and `scope` "/", `display: "standalone"`
   - `background_color: #f4f0e6`, `theme_color: #151412`
   - icons `icon-192.png`, `icon-512.png`, `icon-maskable-512.png` (`purpose: "maskable"`, mark inside the 80% safe zone), `icon-1024.png`
-- `index.html` adds the manifest link, `theme-color` meta tags (light and dark), and `apple-touch-icon` (`frontend/index.html:1-12`).
+- `index.html` adds the manifest link, `theme-color` meta tags, and `apple-touch-icon` (`frontend/index.html:1-12`). The meta tags use `--bg` (light `#f4f0e6` with `media="(prefers-color-scheme: light)"`, dark `#161513` with `media="(prefers-color-scheme: dark)"`) so the window bar blends with the masthead once the page has loaded; the manifest `theme_color` applies before that.
 - **Icon:**
   - The C7 mark is a `--fg` square with two `--bg` horizontal rules, like the prototype's `.logo`.
   - It is drawn by `frontend/scripts/make-icons.py`, a standard-library Python PNG writer (zlib, no dependencies), which also writes `icon.svg`.

@@ -227,11 +227,15 @@ def run_digest(app: FastAPI, run_id: int) -> None:
             run.waiting_count = waiting
             run.deferred_count = deferred
             session.commit()
+        if not inputs:
+            # No item reaches the model, so the run used no tokens (not "not reported").
+            usage = (0, 0)
         if not inputs and not creator_updates:
             with factory() as session:
                 run = session.get(DigestRun, run_id)
                 run.status = "no_new_content"
                 run.finished_at = utc_now()
+                _write_usage(run, usage)
                 session.commit()
             return
 

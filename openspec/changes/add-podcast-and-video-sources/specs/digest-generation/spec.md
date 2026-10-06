@@ -114,8 +114,12 @@ When the provider reports no context window, the budget MUST be 60,000 character
 - **THEN** a 50,000-character text is summarized in 3 parts and combined, whatever the model's context window
 
 ### Requirement: Report model token usage
-For each run, the system SHALL record the input and output tokens that the provider reports for the run's model calls. The run view and the saved digest MUST show the totals. When the provider reports no usage, the totals are shown as not reported. Prices are not shown.
+For each run, the system SHALL record the input and output tokens that the provider reports for the run's model calls. The run view and the saved digest MUST show the totals. A run that makes no model calls shows totals of 0. When the provider reports no usage for calls that were made, the totals are shown as not reported. Prices are not shown.
 
 #### Scenario: Usage reported
 - **WHEN** a run makes model calls whose responses report usage
 - **THEN** the run view and the saved digest show the total input and output tokens of that run
+
+#### Scenario: No model calls
+- **WHEN** a run ends with no new content, or saves a digest that has only Creator updates
+- **THEN** the run view and the digest show 0 input and 0 output tokens, not "not reported"

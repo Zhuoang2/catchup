@@ -126,6 +126,17 @@ def test_no_new_content_includes_wait_and_deferred_counts(ready, monkeypatch):
         "no_new_content", 2, 1,
     )
     assert fake.calls == []
+    assert (result["prompt_tokens"], result["completion_tokens"]) == (0, 0)
+
+
+def test_creator_updates_only_digest_reports_zero_tokens(ready):
+    client, fake = ready
+    add_item(client, "youtube", "captions_off")
+    result = execute(client)
+    assert result["status"] == "succeeded" and fake.calls == []
+    digest = client.get(f"/api/digests/{result['digest_id']}").json()
+    assert digest["topics"] == [] and len(digest["creator_updates"]) == 1
+    assert (digest["prompt_tokens"], digest["completion_tokens"]) == (0, 0)
 
 
 def test_failed_save_keeps_expiry_status_pending(ready):

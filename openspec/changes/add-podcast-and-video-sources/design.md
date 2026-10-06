@@ -223,11 +223,19 @@ See `proposal.md` for motivation and `research.md` for the current code and exte
     - sets the CatchUp User-Agent
     - applies a default timeout of (10 s connect, 30 s read)
   - The API object is created through a module-level factory, so tests inject a fake.
-- **Track choice** (library 1.2.4: `Transcript` has `language_code` and `is_generated`).
-  - Call `.list(video_id)`.
-  - The original language is the `language_code` of the first auto-generated track. Take the manually created track in that language if any, else the auto-generated track.
-  - With no auto-generated track (best effort, spec): the only manual track, else the first listed manual track.
-  - `.translate()` is never called. `.fetch()` the chosen track and join snippet texts into paragraphs.
+- **Track choice** (revised 2026-10-05 after manual testing; library 1.2.4).
+  - **What testing showed.** The original rule ("the first auto-generated track is the original language") failed on `Rnz9mOyxk0k`.
+    - YouTube auto-dubs that video into 20 languages, and lists an auto-generated (`kind: asr`) track for each dub, Arabic first, in alphabetical order.
+    - So CatchUp summarized Arabic captions of an Arabic dub.
+    - The player data the library already fetches says which track is original: `captions.playerCaptionsTracklistRenderer.audioTracks[defaultAudioTrackIndex]` has `audioTrackId` `en-US.4` (dubs are `.10`) and `defaultCaptionTrackIndex` 3, the manual English track.
+    - For `s7d2d8FhevU` (no dubs), the same fields give the single audio track and caption index 0 (manual English).
+    - The order of `audioTracks` changes between requests, so only the indices are meaningful.
+  - **Fetching.** Use `api._fetcher._fetch_captions_json(video_id)` (the same 2 requests as `.list()`), then `TranscriptList.build(api._fetcher._http_client, video_id, captions_json)`. These are private library APIs. The version is pinned `<1.3`, and any exception from reading the metadata (not from fetching) falls back to step 2 with the public `TranscriptList`.
+  - **Original language:**
+    1. If `audioTracks` and a valid `defaultAudioTrackIndex` exist: take `defaultCaptionTrackIndex` of that audio track, when valid. Its `captionTracks[i].languageCode` is the original language. Otherwise use the `audioTrackId` language (the part before `.`).
+    2. Otherwise, the public heuristics in the spec's order: a manual track whose language (primary subtag) also has a generated track; else the only generated track; else the only manual track.
+    3. Otherwise → `captions_failed`, with no track fetched.
+  - **Choosing a track in that language:** match on the primary subtag. Use the manual track if present, else the generated track. `.translate()` is never called.
 - **Exception mapping:**
 
   | Exception | Status |
@@ -322,6 +330,8 @@ These were found when Claude reviewed the implementation, together with an indep
 - **Summary rendering.** `DigestView` `SummaryText` keeps every line in order: "- " lines become list items, and other lines become paragraphs. Verified: today, text after the first bullet that is not itself a bullet is dropped.
 - **Creator updates grouping.** Sort by `(source_name.casefold(), source_name, …)` so each exact source name forms one contiguous group with a unique key.
 
+- **Original-language track (manual test, 2026-10-05):** see D8 "Track choice (revised)". This was found when CatchUp summarized an Arabic dub's captions for an English video.
+
 ## Risks / Trade-offs
 
 - [The provider overstates `context_window`, or the 1 char/token assumption fails for some script] → the call returns 400, which becomes "summary unavailable" (`client.py:73-76`). The README documents `CATCHUP_SINGLE_CALL_CHARS`. Automatic shrink-and-retry is a non-goal.
@@ -330,6 +340,7 @@ These were found when Claude reviewed the implementation, together with an indep
 - [Podcasts without the transcript tag (Lex Fridman, The Daily, The Vergecast)] → their episodes reach Creator updates after the wait. This is honest, but thin coverage. Speech-to-text remains a possible follow-up (D1).
 - [A 32 MB feed parsed on every run takes memory and time] → bounded by the limit and the 30 s deadline; the limit is configurable.
 - [Matching lxml items to feedparser entries by guid or link can miss] → feedparser's single `podcast_transcript` is the fallback. If both miss, the item is `waiting`, then Creator updates. Fixture tests cover guid and link matching.
+- [Track choice reads private fields of youtube-transcript-api] → the version is pinned `<1.3`; any metadata error falls back to the public heuristics, and an undeterminable language becomes `captions_failed` instead of a wrong-language summary. Upgrading the library requires re-running the track-choice tests.
 - [Caption waits use the per-run cap first] → with more than `CATCHUP_CAPTIONS_PER_RUN` waiting videos, new videos are deferred for up to `CATCHUP_CAPTION_WAIT_HOURS`. This is bounded, and the deferred count is shown.
 - [Captions disabled by the uploader look the same as captions not generated yet] → both wait `CATCHUP_CAPTION_WAIT_HOURS` (default 24), so such a video is retried for up to a day before it is listed. Each retry costs up to 3 spaced requests within the per-run cap. How long YouTube takes to generate auto-captions is unverified; the default can be tuned after the alpha.
 - [Existing test fakes (`FakeModel` in `tests/test_digest_runner.py:23` and `tests/test_digest_stages.py:11`, `FixtureModel` in `tests/test_core_flow.py:20`, `FakeProvider` in `tests/test_settings_api.py:23`) lack `usage_totals` and return plain ID lists] → tasks update them. The runner also tolerates missing usage.

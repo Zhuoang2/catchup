@@ -115,11 +115,27 @@ Blocked requests and other failures do not wait.
 - **THEN** the video is included once under Creator updates with the reason "the video has no captions"
 
 ### Requirement: Use captions in the video's original language
-When fetching YouTube captions, the system SHALL use captions in the video's original language, identified as the language of its auto-generated track. A manually created track in that language MUST be preferred over the auto-generated one. Machine-translated tracks MUST NOT be used. When a video has no auto-generated track, its original language cannot be identified. The system then uses a manually created track on a best-effort basis: the only one, else the first listed. The summary is still written in the digest language.
+When fetching YouTube captions, the system SHALL use captions in the video's original language. Machine-translated tracks MUST NOT be used, and caption tracks that YouTube generates for dubbed audio tracks are not the original. The original-language track is determined in this order:
+1. YouTube's player data reports a default audio track. The system uses that track's default caption track. If none is reported, it uses the language of the default audio track.
+2. Otherwise, the system infers the language:
+   - the language of a manually created track that also has an auto-generated track
+   - else the only auto-generated track
+   - else the only manually created track
+3. Otherwise, the original language cannot be determined. The system MUST NOT pick a track, and the video is recorded as "captions could not be fetched".
+
+Within the original language, a manually created track MUST be preferred over an auto-generated one. The summary is still written in the digest language.
 
 #### Scenario: Manual and auto-generated tracks
-- **WHEN** a video has a manually created English track and an auto-generated English track
+- **WHEN** a video has a manually created English track and an auto-generated English track, and English is its original language
 - **THEN** the manually created track is used
+
+#### Scenario: Auto-dubbed video
+- **WHEN** a video whose default audio track is English has 21 auto-generated tracks in different languages, listed with Arabic first, and one manually created English track
+- **THEN** the manually created English track is used, not the Arabic one
+
+#### Scenario: Original language cannot be determined
+- **WHEN** YouTube reports no default audio track and a video has auto-generated tracks in several languages and no manually created track
+- **THEN** no track is used and the video is recorded as "captions could not be fetched"
 
 #### Scenario: Digest language differs
 - **WHEN** a video's original language is English and the digest language is Simplified Chinese

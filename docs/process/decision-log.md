@@ -100,3 +100,19 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Coverage depends on publishers: about 4% of indexed podcast episodes carry transcripts.
   - YouTube RSS itself is intermittently unavailable (404 for all channels for 40+ minutes during testing).
   - Track choice relies on private fields of `youtube-transcript-api`, which is pinned `<1.3`.
+
+## D-014 Local web app, installable as a PWA; no native desktop packaging — accepted (2026-10-05)
+
+- **Decision.** CatchUp stays a self-hosted web application that the user runs locally (D-006, D-011) and opens in a browser. It is made installable as a Progressive Web App:
+  - an app manifest (name, icons, theme color)
+  - an optional offline page that says CatchUp is not running when the backend is down
+
+  Installed, it opens in its own window with a Dock/Start-menu icon. Delivery stays one Docker image, or a run from source. The next UI work focuses on UI/UX design rather than packaging.
+- **Alternatives:**
+  - Plain web page only: the same app without install support. The PWA adds little code and gives an app-like window.
+  - A native desktop app (Tauri or Electron, bundling the Python backend): it would remove the Docker requirement, but adds multi-platform builds, macOS signing and notarization, and auto-update, plus a second release line next to Docker. The course grades the development process, not packaging, and the risk before the 2026-12-10 demo is high. Kept as a possible stretch goal.
+- **Consequences:**
+  - The backend must still be started first; a PWA does not remove the Docker or source setup.
+  - Install works in Chrome and Edge, and in Safari on macOS via "Add to Dock". Firefox desktop has no install, but works as a web page.
+  - `localhost` counts as a secure context, so local installs work.
+  - The tech spec (#16) describes the architecture as a local web app plus PWA.

@@ -10,6 +10,7 @@ from sqlalchemy import event, select
 from catchup.crypto import encrypt_key
 from catchup.digest.runner import run_digest, start_run
 from catchup.llm.client import AuthFailed, InsufficientBalance, ProviderError
+from catchup.llm.client import ModelInfo
 from catchup.main import create_app
 from catchup.models import (
     AppSettings, Digest, DigestItem, DigestRun, DigestTopic, Item, ModelConfig, Source, SourceCheck,
@@ -40,6 +41,12 @@ class FakeModel:
     def close(self):
         pass
 
+    def list_models(self):
+        return []
+
+    def usage_totals(self):
+        return None
+
 
 @pytest.fixture
 def environment(test_settings):
@@ -69,7 +76,7 @@ def seed(client, count=1, sources=1, language="en"):
 
 
 def stub_collection(monkeypatch, on_check=None):
-    def check(session, source, run_id, _settings, *, spacer=None):
+    def check(session, source, run_id, _settings, *, spacer=None, transcripts=None):
         if on_check:
             on_check()
         row = SourceCheck(run_id=run_id, source_id=source.id, status="no_new_items",
@@ -188,6 +195,9 @@ def test_all_items_deleted_during_grouping_does_not_save_empty_digest(environmen
     stub_collection(monkeypatch)
 
     class DeletingModel(FakeModel):
+        def usage_totals(self):
+            return (12, 4)
+
         def chat_json(self, messages, max_tokens):
             if '"item_refs"' in messages[0]["content"]:
                 with environment.app.state.session_factory() as session:
@@ -198,7 +208,40 @@ def test_all_items_deleted_during_grouping_does_not_save_empty_digest(environmen
     environment.app.state.model_client_factory = lambda *_: DeletingModel()
     result = execute(environment)
     assert result["status"] == "no_new_content"
+    assert (result["prompt_tokens"], result["completion_tokens"]) == (12, 4)
     assert all_rows(environment, Digest) == []
+
+
+def test_run_and_saved_digest_show_reported_tokens(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+
+    class UsageModel(FakeModel):
+        def usage_totals(self):
+            return (25, 10)
+
+    environment.app.state.model_client_factory = lambda *_args: UsageModel()
+    result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert (result["prompt_tokens"], result["completion_tokens"]) == (25, 10)
+    digest = environment.get(f"/api/digests/{result['digest_id']}").json()
+    assert (digest["prompt_tokens"], digest["completion_tokens"]) == (25, 10)
+
+
+def test_failed_run_preserves_reported_usage(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+
+    class UsageModel(FakeModel):
+        def usage_totals(self):
+            return (7, 2)
+
+    environment.app.state.model_client_factory = lambda *_args: UsageModel([
+        {"summary": "Summary"}, ProviderError("group failed"),
+    ])
+    result = execute(environment)
+    assert result["status"] == "failed"
+    assert (result["prompt_tokens"], result["completion_tokens"]) == (7, 2)
 
 
 def test_source_deleted_during_summarization_is_skipped(environment, monkeypatch):
@@ -260,7 +303,7 @@ def test_missing_group_ref_goes_to_other_and_unknown_ref_is_ignored(environment,
 def test_no_content_reports_failed_source_without_digest(environment, monkeypatch):
     seed(environment, count=0, sources=2)
 
-    def check(session, source, run_id, _settings, *, spacer=None):
+    def check(session, source, run_id, _settings, *, spacer=None, transcripts=None):
         row = SourceCheck(run_id=run_id, source_id=source.id, status="failed",
                           error="offline", possible_gap=True)
         session.add(row)
@@ -272,6 +315,40 @@ def test_no_content_reports_failed_source_without_digest(environment, monkeypatc
     assert len(result["source_checks"]) == 2
     assert result["source_checks"][0]["error"] == "offline"
     assert all_rows(environment, Digest) == []
+
+
+def test_runner_caches_matching_context_window(environment, monkeypatch):
+    seed(environment, count=0)
+    stub_collection(monkeypatch)
+
+    class WindowModel(FakeModel):
+        reads = 0
+
+        def list_models(self):
+            self.reads += 1
+            return [ModelInfo("other", 2048), ModelInfo("test", 1_000_000)]
+
+    model = WindowModel()
+    environment.app.state.model_client_factory = lambda *_args: model
+    assert execute(environment)["status"] == "no_new_content"
+    with environment.app.state.session_factory() as session:
+        assert session.get(ModelConfig, 1).context_window == 1_000_000
+    assert execute(environment)["status"] == "no_new_content"
+    assert model.reads == 1
+
+
+@pytest.mark.parametrize("bad_client", [
+    type("MissingList", (), {"close": lambda self: None}),
+    type("FailedList", (), {"close": lambda self: None,
+                             "list_models": lambda self: (_ for _ in ()).throw(RuntimeError("failure"))}),
+])
+def test_model_list_failure_does_not_block_run(environment, monkeypatch, bad_client):
+    seed(environment, count=0)
+    stub_collection(monkeypatch)
+    environment.app.state.model_client_factory = lambda *_args: bad_client()
+    assert execute(environment)["status"] == "no_new_content"
+    with environment.app.state.session_factory() as session:
+        assert session.get(ModelConfig, 1).context_window is None
 
 
 def test_language_change_resummarizes_and_keeps_old_snapshot(environment, monkeypatch):

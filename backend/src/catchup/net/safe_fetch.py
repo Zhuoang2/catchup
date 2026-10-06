@@ -98,8 +98,10 @@ def _check_address(url: str) -> None:
 
 
 def safe_fetch(url: str, *, same_origin: str | None = None, budget: list[int] | None = None,
-               spacer=None) -> FetchResponse:
+               spacer=None, max_bytes: int | None = None) -> FetchResponse:
     current = url
+    limit = MAX_BYTES if max_bytes is None else max_bytes
+    limit_label = f"{limit // (1024 * 1024)} MB" if limit % (1024 * 1024) == 0 else f"{limit} bytes"
     deadline = monotonic() + FETCH_DEADLINE_SECONDS
 
     def remaining(status_code: int | None = None) -> float:
@@ -158,9 +160,9 @@ def safe_fetch(url: str, *, same_origin: str | None = None, budget: list[int] | 
                         length = response.headers.get("content-length")
                         if length:
                             try:
-                                if int(length) > MAX_BYTES:
+                                if int(length) > limit:
                                     raise FetchError(
-                                        "fetch_failed", "The source response exceeds the 5 MB limit.", status_code,
+                                        "fetch_failed", f"The source response exceeds the {limit_label} limit.", status_code,
                                     )
                             except ValueError:
                                 raise FetchError(
@@ -170,9 +172,9 @@ def safe_fetch(url: str, *, same_origin: str | None = None, budget: list[int] | 
                         for chunk in response.iter_bytes():
                             remaining(status_code)
                             body.extend(chunk)
-                            if len(body) > MAX_BYTES:
+                            if len(body) > limit:
                                 raise FetchError(
-                                    "fetch_failed", "The source response exceeds the 5 MB limit.", status_code,
+                                    "fetch_failed", f"The source response exceeds the {limit_label} limit.", status_code,
                                 )
                         remaining(status_code)
                         return FetchResponse(

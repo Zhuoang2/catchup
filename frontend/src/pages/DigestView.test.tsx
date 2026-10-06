@@ -60,3 +60,80 @@ it('reports an unavailable digest', async () => {
   page()
   expect(await screen.findByRole('alert')).toHaveTextContent('Digest not found.')
 })
+
+it('renders creator updates after topics with saved wait labels', async () => {
+  fetchMock.mockResolvedValue(respond({
+    id: 7, created_at: '2026-10-03T10:00:00Z', model_id: 'test',
+    transcript_wait_days: 10,
+    topics: [{ title: 'Technology', overview: 'News', items: [] }],
+    creator_updates: [
+      { source_name: 'Show', items: [
+        { title: 'Episode', link: 'https://example.test/ep', published_at: null, reason: 'no_transcript' },
+      ] },
+      { source_name: 'Channel', items: [
+        { title: 'Off', link: 'https://example.test/off', published_at: null, reason: 'captions_off' },
+        { title: 'Missing', link: 'https://example.test/missing',
+          published_at: '2026-10-02T10:00:00Z', reason: 'no_captions' },
+        { title: 'Blocked', link: 'https://example.test/blocked', published_at: null, reason: 'blocked' },
+        { title: 'Failed', link: 'https://example.test/failed', published_at: null, reason: 'captions_failed' },
+      ] },
+    ],
+  }))
+  page()
+  const creator = await screen.findByRole('region', { name: 'Creator updates' })
+  expect(creator.compareDocumentPosition(screen.getByRole('region', { name: 'Technology' }))
+    & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
+  expect(screen.getByRole('region', { name: 'Show' })).toHaveTextContent('No transcript within 10 days')
+  expect(screen.getByRole('region', { name: 'Channel' })).toHaveTextContent('Caption fetching is off')
+  expect(screen.getByRole('region', { name: 'Channel' })).toHaveTextContent('This video has no captions')
+  expect(screen.getByRole('region', { name: 'Channel' })).toHaveTextContent('Blocked by YouTube')
+  expect(screen.getByRole('region', { name: 'Channel' })).toHaveTextContent('Captions could not be fetched')
+  expect(screen.getByRole('link', { name: 'Missing' }).closest('li')?.querySelector('time')).toBeTruthy()
+})
+
+it('shows transcript key points as a list', async () => {
+  fetchMock.mockResolvedValue(respond({
+    id: 7, created_at: '2026-10-03T10:00:00Z', model_id: 'test',
+    topics: [{ title: 'Podcast', overview: 'Overview', items: [{
+      title: 'Episode', link: 'https://example.test/ep', source_name: 'Show',
+      published_at: null, summary: 'Overview.\n- First point\n- Final point',
+      summary_unavailable: false,
+    }] }],
+    creator_updates: [],
+  }))
+  page()
+  expect(await screen.findByRole('region', { name: 'Podcast' })).toHaveTextContent('Overview.')
+  expect(screen.getByText('First point').tagName).toBe('LI')
+  expect(screen.getByText('Final point').tagName).toBe('LI')
+})
+
+it('keeps overview, bullets, and later prose in original order', async () => {
+  fetchMock.mockResolvedValue(respond({
+    id: 7, created_at: '2026-10-03T10:00:00Z', model_id: 'test',
+    topics: [{ title: 'Podcast', overview: '', items: [{
+      title: 'Episode', link: 'https://example.test/ep', source_name: 'Show',
+      published_at: null, summary: 'Overview\n- Key point\nContinuation\nClosing sentence',
+      summary_unavailable: false,
+    }] }],
+  }))
+  page()
+  const item = (await screen.findByRole('link', { name: 'Episode' })).closest('li')!
+  const blocks = Array.from(item.children).filter(element => element.textContent?.includes('Overview')
+    || element.textContent?.includes('Key point') || element.textContent?.includes('Closing sentence'))
+  expect(blocks.map(element => element.tagName)).toEqual(['P', 'UL', 'P'])
+  expect(blocks.map(element => element.textContent)).toEqual([
+    'Overview', 'Key point', 'Continuation\nClosing sentence',
+  ])
+})
+
+it.each([
+  [12, 4, 'Tokens: 12 in / 4 out'],
+  [null, null, 'Tokens: not reported'],
+])('shows saved token totals %s / %s', async (prompt, completion, text) => {
+  fetchMock.mockResolvedValue(respond({
+    id: 7, created_at: '2026-10-03T10:00:00Z', model_id: 'test',
+    topics: [], creator_updates: [], prompt_tokens: prompt, completion_tokens: completion,
+  }))
+  page()
+  expect(await screen.findByText(text)).toBeInTheDocument()
+})

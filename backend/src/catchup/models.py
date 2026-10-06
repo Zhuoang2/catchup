@@ -42,6 +42,7 @@ class ModelConfig(Base):
     model_id: Mapped[str] = mapped_column(String(255))
     api_key_encrypted: Mapped[str] = mapped_column(Text)
     api_key_last4: Mapped[str] = mapped_column(String(4))
+    context_window: Mapped[int | None] = mapped_column(Integer)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
 
 
@@ -50,6 +51,8 @@ class AppSettings(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     digest_language: Mapped[str] = mapped_column(String(40), default="en", server_default="en")
+    youtube_captions: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    youtube_skip_shorts: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
 
 
@@ -61,6 +64,7 @@ class Source(Base):
     site_url: Mapped[str] = mapped_column(Text)
     feed_url: Mapped[str] = mapped_column(Text, unique=True)
     input_url: Mapped[str] = mapped_column(Text)
+    kind: Mapped[str] = mapped_column(String(16), default="feed", server_default="feed")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
     last_check_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     last_check_status: Mapped[str | None] = mapped_column(String(32))
@@ -85,6 +89,7 @@ class Item(Base):
     summary: Mapped[str | None] = mapped_column(Text)
     summary_language: Mapped[str | None] = mapped_column(String(40))
     state: Mapped[str] = mapped_column(String(16))
+    transcript_status: Mapped[str | None] = mapped_column(String(16))
 
 
 class SourceCheck(Base):
@@ -109,6 +114,10 @@ class DigestRun(Base):
     status: Mapped[str] = mapped_column(String(32))
     items_total: Mapped[int] = mapped_column(Integer, default=0)
     items_done: Mapped[int] = mapped_column(Integer, default=0)
+    prompt_tokens: Mapped[int | None] = mapped_column(Integer)
+    completion_tokens: Mapped[int | None] = mapped_column(Integer)
+    waiting_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    deferred_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     error_kind: Mapped[str | None] = mapped_column(String(64))
     error_message: Mapped[str | None] = mapped_column(Text)
     digest_id: Mapped[int | None] = mapped_column(Integer)
@@ -125,6 +134,7 @@ class Digest(Base):
     model_id: Mapped[str] = mapped_column(String(255))
     item_count: Mapped[int] = mapped_column(Integer)
     source_count: Mapped[int] = mapped_column(Integer)
+    transcript_wait_days: Mapped[int] = mapped_column(Integer, default=7, server_default="7")
 
 
 class DigestTopic(Base):
@@ -135,6 +145,7 @@ class DigestTopic(Base):
     position: Mapped[int] = mapped_column(Integer)
     title: Mapped[str] = mapped_column(Text)
     overview: Mapped[str] = mapped_column(Text)
+    kind: Mapped[str] = mapped_column(String(16), default="topic", server_default="topic")
 
 
 class DigestItem(Base):
@@ -151,3 +162,4 @@ class DigestItem(Base):
     published_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     summary: Mapped[str | None] = mapped_column(Text)
     summary_unavailable: Mapped[bool] = mapped_column(Boolean, default=False)
+    update_reason: Mapped[str | None] = mapped_column(String(16))

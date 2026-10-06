@@ -11,7 +11,43 @@ type DigestItem = {
   summary_unavailable: boolean
 }
 type Topic = { title: string; overview: string; items: DigestItem[] }
-type Digest = { id: number; created_at: string; model_id: string; topics: Topic[] }
+type CreatorUpdate = {
+  source_name: string
+  items: { title: string; link: string; published_at: string | null; reason: string }[]
+}
+type Digest = {
+  id: number; created_at: string; model_id: string; topics: Topic[]
+  creator_updates?: CreatorUpdate[]; transcript_wait_days?: number
+  prompt_tokens?: number | null; completion_tokens?: number | null
+}
+
+function reasonLabel(reason: string, days: number) {
+  const labels: Record<string, string> = {
+    captions_off: 'Caption fetching is off',
+    no_captions: 'This video has no captions',
+    blocked: 'Blocked by YouTube',
+    captions_failed: 'Captions could not be fetched',
+    no_transcript: `No transcript within ${days} days`,
+  }
+  return labels[reason] ?? reason
+}
+
+function SummaryText({ text }: { text: string | null }) {
+  if (!text) return null
+  const lines = text.split('\n')
+  const blocks: { bullet: boolean; lines: string[] }[] = []
+  for (const line of lines) {
+    const bullet = line.startsWith('- ')
+    if (!blocks.length || blocks[blocks.length - 1].bullet !== bullet) {
+      blocks.push({ bullet, lines: [] })
+    }
+    blocks[blocks.length - 1].lines.push(line)
+  }
+  return <>{blocks.map((block, index) => block.bullet
+    ? <ul key={index}>{block.lines.map((line, position) => <li key={position}>{line.slice(2)}</li>)}</ul>
+    : <p key={index} style={{ whiteSpace: 'pre-line' }}>{block.lines.join('\n')}</p>,
+  )}</>
+}
 
 export default function DigestView() {
   const { id } = useParams()
@@ -35,6 +71,9 @@ export default function DigestView() {
           <p>Created <time dateTime={digest.created_at}>
             {new Date(digest.created_at).toLocaleString()}
           </time></p>
+          <p>{digest.prompt_tokens != null && digest.completion_tokens != null
+            ? `Tokens: ${digest.prompt_tokens} in / ${digest.completion_tokens} out`
+            : 'Tokens: not reported'}</p>
           {digest.topics.map((topic, index) => (
             <section key={index} aria-label={topic.title}>
               <h3>{topic.title}</h3>
@@ -48,12 +87,31 @@ export default function DigestView() {
                         {new Date(item.published_at).toLocaleString()}
                       </time></>}
                     </p>
-                    <p>{item.summary_unavailable ? 'Summary unavailable' : item.summary}</p>
+                    {item.summary_unavailable ? <p>Summary unavailable</p> : <SummaryText text={item.summary} />}
                   </li>
                 ))}
               </ul>
             </section>
           ))}
+          {!!digest.creator_updates?.length && (
+            <section aria-label="Creator updates">
+              <h3>Creator updates</h3>
+              {digest.creator_updates.map(group => (
+                <section key={group.source_name} aria-label={group.source_name}>
+                  <h4>{group.source_name}</h4>
+                  <ul>{group.items.map((item, index) => (
+                    <li key={index}>
+                      <a href={item.link} target="_blank" rel="noopener noreferrer">{item.title}</a>
+                      {item.published_at && <> · <time dateTime={item.published_at}>
+                        {new Date(item.published_at).toLocaleString()}
+                      </time></>}
+                      <p>{reasonLabel(item.reason, digest.transcript_wait_days ?? 7)}</p>
+                    </li>
+                  ))}</ul>
+                </section>
+              ))}
+            </section>
+          )}
         </>
       )}
     </section>

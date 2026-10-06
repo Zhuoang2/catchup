@@ -11,12 +11,12 @@ from sqlalchemy.orm import Session
 from catchup.collection import article_text
 from catchup.db import get_session
 from catchup.errors import AppError
-from catchup.models import Item, Source, SourceCheck, utc_now
+from catchup.models import AppSettings, Item, Source, SourceCheck, utc_now
 from catchup.net.host_spacing import HostSpacer
 from catchup.net.rate_limit import is_rate_limited
 from catchup.net.safe_fetch import FetchError, safe_fetch
 from catchup.sources.discovery import discover
-from catchup.sources.feeds import FeedParseError, parse_feed
+from catchup.sources.feeds import FeedParseError, is_short, parse_feed
 
 router = APIRouter(prefix="/api/sources")
 
@@ -47,11 +47,12 @@ def _duplicate(source: Source, status_code: int) -> AppError:
 def _unique_entries(feed):
     seen_keys: set[str] = set()
     seen_links: set[str] = set()
+    excluded_links = {feed.feed_url} | feed.shared_links
     for entry in feed.entries:
-        if entry.identity_key in seen_keys or (entry.link != feed.feed_url and entry.link in seen_links):
+        if entry.identity_key in seen_keys or (entry.link not in excluded_links and entry.link in seen_links):
             continue
         seen_keys.add(entry.identity_key)
-        if entry.link != feed.feed_url:
+        if entry.link not in excluded_links:
             seen_links.add(entry.link)
         yield entry
 
@@ -59,7 +60,8 @@ def _unique_entries(feed):
 @router.post("/preview")
 def preview(data: PreviewInput, request: Request, session: Session = Depends(get_session)) -> dict:
     try:
-        found = discover(data.url.strip(), cache=request.app.state.feed_cache)
+        found = discover(data.url.strip(), cache=request.app.state.feed_cache,
+                         max_feed_bytes=request.app.state.settings.max_feed_bytes)
     except FetchError as exc:
         raise _fetch_error(exc) from exc
     duplicate = _existing(found.feed.feed_url, session)
@@ -75,6 +77,8 @@ def preview(data: PreviewInput, request: Request, session: Session = Depends(get
         "site_url": found.feed.site_url,
         "title": found.feed.title,
         "follows_site_feed_notice": found.follows_site_feed_notice,
+        "kind": found.feed.kind,
+        "captions_enabled": bool((preferences := session.get(AppSettings, 1)) and preferences.youtube_captions),
         "entries": [
             {"title": entry.title, "link": entry.link, "published_at": entry.published_at}
             for entry in recent[:5]
@@ -87,7 +91,9 @@ def confirm(data: ConfirmInput, request: Request, session: Session = Depends(get
     try:
         feed_url = data.feed_url.strip()
         response = request.app.state.feed_cache.pop(feed_url)
-        feed = parse_feed(response if response is not None else safe_fetch(feed_url))
+        feed = parse_feed(response if response is not None else safe_fetch(
+            feed_url, max_bytes=request.app.state.settings.max_feed_bytes,
+        ))
     except FetchError as exc:
         raise _fetch_error(exc) from exc
     except FeedParseError as exc:
@@ -98,6 +104,8 @@ def confirm(data: ConfirmInput, request: Request, session: Session = Depends(get
 
     now = utc_now()
     settings = request.app.state.settings
+    preferences = session.get(AppSettings, 1)
+    skip_shorts = preferences.youtube_skip_shorts if preferences else True
     lookback = now - timedelta(days=settings.first_add_days)
     entries = list(_unique_entries(feed))
     recent = [entry for entry in entries if entry.published_at and lookback <= entry.published_at <= now]
@@ -106,23 +114,31 @@ def confirm(data: ConfirmInput, request: Request, session: Session = Depends(get
     )[:settings.first_add_max]}
     source = Source(
         title=feed.title, site_url=feed.site_url, feed_url=feed.feed_url, input_url=data.feed_url,
-        created_at=now, last_check_at=now, last_check_status="no_new_items",
+        created_at=now, last_check_at=now, last_check_status="no_new_items", kind=feed.kind,
     )
     session.add(source)
     session.flush()
     pending_count = 0
     spacer = HostSpacer()
+    fallback_links = {feed.feed_url} | feed.shared_links
     for entry in entries:
         state = "pending" if entry.identity_key in selected else "baseline"
+        if feed.kind == "youtube" and skip_shorts and is_short(entry.link):
+            state = "baseline"
         pending_count += state == "pending"
+        transcript_status = ("to_fetch" if feed.kind == "youtube" or
+                             (feed.kind == "podcast" and entry.has_audio) else
+                             "text" if feed.kind == "podcast" else None)
         text, origin = (
-            article_text(entry, {feed.feed_url}, settings.short_text_chars, spacer=spacer)
-            if state == "pending" else (entry.content_text, "feed")
+            article_text(entry, fallback_links, settings.short_text_chars, spacer=spacer)
+            if state == "pending" and transcript_status in (None, "text")
+            else (entry.content_text, "feed")
         )
         session.add(Item(
             source_id=source.id, identity_key=entry.identity_key, link=entry.link,
             title=entry.title, published_at=entry.published_at, discovered_at=now,
             content_text=text, content_origin=origin, state=state,
+            transcript_status=transcript_status,
         ))
     source.last_check_status = "new_items" if pending_count else "no_new_items"
     session.add(SourceCheck(
@@ -140,7 +156,7 @@ def confirm(data: ConfirmInput, request: Request, session: Session = Depends(get
         raise
     return {
         "id": source.id, "title": source.title, "site_url": source.site_url,
-        "feed_url": source.feed_url, "last_check_at": source.last_check_at,
+        "feed_url": source.feed_url, "kind": source.kind, "last_check_at": source.last_check_at,
         "last_check_status": source.last_check_status, "possible_gap": False,
     }
 
@@ -155,7 +171,7 @@ def list_sources(session: Session = Depends(get_session)) -> list[dict]:
             .order_by(SourceCheck.checked_at.desc(), SourceCheck.id.desc()).limit(1),
         )
         result.append({
-            "id": source.id, "title": source.title, "feed_url": source.feed_url,
+            "id": source.id, "title": source.title, "feed_url": source.feed_url, "kind": source.kind,
             "site_url": source.site_url, "last_check_at": last.checked_at if last else source.last_check_at,
             "last_check_status": last.status if last else source.last_check_status,
             "possible_gap": last.possible_gap if last else False,

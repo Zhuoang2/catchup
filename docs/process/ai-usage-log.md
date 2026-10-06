@@ -2,6 +2,60 @@
 
 Real usage records for the technical spec, alpha reflection, and final report. Each entry: date, tool/model, purpose, prompt (verbatim or faithful excerpt), outcome, problems, adjustment.
 
+## 2026-10-05 — Podcast and video sources, manual-test fixes (Factory Droid)
+
+- Prompt (faithful excerpt): "Manual-test round for add-podcast-and-video-sources ... two new commits ... track choice ... pull the branch's latest commit first, then implement tasks 9.1-9.2 in order ... no real network in tests, no real sleeps ... commit once after group 9."
+- Outcome: Starting worktree was already clean at `fd95f85`; no remote branch existed to pull. Replaced first-generated-track guessing with the pinned YouTube library's player caption JSON and default audio/caption indices, falling back to ordered public track heuristics when metadata is invalid or missing. Offline fakes reproduce the 21-track auto-dub case. Full checks: 349 backend tests at 96% coverage, 35 frontend tests, build, strict OpenSpec validation, Docker build and smoke passed.
+- Adjustment: Installed the missing backend and frontend dependencies from their lockfiles. No test required live YouTube or model access; the manual observations came from the user's review.
+
+## 2026-10-05 — Podcast and video sources, review round 1 (Factory Droid)
+
+- Prompt (faithful excerpt): "Implement review fixes 8.1–8.7 on `add-podcast-and-video-sources` in task order ... use offline tests ... one group-8 commit ... Docker verification ... stop if D12 conflicts with earlier decisions; do not edit planning artifacts, push, tag, or open a PR."
+- Outcome: Shared-link-safe episode identity and transcript matching, post-parse DTD entity screening, transcript/caption joining, lossless text splitting, redirect-hop spacing, ordered summary rendering and exact-name Creator updates grouping. Final checks: 342 backend tests with 96% coverage, 35 frontend tests, build, strict validation, Docker build and smoke passed. The full results are in `test-report-add-podcast-and-video-sources.md`.
+- What failed / adjustment: Vitest was absent in this worktree; `npm ci` installed the locked dependencies. The first full backend run found an old call-count assertion that assumed oversized unspaced words fail before reaching the fake model; updated it for the new hard-split behavior and reran the suite green. Tests used fixture feeds, fake transports and model clients, with no live provider calls or real sleeps.
+
+## 2026-10-05 — Podcast and video sources, group 1 (Factory Droid, GPT-6 Sol)
+
+- Prompt (faithful excerpt): "Implement OpenSpec change add-podcast-and-video-sources using the openspec-apply-change skill ... work through tasks.md in order and check off each task only after its verification passes ... commit after each task group ... no real network or model providers in tests ... do not edit planning artifacts."
+- Outcome: Added migration 0002 with an upgrade/downgrade regression test, pinned transcript and XML dependencies, and added validated environment settings. Backend 240 tests, frontend 22 tests, and frontend build passed. No external services were called in tests.
+- What failed / adjustment: The first downgrade test failed because SQLite rebuilt a parent table while foreign keys were enabled and child rows existed. Using native SQLite `DROP COLUMN` through Alembic batch mode preserved the referenced rows; the second test passed. The removed item cap's runner call temporarily uses the new override or fallback budget until long-text handling is implemented in group 6.
+
+## 2026-10-05 — Podcast and video sources, group 2 (Factory Droid, GPT-6 Sol)
+
+- Prompt: Same user request as group 1, with particular emphasis on offline tests, transcript-status selection and group commits.
+- Outcome: Added configurable 32 MiB feed fetches while keeping articles at 5 MiB and the cache at 5 MiB per entry; classified feeds by YouTube host or majority audio enclosures; showed source kinds in preview; resolved Apple Podcasts pages through a mocked iTunes lookup. The interim runner excludes items awaiting transcripts so a partially implemented change cannot summarize descriptions. Full checks: 257 backend tests, 25 frontend tests and frontend build passed.
+- Problems / adjustment: The first patch for the safe-fetch test missed its context; reapplied only that test. Confirmed that pending audio and video would otherwise reach the old summary path before the later selection task, so restricted the interim summary query to transcript-ready items.
+
+## 2026-10-05 — Podcast and video sources, group 3 (Factory Droid, GPT-6 Sol)
+
+- Prompt: Same user request as groups 1–2, with the reviewer requirement to keep lxml recovery hardened and never log fetched content.
+- Outcome: Added multi-candidate parsing with feedparser fallback, format conversion, and per-check podcast resolution with up to two safe fetches. A transcript replaces cached summaries; missing ones stay waiting. Full checks: 272 backend tests, 25 frontend tests, and frontend build passed.
+- What failed / adjustment: A focused experiment showed libxml expands an internal entity in an attribute even with `resolve_entities=False`. The hardened candidate parser now declines DTD-bearing documents; feedparser's non-expanding single-candidate fallback remains available. Added a regression test for the attribute case.
+
+## 2026-10-05 — Podcast and video sources, group 4 (Factory Droid, GPT-6 Sol)
+
+- Prompt: Same user request, especially "selection is decided by transcript_status as in design.md D7, and expiry statuses are written only in the save transaction."
+- Outcome: Added status-driven selection and atomic delivery, Creator updates snapshots and history API, and wait/deferred counts in the run view. Full checks passed: 278 backend tests, 28 frontend tests, frontend build. A further three backend cases confirmed expiry despite failed feed checks (9 focused cases passed).
+- What failed / adjustment: The first grouping test tried to create two sources with the same feed URL and SQLite rejected the duplicate. Changed the test fixture to reuse a source for multiple items, as the product does.
+
+## 2026-10-05 — Podcast and video sources, group 5 (Factory Droid, GPT-6 Sol)
+
+- Prompt: Same user request, emphasizing no real YouTube calls in tests, injected spacing and clocks, and never logging fetched content.
+- Outcome: Added optional caption preferences and UI warnings, Shorts baseline rules, a spaced requests client with original-language track choice and exception mapping, a per-run capped caption pass, and supported-sources documentation. After updating the tests for the new caption pass, 310 backend tests, 29 frontend tests, frontend build, and README/config variable cross-check passed.
+- What failed / adjustment: Two earlier Creator updates tests expected unfetched YouTube videos to remain deferred even with caption fetching off. With the real pass enabled, those videos correctly become `captions_off`; the tests now expect that state. A separate waiting/deferred test uses caption opt-in and a cap of one to exercise the intended held-item path.
+
+## 2026-10-05 — Podcast and video sources, group 6 (Factory Droid, GPT-6 Sol)
+
+- Prompt: Same user request, including updating existing model fakes instead of weakening assertions and logging no fetched content.
+- Outcome: Added strict context-window metadata parsing and caching, complete-text part/combine summaries and transcript key points, and thread-safe token accounting through the run, digest API and UI. Full checks passed: 327 backend tests, 34 frontend tests, and frontend build.
+- Adjustment: The old truncation test was updated to assert both halves of the original input reach part prompts, rather than accepting a cut-off suffix. Existing model fakes were updated to return structured model metadata and usage totals.
+
+## 2026-10-05 — Podcast and video sources, group 7 (Factory Droid, GPT-6 Sol)
+
+- Prompt: Same user request; "Docker is running on this machine, so run the docker build and scripts/docker-smoke.sh in task 7.1; never push, tag, or open a PR."
+- Outcome: 327 backend tests passed at 96% statement coverage; 34 frontend tests and build passed; strict OpenSpec validation, local Docker build and all eight smoke checks passed. Results and the omitted live-source/provider checks are in `test-report-add-podcast-and-video-sources.md`.
+- Adjustment: The existing Docker smoke script's exact preference JSON assertion needed the two new fields. Updated the assertion without dropping the restart and saved-language checks, then built and ran the smoke test successfully. No remote actions were taken.
+
 ## 2026-10-04 — Docker packaging implementation (Factory Droid, GPT-6 Sol)
 
 - Purpose: Implement `add-docker-packaging` (#7), groups 1–4, on a branch from main.
@@ -318,11 +372,143 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 
 ## 2026-10-04 — `add-podcast-and-video-sources`: merge decision and supplementary research (Claude Code, Opus 5.5, with a general-purpose subagent)
 
-- Prompt (user, in Chinese, excerpt): "Merge #5 and #6, then start the supplementary research", covering `<podcast:transcript>` formats, iTunes Lookup, DeepSeek context and output limits, and token counts for the 3.6-hour sample under different processing approaches. Before this, the user had made long-transcript truncation a must-handle item and asked whether their Bilibili workflow (a speech-to-text model on the audio, then an AI summary) would work for YouTube.
+- Prompts (user, verbatim, with English translations):
+  - "另外，你提的第 1 点（长字幕截断）很重要，请在方案里一并处理。" (Also, your point 1, long-transcript truncation, is important; handle it in the plan as well.)
+  - "哦，先不要合并。再尝试一下别的能处理 YouTube 视频的方法。我之前处理哔哩哔哩的视频是用一个语音转文字的模型去识别视频来获取字幕，来获取说话的内容，然后再让 AI 总结的。这套流程可以在 YouTube 上面用吗？" (Oh, don't merge yet. Try other ways of handling YouTube videos. For Bilibili videos I used a speech-to-text model to get captions of what is said, then had an AI summarize them. Can this pipeline work on YouTube?)
+  - "OK，我明白了。那我们就先合并五和六，然后开始补充调研吧。" (OK, I understand. Then let's merge #5 and #6 first and start the supplementary research.)
+
+  The research covered `<podcast:transcript>` formats, iTunes Lookup, DeepSeek context and output limits, and token counts for the 3.6-hour sample under different processing approaches.
 - Claude renamed the change folder, moved #5 to In Progress on the board, and ran `/reppit-research` in OpenSpec mode. A background subagent fetched the podcast namespace spec, six real transcript feeds, five feeds without transcripts, feedparser behavior, iTunes Lookup, and adoption statistics. In parallel, Claude read the code path and ran the current `discover()` live against podcast URLs.
 - Claude re-checked the two subagent findings that affect the design before writing them down:
   - Feed sizes against the 5 MB fetch limit: The Daily's full archive is 20.3 MB, and The Vergecast fails on main today.
   - feedparser keeping only the last `<podcast:transcript>` tag: 4 tags in the raw XML, 1 returned.
-- Token counts: Claude first asked to download DeepSeek's 1.9 MB offline tokenizer. The user asked why token counts were needed. Claude explained that they decide between a single call and chunking, and pointed out that `deepseek-flash`'s 1M-token context makes exact counts unnecessary. With the user's agreement, it used DeepSeek's documented character ratios instead: about 51k tokens for the 3.6-hour sample. Lesson: check the limit that drives the decision before asking for precise measurements.
+- Token counts: Claude first asked to download DeepSeek's 1.9 MB offline tokenizer. The user asked "为什么需要知道 token 数？" (Why do you need to know the token count?). Claude explained that they decide between a single call and chunking, and pointed out that `deepseek-flash`'s 1M-token context makes exact counts unnecessary. With the user's agreement, it used DeepSeek's documented character ratios instead: about 51k tokens for the 3.6-hour sample. Lesson: check the limit that drives the decision before asking for precise measurements.
 - Speech-to-text facts were recorded as context only. No audio was downloaded. YouTube's terms forbid downloading, and the handoff does not commit to transcription.
 - Date correction: entries above dated 2026-10-05 actually happened on 2026-10-04 (local time, per commit timestamps).
+
+## 2026-10-05 — `add-podcast-and-video-sources`: proposals, amendments, and plan (Claude Code, Opus 5.5)
+
+- `/reppit-proposal` produced two proposals in `design.md` (`be46efb`):
+  - P1: transcripts in `content_text`; a single call with a chunking fallback; global YouTube settings; no speech-to-text.
+  - P2: a digest-time provider chain; always chunked; speech-to-text for podcast audio through a user-supplied key; ffmpeg in the image.
+
+  Claude recommended P1.
+- The user chose P1 and, before planning, sent five amendments (verbatim excerpts, with English translations):
+  - "把"未总结（无字幕）"改成一个正面的版块"创作者更新"（Creator updates），放在主题摘要之后 … 按创作者 / 节目分组 … 不调用模型。" (Turn "not summarized (no captions)" into a positive "Creator updates" section after the topic summaries … grouped by creator / show … no model call.)
+  - "修正"晚到的字幕"和"不重复出现"的矛盾 … 播客条目没有文字稿时，先不进简报，最多等待 7 天 … 每个条目在所有简报里只出现一次。" (Fix the contradiction between "late transcripts" and "no repeats" … a podcast item without a transcript stays out of digests and waits up to 7 days … every item appears in exactly one digest.)
+  - "一次调用的上限不要写死 … 优先根据模型 /models 返回的 context_window 自动推算单次调用的字符上限；拿不到时退回 60,000 字符。" (Do not hard-code the single-call limit … derive it from the `context_window` returned by `/models`; fall back to 60,000 characters.)
+  - "它虽然没有 SSRF 风险，但绕过了 safe_fetch 的请求间隔和限流 … 逐个视频顺序获取，使用同一个 host spacer；每次运行设置获取字幕的视频数上限；把"被 YouTube 屏蔽"和"视频本身没有字幕"分开记录、分开显示。" (It has no SSRF risk, but it bypasses safe_fetch's spacing and rate limiting … fetch videos one by one with the same host spacer; cap the videos per run; record and show "blocked by YouTube" separately from "the video has no captions".)
+  - "优先使用视频原语言的字幕（人工字幕 > 自动字幕），不使用 YouTube 的机器翻译字幕；摘要语言由模型负责转换。" (Prefer captions in the video's original language (manual > auto), never YouTube's machine-translated captions; the model handles the summary language.)
+- **What the amendments fixed.** The user found a real flaw in Claude's design: "listed once" and "re-checked for 7 days" contradicted each other under the existing delivered/pending states. Claude had also left the single-call budget as a fixed number that suited only large-context models. Lesson: when a design adds a waiting state, walk through an item's full lifecycle across several runs before proposing it.
+- **What Claude added while revising, and the user accepted:**
+  - a fifth reason, `captions_failed`
+  - stopping caption requests after the first block
+  - resolving transcripts in the run's check phase instead of at confirm (confirming 5 videos would otherwise take 15+ s)
+  - renaming the override to `CATCHUP_SINGLE_CALL_CHARS`, because `.env.example` hard-codes `CATCHUP_MAX_ITEM_CHARS=20000`, and copied configs would silently override the derived budget
+- **Before writing the budget design,** Claude checked DeepSeek's List Models docs: `context_window` and `max_output_tokens` are documented. The live response is still to be verified in review.
+- **`/reppit-plan` output:**
+  - `proposal.md`
+  - deltas for `source-management`, `content-collection`, `digest-generation`, `model-settings`, and a new `transcripts` capability
+  - the final `design.md` (D1–D11)
+  - `tasks.md` (7 groups, 21 tasks)
+
+  `openspec validate --strict` passes.
+- **A drafting slip, caught before validation:** spec wording used "MAY" and "may" for normative rules, which the OpenSpec instructions forbid. Claude rewrote the sentences with SHALL/MUST.
+- **Independent plan review.** The user asked: "开另一个对话审查一遍你的计划，不要直接全盘接收他的修改建议，对照他的回答进行核实，确认真有问题了再进行修改" (Open another conversation to review your plan; don't accept its suggestions wholesale; verify them against its answers, and change things only once a problem is confirmed). Claude ran a fresh general-purpose subagent with no access to the planning conversation. Its instructions were to report only evidence-backed problems, without editing files.
+  - The reviewer reported 20 findings: 1 blocker, 5 major, 14 minor or unverified.
+- **Claude's verification of each finding:**
+  - Code reads:
+    - `api/sources.py:90` (confirm's cache-miss fetch, missing from the plan's call sites)
+    - `models.py:38` (the table is `model_config`, not `model_configs`)
+    - `api/runs.py:11` (the route is `/api/digest-runs`)
+    - `feed_cache.py:12` (50 cached bodies × 32 MB)
+    - `Settings.tsx:83` (a preferences save sends only `digest_language`)
+    - `safe_fetch.py:111` (`trust_env=False`)
+    - `summarize.py:53` (a stale cached summary would be reused)
+    - the test fakes' locations
+  - Experiments in the scratchpad:
+    - lxml without `recover` rejects a feed containing `&nbsp;`; with `recover=True` it finds the transcript tag
+    - leading whitespace before `<?xml` fails
+    - youtube-transcript-api 1.2.4's `TranscriptList.build` indexes YouTube JSON directly, so a format change raises a plain `KeyError`
+- **Accepted (17, all confirmed). The main fixes:**
+  - Expiry is computed in memory, written only in the save transaction, and `no_transcript` is included in selection. Before, a run failing after expiry could strand an episode forever.
+  - YouTube captions moved to a separate pass after all checks, oldest first, keyed by `identity_key`. Before, a deferred video that dropped out of its channel's 15-entry feed was never handled.
+  - Every podcast status without a transcript now expires.
+  - Catch-all error containment per item. Before, an unexpected library error would fail every future run.
+  - lxml `recover=True` with a feedparser fallback.
+  - confirm uses the feed limit, and the cache skips bodies over 5 MB.
+  - A stricter podcast classification (iTunes metadata or a majority of audio enclosures), never downgraded.
+  - Selection keyed by status; strict context-window parsing.
+  - Optional preference fields; `trust_env=False`.
+  - Wait days stored on the digest, with a `digest-history` delta added.
+  - Spec wording fixes; the original-language rule relaxed to best effort without an auto-generated track.
+- **Not adopted:**
+  - Cutting token usage and the long-transcript format as "not requested": both were part of Proposal 1, which the user chose. This finding was factually wrong.
+  - A lower fallback than 60,000 characters: the user set that value; small local models are documented instead.
+- **Raised with the user instead of changed:** whether newly uploaded videos without auto-captions yet deserve a grace period (unverified; it would change the user's "list once immediately" rule).
+- Lesson: the reviewer's highest-value findings were lifecycle bugs across runs and failure paths, which the planner had walked only on the happy path. Checking every claim also caught one wrong claim, which would have removed agreed scope.
+- **Second review round.** The user replied "可以加等待期，修改完让审查对话重新检查一下" (Add the waiting period, then have the review conversation check again). Claude added `caption_wait`/`unplayable_wait` with `CATCHUP_CAPTION_WAIT_HOURS` (default 24). Reading the library source (1.2.4) showed why both cases must wait:
+  - `TranscriptsDisabled` is raised whenever `captionTracks` is missing, so uploader-disabled and not-yet-generated captions cannot be told apart.
+  - Upcoming premieres raise `VideoUnplayable`.
+- **The re-review found no blockers.**
+  - It confirmed 16 earlier findings resolved and reported 2 major and 6 minor new findings.
+  - Claude verified the main one by experiment: feedparser maps `itunes:author` to `author`, so iTunes metadata cannot be detected from its output. Live Substack feeds (astralcodexten.com, noahpinion.blog) declare the iTunes namespace and `itunes:author`/`owner`/`block` with zero audio enclosures, so under the planned "iTunes metadata" rule these newsletters would have become permanent podcasts, with every post sent to Creator updates.
+  - The fix goes further than the reviewer's suggestion: classification uses only the share of audio enclosures, and non-audio entries of a podcast source are handled as text (`text` status). A misclassification therefore cannot hide text posts.
+- **The other findings, applied after checking against the plan text:**
+  - D8 step 2 now specifies what happens to wait, NULL, and `captions_off` items when the cap or a block is hit.
+  - A false "every status is in the summarize or creator-update set" sentence was corrected.
+  - The order "oldest" is defined as `discovered_at`, then `id` (all entries of one check share one timestamp, `collection.py:64`).
+  - The waiting and deferred message texts are defined.
+  - The feedparser fallback now applies after any lxml failure.
+  - Toggle edge cases are documented, and `captions_off` items are fetched again once the setting is on.
+  - The cap-starvation risk is noted.
+- Lesson: a reviewer's "suspected, could not verify" item (Substack) turned out to be the most consequential once checked live. Unverified findings deserve a quick experiment, not a dismissal.
+
+## 2026-10-05 — `add-podcast-and-video-sources`: implementation review and fix round (Claude Code, Opus 5.5; Factory Droid, fresh session `72e07ca6`)
+
+- **Droid's first pass:**
+  - 21/21 tasks in 7 commits, ~2.19M credits.
+  - Claude re-ran everything in a separate worktree: 327 backend tests (96% coverage), 34 frontend tests, the build, `openspec validate --strict`, and the Docker build plus smoke test (8/8), all matching Droid's report.
+  - Live checks:
+    - The Vergecast (6.2 MB) previews as a podcast.
+    - Apple show and episode URLs resolve, with the whole-show notice.
+    - astralcodexten.com stays a feed.
+    - A YouTube channel is recognized.
+    - A Buzzsprout VTT transcript converts to 35,559 characters with speakers.
+    - Captions for `s7d2d8FhevU` come back at 172,818 characters, with the spacer called before each of the library's 3 requests.
+- **Droid's own deviation, tested rather than assumed.** Droid skipped lxml for any document with a DOCTYPE, claiming libxml expands attribute entities even with `resolve_entities=False`. Claude's experiment confirmed it (`url="https://h/&x;.vtt"` → `EXPANDED`). This was a security gap the plan had missed.
+- **Code review: Claude plus an independent subagent.** The subagent had to prove each bug with a script. Claude re-ran every proof and checked the most consequential one against 10 live podcast feeds:
+  - **Shared links:** The Daily has 64 entries with 1 distinct `<link>`, and a Captivate show has 121 with 1. The v0.1 link dedup therefore recorded only the first episode, ever, and the new transcript matching gave episodes a sibling's transcript.
+  - CJK transcripts without whitespace failed to split.
+  - `SummaryText` dropped lines.
+  - Word-level JSON and caption snippets became one word per paragraph.
+  - A UTF-16 feed bypassed the DOCTYPE byte check.
+  - Nits: redirect spacing, language matching, the namespace prefix, part size, 3-digit hours, group order.
+- **Fix round.** With the user's approval, Claude added D12, task group 8, and spec rules (shared links; transcript ownership; internal DTD entities) on the branch (`ab40245`), then resumed the same Droid session with the evidence. Droid's fix (`c89fa23`, ~0.82M credits; the reported credits are cumulative) passes 342 backend and 35 frontend tests. Claude re-verified:
+  - The reviewer's scripts now give the correct results.
+  - A live preview and confirm of The Daily via the Apple URL records all 64 episodes (5 pending, 59 baseline); before the fix, only 1.
+  - A live check phase gives The Daily `waiting` (no tags) and Buzzsprout `found` (35,559 characters).
+  - Docker smoke 8/8.
+- **A reviewer script misled once.** The public-DOCTYPE script inserted a second DOCTYPE into a fixture that already had one, so it reported 1 candidate. Reading the script resolved it: the fixture alone yields 4. Lesson: when a proof disagrees with a passing test, read the proof too.
+
+## 2026-10-05 — `add-podcast-and-video-sources`: manual test with the user (Claude Code, Opus 5.5; Factory Droid session `72e07ca6`)
+
+- **Setup.** The image was built from the branch and run on `127.0.0.1:8000` with a throwaway volume. The user entered their DeepSeek key in Settings; Claude never handled it.
+- **Results:**
+  - Buzzsprout: a 35k-character transcript was summarized as an overview plus 6 key points, in zh-Hans.
+  - The Daily (added through its Apple URL): 64 episodes recorded, and 5 waiting for transcripts.
+  - Token totals of 8,663/1,893 matched the DeepSeek usage page (checked by the user).
+  - The live `/models` response gave `context_window` 1,048,576, which closed the plan's only open question.
+  - With captions off, a Creator-updates-only digest listed the Google for Developers video with `captions_off`; the Short did not appear.
+- **YouTube RSS outage.** Every channel's `feeds/videos.xml` returned 404 for more than 40 minutes, with any User-Agent. This is the intermittent outage noted in #6.
+  - For the captions-on step, with the user's choice ("选 B" (option B)), Claude reset the already delivered test video to `to_fetch` in the throwaway database, which simulates a new upload. The caption fetch and summary then ran for real.
+- **The test found two defects:**
+  - **Wrong caption language.** CatchUp summarized **Arabic** captions of an English video. YouTube had listed an auto-generated track for each of 20 auto-dub languages, Arabic first, which refuted the plan's unverified assumption that "the first auto-generated track is the original".
+    - Claude inspected the player data: `audioTracks[defaultAudioTrackIndex]` is `en-US.4` (dubs are `.10`), and its `defaultCaptionTrackIndex` points at the manual English track.
+    - The user approved the revised rule (YouTube's default-audio caption, then public heuristics, never a guess). Claude planned it (`fd95f85`, task group 9), and Droid implemented it (`1ce6342`, ~0.48M credits).
+    - The retest picked the 893-character manual English track. The summary now uses the original name "Journal Receipts" instead of a translated one.
+  - **Misleading token display.** Runs without model calls showed "Tokens: not reported". Claude fixed it directly as a small change with tests and a spec scenario (`40ff3d2`); the retest shows 0/0.
+- **Follow-ups (not in this change):**
+  - A 404 on a declared feed is reported as "The declared feed could not be parsed" (pre-existing). Filed as a new issue.
+  - One confirm returned 422 and could not be reproduced. The cache was verified with a stable feed; the likely cause is the YouTube 404 flapping.
+- Lesson: an assumption the plan explicitly marked "unverified" failed in the first real test. Marking it made the cause quick to find. Testing with a real multi-language video earlier, during research, would have caught it before implementation.

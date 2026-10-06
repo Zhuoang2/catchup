@@ -1,0 +1,5 @@
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+<channel><title>Newsletter</title><itunes:author>Writer</itunes:author>
+<itunes:owner><itunes:name>Writer</itunes:name></itunes:owner><itunes:block>no</itunes:block>
+<item><guid>post</guid><title>Post</title><description>Just writing</description></item>
+</channel></rss>

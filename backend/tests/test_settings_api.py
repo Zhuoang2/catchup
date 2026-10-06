@@ -5,6 +5,7 @@ from sqlalchemy import select
 from catchup.api.settings import get_model_client_factory
 from catchup.crypto import decrypt_key
 from catchup.llm.client import AuthFailed, ConnectionFailed, InsufficientBalance, ProviderError
+from catchup.llm.client import ModelInfo
 from catchup.main import create_app
 from catchup.models import ModelConfig
 
@@ -23,7 +24,7 @@ class FakeProvider:
     def list_models(self):
         if self.error:
             raise self.error
-        return ["provider-current", "provider-next"]
+        return [ModelInfo("provider-current"), ModelInfo("provider-next")]
 
     def close(self):
         pass
@@ -72,6 +73,19 @@ def test_update_without_reentering_key(api):
     with client.app.state.session_factory() as session:
         row = session.get(ModelConfig, 1)
         assert decrypt_key(row.api_key_encrypted, client.app.state.settings.secret_key) == KEY
+
+
+def test_model_change_clears_cached_context_window(api):
+    client, _ = api
+    save(client)
+    with client.app.state.session_factory() as session:
+        session.get(ModelConfig, 1).context_window = 1_000_000
+        session.commit()
+    assert client.put("/api/settings/model", json={
+        "base_url": "https://provider.example/v1", "model_id": "provider-next", "api_key": "",
+    }).status_code == 200
+    with client.app.state.session_factory() as session:
+        assert session.get(ModelConfig, 1).context_window is None
 
 
 def test_can_test_unsaved_key_and_list_provider_models(api):
@@ -178,12 +192,29 @@ def test_provider_url_cannot_embed_credentials(api):
 
 def test_preference_save_and_read(api):
     client, _ = api
-    assert client.get("/api/settings/preferences").json() == {"digest_language": "en"}
+    assert client.get("/api/settings/preferences").json() == {
+        "digest_language": "en", "youtube_captions": False, "youtube_skip_shorts": True,
+    }
     for language in ("zh-Hans", "original", "Français"):
         assert client.put("/api/settings/preferences", json={"digest_language": language}).json() == {
-            "digest_language": language,
+            "digest_language": language, "youtube_captions": False, "youtube_skip_shorts": True,
         }
-        assert client.get("/api/settings/preferences").json() == {"digest_language": language}
+        assert client.get("/api/settings/preferences").json() == {
+            "digest_language": language, "youtube_captions": False, "youtube_skip_shorts": True,
+        }
+
+
+def test_partial_preference_updates_keep_other_values(api):
+    client, _ = api
+    assert client.put("/api/settings/preferences", json={
+        "youtube_captions": True, "youtube_skip_shorts": False,
+    }).json() == {"digest_language": "en", "youtube_captions": True, "youtube_skip_shorts": False}
+    assert client.put("/api/settings/preferences", json={"digest_language": "zh-Hans"}).json() == {
+        "digest_language": "zh-Hans", "youtube_captions": True, "youtube_skip_shorts": False,
+    }
+    assert client.put("/api/settings/preferences", json={"youtube_skip_shorts": True}).json() == {
+        "digest_language": "zh-Hans", "youtube_captions": True, "youtube_skip_shorts": True,
+    }
 
 
 @pytest.mark.parametrize("language", ["", "   ", "x" * 41])

@@ -14,7 +14,7 @@ const saved = {
 }
 const preview = {
   feed_url: saved.feed_url, site_url: saved.site_url, title: saved.title,
-  follows_site_feed_notice: true,
+  follows_site_feed_notice: true, kind: 'feed', captions_enabled: false,
   entries: [{ title: 'Recent article', link: 'https://site.example/a', published_at: null }],
 }
 
@@ -32,6 +32,23 @@ afterEach(() => {
 })
 
 describe('sources', () => {
+  it.each([
+    ['podcast', false, 'Transcripts published by the show'],
+    ['youtube', false, 'Caption fetching is off; videos will be listed without summaries'],
+    ['youtube', true, 'Captions fetched from YouTube on this computer'],
+  ])('describes %s preview with captions %s', async (kind, enabled, text) => {
+    fetchMock.mockImplementation(async (path: string) => path === '/api/sources'
+      ? respond([])
+      : respond({ ...preview, kind, captions_enabled: enabled }))
+    render(<Sources />)
+    fireEvent.change(screen.getByLabelText('Website or feed URL'), {
+      target: { value: saved.feed_url },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    expect(await screen.findByText(text)).toBeInTheDocument()
+    if (kind === 'podcast') expect(screen.getByText(/whole show/)).toBeInTheDocument()
+    else expect(screen.getByText(/whole site's feed/)).toBeInTheDocument()
+  })
   it('previews a source and explains site scope before confirmation', async () => {
     render(<Sources />)
     fireEvent.change(screen.getByLabelText('Website or feed URL'), {

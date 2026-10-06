@@ -1,0 +1,4 @@
+<rss><channel><title>Audio show</title>
+<item><guid>ep1</guid><title>Episode</title>
+<enclosure url="https://site.example/a.mp3" type="audio/mpeg"/>
+</item></channel></rss>

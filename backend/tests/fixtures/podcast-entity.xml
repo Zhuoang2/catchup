@@ -1,0 +1,5 @@
+<rss xmlns:podcast="https://podcastindex.org/namespace/1.0"><channel><title>Audio show</title>
+<item><guid>ep1</guid><title>Some&nbsp;episode</title>
+<enclosure url="https://site.example/a.mp3" type="audio/mpeg"/>
+<podcast:transcript url="https://site.example/a.vtt" type="text/vtt"/>
+</item></channel></rss>

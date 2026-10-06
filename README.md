@@ -142,9 +142,41 @@ contains an encrypted model key.
 ## Supported sources
 
 CatchUp supports RSS/Atom feeds, including sites that declare a feed or
-expose one at a common path. Examples include
-blogs, Bluesky and Mastodon profiles, and Reddit subreddits (availability
-can depend on the host network).
+expose one at a common path. Examples include blogs, Bluesky and Mastodon
+profiles, and Reddit subreddits (availability can depend on the host network).
+Podcast feeds are recognized when most entries have audio enclosures. A
+podcast episode is summarized **only** when the feed publishes an accessible
+`<podcast:transcript>` (plain text, VTT, SRT, JSON or HTML). CatchUp also
+accepts Apple Podcasts show and episode URLs, resolving them to the show's
+RSS feed. Episodes without a transcript wait for
+`CATCHUP_TRANSCRIPT_WAIT_DAYS` (default 7) before they appear without a
+summary in **Creator updates**, grouped by show. Text-only posts in a podcast
+feed still use their article text.
+
+YouTube channel feeds are supported. **Fetch captions locally** is off by
+default; when off, videos appear in Creator updates without summaries.
+Enabling it fetches captions from YouTube from this computer. **YouTube's
+Terms of Service do not allow automated access. Turn this on only if you
+accept that risk.** CatchUp requests original-language captions, prefers
+manual tracks over auto-generated ones, and never translates or downloads
+audio/video. Videos with no captions yet wait for `CATCHUP_CAPTION_WAIT_HOURS`
+(default 24) before appearing in Creator updates. Requests are spaced and
+limited to `CATCHUP_CAPTIONS_PER_RUN` (default 20); deferred videos stay
+pending. Shorts are skipped by default, unless you switch off Skip Shorts
+in Settings. Creator updates show a reason for missing transcripts or captions
+without sending show notes or descriptions to the model.
+
+Feed documents may be up to `CATCHUP_MAX_FEED_BYTES` (default 33554432,
+32 MiB). Articles and transcripts remain limited to 5 MiB. Text longer
+than a model call's budget is summarized in parts and combined; if a small
+local model does not report its context window, set
+`CATCHUP_SINGLE_CALL_CHARS` to a positive budget that fits the model.
+`CATCHUP_LONG_ITEM_CHARS` (default 20000) sets when transcript summaries
+include an overview and key points. **Configuration change:**
+`CATCHUP_MAX_ITEM_CHARS` has been removed; use
+`CATCHUP_SINGLE_CALL_CHARS` instead. The old variable is ignored with a
+startup warning. Model token totals are shown when the provider reports them.
+
 Reddit support ends on **2026-11-13** because Reddit is
 [discontinuing RSS feeds](https://techcrunch.com/2026/09/30/reddit-is-killing-rss-feeds-ending-public-api-access-because-of-ai-bots/).
 Source requests identify the client as
@@ -152,8 +184,9 @@ Source requests identify the client as
 `CATCHUP_USER_AGENT_CONTACT` to append a contact inside the parentheses,
 for example `CatchUp/0.1.0 (+https://github.com/Zhuoang2/catchup; by /u/example)`.
 The contact must be printable ASCII, no longer than 100 characters.
-X, pages without feeds, podcasts/YouTube, and content behind a login or
-paywall are not supported in this release.
+X, pages without feeds, and content behind a login or paywall are not
+supported in this release. CatchUp does not transcribe audio or summarize
+video visuals.
 
 ## License
 

@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from catchup.api.settings import get_model_client_factory
 from catchup.digest.runner import run_digest, start_run
 from catchup.main import create_app
+from catchup.llm.client import ModelInfo
 from test_digest_runner import FakeModel
 
 FEED_URL = "https://site.example/feed.xml"
@@ -19,7 +20,10 @@ FIXTURE = Path(__file__).parent / "fixtures" / "rss.xml"
 
 class FixtureModel(FakeModel):
     def list_models(self):
-        return ["fixture-model"]
+        return [ModelInfo("fixture-model")]
+
+    def usage_totals(self):
+        return None
 
 
 def test_incremental_api_flow_with_stored_citations(test_settings, monkeypatch):

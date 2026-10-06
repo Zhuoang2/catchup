@@ -9,6 +9,8 @@ const respond = (value: unknown, status = 200) => ({
 })
 const run = {
   id: 1, status: 'collecting', items_total: 0, items_done: 0,
+  waiting_count: 0, deferred_count: 0,
+  prompt_tokens: null, completion_tokens: null,
   sources_total: 3, source_checks: [
     { source_id: 1, source_title: 'News', status: 'failed', possible_gap: false, error: 'offline' },
     { source_id: 2, source_title: 'Blog', status: 'new_items', possible_gap: true, error: null },
@@ -72,6 +74,27 @@ it('shows no new content with failed source details', async () => {
   page()
   expect(await screen.findByText('No new content.')).toBeInTheDocument()
   expect(screen.getByText(/News: failed: offline/)).toBeInTheDocument()
+})
+
+it.each(['succeeded', 'no_new_content'])('shows held counts for %s', async status => {
+  fetchMock.mockResolvedValue(respond({
+    ...run, status, waiting_count: 2, deferred_count: 5,
+  }))
+  page()
+  expect(await screen.findByText('2 items waiting for transcripts or captions')).toBeInTheDocument()
+  expect(screen.getByText('5 videos deferred to the next run')).toBeInTheDocument()
+  if (status === 'no_new_content') expect(screen.getByText('No new content.')).toBeInTheDocument()
+})
+
+it.each([
+  [12, 4, 'Tokens: 12 in / 4 out'],
+  [null, null, 'Tokens: not reported'],
+])('shows model usage %s / %s', async (prompt, completion, text) => {
+  fetchMock.mockResolvedValue(respond({
+    ...run, status: 'succeeded', prompt_tokens: prompt, completion_tokens: completion,
+  }))
+  page()
+  expect(await screen.findByText(text)).toBeInTheDocument()
 })
 
 it('directs unconfigured users to settings', async () => {

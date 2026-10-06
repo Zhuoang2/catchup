@@ -59,7 +59,7 @@ print("PASS: GET /api/health (Host: localhost)")
 assert "<html" in request("/").lower()
 print("PASS: GET / returns HTML")
 assert json.loads(request("/api/settings/preferences", "PUT", {"digest_language": "zh-Hans"})) == {
-    "digest_language": "zh-Hans"
+    "digest_language": "zh-Hans", "youtube_captions": False, "youtube_skip_shorts": True
 }
 print("PASS: saved zh-Hans preference")
 PY
@@ -91,6 +91,8 @@ request = Request(
 )
 with urlopen(request, timeout=5) as response:
     assert response.status == 200
-    assert json.load(response) == {"digest_language": "zh-Hans"}
+    assert json.load(response) == {
+        "digest_language": "zh-Hans", "youtube_captions": False, "youtube_skip_shorts": True
+    }
 print("PASS: preference survives restart")
 PY

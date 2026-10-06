@@ -1,4 +1,5 @@
 import socket
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -11,6 +12,11 @@ from sqlalchemy import func, select
 from catchup.main import create_app
 from catchup.models import Digest, DigestItem, DigestRun, DigestTopic, Item, Source, SourceCheck
 from catchup.net.safe_fetch import RATE_LIMIT_PREFIX
+from catchup.net.safe_fetch import FetchResponse, MAX_BYTES
+from catchup.collection import article_text
+from catchup.sources.feeds import FeedEntry
+from catchup.sources.feeds import parse_feed
+from catchup.collection import check_source
 
 NOW = datetime(2026, 10, 3, 12, tzinfo=timezone.utc)
 FEED_URL = "https://site.example/feed.xml"
@@ -113,6 +119,177 @@ def test_expired_preview_refetches_feed(client):
         assert route.call_count == 2
 
 
+def test_large_feed_preview_and_cache_miss_confirm(client):
+    large_feed = entries_xml(1).replace(b"</channel>", b"<!--" + b"x" * (MAX_BYTES + 1) + b"--></channel>")
+    with respx.mock(assert_all_mocked=True) as router:
+        route = serve_feed(router, large_feed)
+        result = client.post("/api/sources/preview", json={"url": FEED_URL})
+        assert result.status_code == 200
+        assert client.app.state.feed_cache.pop(FEED_URL) is None
+        confirmed = client.post("/api/sources", json={"feed_url": FEED_URL})
+        assert confirmed.status_code == 201
+        assert route.call_count == 2
+
+
+def test_large_article_keeps_feed_text(client):
+    entry = FeedEntry("article", "https://site.example/article", "Article", None, "Excerpt")
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(entry.link).mock(return_value=httpx.Response(
+            200, content=b"x" * (MAX_BYTES + 1),
+        ))
+        assert article_text(entry, {FEED_URL}, 500) == ("Excerpt", "feed")
+
+
+@pytest.mark.parametrize("fixture,url,kind", [
+    ("podcast-kind.xml", FEED_URL, "podcast"),
+    ("youtube-kind.xml", "https://www.youtube.com/feeds/videos.xml?channel_id=abc", "youtube"),
+    ("substack-kind.xml", FEED_URL, "feed"),
+])
+def test_feed_kind_fixtures(fixture, url, kind):
+    feed = parse_feed(FetchResponse(url, (FIXTURES / fixture).read_bytes(), "application/rss+xml", 200))
+    assert feed.kind == kind
+    if kind == "podcast":
+        assert [entry.has_audio for entry in feed.entries] == [True, True, False]
+        assert feed.audio_share == 2 / 3
+
+
+def test_blog_with_one_audio_post_is_not_podcast():
+    posts = "".join(f"<item><guid>{i}</guid><title>Post {i}</title>"
+                    + ('<enclosure url="https://site.example/a.mp3" type="audio/mpeg"/>' if i == 0 else "")
+                    + "</item>" for i in range(15))
+    feed = parse_feed(FetchResponse(FEED_URL, f"<rss><channel>{posts}</channel></rss>".encode(),
+                                    "application/rss+xml", 200))
+    assert feed.kind == "feed" and feed.audio_share == 1 / 15
+
+
+def test_podcast_text_post_keeps_article_handling(client):
+    with respx.mock(assert_all_mocked=True) as router:
+        serve_feed(router, (FIXTURES / "podcast-kind.xml").read_bytes())
+        router.get("https://site.example/post").mock(return_value=httpx.Response(
+            200, content=b"<html><body><article><p>Full text post about the show.</p></article></body></html>",
+        ))
+        assert client.post("/api/sources", json={"feed_url": FEED_URL}).status_code == 201
+    with client.app.state.session_factory() as session:
+        assert session.scalar(select(Source.kind)) == "podcast"
+        assert session.scalar(select(Item).where(Item.identity_key == "post")).transcript_status == "text"
+        assert all(row.transcript_status == "to_fetch" for row in session.scalars(
+            select(Item).where(Item.identity_key.in_(["ep1", "ep2"]))
+        ))
+
+
+def test_podcast_text_post_is_summarized(client, monkeypatch):
+    from catchup.crypto import encrypt_key
+    from catchup.digest.runner import run_digest, start_run
+    from catchup.models import ModelConfig
+    from test_digest_runner import FakeModel, stub_collection
+
+    client.app.state.settings = replace(
+        client.app.state.settings, secret_key="test-only-secret",
+    )
+    with respx.mock(assert_all_mocked=True) as router:
+        serve_feed(router, (FIXTURES / "podcast-kind.xml").read_bytes())
+        router.get("https://site.example/post").mock(return_value=httpx.Response(
+            200, content=b"<html><body><article><p>Full text post about the show.</p></article></body></html>",
+        ))
+        assert client.post("/api/sources", json={"feed_url": FEED_URL}).status_code == 201
+    with client.app.state.session_factory() as session:
+        for item in session.scalars(select(Item).where(Item.identity_key.in_(["ep1", "ep2"]))):
+            item.state = "baseline"
+        session.add(ModelConfig(
+            id=1, base_url="https://model.example", model_id="test",
+            api_key_encrypted=encrypt_key("not-a-real-key", "test-only-secret"), api_key_last4="-key",
+        ))
+        session.commit()
+    stub_collection(monkeypatch)
+    fake = FakeModel()
+    client.app.state.model_client_factory = lambda *_args: fake
+    run = start_run(client.app, background=False)
+    run_digest(client.app, run.id)
+    assert client.get(f"/api/digest-runs/{run.id}").json()["status"] == "succeeded"
+    with client.app.state.session_factory() as session:
+        post = session.scalar(select(Item).where(Item.identity_key == "post"))
+        assert post.transcript_status == "text"
+        assert post.summary == "English summary"
+
+
+def test_plain_rss_remains_feed(client):
+    with respx.mock(assert_all_mocked=True) as router:
+        serve_feed(router, entries_xml(1))
+        assert client.post("/api/sources/preview", json={"url": FEED_URL}).json()["kind"] == "feed"
+
+
+@pytest.mark.parametrize("url,notice", [
+    ("https://podcasts.apple.com/us/podcast/example/id12345", False),
+    ("https://podcasts.apple.com/us/podcast/example/id12345?i=67890", True),
+])
+def test_apple_lookup_previews_show_feed(client, monkeypatch, url, notice):
+    def public(host, port, *_args, **_kwargs):
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", port))]
+    monkeypatch.setattr(socket, "getaddrinfo", public)
+    with respx.mock(assert_all_mocked=True) as router:
+        lookup = router.get("https://itunes.apple.com/lookup?id=12345&entity=podcast").mock(
+            return_value=httpx.Response(200, content=b'{"resultCount":1,"results":[{"feedUrl":'
+                                                      b'"https://site.example/feed.xml"}]}',
+                                        headers={"content-type": "text/javascript"}))
+        serve_feed(router, (FIXTURES / "podcast-kind.xml").read_bytes())
+        result = client.post("/api/sources/preview", json={"url": url})
+    assert result.status_code == 200
+    assert result.json()["kind"] == "podcast"
+    assert result.json()["follows_site_feed_notice"] is notice
+    assert result.json()["feed_url"] == FEED_URL
+    assert lookup.call_count == 1
+    assert lookup.calls[0].request.headers["user-agent"].startswith("CatchUp/")
+
+
+@pytest.mark.parametrize("body", [
+    b'{"resultCount":0,"results":[]}',
+    b'{"resultCount":1,"results":[{}]}',
+    b"not JSON",
+])
+def test_apple_lookup_without_feed_reports_no_feed(client, monkeypatch, body):
+    monkeypatch.setattr(socket, "getaddrinfo", lambda host, port, **kwargs: [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", port)),
+    ])
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://itunes.apple.com/lookup?id=12345&entity=podcast").mock(
+            return_value=httpx.Response(200, content=body))
+        result = client.post("/api/sources/preview", json={
+            "url": "https://podcasts.apple.com/us/podcast/example/id12345",
+        })
+    assert result.status_code == 422
+    assert result.json()["error"]["code"] == "no_feed"
+
+
+def test_upgrade_kind_without_downgrade(client):
+    with client.app.state.session_factory() as session:
+        source = Source(title="Old channel", site_url="https://www.youtube.com/",
+                        feed_url="https://www.youtube.com/feeds/videos.xml?channel_id=abc",
+                        input_url="https://www.youtube.com/", kind="feed")
+        session.add(source)
+        session.commit()
+        source_id = source.id
+    # The fixture's YouTube URL is a public fixed host, with no real request.
+    import socket
+    from unittest.mock import patch
+    with patch("socket.getaddrinfo", return_value=[(socket.AF_INET, socket.SOCK_STREAM, 6, "",
+                                                       ("8.8.8.8", 443))]), respx.mock(assert_all_mocked=True) as router:
+        router.get("https://www.youtube.com/feeds/videos.xml?channel_id=abc").mock(
+            return_value=httpx.Response(200, content=(FIXTURES / "youtube-kind.xml").read_bytes()))
+        with client.app.state.session_factory() as session:
+            check_source(session, session.get(Source, source_id), None, client.app.state.settings)
+            assert session.get(Source, source_id).kind == "youtube"
+    with client.app.state.session_factory() as session:
+        source = session.get(Source, source_id)
+        source.kind = "podcast"
+        source.feed_url = FEED_URL
+        session.commit()
+    with respx.mock(assert_all_mocked=True) as router:
+        serve_feed(router, (FIXTURES / "substack-kind.xml").read_bytes())
+        with client.app.state.session_factory() as session:
+            check_source(session, session.get(Source, source_id), None, client.app.state.settings)
+            assert session.get(Source, source_id).kind == "podcast"
+
+
 def test_confirm_without_preview_fetches_feed(client):
     with respx.mock(assert_all_mocked=True) as router:
         route = serve_feed(router, entries_xml(1))
@@ -176,6 +353,16 @@ def test_confirm_preserves_entries_without_links(client):
         assert client.post("/api/sources", json={"feed_url": FEED_URL}).status_code == 201
     with client.app.state.session_factory() as session:
         assert session.scalars(select(Item.state)).all().count("pending") == 2
+
+
+def test_confirm_keeps_episodes_with_shared_show_link(client):
+    with respx.mock(assert_all_mocked=True) as router:
+        serve_feed(router, (FIXTURES / "podcast-shared.xml").read_bytes())
+        preview = client.post("/api/sources/preview", json={"url": FEED_URL})
+        assert len(preview.json()["entries"]) == 3
+        assert client.post("/api/sources", json={"feed_url": FEED_URL}).status_code == 201
+    with client.app.state.session_factory() as session:
+        assert {item.identity_key for item in session.scalars(select(Item))} == {"ep1", "ep2", "ep3"}
 
 
 def test_confirm_enriches_short_pending_entry_but_not_baseline(client):

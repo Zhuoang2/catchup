@@ -5,7 +5,7 @@ from threading import Lock
 from time import monotonic
 from typing import Callable
 
-from catchup.net.safe_fetch import FetchResponse
+from catchup.net.safe_fetch import FetchResponse, MAX_BYTES
 
 
 class FeedCache:
@@ -18,6 +18,8 @@ class FeedCache:
         self._entries: OrderedDict[str, tuple[float, FetchResponse]] = OrderedDict()
 
     def put(self, response: FetchResponse) -> None:
+        if len(response.content) > MAX_BYTES:
+            return
         with self._lock:
             self._entries.pop(response.url, None)
             self._entries[response.url] = (self.clock(), response)

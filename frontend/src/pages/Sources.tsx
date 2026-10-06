@@ -5,6 +5,7 @@ type Entry = { title: string; link: string; published_at: string | null }
 type Preview = {
   feed_url: string; site_url: string; title: string;
   follows_site_feed_notice: boolean; entries: Entry[]
+  kind: 'feed' | 'podcast' | 'youtube'; captions_enabled: boolean
 }
 type Source = {
   id: number; title: string; feed_url: string; site_url: string;
@@ -106,8 +107,16 @@ export default function Sources() {
           <h3>{preview.title}</h3>
           <p>Feed: <a href={preview.feed_url}>{preview.feed_url}</a></p>
           <p>Site: <a href={preview.site_url}>{preview.site_url}</a></p>
+          <p>Source type: {preview.kind === 'youtube' ? 'YouTube channel' :
+            preview.kind === 'podcast' ? 'Podcast' : 'Website feed'}</p>
+          {preview.kind === 'podcast' && <p>Transcripts published by the show</p>}
+          {preview.kind === 'youtube' && <p>{preview.captions_enabled
+            ? 'Captions fetched from YouTube on this computer'
+            : 'Caption fetching is off; videos will be listed without summaries'}</p>}
           {preview.follows_site_feed_notice && (
-            <p>CatchUp will follow the whole site's feed, not only this page.</p>
+            <p>{preview.kind === 'podcast'
+              ? 'CatchUp will follow the whole show, not only this episode.'
+              : "CatchUp will follow the whole site's feed, not only this page."}</p>
           )}
           <ul>{preview.entries.map((entry, index) => (
             <li key={`${entry.link}-${index}`}>

@@ -15,7 +15,9 @@ beforeEach(() => {
       base_url: 'https://api.deepseek.com', model_id: 'saved-model',
       key_set: true, api_key_last4: '1234',
     })
-    if (url === '/api/settings/preferences') return respond({ digest_language: 'en' })
+    if (url === '/api/settings/preferences') return respond({
+      digest_language: 'en', youtube_captions: false, youtube_skip_shorts: true,
+    })
     throw new Error(`Unexpected request: ${url}`)
   })
 })
@@ -25,6 +27,15 @@ afterEach(() => {
 })
 
 describe('model settings', () => {
+  it('shows opt-in captions and default Shorts settings with the risk notice', async () => {
+    render(<Settings />)
+    const captions = await screen.findByLabelText('Fetch captions locally')
+    expect(captions).not.toBeChecked()
+    expect(screen.getByLabelText('Skip Shorts')).toBeChecked()
+    expect(screen.getByText(/YouTube's Terms of Service do not allow automated access/)).toBeInTheDocument()
+    fireEvent.click(captions)
+    expect(captions).toBeChecked()
+  })
   it('loads provider settings without revealing the key', async () => {
     render(<Settings />)
     expect(await screen.findByDisplayValue('https://api.deepseek.com')).toBeInTheDocument()
@@ -40,7 +51,7 @@ describe('model settings', () => {
         base_url: 'https://api.deepseek.com', model_id: '',
         key_set: false, api_key_last4: null,
       })
-      return respond({ digest_language: 'en' })
+      return respond({ digest_language: 'en', youtube_captions: false, youtube_skip_shorts: true })
     })
     render(<Settings />)
     await screen.findByRole('button', { name: 'Test connection' })
@@ -58,7 +69,7 @@ describe('model settings', () => {
         base_url: 'https://api.deepseek.com', model_id: 'saved-model',
         key_set: true, api_key_last4: '1234',
       })
-      return respond({ digest_language: 'en' })
+      return respond({ digest_language: 'en', youtube_captions: false, youtube_skip_shorts: true })
     })
     render(<Settings />)
     await screen.findByLabelText('API key')

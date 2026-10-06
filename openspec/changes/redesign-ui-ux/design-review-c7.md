@@ -229,6 +229,7 @@ Changes, by finding:
 - **Tokens (C1, A2–A4):**
   - light `--subtle` changed to `#66625a` (5.33:1)
   - error is now burnt orange `#a33a00`, distinct from warn olive `#6b5e00` and from the brand red; dark theme uses `#ff9a62` / `#d9c25a`
+    - Later amended (2026-10-06, plan fix): error moved to `#a34200` / `#ffa65e` so it is at least 20° in hue from the brand red as well (see `design.md` D2).
   - placeholders use `--muted`
   - the saved key is shown as text
   - the switch has a 1.5 px `--muted` boundary in the off state

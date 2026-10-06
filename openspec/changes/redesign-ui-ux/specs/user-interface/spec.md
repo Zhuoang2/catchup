@@ -58,7 +58,7 @@ Creator updates SHALL be grouped by source, and each group shows the source kind
 - **THEN** its reason reads "Caption fetching is off"
 
 ### Requirement: One primary action per state
-Each screen state SHALL offer exactly one primary action:
+Each screen state SHALL offer at most one primary action. A state where nothing needs doing next, such as a run that found no new content, offers none. The primary action is:
 - **first run** (no model configured): set up the model, with Generate shown as unavailable together with the reason
 - **a finished digest:** view the digest
 - **a configuration error:** check settings

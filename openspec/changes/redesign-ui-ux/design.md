@@ -5,6 +5,8 @@ Status: Proposal 1 chosen by the user on 2026-10-06 (port the C7 prototype CSS a
 - the edition number is the digest id
 - `prototypes/` stays in the archived change as design evidence
 
+Amended 2026-10-06 after Droid stopped on two contradictions in the plan (approved by the user): `--error` moved from `#a33a00` / `#ff9a62` to `#a34200` / `#ffa65e` so error, warn, and accent differ by at least 20° in hue; a state may have no primary action (No new content); `tokens.css` also carries `--error-border` and the non-color tokens.
+
 The two-proposal comparison is in git history (`26c9d64`). The rejected alternative is recorded under D1.
 
 ## Context
@@ -58,7 +60,7 @@ FastAPI serves `dist/` through an `/assets` mount and an SPA fallback that serve
 
 ### D2. Stylesheets and tokens
 - **Files** in `frontend/src/styles/`, imported in this order from `main.tsx`. `style.css` is deleted.
-  - `tokens.css`: custom properties on `:root`, dark values under `@media (prefers-color-scheme: dark)`. No color literals appear outside this file, except `#fff` for the switch thumb.
+  - `tokens.css`: custom properties on `:root`, dark values under `@media (prefers-color-scheme: dark)`. No color literals appear outside this file, except `#fff` for the switch thumb, its `rgba(0, 0, 0, .25)` shadow, and the inline CSS of `offline.html`.
   - `base.css`: element defaults, the focus ring (2 px `--accent` outline, 2 px offset), `.sr-only`, reduced-motion rules, and `::placeholder { color: var(--muted) }`.
   - `layout.css`:
     - the `.page-frame` container (`max-width: 78rem`, `--margin: 2rem`, `--gutter: 1.5rem`), shared by the header and `main`
@@ -84,11 +86,14 @@ FastAPI serves `dist/` through an `/assets` mount and an SPA fallback that serve
   | `--link` | `#151412` | `#ece7dc` |
   | `--ok` / `--ok-soft` | `#1e6b34` / `#e2f0e5` | `#7fd08f` / `#1a2b1e` |
   | `--warn` / `--warn-soft` | `#6b5e00` / `#f1ecc8` | `#d9c25a` / `#2f2b16` |
-  | `--error` / `--error-soft` | `#a33a00` / `#fbe3d6` | `#ff9a62` / `#3a2418` |
+  | `--error` / `--error-soft` | `#a34200` / `#fbe3d6` | `#ffa65e` / `#3a2418` |
+  | `--error-border` | same as `--error` | same as `--error` |
   | `--neutral-soft` | `#e9e3d5` | `#24221e` |
   | `--info-soft` | `#ece6d8` | `#22201c` |
   | `--disabled` | `#dcd9d0` | `#33322f` |
 
+- **Hue check.** In HSL hue, accent vs error is 20.2° / 20.6° and error vs warn is 28.4° / 22.3° (light / dark). Error text contrast stays ≥ 5.1:1 on `--bg`, `--surface`, and `--error-soft`.
+- **Non-color tokens** come from the same cascade and also live in `tokens.css`: the font stacks (`--font-body`, `--font-heading`, `--cjk`), type sizes (`--text`, `--title-size`, `--title-tracking`, `--topic-size`, `--heading-weight`), radii (`--radius`, `--radius-sm`, both 0 in C7), and spacing and widths (`--gap`, `--gutter`, `--margin`, `--content`, `--page`). `--nav-active` is `transparent`.
 - **Fonts.**
   - Body: `"Iowan Old Style", "Hoefler Text", Georgia, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Microsoft YaHei", serif`.
   - Heading: the same, starting with `"Big Caslon", "Baskerville"`.

@@ -11,7 +11,7 @@ Implementer notes:
   - Tests use **no real sleeps** (fake timers for polling).
   - Tests write nothing outside temp dirs.
   - No new runtime dependencies in `frontend/package.json`. Allowed new dev dependencies: `vitest-axe` and `axe-core`.
-  - No color literals outside `frontend/src/styles/tokens.css`, except `#fff` for the switch thumb and the inline CSS of `offline.html`, which mirrors the tokens.
+  - No color literals outside `frontend/src/styles/tokens.css`, except `#fff` for the switch thumb, its `rgba(0, 0, 0, .25)` shadow, and the inline CSS of `offline.html`, which mirrors the tokens.
   - Keep the CI job names `backend`, `frontend`, and `docker`.
   - Never push, tag, or open a PR.
 - Backend commands run from `backend/` with uv; frontend commands run from `frontend/` with npm.
@@ -29,7 +29,7 @@ Implementer notes:
 ## 2. Design system foundation
 
 - [ ] 2.1 Create `frontend/src/styles/tokens.css`, `base.css`, `layout.css`, and `components.css` per design.md D2, import them in `frontend/src/main.tsx`, and delete `frontend/src/style.css`. Requirements:
-  - `tokens.css` holds exactly the D2 token table (light on `:root`, dark under `prefers-color-scheme: dark`) and the D2 font stacks.
+  - `tokens.css` holds every color token in the D2 table with exactly those values, including `--error-border` (light on `:root`, dark under `prefers-color-scheme: dark`), plus the D2 non-color tokens (font stacks, type sizes, radii, spacing and widths) with their values from the C7 cascade.
   - `layout.css` holds the shared container, the 12-column grid with `subgrid` section rows, the rail, the compact masthead, and container queries at 900 and 640 px, ported from `c7.css` and `base.css`.
 
   Verify that `npm run build` succeeds and a grep finds no color literals outside `tokens.css` (apart from the allowed exceptions).
@@ -40,7 +40,7 @@ Implementer notes:
   - `--muted` on `--neutral-soft`, all ≥ 4.5:1
   - `--muted` on `--disabled` (the switch boundary), ≥ 3:1
 
-  Also assert that `--error`, `--warn`, and `--accent` differ in hue by at least 20°. Verify that the test passes, and fails if `--subtle` is set to `#77736a`.
+  Also assert that `--error`, `--warn`, and `--accent` differ pairwise by at least 20° in HSL hue, in both themes (D2 "Hue check"). Verify that the test passes, and fails if `--subtle` is set to `#77736a`.
 
 ## 3. App shell and shared components
 
@@ -90,7 +90,7 @@ Implementer notes:
   - the `StatusRegion` messages
 
   Verify with fake-timer tests:
-  - each state renders exactly one `.btn-primary` (and the right one)
+  - each state renders the primary action from the D4 table and no other `.btn-primary`; No new content renders none
   - the status region text changes from "Summarizing, 5 of 12" to "Digest ready: 12 items" when polling returns `succeeded`
   - the first-run rail shows "Getting started" and no counts
   - the progress bar has an accessible name

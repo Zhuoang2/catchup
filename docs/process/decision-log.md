@@ -131,3 +131,4 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
 - **Consequences:**
   - Accessibility details are owned, and checked by axe scans and a token contrast test.
   - Saved digests gain `language` and per-item `source_kind` (migration `0003`) so that the UI can mark language and kinds after settings or sources change.
+- **Amendment (2026-10-06, before implementation):** the error color moved from `#a33a00` / `#ff9a62` to `#a34200` / `#ffa65e` (light / dark) so that error, warn, and the brand accent differ by at least 20° in hue (they were 17.3° / 15.1° apart from the accent). Error text stays at ≥ 5.1:1. A state may have no primary action (No new content). Alternative considered: keep the reviewed colors and lower the accent–error threshold to 15°; rejected because the threshold would be chosen after the fact, and the user had asked for error to be clearly separate from the brand red.

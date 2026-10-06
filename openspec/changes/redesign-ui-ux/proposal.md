@@ -27,7 +27,7 @@ The user chose the visual direction **C7 · Front page grid** after two prototyp
   - History: list, empty
   - offline
 
-  Each state has one primary action and state-aware side information.
+  Each state has at most one primary action and state-aware side information.
 - **Accessibility to WCAG 2.1 AA:**
   - contrast of 4.5:1 for text and 3:1 for UI boundaries in both themes
   - generated text marked with its language

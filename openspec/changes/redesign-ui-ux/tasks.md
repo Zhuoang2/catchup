@@ -82,7 +82,7 @@ Implementer notes:
 
 ## 5. Generate
 
-- [ ] 5.1 Rebuild `frontend/src/pages/Generate.tsx` per design.md D4 "Generate", ported from `render.js generate()`, with today's polling and the `run_active` handling kept (`Generate.tsx:37-73`). The states are first run, idle, collecting, summarizing, succeeded, no new content, and failed, with:
+- [x] 5.1 Rebuild `frontend/src/pages/Generate.tsx` per design.md D4 "Generate", ported from `render.js generate()`, with today's polling and the `run_active` handling kept (`Generate.tsx:37-73`). The states are first run, idle, collecting, summarizing, succeeded, no new content, and failed, with:
   - the primary-action table from D4
   - a disabled Generate with a visible reason on first run
   - the failed-run copy about reused summaries

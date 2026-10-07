@@ -132,3 +132,16 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Accessibility details are owned, and checked by axe scans and a token contrast test.
   - Saved digests gain `language` and per-item `source_kind` (migration `0003`) so that the UI can mark language and kinds after settings or sources change.
 - **Amendment (2026-10-06, before implementation):** the error color moved from `#a33a00` / `#ff9a62` to `#a34200` / `#ffa65e` (light / dark) so that error, warn, and the brand accent differ by at least 20° in hue (they were 17.3° / 15.1° apart from the accent). Error text stays at ≥ 5.1:1. A state may have no primary action (No new content). Alternative considered: keep the reviewed colors and lower the accent–error threshold to 15°; rejected because the threshold would be chosen after the fact, and the user had asked for error to be clearly separate from the brand red.
+
+## D-016 Test-first implementation and a diagnose-first bug path, using the `tdd` and `diagnosing-bugs` skills — accepted (2026-10-07)
+
+- **Decision:** two shared skills from `mattpocock/skills` (MIT) are installed in the repository: `tdd` and `diagnosing-bugs`. They live in `.agents/skills/`, are symlinked into `.claude/skills/`, and are pinned by hash in `skills-lock.json`. `AGENTS.md` makes them part of the workflow:
+  - Droid completes each `tasks.md` task test-first: a failing test for the task's spec scenarios and verification items, then the implementation, one slice at a time.
+  - Bugs, and review findings whose cause is unknown, are reproduced with a failing check before any fix, then fixed with a regression test.
+- **Adaptation:** `tdd` asks the agent to confirm the test seams with the user before writing tests. Droid runs unattended, so the seams named in each task's verification count as agreed. Planning therefore has to name the seams, and a task without a testable seam is a reason to stop. `diagnosing-bugs` asks to show ranked hypotheses to the user; unattended runs report them in the final report and commit message instead.
+- **Why:** Droid works alone in a worktree, and its results are seen only at review. In `redesign-ui-ux` the review found Generate tests that had been lost and fixes whose cause had not been reproduced; writing the test first and reproducing first move those problems earlier.
+- **Alternatives:**
+  - Keep the current flow, where tests are written alongside the code and each task has a verification list. Rejected: nothing makes the test exist before the code.
+  - Copy the pictured flow exactly (`/opsx:propose` for every change). Rejected: substantial changes keep the RePPIT research and two-proposal steps (2026-10-01), which the course grades as evidence.
+- **Consequences:** Droid runs take longer and use more credits. The first trial is the next small change, for example #23. The current `redesign-ui-ux` fix round was already done without these skills.
+- **Review:** before installing, Claude read every file in both skills. They contain instructions only; the bundled `hitl-loop.template.sh` only prompts a human and prints the answers. The installer's own assessment reported no alerts.

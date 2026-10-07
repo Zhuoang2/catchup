@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { request } from '../api/client'
 import { dateTime, longDate, plural, shortTime, tokenTotals } from '../components/format'
 import { Icon } from '../components/Icon'
+import { digestLang } from '../components/lang'
 import { PageHead, SectionRow, SummaryText, KindIcon, ReasonLabel,
   reasons, type Reason, type SourceKind } from '../components/ui'
 import { useJump } from '../components/useJump'
@@ -33,6 +34,7 @@ function SourceTime({ value }: { value: string | null }) {
 }
 
 function DigestBody({ digest }: { digest: Digest }) {
+  const lang = digestLang(digest.language)
   const groups = digest.creator_updates ?? []
   const sectionCount = digest.topics.length + (groups.length ? 1 : 0)
   const itemCount = digest.topics.reduce((count, topic) => count + topic.items.length, 0)
@@ -55,13 +57,13 @@ function DigestBody({ digest }: { digest: Digest }) {
       {sectionCount > 1 && <nav className="toc" aria-label="In this digest">
         <p className="toc-title">In this digest</p><ol>
           {digest.topics.map((topic, index) =>
-            <li key={index}><IndexLink id={`t${index}`} title={topic.title} lang={digest.language}/></li>)}
+            <li key={index}><IndexLink id={`t${index}`} title={topic.title} lang={lang}/></li>)}
           {groups.length > 0 && <li><IndexLink id="creator" title="Creator updates"/></li>}
         </ol>
       </nav>}
       <div className="digest-body">
         {digest.topics.map((topic, index) =>
-          <SectionRow key={index} id={`t${index}`} title={topic.title} overview={topic.overview} lang={digest.language}>
+          <SectionRow key={index} id={`t${index}`} title={topic.title} overview={topic.overview} lang={lang}>
             <div className="items">{topic.items.map((item, position) => {
               const wide = (item.summary?.length ?? 0) > 140 || item.summary?.split('\n').some(line => line.startsWith('- '))
               return <article key={position} className={`item ${wide ? 'item-long' : 'item-short'}`}>
@@ -72,7 +74,7 @@ function DigestBody({ digest }: { digest: Digest }) {
                 </a></h3>
                 {item.summary_unavailable
                   ? <p className="summary-unavailable">Summary unavailable</p>
-                  : item.summary && <SummaryText text={item.summary} lang={digest.language}/>}
+                  : item.summary && <SummaryText text={item.summary} lang={lang}/>}
               </article>
             })}</div>
           </SectionRow>)}

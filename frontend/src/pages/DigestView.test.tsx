@@ -183,9 +183,27 @@ it.each([{ language: 'en', kind: 'feed' }, { language: null, kind: null }])(
     const { container } = page()
     await screen.findByRole('heading', { name: 'Topic' })
     expect(container.querySelector('[lang="zh-Hans"]')).toBeNull()
+    if (language === null) expect(container.querySelector('.page-digest [lang]')).toBeNull()
     if (!kind) expect(screen.getByRole('link', { name: 'Article' }).closest('article')?.querySelector('svg.icon-sm')).toBeNull()
     await expectAccessible(container)
   })
+
+it('omits all digest language marks when the saved preference is original', async () => {
+  fetchMock.mockResolvedValue(respond({
+    id: 7, language: 'original', created_at: '2026-10-03T10:00:00Z', model_id: 'test',
+    topics: [
+      { title: 'First', overview: 'Overview', items: [{
+        title: 'Original title', link: 'https://example.test/a', source_name: 'News',
+        published_at: null, summary: 'Summary', summary_unavailable: false,
+      }] },
+      { title: 'Second', overview: 'Overview', items: [] },
+    ],
+  }))
+  const { container } = page()
+  await screen.findByRole('navigation', { name: 'In this digest' })
+  expect(container.querySelector('.page-digest [lang]')).toBeNull()
+  await expectAccessible(container)
+})
 
 it.each([
   [12, 4, 'Tokens: 12 in / 4 out'],

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { request } from '../api/client'
 import { longDate, plural, shortTime } from '../components/format'
 import { Icon } from '../components/Icon'
+import { digestLang } from '../components/lang'
 import { PageHead, Rail, buttonClass } from '../components/ui'
 
 type DigestEntry = {
@@ -50,7 +51,7 @@ export default function History() {
             </span>
             <span className="history-main"><span className="history-title">No. {digest.id} ·{' '}
               <time dateTime={digest.created_at}>{longDate(digest.created_at)} · {shortTime(digest.created_at)}</time></span>
-              <span className="history-topics" lang={digest.language || undefined}>
+              <span className="history-topics" lang={digest.topics.length ? digestLang(digest.language) : undefined}>
                 {digest.topics.length ? digest.topics.join(' · ') :
                   digest.creator_updates_only ? 'Creator updates only' : 'No topics'}
               </span>

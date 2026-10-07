@@ -11,5 +11,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    // A zone where UTC and local dates differ, so local-date bugs fail on any machine.
+    env: { TZ: 'America/Los_Angeles' },
   },
 })

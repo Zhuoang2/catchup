@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "test": "TZ=America/Los_Angeles vitest"
+    "test": "vitest"
   },
   "dependencies": {
     "react": "^19.0.0",

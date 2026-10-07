@@ -1,4 +1,4 @@
-const languageNames: Record<string, string> = {
+const languageNames = new Map(Object.entries({
   english: 'en',
   'simplified chinese': 'zh-Hans',
   '简体中文': 'zh-Hans',
@@ -14,13 +14,14 @@ const languageNames: Record<string, string> = {
   deutsch: 'de',
   korean: 'ko',
   '한국어': 'ko',
-}
+}))
 const supportedLanguages = new Set(['en', 'zh', 'ja', 'ko', 'fr', 'de', 'es', 'it', 'pt', 'ru', 'ar', 'hi'])
 
 export function digestLang(language: string | null | undefined): string | undefined {
   const name = language?.trim().toLocaleLowerCase()
   if (!name || name === 'original') return undefined
-  if (languageNames[name]) return languageNames[name]
+  const named = languageNames.get(name)
+  if (named) return named
   try {
     const tag = Intl.getCanonicalLocales(name)[0]
     return tag && supportedLanguages.has(tag.split('-')[0]) ? tag : undefined

@@ -151,6 +151,38 @@ def test_history_list_loads_all_topics_without_bound_digest_ids(test_settings):
         assert not topic_queries[0][1]
 
 
+def test_history_list_ignores_a_digest_saved_between_its_two_queries(test_settings):
+    with TestClient(create_app(test_settings)) as client:
+        seed_history(client)
+        factory = client.app.state.session_factory
+        with factory() as session:
+            engine = session.get_bind()
+        saved = []
+
+        def save_digest_first(_conn, _cursor, statement, _params, _context, _executemany):
+            # A run finishing while History loads commits between the digest and topic SELECTs.
+            if "FROM digest_topics" in statement and not saved:
+                with factory() as other:
+                    run = DigestRun(status="succeeded")
+                    other.add(run)
+                    other.flush()
+                    digest = Digest(run_id=run.id, model_id="test", item_count=1, source_count=1)
+                    other.add(digest)
+                    other.flush()
+                    other.add(DigestTopic(digest_id=digest.id, position=0, title="Late", overview="Saved"))
+                    other.commit()
+                    saved.append(digest.id)
+
+        event.listen(engine, "before_cursor_execute", save_digest_first)
+        try:
+            rows = client.get("/api/digests")
+        finally:
+            event.remove(engine, "before_cursor_execute", save_digest_first)
+        assert saved
+        assert rows.status_code == 200
+        assert [row["id"] for row in rows.json()] == [3, 2, 1]
+        assert client.get("/api/digests").json()[0]["topics"] == ["Late"]
+
 def test_digest_detail_uses_snapshot_positions_and_survives_source_deletion(test_settings):
     with TestClient(create_app(test_settings)) as client:
         source_id = seed_history(client)

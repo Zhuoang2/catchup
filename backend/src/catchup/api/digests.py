@@ -23,6 +23,8 @@ def list_digests(session: Session = Depends(get_session)) -> list[dict]:
             select(DigestTopic.digest_id, DigestTopic.title, DigestTopic.kind)
             .order_by(DigestTopic.digest_id, DigestTopic.position, DigestTopic.id)
         ):
+            if digest_id not in titles:
+                continue  # saved after the digest query; it appears on the next load
             if kind == "creator_updates":
                 creator_ids.add(digest_id)
             else:

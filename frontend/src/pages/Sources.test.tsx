@@ -161,6 +161,22 @@ describe('sources', () => {
     await expectAccessible(container)
   })
 
+  it('moves focus to the list heading when other sources remain after a delete', async () => {
+    const other = { ...saved, id: 3, title: 'Other Weekly', feed_url: 'https://other.example/feed' }
+    let deleted = false
+    fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+      if (options?.method === 'DELETE') { deleted = true; return { ok: true, status: 204 } }
+      if (path === '/api/sources') return respond(deleted ? [other] : [saved, other])
+      throw new Error(`Unexpected request: ${path}`)
+    })
+    page()
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Example News' }))
+    fireEvent.click(screen.getByRole('group', { name: 'Confirm deletion' }).querySelector('button')!)
+    await waitFor(() => expect(screen.queryByText('Example News')).toBeNull())
+    expect(screen.getByText('Other Weekly')).toBeInTheDocument()
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { name: /Your sources/ })))
+  })
+
   it('removes a deleted row before refresh and reports a refresh failure', async () => {
     let deleted = false
     let rejectRefresh!: (reason: Error) => void

@@ -61,7 +61,11 @@ The first six and `.page-offline` belong to prototype-only chrome or the separat
 
 Tests used mocked API/feed/model responses and fake timers, not live feeds or a real provider. No runtime dependencies, CI job names, protected OpenSpec plans/specs or prototype files changed in this review-fix round; only task checkboxes changed under the OpenSpec change folder. No full multi-theme visual parity, keyboard-only end-to-end pass, native PWA installation or Safari rendering was performed; the earlier manual-review limitations remain. The offline-page spot check loaded the standalone file, not a simulated service-worker navigation; the prior worker-isolation tests and Docker asset smoke still passed.
 
-Interpretive choices: a digest with no topics and no Creator updates displays “No topics”; the Creator-only flag requires an actual Creator-updates topic. When the model-settings read fails, Generate keeps active-run visibility rather than assuming first-run setup. Sources retains the “Your sources” heading in its empty state as the post-deletion focus target. The index displays section counts as explicitly required by task 10.7, despite the older prototype cascade hiding `.toc-count`. The independent style audit still reports generic page and standalone-offline selectors rather than silently filtering them out.
+Interpretive choices at that point: a digest with no topics and no Creator updates displays “No topics”; the Creator-only flag requires an actual Creator-updates topic. When the model-settings read fails, Generate keeps active-run visibility rather than assuming first-run setup. The later second-review fixes supersede two claims here: “Your sources” is no longer an empty-state heading, and index counts are hidden as in C7 (the conflicting 10.7 text was corrected). The independent style audit still reports generic page and standalone-offline selectors rather than silently filtering them out.
+
+## Second review fixes
+
+This section supersedes the earlier Review fixes snapshot where behavior changed. Index counts are hidden as in C7; 10.7 text was corrected in the plan. The empty Sources state now has one “No sources yet” heading, which receives focus after deleting the last source, instead of retaining “Your sources”. The earlier nine-class style output is historical; the current full selector audit below reports eight explained exceptions and `Uncovered prototype selectors (0):`.
 
 ### Second-review selector audit (task 11.10)
 
@@ -94,3 +98,34 @@ Uncovered prototype selectors (0):
 After adding source kinds to the Creator-updates fixture, temporarily restoring `<KindIcon kind={item.source_kind}/>` inside each item's metadata made `renders creator updates after topics with saved wait labels` fail: five item-level hidden kind labels appeared instead of zero. The original group-only markup was restored.
 
 The masthead test now expects the literal local date `2026-10-06` for an instant whose UTC date is `2026-10-07`. Before pinning the test timezone, running it with `TZ=UTC` failed (`dateTime="2026-10-07"`). The `test` script now pins `America/Los_Angeles`. Temporarily restoring `today.toISOString().slice(0, 10)` after that change made the same test fail again with `dateTime="2026-10-07"`; local-date markup was restored. Under an outer `TZ=UTC`, the targeted App/Digest suites then passed 16/16, and the frontend build passed. No temporary production mutation remains.
+
+### Failing checks before fixes
+
+| Task | Red check and subsequent green verification |
+| --- | --- |
+| 11.1 | With fake-timer polling, a failed `/digests` startup alert disappeared after two successful polls. Separating startup and polling errors preserved it; focused rendered-page tests and build passed. |
+| 11.2 | A deferred list refresh kept a successfully deleted source row visible. Removing it on DELETE success and focusing the next list/empty target fixed the rendered test; refresh failures now have their own error; focused tests and build passed. |
+| 11.3 | A failed `/sources` load made Generate report zero sources and suggest adding sources. Distinguishing unread (`null`) from empty removed the invented count; focused tests and build passed. |
+| 11.4 | Tag tests rejected valid `ja`, `fr`, `zh-hant`, `PT-br` and `de-CH`; the explicit name table plus canonicalization and approved primary-subtag list accepted them while rejecting `abcdefgh` and `xx`. Focused tests (18) and build passed. |
+| 11.5 | Rendered Generate hero used the long date; compact hero date test failed then passed (17 focused tests and build). The rail retains its long date. |
+| 11.6 | Empty Sources showed an extra “Your sources” heading and focused it on last deletion. One empty-state heading and empty-state focus passed (13 focused tests and build). |
+| 11.7 | History lacked the `.edition` accent element; a rendered assertion failed then passed with the wrapper and CSS (2 focused tests, style script and build). |
+| 11.8 | Install assertions found an unused offline logo element and stylesheet; removing both passed install and worker tests, build and byte-for-byte asset checks, plus Docker smoke. |
+| 11.9 | Digest-list topic SELECT received `(3, 2, 1)` IDs; after removing the redundant `IN` predicate it used one unparameterized topic query. All 8 digest-history tests passed. |
+| 11.10 | CLI test for the complete prototype selector difference failed while the audit only scanned static markup. Full selector comparison and eight justified exceptions passed 3 unit tests; the exact output is recorded above. |
+| 11.11 | With real kinds in Creator groups/items, restoring item-level icons yielded five unexpected hidden labels. With a pinned `America/Los_Angeles` test zone, restoring UTC-derived masthead dates yielded `2026-10-07` instead of `2026-10-06`. Both mutations were removed; 16 focused tests and build passed. |
+| 11.12 | A new report-verification unittest failed on the missing `## Second review fixes` section before this section was written; it now checks the corrections, task evidence and final commands below. |
+
+### Final integration checks (9.1)
+
+| Check | Result |
+| --- | --- |
+| `uv run pytest --cov=catchup --cov-report=term-missing -q` | 355 passed; 96% statement coverage (1,868 statements, 77 missed). Digest API: 100%. |
+| `npm test -- --run` | 91 passed in 12 files; 37 `expectAccessible` call sites, 42 axe scans including parameterized states, no reported violations. jsdom excludes the paint-dependent color-contrast rule; token contrast tests cover both themes. |
+| `npm run build` | TypeScript and Vite production build passed. |
+| `python3 -m unittest discover -s scripts -p 'test_*.py' -v` | Selector and report checks: 4 passed after the report update. |
+| `python3 scripts/check-style-coverage.py` | Eight explicitly explained prototype-only selectors; `Uncovered prototype selectors (0):` (full output above). |
+| `openspec validate redesign-ui-ux --strict` | Valid. |
+| `docker build -t catchup-redesign-group11-final .` and `scripts/docker-smoke.sh catchup-redesign-group11-final` | Passed: health, host check, manifest/worker/offline MIME, preference saved across restart on a throwaway volume, non-root process, and image exclusions. |
+
+Scope audit: this second-review round changed only task checkboxes under the OpenSpec change folder; protected plans/spec deltas/prototypes, CI jobs, runtime dependencies and lockfiles were untouched. Tests use mocked APIs and fake timers; no unit test contacts a live feed or provider or waits on a real sleep. The standalone style audit covers prototype class selectors even when absent from static markup. This run did not repeat the full two-theme visual parity matrix, keyboard-only end-to-end pass, native PWA installation or Safari rendering; the earlier manual-review limitations still apply.

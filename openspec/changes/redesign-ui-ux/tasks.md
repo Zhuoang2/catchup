@@ -98,7 +98,7 @@ Implementer notes:
 
 ## 6. Sources
 
-- [ ] 6.1 Rebuild `frontend/src/pages/Sources.tsx` per design.md D4 "Sources", ported from `render.js sources()`:
+- [x] 6.1 Rebuild `frontend/src/pages/Sources.tsx` per design.md D4 "Sources", ported from `render.js sources()`:
   - the add form with `aria-describedby`/`aria-invalid`
   - Preview as secondary while a preview is open
   - preview card

@@ -103,6 +103,7 @@
 .source-status { display: flex; gap: .35rem; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 .source-time { color: var(--subtle); font-size: .78em; width: 100%; text-align: right; }
 .source-confirm { grid-template-columns: 1fr auto; background: var(--error-soft); padding: .7rem .8rem; }
+.source-confirm > [role="group"] { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; grid-column: 1 / -1; }
 .preview-card { background: var(--surface); border: 1px solid var(--border); padding: 1.25rem; display: grid; gap: .9rem; }
 .preview-head { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
 .preview-urls { display: grid; grid-template-columns: auto 1fr; gap: .2rem .8rem; font-size: .88em; }

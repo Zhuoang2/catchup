@@ -1,6 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Sources from './Sources'
+import { expectAccessible } from '../test/accessibility'
 
 const fetchMock = vi.fn()
 function respond(data: unknown, status = 200) {
@@ -8,7 +10,7 @@ function respond(data: unknown, status = 200) {
 }
 const saved = {
   id: 2, title: 'Example News', feed_url: 'https://site.example/feed',
-  site_url: 'https://site.example/', last_check_at: '2026-10-03T10:00:00Z',
+  site_url: 'https://site.example/', kind: 'feed', last_check_at: '2026-10-03T10:00:00Z',
   last_check_status: 'failed', possible_gap: true,
   http_status: 503, rate_limited: false,
 }
@@ -17,6 +19,7 @@ const preview = {
   follows_site_feed_notice: true, kind: 'feed', captions_enabled: false,
   entries: [{ title: 'Recent article', link: 'https://site.example/a', published_at: null }],
 }
+function page() { return render(<MemoryRouter><Sources /></MemoryRouter>) }
 
 beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock)
@@ -40,17 +43,21 @@ describe('sources', () => {
     fetchMock.mockImplementation(async (path: string) => path === '/api/sources'
       ? respond([])
       : respond({ ...preview, kind, captions_enabled: enabled }))
-    render(<Sources />)
+    const { container } = page()
     fireEvent.change(screen.getByLabelText('Website or feed URL'), {
       target: { value: saved.feed_url },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
-    expect(await screen.findByText(text)).toBeInTheDocument()
+    expect(await screen.findByText((_, node) => node?.tagName === 'P' && node.textContent?.startsWith(text) === true))
+      .toBeInTheDocument()
     if (kind === 'podcast') expect(screen.getByText(/whole show/)).toBeInTheDocument()
     else expect(screen.getByText(/whole site's feed/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Preview' })).toHaveClass('btn-secondary')
+    expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
+    await expectAccessible(container)
   })
   it('previews a source and explains site scope before confirmation', async () => {
-    render(<Sources />)
+    page()
     fireEvent.change(screen.getByLabelText('Website or feed URL'), {
       target: { value: 'https://site.example/story' },
     })
@@ -70,12 +77,16 @@ describe('sources', () => {
         existing_source: saved,
       } }, 422)
     })
-    render(<Sources />)
+    const { container } = page()
     fireEvent.change(screen.getByLabelText('Website or feed URL'), {
       target: { value: saved.feed_url },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Already following Example News.')
+    const input = screen.getByLabelText('Website or feed URL')
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(input).toHaveAttribute('aria-describedby', 'url-error url-hint')
+    await expectAccessible(container)
   })
 
   it('shows a rate-limited preview with suggested wait', async () => {
@@ -85,7 +96,7 @@ describe('sources', () => {
         code: 'rate_limited', message: 'The source is rate limiting requests.',
         retry_after: 120,
       } }, 422))
-    render(<Sources />)
+    page()
     fireEvent.change(screen.getByLabelText('Website or feed URL'), {
       target: { value: saved.feed_url },
     })
@@ -103,7 +114,7 @@ describe('sources', () => {
       if (path === '/api/sources') return respond([])
       return respond(preview)
     })
-    render(<Sources />)
+    page()
     fireEvent.change(screen.getByLabelText('Website or feed URL'), {
       target: { value: saved.feed_url },
     })
@@ -114,24 +125,41 @@ describe('sources', () => {
 
   it('renders saved source outcomes and possible gaps', async () => {
     fetchMock.mockResolvedValue(respond([{ ...saved, rate_limited: true }]))
-    render(<Sources />)
+    const { container } = page()
     expect(await screen.findByText('Example News')).toBeInTheDocument()
-    expect(screen.getByText(/Last check: failed/)).toBeInTheDocument()
+    expect(screen.getByText('Website feed')).toBeInTheDocument()
+    expect(screen.getByText(saved.feed_url)).toHaveAttribute('title', saved.feed_url)
     expect(screen.getByText('Possible gap')).toBeInTheDocument()
-    expect(screen.getByText('Rate limited')).toBeInTheDocument()
+    expect(screen.getByText('Rate limited · try later')).toBeInTheDocument()
+    await expectAccessible(container)
   })
 
   it('asks before deleting and refreshes the list', async () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    let deleted = false
     fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
-      if (options?.method === 'DELETE') return { ok: true, status: 204 }
-      if (path === '/api/sources') return respond([saved])
+      if (options?.method === 'DELETE') { deleted = true; return { ok: true, status: 204 } }
+      if (path === '/api/sources') return respond(deleted ? [] : [saved])
       throw new Error(`Unexpected request: ${path}`)
     })
-    render(<Sources />)
+    const { container } = page()
     fireEvent.click(await screen.findByRole('button', { name: 'Delete Example News' }))
-    expect(confirm).toHaveBeenCalledOnce()
+    expect(screen.getByRole('group', { name: 'Confirm deletion' })).toHaveTextContent(
+      'Delete Example News? Saved digests will remain available.',
+    )
+    await expectAccessible(container)
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByRole('button', { name: 'Delete Example News' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Example News' }))
+    fireEvent.click(screen.getByRole('group', { name: 'Confirm deletion' }).querySelector('button')!)
     expect(fetchMock).toHaveBeenCalledWith('/api/sources/2', { method: 'DELETE' })
-    confirm.mockRestore()
+    expect(await screen.findByText('No sources yet')).toBeInTheDocument()
+    await expectAccessible(container)
+  })
+
+  it('has a useful empty state without a checks rail', async () => {
+    const { container } = page()
+    expect(await screen.findByText('No sources yet')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Checks' })).toBeNull()
+    await expectAccessible(container)
   })
 })

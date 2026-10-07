@@ -7,6 +7,8 @@ Status: Proposal 1 chosen by the user on 2026-10-06 (port the C7 prototype CSS a
 
 Amended 2026-10-06 after Droid stopped on two contradictions in the plan (approved by the user): `--error` moved from `#a33a00` / `#ff9a62` to `#a34200` / `#ffa65e` so error, warn, and accent differ by at least 20° in hue; a state may have no primary action (No new content); `tokens.css` also carries `--error-border` and the non-color tokens.
 
+Amended 2026-10-07 after the implementation review (approved by the user): `GET /api/digests` also returns topic titles and the language (D4 History, D6); `lang` values are mapped (D5); the running state keeps a disabled primary Generate (D4); review fixes are task group 10.
+
 The two-proposal comparison is in git history (`26c9d64`). The rejected alternative is recorded under D1.
 
 ## Context
@@ -144,6 +146,7 @@ Each page reproduces the corresponding `render.js` function, including its copy.
     |---|---|---|
     | First run | Set up your model | Generate, disabled with reason |
     | Idle | Generate digest | — |
+    | Running (collecting, summarizing) | "Generating…", disabled | — |
     | Succeeded | View digest | Generate digest |
     | No new content | — | Generate digest |
     | Failed (`auth_failed`, `insufficient_balance`, `model_not_configured`, `connection_failed`) | Check settings | Try again |
@@ -163,7 +166,7 @@ Each page reproduces the corresponding `render.js` function, including its copy.
   - `lang` uses `digest.language` (D6) on topic titles, overviews, summaries, and index entries. Item titles have no `lang`.
   - The source kind uses `item.source_kind`: the icon plus a visually hidden kind label.
 - **History.**
-  - Rows show "No. {id} · long date · time", the topic previews, and the counts.
+  - Rows show "No. {id} · long date · time", the topic previews, and the counts. Previews come from `GET /api/digests` (D6) in the same single request; History makes no per-digest detail requests.
   - The rail shows Archive (hidden when empty) and "Kept as saved".
 - **Sources.**
   - Add form (rule style). The URL input has `aria-describedby` set to the hint id, plus the error id in the error state with `aria-invalid="true"`.
@@ -179,6 +182,7 @@ Each page reproduces the corresponding `render.js` function, including its copy.
   - Today's save flow and error copy are kept (`Settings.tsx:14-27,78-102`).
 
 ### D5. Accessibility mechanics
+- **`lang` mapping.** `digest.language` stores the setting as chosen, which may be `original` or free text from "Other". A single helper maps it to a BCP 47 tag: `en` and `zh-Hans` map to themselves; free text maps through a small case-insensitive table of language names in English and in the language itself (for example "Japanese" or "日本語" to `ja`, "Français" to `fr`, "Traditional Chinese" or "繁體中文" to `zh-Hant`); `original`, `null`, and anything else get no `lang` attribute.
 - **The prototype's verified behaviors carry over:**
   - `lang` (D4)
   - focus moves (`useJump` for the skip link and the index)
@@ -193,12 +197,13 @@ Each page reproduces the corresponding `render.js` function, including its copy.
   - `vitest-axe` runs `axe` on every page state in the tests, and fails on any violation.
   - A token test parses `tokens.css` and asserts the contrast pairs listed in the review (text ≥ 4.5:1, the switch boundary ≥ 3:1) for both themes. It is a port of the prototype check, with the correct cascade.
 
-### D6. Snapshot fields (backend)
+### D6. Snapshot fields and the digest list (backend)
 - Alembic `0003`:
   - `digests.language` (String(40), nullable)
   - `digest_items.source_kind` (String(16), nullable)
 - `digest/runner.py` writes `language` (the language read at run start, `runner.py:174-175`) and, for every saved digest item, the item's `Source.kind` at save time.
 - `GET /api/digests/{id}` returns `language`, and `source_kind` on topic items and on Creator updates groups and items (`api/digests.py:26-70`).
+- `GET /api/digests` also returns, for each digest, `language` and `topics` (the titles of its topics, in order; "Creator updates" is not included, and `creator_updates_only` is true when the digest has only Creator updates). It uses one query for the topics of all listed digests, not one per digest.
 - Old rows return `null`; the UI then omits `lang` and the kind icon.
 - Downgrade drops both columns.
 

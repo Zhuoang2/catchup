@@ -162,3 +162,62 @@ Implementer notes:
   - `docker build` plus `scripts/docker-smoke.sh` if Docker is running; otherwise say so explicitly
 
   Verify that all pass, and report any skipped check with its reason.
+
+## 10. Review fixes (added 2026-10-07 after the implementation review)
+
+The same implementer notes apply. Every finding below was verified by the reviewer against the code or in a browser. Fix them in order; commit after each task.
+
+- [ ] 10.1 **Digest list API and History (D4 History, D6; spec `digest-history` "List saved digests").** In `backend/src/catchup/api/digests.py`, `GET /api/digests` also returns `language`, `topics` (topic titles in order, excluding Creator updates), and `creator_updates_only`, loaded with one query for all listed digests. In `frontend/src/pages/History.tsx`, use these fields and remove the per-digest detail requests. Verify:
+  - a pytest checks the new fields, including an old row (`language: null`) and a Creator-updates-only digest
+  - a pytest shows the number of SQL statements does not grow with the number of digests (for example with a SQLAlchemy `before_cursor_execute` counter for 1 and 5 digests)
+  - a vitest checks that History issues exactly one request, and that previews and the "Creator updates only" row render
+- [ ] 10.2 **`lang` mapping (D5).** Add a helper, for example `frontend/src/components/lang.ts`, and use it everywhere `digest.language` reaches a `lang` attribute (`DigestView.tsx`, `History.tsx`). Verify with unit tests for `en`, `zh-Hans`, `original`, `null`, "Japanese", "日本語", "Français", "繁體中文", and an unknown "Klingon" (no `lang`). Add a DigestView test with `language: 'original'` asserting that no element in the digest has a `lang` attribute other than the app root, and an axe scan on it. Also tighten the old-digest test so it asserts that no `lang` attribute appears in the digest content at all, not just no `zh-Hans`.
+- [ ] 10.3 **Generate loading and state (`Generate.tsx`).**
+  - Load the four startup requests independently (for example `Promise.allSettled`), so one failure does not hide an active run or keep Generate disabled. Only the first-run state depends on `/settings/model`.
+  - Refetch `/digests` when a run reaches `succeeded`, so the hero and the rail show the new edition.
+  - While a run is collecting or summarizing, the Generate button is a disabled **primary** "Generating…" (D4 "Running"), as in `render.js generate()`.
+  - Use `plural()` in the lede ("Check your 1 source").
+  - Use a title that fits the context for POST and polling errors instead of "Could not load this page".
+
+  Verify with fake-timer tests:
+  - `/digests` failing still shows an active summarizing run and its progress
+  - clicking Generate sends one POST, shows collecting, then polls to succeeded and refetches `/digests` (the rail shows the new "No. {id}")
+  - a POST answering `model_not_configured` switches to the first-run state
+  - the succeeded state shows the token text
+  - the `run_active` test asserts exactly one POST
+  - the running state has exactly one `.btn-primary`, which is disabled
+- [ ] 10.4 **Field-level errors only for field problems.**
+  - In `Sources.tsx`, keep load and delete errors in a separate page-level alert. Only preview and confirm errors set `aria-invalid` and `aria-describedby` on the URL input.
+  - In `Settings.tsx`, mark the key field invalid only for key-related codes (`auth_failed`, `insufficient_balance`, and the codes the API uses for a missing or required key; check `backend/src/catchup/api/settings.py`), and the base URL only for `connection_failed`. Show other errors, including load errors, form-wide. Remove the unreachable `loading && error` line or make the load error render.
+
+  Verify with tests: a failed delete leaves the URL input without `aria-invalid`, keeps the row, and shows the page-level alert; an `invalid_language` save error does not mark the key field; a load error is visible.
+- [ ] 10.5 **Focus in the inline delete confirmation (`Sources.tsx`).** When the confirmation opens, focus its Cancel button. On Cancel, return focus to that row's Delete button. After a successful delete, focus the "Your sources" heading (make it focusable with `tabIndex={-1}`). Verify with tests asserting `document.activeElement` after each step.
+- [ ] 10.6 **Unported prototype styles.** Port the missing rules from the C7 cascade into `components.css` and `layout.css`, using the cascade's effective values:
+  - `.nav-link .icon { display: none }` (`c.css:23`)
+  - `.topic > .topic-title { font-size: 1.45rem }` (`c7.css:21`)
+  - the body font on `.app-nav`, `.digest-meta`, `.masthead-line`, `.section-label`, `.field-label`, `.btn`, `.source-feed` (`c3b.css:4`)
+  - `.digest-meta { font-size: .92em }`
+  - `.eyebrow` weight 600
+  - `.title-time` muted
+  - `.empty-state`, `.examples`, `.icon-empty`, `.icon-xs`, `.icon-result`, `.result-ok`, `.result-none`
+  - `.inline-msg`, `.msg-ok`, `.msg-error`
+  - `.rail-steps` numbering
+  - `.notice`, `.preview-method`, `.key-saved .icon`, `.count`, `.check-status`
+  - `.history-topics` single-line ellipsis
+
+  Fix the 900 px rule that sets `--margin` on `.app` (a container cannot query itself) by setting it on `.page-frame` inside the query. Verify:
+  - a script or test lists every class used in `render.js` output and in `frontend/src`, and reports any class with prototype rules but no app rules; include its output in the test report
+  - in the browser at 320 px wide, all four nav links are fully visible and `document.documentElement.scrollWidth` is 320
+- [ ] 10.7 **Markup and copy from the prototype.**
+  - Use the prototype's short date format (`render.js fmt()`, for example "1 Oct 2026, 09:00") for item meta, Creator updates, and source check times. Keep the long date where the prototype uses it (headlines, history rows, the "Last digest" line).
+  - The digest index shows each section's item count (`toc-count`).
+  - Digest item and Creator-update links end with a visually hidden " (opens the original)".
+  - Creator-update items do not repeat the kind icon; the group heading carries it.
+  - The no-new-content card has its `result-head` with the info icon.
+  - The masthead `<time dateTime>` uses the local date.
+  - `Alert` sets `role="alert"` only for the `error` tone.
+  - The Digest page keeps an `h1` while loading and on error.
+  - `frontend/public/offline.html` matches the prototype's offline state (`render.js offline()` with the C7 styles: serif wordmark and heading, centered, small-caps Reload button), still self-contained with inline CSS.
+
+  Verify with tests for the index counts, the hidden link text, the single kind label per Creator-updates group, the `Alert` roles, and the loading `h1`, plus axe scans. Re-run the `offline.html` checks from 8.2.
+- [ ] 10.8 **Re-run the integration checks** from 9.1 and update `docs/process/test-report-redesign-ui-ux.md` with a "Review fixes" section.

@@ -26,3 +26,14 @@ The content shown MUST be the content that was saved, and MUST NOT be regenerate
 #### Scenario: Source deleted after saving
 - **WHEN** a podcast source is deleted after a digest containing its episodes was saved
 - **THEN** reopening the digest still shows those items as from a podcast
+
+### Requirement: List saved digests
+The system SHALL list saved digests from newest to oldest, showing for each its edition number, its creation time, the number of items, the number of sources it covers, and the titles of its topics. A digest with only Creator updates SHALL be listed as such. The list MUST be available from a single request.
+
+#### Scenario: Several digests
+- **WHEN** the user opens the history after three digests were generated
+- **THEN** the three digests are listed newest first with their times, item counts, and topic titles
+
+#### Scenario: Creator updates only
+- **WHEN** a saved digest has no topics and only Creator updates
+- **THEN** the history lists it as containing only Creator updates

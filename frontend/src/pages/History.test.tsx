@@ -28,6 +28,7 @@ it('shows saved digests with time, item and source counts and detail links', asy
   const links = await screen.findAllByRole('link')
   expect(links.map((link) => link.getAttribute('href'))).toEqual(['/digests/3', '/digests/1'])
   expect(links[0].querySelector('time')).toHaveAttribute('dateTime', '2026-10-03T10:00:00Z')
+  expect(links[0].querySelector('.edition')?.textContent).toBe('No. 3 · ')
   expect(links[0].closest('li')).toHaveTextContent('8 items · 2 sources')
   expect(links[1].closest('li')).toHaveTextContent('1 item · 1 source')
   expect(fetchMock).toHaveBeenCalledExactlyOnceWith('/api/digests', undefined)

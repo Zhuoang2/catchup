@@ -161,6 +161,7 @@
 .history-month { font-size: .75em; font-variant-caps: all-small-caps; }
 .history-main { display: grid; gap: .15rem; min-width: 0; }
 .history-title { font-weight: 650; }
+.edition { color: var(--accent); }
 .history-topics { color: var(--muted); font-size: .88em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .history-counts { color: var(--subtle); font-size: .85em; white-space: nowrap; }
 @container (max-width: 900px) { .hero-last { display: block; } }

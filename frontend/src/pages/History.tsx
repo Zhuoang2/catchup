@@ -49,7 +49,8 @@ export default function History() {
             <span className="history-date" aria-hidden="true"><span className="history-day">{date.getDate()}</span>
               <span className="history-month">{new Intl.DateTimeFormat('en-GB', { month: 'short' }).format(date)}</span>
             </span>
-            <span className="history-main"><span className="history-title">No. {digest.id} ·{' '}
+            <span className="history-main"><span className="history-title">
+              <span className="edition">No. {digest.id} · </span>
               <time dateTime={digest.created_at}>{longDate(digest.created_at)} · {shortTime(digest.created_at)}</time></span>
               <span className="history-topics" lang={digest.topics.length ? digestLang(digest.language) : undefined}>
                 {digest.topics.length ? digest.topics.join(' · ') :

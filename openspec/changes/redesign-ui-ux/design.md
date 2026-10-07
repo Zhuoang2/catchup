@@ -183,6 +183,7 @@ Each page reproduces the corresponding `render.js` function, including its copy.
 
 ### D5. Accessibility mechanics
 - **`lang` mapping.** `digest.language` stores the setting as chosen, which may be `original` or free text from "Other". A single helper maps it to a BCP 47 tag: `en` and `zh-Hans` map to themselves; free text maps through a small case-insensitive table of language names in English and in the language itself (for example "Japanese" or "日本語" to `ja`, "Français" to `fr`, "Traditional Chinese" or "繁體中文" to `zh-Hant`); `original`, `null`, and anything else get no `lang` attribute.
+  - *Amended 2026-10-07 (task 11.4):* a value that is a well-formed BCP 47 tag with a supported primary language subtag is also accepted, in canonical case (for example `zh-hant` becomes `zh-Hant`). Names are looked up in a `Map`, so built-in object keys such as `constructor` are never treated as names.
 - **The prototype's verified behaviors carry over:**
   - `lang` (D4)
   - focus moves (`useJump` for the skip link and the index)

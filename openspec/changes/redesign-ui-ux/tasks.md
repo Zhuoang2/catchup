@@ -247,3 +247,13 @@ Every finding below was verified by the reviewer. Follow `AGENTS.md`: tasks 11.1
 
   Verify by temporarily re-introducing each old behavior. The test must fail, and the old behavior must be removed again before committing. Record that in the test report.
 - [x] 11.12 **Test report.** In `docs/process/test-report-redesign-ui-ux.md`, correct the "Review fixes" section: the index counts are hidden as in C7 (`d47fbf8`), and the OpenSpec change folder also had the 10.7 text corrected. Add a "Second review fixes" section with the 9.1 checks, the style coverage output, and the regression-test evidence from 11.1–11.4 and 11.11.
+
+## 12. Reviewer fixes after the second review (done by Claude Code, 2026-10-07)
+
+Small fixes from the review of group 11 that the user asked the reviewer to make directly. Evidence is in the test report, "Reviewer fixes after the second review".
+
+- [x] 12.1 `GET /api/digests` skips topic rows of a digest saved after the digest query; regression test added.
+- [x] 12.2 `digestLang` uses a `Map` for names; tests for built-in object keys and for free text outside the table.
+- [x] 12.3 Sources test: deleting one of two sources focuses the "Your sources" heading.
+- [x] 12.4 The test timezone is pinned in `vite.config.ts` instead of `package.json`.
+- [x] 12.5 Test report sentences about OpenSpec folder changes corrected; D5 amendment note added.

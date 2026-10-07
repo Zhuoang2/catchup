@@ -100,7 +100,7 @@
 .toc ol { display: flex; flex-wrap: wrap; gap: .3rem 1.1rem; }
 .toc a, .back-link a { display: inline-block; padding-block: .15rem; }
 .toc a { text-decoration: none; }
-.toc-count { color: var(--subtle); font-variant-numeric: tabular-nums; }
+.toc-count { display: none; color: var(--subtle); font-variant-numeric: tabular-nums; }
 .topic-title { font: 600 var(--topic-size)/1.3 var(--font-heading); }
 .topic > .topic-title { font-size: 1.45rem; }
 .topic-overview { color: var(--fg); }

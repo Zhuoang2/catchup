@@ -210,7 +210,7 @@ The same implementer notes apply. Every finding below was verified by the review
   - in the browser at 320 px wide, all four nav links are fully visible and `document.documentElement.scrollWidth` is 320
 - [x] 10.7 **Markup and copy from the prototype.**
   - Use the prototype's short date format (`render.js fmt()`, for example "1 Oct 2026, 09:00") for item meta, Creator updates, and source check times. Keep the long date where the prototype uses it (headlines, history rows, the "Last digest" line).
-  - The digest index shows each section's item count (`toc-count`).
+  - The digest index carries each section's item count in its markup (`toc-count`, as in `render.js`), hidden as in C7 (`c3b.css:25`). Corrected 2026-10-07 by the reviewer, who had misread the prototype.
   - Digest item and Creator-update links end with a visually hidden " (opens the original)".
   - Creator-update items do not repeat the kind icon; the group heading carries it.
   - The no-new-content card has its `result-head` with the info icon.

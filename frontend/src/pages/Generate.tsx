@@ -46,7 +46,7 @@ function HeldNotes({ run }: { run: Run }) {
 export default function Generate() {
   const [run, setRun] = useState<Run | null>(null)
   const [modelReady, setModelReady] = useState<boolean | null>(null)
-  const [sources, setSources] = useState<Source[]>([])
+  const [sources, setSources] = useState<Source[] | null>(null)
   const [digests, setDigests] = useState<Digest[]>([])
   const [loadError, setLoadError] = useState<{ title: string; message: string } | null>(null)
   const [error, setError] = useState<{ title: string; message: string; source?: 'poll' } | null>(null)
@@ -130,7 +130,8 @@ export default function Generate() {
   return <section className="page page-generate">
     <PageHead title="Generate digest" lede={firstRun
       ? 'Check the sources you follow and summarize what is new since your last digest.'
-      : `Check your ${plural(sources.length, 'source')} and summarize everything new since your last digest.`}
+      : sources === null ? 'Check your sources and summarize everything new since your last digest.'
+        : `Check your ${plural(sources.length, 'source')} and summarize everything new since your last digest.`}
       className="hero">
       <div className="hero-actions">
         {firstRun ? <>
@@ -153,7 +154,7 @@ export default function Generate() {
     {firstRun && <Alert title="Set up your model first." actions={<Link className={buttonClass('ghost')} to="/sources">Add sources</Link>}>
       CatchUp summarizes with your own AI model. Add a provider and key in Settings, then add a few sources.
     </Alert>}
-    {!firstRun && !sources.length && <p className="note">Add sources before generating a digest.{' '}
+    {!firstRun && sources?.length === 0 && <p className="note">Add sources before generating a digest.{' '}
       <Link to="/sources">Manage sources</Link></p>}
     {running && run && <section className="card run-card" aria-label="Digest run">
       <Stepper current={run.status === 'queued' ? 'collecting'
@@ -206,13 +207,13 @@ export default function Generate() {
         <p><Link to={`/digests/${digests[0].id}`}>No. {digests[0].id} · {dateTime(digests[0].created_at)}</Link></p>
         <p className="rail-meta">{plural(digests[0].item_count, 'item')} · {plural(digests[0].source_count, 'source')}</p>
       </section>}
-      <section className="rail-box"><h2 className="rail-title">Your sources</h2>
+      {sources !== null && <section className="rail-box"><h2 className="rail-title">Your sources</h2>
         <p className="rail-big">{sources.length}</p>
         <p className="rail-meta">{plural(sources.filter(s => s.kind === 'podcast').length, 'podcast')} ·{' '}
           {sources.filter(s => s.kind === 'youtube').length} YouTube ·{' '}
           {plural(sources.filter(s => s.kind === 'feed').length, 'website')}</p>
         <p><Link to="/sources">Manage sources</Link></p>
-      </section>
+      </section>}
     </>}
       <section className="rail-box"><h2 className="rail-title">How it works</h2>
         <p className="rail-meta">Each digest covers everything new since the previous one. Podcasts and videos are summarized only from transcripts or captions.</p>

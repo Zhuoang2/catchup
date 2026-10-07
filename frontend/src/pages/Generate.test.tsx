@@ -163,6 +163,26 @@ it('keeps a startup load error visible through successful progress polls', async
   expect(screen.getByRole('alert')).toHaveTextContent('Could not load some page details')
 })
 
+it('does not invent source counts when the source list cannot be read', async () => {
+  fetchMock.mockImplementation(async (path: string) => {
+    if (path === '/api/settings/model') return respond({ key_set: true })
+    if (path === '/api/sources') return respond({
+      error: { code: 'request_failed', message: 'Sources unavailable' },
+    }, 503)
+    if (path === '/api/digests') return respond(history)
+    if (path === '/api/digest-runs/active') return respond(null)
+    throw Error(path)
+  })
+  const { container } = render(<MemoryRouter><Generate/></MemoryRouter>)
+  expect(await screen.findByRole('alert')).toHaveTextContent('Sources unavailable')
+  expect(screen.getByText('Check your sources and summarize everything new since your last digest.'))
+    .toBeInTheDocument()
+  expect(screen.queryByText(/Check your 0 sources/)).toBeNull()
+  expect(screen.queryByText(/Add sources before generating a digest/)).toBeNull()
+  expect(screen.queryByRole('heading', { name: 'Your sources' })).toBeNull()
+  await expectAccessible(container)
+})
+
 it('starts one run, polls to success and refreshes the last digest', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
   let historyReads = 0

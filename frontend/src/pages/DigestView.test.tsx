@@ -2,13 +2,14 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import DigestView from './DigestView'
+import { expectAccessible } from '../test/accessibility'
 
 const fetchMock = vi.fn()
 const respond = (value: unknown, status = 200) => ({
   ok: status < 400, status, json: async () => value,
 })
 function page() {
-  render(<MemoryRouter initialEntries={['/digests/7']}>
+  return render(<MemoryRouter initialEntries={['/digests/7']}>
     <Routes><Route path="/digests/:id" element={<DigestView />} /></Routes>
   </MemoryRouter>)
 }
@@ -48,8 +49,8 @@ it('renders saved topics, text summaries, dates and safe original links', async 
   expect(link).toHaveAttribute('href', 'https://example.test/article')
   expect(link).toHaveAttribute('target', '_blank')
   expect(link).toHaveAttribute('rel', 'noopener noreferrer')
-  expect(link.closest('li')).toHaveTextContent('Blog')
-  expect(link.closest('li')?.querySelector('time')).toHaveAttribute('dateTime', '2026-10-02T10:00:00Z')
+  expect(link.closest('article')).toHaveTextContent('Blog')
+  expect(link.closest('article')?.querySelector('time')).toHaveAttribute('dateTime', '2026-10-02T10:00:00Z')
   expect(screen.getByText('Summary unavailable')).toBeInTheDocument()
   expect(screen.getByRole('region', { name: 'Other' })).toHaveTextContent('Third summary')
   expect(fetchMock).toHaveBeenCalledWith('/api/digests/7', undefined)
@@ -79,7 +80,7 @@ it('renders creator updates after topics with saved wait labels', async () => {
       ] },
     ],
   }))
-  page()
+  const { container } = page()
   const creator = await screen.findByRole('region', { name: 'Creator updates' })
   expect(creator.compareDocumentPosition(screen.getByRole('region', { name: 'Technology' }))
     & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
@@ -89,6 +90,7 @@ it('renders creator updates after topics with saved wait labels', async () => {
   expect(screen.getByRole('region', { name: 'Channel' })).toHaveTextContent('Blocked by YouTube')
   expect(screen.getByRole('region', { name: 'Channel' })).toHaveTextContent('Captions could not be fetched')
   expect(screen.getByRole('link', { name: 'Missing' }).closest('li')?.querySelector('time')).toBeTruthy()
+  await expectAccessible(container)
 })
 
 it('shows transcript key points as a list', async () => {
@@ -117,14 +119,73 @@ it('keeps overview, bullets, and later prose in original order', async () => {
     }] }],
   }))
   page()
-  const item = (await screen.findByRole('link', { name: 'Episode' })).closest('li')!
-  const blocks = Array.from(item.children).filter(element => element.textContent?.includes('Overview')
-    || element.textContent?.includes('Key point') || element.textContent?.includes('Closing sentence'))
+  const item = (await screen.findByRole('link', { name: 'Episode' })).closest('article')!
+  const blocks = Array.from(item.querySelector('.summary')!.children)
   expect(blocks.map(element => element.tagName)).toEqual(['P', 'UL', 'P'])
   expect(blocks.map(element => element.textContent)).toEqual([
     'Overview', 'Key point', 'Continuation\nClosing sentence',
   ])
 })
+
+it('marks Chinese generated text, sizes transcript items by content, and focuses index targets', async () => {
+  fetchMock.mockResolvedValue(respond({
+    id: 7, language: 'zh-Hans', created_at: '2026-10-03T10:00:00Z', model_id: 'test',
+    topics: [
+      { title: '中文主题', overview: '中文概要', items: [
+        { title: 'Original episode', link: 'https://example.test/ep', source_name: 'Show',
+          source_kind: 'podcast', published_at: null,
+          summary: '说明\n- 要点一\n- 要点二', summary_unavailable: false },
+        { title: 'Original article', link: 'https://example.test/short', source_name: 'Blog',
+          source_kind: 'feed', published_at: null, summary: '短摘要', summary_unavailable: false },
+      ] },
+      { title: '第二主题', overview: '介绍', items: [] },
+    ],
+  }))
+  const { container } = page()
+  await screen.findByRole('heading', { name: '中文主题' })
+  expect(screen.getByRole('link', { name: 'Original episode' }).closest('article')).toHaveClass('item-long')
+  expect(screen.getByRole('link', { name: 'Original article' }).closest('article')).toHaveClass('item-short')
+  expect(screen.getByText('要点一').tagName).toBe('LI')
+  expect(screen.getByRole('heading', { name: '中文主题' })).toHaveAttribute('lang', 'zh-Hans')
+  expect(screen.getByText('中文概要')).toHaveAttribute('lang', 'zh-Hans')
+  expect(screen.getByRole('link', { name: 'Original episode' })).not.toHaveAttribute('lang')
+  expect(screen.getAllByText(/Podcast/)).not.toHaveLength(0)
+  const jump = screen.getByRole('navigation', { name: 'In this digest' }).querySelector('a')!
+  jump.click()
+  expect(document.activeElement).toBe(screen.getByRole('region', { name: '中文主题' }))
+  await expectAccessible(container)
+})
+
+it('hides the single-entry index and explains creator-only digests', async () => {
+  fetchMock.mockResolvedValue(respond({
+    id: 7, language: 'en', created_at: '2026-10-03T10:00:00Z', model_id: 'test', topics: [],
+    creator_updates: [{ source_name: 'Channel', source_kind: 'youtube', items: [
+      { title: 'Video', link: 'https://example.test/video', source_kind: 'youtube',
+        published_at: null, reason: 'captions_off' },
+    ] }],
+  }))
+  const { container } = page()
+  expect(await screen.findByText('Nothing could be summarized this time. Here is what your sources published.')).toBeInTheDocument()
+  expect(screen.queryByRole('navigation', { name: 'In this digest' })).toBeNull()
+  expect(screen.getByText('Caption fetching is off')).toBeInTheDocument()
+  await expectAccessible(container)
+})
+
+it.each([{ language: 'en', kind: 'feed' }, { language: null, kind: null }])(
+  'shows an old or English digest without Chinese marks or invented kind icons', async ({ language, kind }) => {
+    fetchMock.mockResolvedValue(respond({
+      id: 7, language, created_at: '2026-10-03T10:00:00Z', model_id: 'test',
+      topics: [{ title: 'Topic', overview: 'Overview', items: [{
+        title: 'Article', link: 'https://example.test/item', source_name: 'Source',
+        source_kind: kind, published_at: null, summary: 'Summary', summary_unavailable: false,
+      }] }],
+    }))
+    const { container } = page()
+    await screen.findByRole('heading', { name: 'Topic' })
+    expect(container.querySelector('[lang="zh-Hans"]')).toBeNull()
+    if (!kind) expect(screen.getByRole('link', { name: 'Article' }).closest('article')?.querySelector('svg.icon-sm')).toBeNull()
+    await expectAccessible(container)
+  })
 
 it.each([
   [12, 4, 'Tokens: 12 in / 4 out'],
@@ -135,5 +196,5 @@ it.each([
     topics: [], creator_updates: [], prompt_tokens: prompt, completion_tokens: completion,
   }))
   page()
-  expect(await screen.findByText(text)).toBeInTheDocument()
+  expect((await screen.findByText(/Tokens:/)).textContent).toBe(text)
 })

@@ -1,10 +1,11 @@
 import { useId, type ComponentProps, type ReactNode } from 'react'
 import { Icon } from './Icon'
 
-export function PageHead({ title, lede, children, className = '' }: {
-  title: ReactNode; lede?: ReactNode; children?: ReactNode; className?: string
+export function PageHead({ title, lede, children, className = '', eyebrow }: {
+  title: ReactNode; lede?: ReactNode; children?: ReactNode; className?: string; eyebrow?: ReactNode
 }) {
-  return <header className={`page-head ${className}`}><h1 className="page-title">{title}</h1>
+  return <header className={`page-head ${className}`}>{eyebrow && <p className="eyebrow">{eyebrow}</p>}
+    <h1 className="page-title">{title}</h1>
     {lede && <p className="lede">{lede}</p>}{children}</header>
 }
 
@@ -12,8 +13,10 @@ export function SectionRow({ title, overview, note, children, className = '', id
   title: ReactNode; overview?: ReactNode; note?: ReactNode; children: ReactNode
   className?: string; id?: string; lang?: string | null
 }) {
-  return <section className={`topic ${className}`} id={id} tabIndex={id ? -1 : undefined}>
-    <h2 className="topic-title" lang={lang || undefined}>{title}</h2>
+  return <section className={`topic ${className}`} id={id} tabIndex={id ? -1 : undefined}
+    aria-labelledby={id ? `${id}-heading` : undefined}
+    aria-label={!id && typeof title === 'string' ? title : undefined}>
+    <h2 className="topic-title" id={id ? `${id}-heading` : undefined} lang={lang || undefined}>{title}</h2>
     {overview && <p className="topic-overview" lang={lang || undefined}>{overview}</p>}
     {children}{note && <aside className="note">{note}</aside>}
   </section>
@@ -112,11 +115,11 @@ export function SummaryText({ text, lang }: { text: string; lang?: string | null
     if (!line) continue
     const list = line.startsWith('- ')
     const kind = list ? 'list' : 'paragraph'
-    if (list && blocks.at(-1)?.kind === 'list') blocks.at(-1)!.lines.push(line.slice(2))
+    if (blocks.at(-1)?.kind === kind) blocks.at(-1)!.lines.push(list ? line.slice(2) : line)
     else blocks.push({ kind, lines: [list ? line.slice(2) : line] })
   }
   return <div className="summary" lang={lang || undefined}>{blocks.map((block, index) =>
     block.kind === 'list'
       ? <ul className="points" key={index}>{block.lines.map((line, i) => <li key={i}>{line}</li>)}</ul>
-      : <p key={index}>{block.lines[0]}</p>)}</div>
+      : <p key={index} style={{ whiteSpace: 'pre-line' }}>{block.lines.join('\n')}</p>)}</div>
 }

@@ -65,7 +65,7 @@ Implementer notes:
 
 ## 4. Digest and History
 
-- [ ] 4.1 Rebuild `frontend/src/pages/DigestView.tsx` per design.md D4 "Digest", ported from `render.js digest()`:
+- [x] 4.1 Rebuild `frontend/src/pages/DigestView.tsx` per design.md D4 "Digest", ported from `render.js digest()`:
   - the headline "No. {id}", long date, and " · HH:MM"
   - the meta line
   - the index only for 2 or more sections, with links focusing their sections through `useJump`
@@ -78,7 +78,7 @@ Implementer notes:
   - an English digest has no `lang="zh-Hans"`
   - an old digest with `language: null` and `source_kind: null` renders without `lang` or icons
   - an axe scan passes
-- [ ] 4.2 Rebuild `frontend/src/pages/History.tsx` per design.md D4 "History": rows with "No. {id} · long date · time", topic previews, counts, and the rail. Verify with tests for the list and the empty state (Archive hidden when empty), plus an axe scan.
+- [x] 4.2 Rebuild `frontend/src/pages/History.tsx` per design.md D4 "History": rows with "No. {id} · long date · time", topic previews, counts, and the rail. Verify with tests for the list and the empty state (Archive hidden when empty), plus an axe scan.
 
 ## 5. Generate
 

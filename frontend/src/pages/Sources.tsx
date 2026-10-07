@@ -87,7 +87,8 @@ export default function Sources() {
   const [preview, setPreview] = useState<Preview | null>(null)
   const [sources, setSources] = useState<Source[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [fieldError, setFieldError] = useState('')
+  const [pageError, setPageError] = useState('')
   const [message, setMessage] = useState('')
   const [confirmId, setConfirmId] = useState<number | null>(null)
 
@@ -97,25 +98,25 @@ export default function Sources() {
     let mounted = true
     request<Source[]>('/sources')
       .then(result => { if (mounted) setSources(result) })
-      .catch((err: unknown) => { if (mounted) setError(describeError(err)) })
+      .catch((err: unknown) => { if (mounted) setPageError(describeError(err)) })
       .finally(() => { if (mounted) setLoading(false) })
     return () => { mounted = false }
   }, [])
 
   async function previewSource(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setPreview(null); setError(''); setMessage('')
+    setPreview(null); setFieldError(''); setPageError(''); setMessage('')
     try {
       setPreview(await request<Preview>('/sources/preview', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
       }))
-    } catch (err) { setError(describeError(err)) }
+    } catch (err) { setFieldError(describeError(err)) }
   }
 
   async function confirmSource() {
     if (!preview) return
-    setError('')
+    setFieldError('')
     try {
       await request<Source>('/sources', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -124,16 +125,16 @@ export default function Sources() {
       setPreview(null); setUrl('')
       await refresh()
       setMessage('Source saved.')
-    } catch (err) { setError(describeError(err)) }
+    } catch (err) { setFieldError(describeError(err)) }
   }
 
   async function deleteSource(source: Source) {
-    setError('')
+    setPageError('')
     try {
       await request<void>(`/sources/${source.id}`, { method: 'DELETE' })
       setConfirmId(null)
       await refresh()
-    } catch (err) { setError(describeError(err)) }
+    } catch (err) { setPageError(describeError(err)) }
   }
 
   return <section className="page page-sources">
@@ -141,13 +142,14 @@ export default function Sources() {
     <form className="add-form card" onSubmit={event => void previewSource(event)} noValidate>
       <label className="field-label" htmlFor="url">Website or feed URL</label>
       <div className="input-row"><input className="input" id="url" type="url" value={url}
-        onChange={event => { setUrl(event.target.value); setPreview(null); setError('') }}
-        placeholder="https://example.com" required aria-invalid={error ? true : undefined}
-        aria-describedby={`${error ? 'url-error ' : ''}url-hint`}/>
+        onChange={event => { setUrl(event.target.value); setPreview(null); setFieldError('') }}
+        placeholder="https://example.com" required aria-invalid={fieldError ? true : undefined}
+        aria-describedby={`${fieldError ? 'url-error ' : ''}url-hint`}/>
         <Button variant={preview ? 'secondary' : 'primary'} type="submit">Preview</Button></div>
-      {error && <p className="field-error" id="url-error" role="alert"><Icon name="alert"/>{error}</p>}
+      {fieldError && <p className="field-error" id="url-error" role="alert"><Icon name="alert"/>{fieldError}</p>}
       <p className="field-hint" id="url-hint">Paste a page address. CatchUp looks for its feed and shows a preview before saving.</p>
     </form>
+    {pageError && <p className="field-error" role="alert"><Icon name="alert"/>{pageError}</p>}
     {message && <p role="status">{message}</p>}
     {preview && <SourcePreview preview={preview} onConfirm={() => void confirmSource()}
       onCancel={() => setPreview(null)}/>}

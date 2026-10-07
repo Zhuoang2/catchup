@@ -156,6 +156,33 @@ describe('sources', () => {
     await expectAccessible(container)
   })
 
+  it('keeps delete failures at page level without invalidating the URL', async () => {
+    fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+      if (options?.method === 'DELETE') return respond({
+        error: { code: 'request_failed', message: 'Could not delete this source.' },
+      }, 503)
+      if (path === '/api/sources') return respond([saved])
+      throw new Error(`Unexpected request: ${path}`)
+    })
+    const { container } = page()
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Example News' }))
+    fireEvent.click(screen.getByRole('group', { name: 'Confirm deletion' }).querySelector('button')!)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not delete this source.')
+    expect(screen.getByRole('group', { name: 'Confirm deletion' })).toHaveTextContent('Delete Example News?')
+    expect(screen.getByLabelText('Website or feed URL')).not.toHaveAttribute('aria-invalid')
+    expect(screen.getByLabelText('Website or feed URL')).toHaveAttribute('aria-describedby', 'url-hint')
+    await expectAccessible(container)
+  })
+
+  it('displays a list-load error at page level', async () => {
+    fetchMock.mockResolvedValue(respond({
+      error: { code: 'request_failed', message: 'Could not load sources.' },
+    }, 503))
+    page()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load sources.')
+    expect(screen.getByLabelText('Website or feed URL')).not.toHaveAttribute('aria-invalid')
+  })
+
   it('has a useful empty state without a checks rail', async () => {
     const { container } = page()
     expect(await screen.findByText('No sources yet')).toBeInTheDocument()

@@ -101,6 +101,38 @@ describe('model settings', () => {
     expect(screen.getByLabelText('Other language')).toBeInTheDocument()
   })
 
+  it('shows invalid-language saves as form-wide errors, not key errors', async () => {
+    const original = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (url: string, options?: RequestInit) => {
+      if (url === '/api/settings/model' && options?.method === 'PUT') return respond({
+        base_url: 'https://api.deepseek.com', model_id: 'saved-model',
+        key_set: true, api_key_last4: '1234',
+      })
+      if (url === '/api/settings/preferences' && options?.method === 'PUT') return respond({
+        error: { code: 'invalid_language', message: 'Choose a valid language.' },
+      }, 422)
+      return original(url)
+    })
+    const { container } = render(<Settings />)
+    await screen.findByRole('button', { name: 'Save' })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Choose a valid language.')
+    expect(screen.getByLabelText('API key')).not.toHaveAttribute('aria-invalid')
+    expect(screen.getByLabelText('API key')).toHaveAttribute('aria-describedby', 'key-saved key-hint')
+    await expectAccessible(container)
+  })
+
+  it('shows load failures even after the loading state ends', async () => {
+    fetchMock.mockImplementation(async (url: string) => url === '/api/settings/model'
+      ? respond({ error: { code: 'request_failed', message: 'Could not load settings.' } }, 503)
+      : respond({ digest_language: 'en', youtube_captions: false, youtube_skip_shorts: true }))
+    const { container } = render(<Settings />)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load settings.')
+    expect(screen.queryByText('Loading settings…')).toBeNull()
+    expect(screen.getByLabelText('API key')).not.toHaveAttribute('aria-invalid')
+    await expectAccessible(container)
+  })
+
   it('shows the first-run key hint and saves preferences without exposing the key', async () => {
     const calls: string[] = []
     fetchMock.mockImplementation(async (url: string, options?: RequestInit) => {

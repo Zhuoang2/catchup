@@ -43,7 +43,7 @@ it('puts model setup first with a visible disabled Generate and a state-aware ra
 
 it('offers Generate as the only primary action while idle', async () => {
   const { container } = mockPage({ history: [], sources: [{ kind: 'feed' }] })
-  await screen.findByRole('heading', { name: 'Your sources' })
+  await screen.findByText(/Check your 1 source and summarize/)
   expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
   expect(screen.getByRole('button', { name: 'Generate digest' })).toHaveClass('btn-primary')
   expect(screen.getByText(/Check your 1 source and summarize/)).toBeInTheDocument()

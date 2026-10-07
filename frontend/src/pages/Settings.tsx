@@ -70,7 +70,11 @@ export default function Settings() {
 
   function showError(err: unknown) {
     setError(errorMessage(err))
-    setErrorField(err instanceof ApiError && err.code === 'connection_failed' ? 'base' : 'key')
+    setErrorField(err instanceof ApiError
+      ? err.code === 'connection_failed' ? 'base'
+        : ['auth_failed', 'insufficient_balance', 'api_key_required', 'missing_api_key'].includes(err.code)
+          ? 'key' : null
+      : null)
   }
 
   async function testConnection() {
@@ -137,7 +141,7 @@ export default function Settings() {
           {message.startsWith('Connection') && <p className="inline-msg msg-ok" role="status">
             <Icon name="check"/>{message}</p>}
         </div>
-        {error && <p className="field-error" id={errorField === 'base' ? 'base-error' : 'key-error'}
+        {error && errorField && <p className="field-error" id={errorField === 'base' ? 'base-error' : 'key-error'}
           role="alert"><Icon name="alert"/>{error}</p>}
         <div className="field"><label className="field-label" htmlFor="model">Model</label>
           <select className="input select" id="model" value={model}
@@ -172,6 +176,6 @@ export default function Settings() {
         {message === 'Settings saved.' && <p className="inline-msg msg-ok" role="status">
           <Icon name="check"/>{message}</p>}</div>
     </form>}
-    {loading && error && <p role="alert">{error}</p>}
+    {error && !errorField && <p className="field-error" role="alert"><Icon name="alert"/>{error}</p>}
   </section>
 }

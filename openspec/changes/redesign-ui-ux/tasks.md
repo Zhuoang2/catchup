@@ -186,7 +186,7 @@ The same implementer notes apply. Every finding below was verified by the review
   - the succeeded state shows the token text
   - the `run_active` test asserts exactly one POST
   - the running state has exactly one `.btn-primary`, which is disabled
-- [ ] 10.4 **Field-level errors only for field problems.**
+- [x] 10.4 **Field-level errors only for field problems.**
   - In `Sources.tsx`, keep load and delete errors in a separate page-level alert. Only preview and confirm errors set `aria-invalid` and `aria-describedby` on the URL input.
   - In `Settings.tsx`, mark the key field invalid only for key-related codes (`auth_failed`, `insufficient_balance`, and the codes the API uses for a missing or required key; check `backend/src/catchup/api/settings.py`), and the base URL only for `connection_failed`. Show other errors, including load errors, form-wide. Remove the unreachable `loading && error` line or make the load error render.
 

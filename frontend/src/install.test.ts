@@ -58,5 +58,7 @@ describe('install assets', () => {
     expect(html).toContain('.brand { font: 2rem var(--heading); }')
     expect(html).toContain('justify-items: center; text-align: center;')
     expect(html).toContain('font-variant-caps: all-small-caps')
+    expect(html).not.toContain('<span class="logo"')
+    expect(html).not.toContain('.logo {')
   })
 })

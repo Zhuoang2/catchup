@@ -15,7 +15,6 @@
     body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--fg); font-family: var(--body); display: grid; place-items: center; padding: 1.5rem; }
     main { width: min(100%, 28rem); padding: 2.5rem 2rem; background: var(--surface); border: 1px solid var(--border);
       display: grid; justify-items: center; text-align: center; gap: 1rem; }
-    .logo { display: none; }
     .brand { font: 2rem var(--heading); }
     h1 { font: 600 2rem/1.2 var(--heading); letter-spacing: -.01em; }
     p { margin: 0; line-height: 1.55; } .lede, .hint { color: var(--muted); } .hint { font-size: .9rem; }
@@ -27,7 +26,7 @@
 </head>
 <body>
   <main>
-    <span class="logo" aria-hidden="true"></span><p class="brand">CatchUp</p>
+    <p class="brand">CatchUp</p>
     <h1>CatchUp isn't running</h1><p class="lede">Start it, then reload this window.</p>
     <pre><code>docker compose up -d</code></pre>
     <p class="hint">Or, from a source checkout: <code>uv run catchup serve</code></p>

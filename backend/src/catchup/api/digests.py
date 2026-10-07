@@ -21,7 +21,6 @@ def list_digests(session: Session = Depends(get_session)) -> list[dict]:
     if digests:
         for digest_id, title, kind in session.execute(
             select(DigestTopic.digest_id, DigestTopic.title, DigestTopic.kind)
-            .where(DigestTopic.digest_id.in_(titles))
             .order_by(DigestTopic.digest_id, DigestTopic.position, DigestTopic.id)
         ):
             if kind == "creator_updates":

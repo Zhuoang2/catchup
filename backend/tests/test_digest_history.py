@@ -129,6 +129,28 @@ def test_history_list_query_count_is_constant(test_settings):
         assert one == five == 2
 
 
+def test_history_list_loads_all_topics_without_bound_digest_ids(test_settings):
+    with TestClient(create_app(test_settings)) as client:
+        seed_history(client)
+        with client.app.state.session_factory() as session:
+            engine = session.get_bind()
+        topic_queries = []
+
+        def record(_conn, _cursor, statement, params, _context, _executemany):
+            if "FROM digest_topics" in statement:
+                topic_queries.append((statement, params))
+
+        event.listen(engine, "before_cursor_execute", record)
+        try:
+            rows = client.get("/api/digests")
+        finally:
+            event.remove(engine, "before_cursor_execute", record)
+        assert rows.status_code == 200
+        assert rows.json()[-1]["topics"] == ["First", "Second"]
+        assert len(topic_queries) == 1
+        assert not topic_queries[0][1]
+
+
 def test_digest_detail_uses_snapshot_positions_and_survives_source_deletion(test_settings):
     with TestClient(create_app(test_settings)) as client:
         source_id = seed_history(client)

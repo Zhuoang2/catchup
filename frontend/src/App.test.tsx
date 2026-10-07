@@ -14,14 +14,10 @@ describe('navigation', () => {
   it('uses the browser local calendar date in the masthead', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-10-06T23:30:00-07:00'))
-    const now = new Date()
     shell()
     const time = document.querySelector('.masthead-line time')
-    expect(time).toHaveAttribute('dateTime', [
-      now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'),
-      String(now.getDate()).padStart(2, '0'),
-    ].join('-'))
-    expect(time).toHaveTextContent(/\d{1,2} \w+ 2026/)
+    expect(time).toHaveAttribute('dateTime', '2026-10-06')
+    expect(time).toHaveTextContent('Tuesday, 6 October 2026')
   })
   it('shows links to all main pages and marks the current route', () => {
     shell('/digests/1')

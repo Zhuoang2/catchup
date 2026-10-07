@@ -73,15 +73,19 @@ it('renders creator updates after topics with saved wait labels', async () => {
     transcript_wait_days: 10,
     topics: [{ title: 'Technology', overview: 'News', items: [] }],
     creator_updates: [
-      { source_name: 'Show', items: [
-        { title: 'Episode', link: 'https://example.test/ep', published_at: null, reason: 'no_transcript' },
+      { source_name: 'Show', source_kind: 'podcast', items: [
+        { title: 'Episode', link: 'https://example.test/ep', source_kind: 'podcast',
+          published_at: null, reason: 'no_transcript' },
       ] },
-      { source_name: 'Channel', items: [
-        { title: 'Off', link: 'https://example.test/off', published_at: null, reason: 'captions_off' },
+      { source_name: 'Channel', source_kind: 'youtube', items: [
+        { title: 'Off', link: 'https://example.test/off', source_kind: 'youtube',
+          published_at: null, reason: 'captions_off' },
         { title: 'Missing', link: 'https://example.test/missing',
-          published_at: '2026-10-02T10:00:00Z', reason: 'no_captions' },
-        { title: 'Blocked', link: 'https://example.test/blocked', published_at: null, reason: 'blocked' },
-        { title: 'Failed', link: 'https://example.test/failed', published_at: null, reason: 'captions_failed' },
+          source_kind: 'youtube', published_at: '2026-10-02T10:00:00Z', reason: 'no_captions' },
+        { title: 'Blocked', link: 'https://example.test/blocked', source_kind: 'youtube',
+          published_at: null, reason: 'blocked' },
+        { title: 'Failed', link: 'https://example.test/failed', source_kind: 'youtube',
+          published_at: null, reason: 'captions_failed' },
       ] },
     ],
   }))
@@ -100,6 +104,15 @@ it('renders creator updates after topics with saved wait labels', async () => {
     /\d{1,2} Oct 2026, \d{2}:\d{2}/)
   expect(screen.getByRole('link', { name: 'Episode (opens the original)' })).toHaveAttribute(
     'rel', 'noopener noreferrer')
+  expect(screen.getByRole('region', { name: 'Show' }).querySelectorAll('.creator-source .sr-only'))
+    .toHaveLength(1)
+  expect(screen.getByRole('region', { name: 'Show' }).querySelector('.creator-source .sr-only'))
+    .toHaveTextContent('Podcast:')
+  expect(screen.getByRole('region', { name: 'Channel' }).querySelectorAll('.creator-source .sr-only'))
+    .toHaveLength(1)
+  expect(screen.getByRole('region', { name: 'Channel' }).querySelector('.creator-source .sr-only'))
+    .toHaveTextContent('YouTube channel:')
+  expect(creator.querySelectorAll('.creator-item .creator-meta .sr-only')).toHaveLength(0)
   expect(creator.querySelectorAll('.creator-item .icon-sm')).toHaveLength(0)
   await expectAccessible(container)
 })

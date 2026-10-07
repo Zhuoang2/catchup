@@ -88,3 +88,9 @@ Allow-listed prototype-only selectors (8):
   .page-sources: Generic .page grid handles the Sources wrapper
 Uncovered prototype selectors (0):
 ```
+
+### Second-review mutation checks (task 11.11)
+
+After adding source kinds to the Creator-updates fixture, temporarily restoring `<KindIcon kind={item.source_kind}/>` inside each item's metadata made `renders creator updates after topics with saved wait labels` fail: five item-level hidden kind labels appeared instead of zero. The original group-only markup was restored.
+
+The masthead test now expects the literal local date `2026-10-06` for an instant whose UTC date is `2026-10-07`. Before pinning the test timezone, running it with `TZ=UTC` failed (`dateTime="2026-10-07"`). The `test` script now pins `America/Los_Angeles`. Temporarily restoring `today.toISOString().slice(0, 10)` after that change made the same test fail again with `dateTime="2026-10-07"`; local-date markup was restored. Under an outer `TZ=UTC`, the targeted App/Digest suites then passed 16/16, and the frontend build passed. No temporary production mutation remains.

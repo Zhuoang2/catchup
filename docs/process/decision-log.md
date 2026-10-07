@@ -145,3 +145,10 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Copy the pictured flow exactly (`/opsx:propose` for every change). Rejected: substantial changes keep the RePPIT research and two-proposal steps (2026-10-01), which the course grades as evidence.
 - **Consequences:** Droid runs take longer and use more credits. The first trial is the next small change, for example #23. The current `redesign-ui-ux` fix round was already done without these skills.
 - **Review:** before installing, Claude read every file in both skills. They contain instructions only; the bundled `hitl-loop.template.sh` only prompts a human and prints the answers. The installer's own assessment reported no alerts.
+- **Amendment (2026-10-07): a fixed review step after every Droid run.** The fix round of `redesign-ui-ux` had been re-checked only functionally, with no independent code review. Every Droid run, including fix rounds, now gets two reviews of its diff: Claude Code's built-in `/code-review` for bugs, and an independent sub-agent that checks the diff against the OpenSpec change, quoting the spec line for each finding (missing or partial, not asked for, implemented wrongly, verification claimed but not tested). Claude Code verifies each finding before any change.
+  - **Alternative considered:** install Matt Pocock's `code-review` skill (a Standards axis and a Spec axis in parallel sub-agents). Rejected for now, for four reasons:
+    - Its name collides with the built-in `/code-review`.
+    - Its Standards axis needs a coding-standards file that the repository does not have, so it would reduce to a generic code-smell list.
+    - It requires a separate setup step (`docs/agents/issue-tracker.md`).
+    - The project's review sub-agent already checked against the spec. The missing piece was running the review on every round.
+  - Its three spec questions were adopted into the sub-agent brief.

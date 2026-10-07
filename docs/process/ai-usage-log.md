@@ -588,3 +588,10 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - Claude read both skills from GitHub before installing. It found one conflict with unattended Droid runs: `tdd` requires confirming test seams with the user. Claude resolved it in the `AGENTS.md` rule: the seams named in each task's verification count as agreed.
   - The pasted note said the skills would land in `.factory/skills/`. The installer actually used `.agents/skills/` plus symlinks for Claude Code. Claude checked Factory's documentation, which lists `<repo>/.agents/skills/**/SKILL.md` as a Droid skill location.
   - Recorded as D-016.
+- **Choosing the review tools (2026-10-07).** The user pasted a comparison of Matt Pocock's `/code-review` (two axes: standards and spec) with Anthropic's `/code-review` plugin and the hosted Code Review service, and asked whether to install Pocock's version. Claude read that skill's `SKILL.md` and advised against installing it, for these reasons:
+  - Its name collides with the built-in skill.
+  - The repository has no coding-standards file.
+  - It needs a separate setup step.
+  - The existing review sub-agent already checked against the spec; the actual gap was that the fix round had no code review at all.
+
+  The comparison's concern that Anthropic's tool reads only `CLAUDE.md` did not apply, because `CLAUDE.md` is a symlink to `AGENTS.md`. The user agreed: "好，按这个步骤补审修复轮，写进 AGENTS.md" (OK, review the fix round with these steps and write it into AGENTS.md). The step is now in `AGENTS.md` and recorded under D-016.

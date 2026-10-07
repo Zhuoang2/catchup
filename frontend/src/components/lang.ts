@@ -18,7 +18,7 @@ const languageNames = new Map(Object.entries({
 const supportedLanguages = new Set(['en', 'zh', 'ja', 'ko', 'fr', 'de', 'es', 'it', 'pt', 'ru', 'ar', 'hi'])
 
 export function digestLang(language: string | null | undefined): string | undefined {
-  const name = language?.trim().toLocaleLowerCase()
+  const name = language?.trim().toLowerCase()
   if (!name || name === 'original') return undefined
   const named = languageNames.get(name)
   if (named) return named

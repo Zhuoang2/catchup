@@ -257,3 +257,4 @@ Small fixes from the review of group 11 that the user asked the reviewer to make
 - [x] 12.3 Sources test: deleting one of two sources focuses the "Your sources" heading.
 - [x] 12.4 The test timezone is pinned in `vite.config.ts` instead of `package.json`.
 - [x] 12.5 Test report sentences about OpenSpec folder changes corrected; D5 amendment note added.
+- [x] 12.6 Follow-ups from reviewing group 12: race test checks topics; setup asserts the pinned zone; `digestLang` uses locale-independent lowercasing (Turkish-rules test); non-failing cases removed; report and D5 citations corrected.

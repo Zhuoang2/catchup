@@ -181,6 +181,7 @@ def test_history_list_ignores_a_digest_saved_between_its_two_queries(test_settin
         assert saved
         assert rows.status_code == 200
         assert [row["id"] for row in rows.json()] == [3, 2, 1]
+        assert rows.json()[-1]["topics"] == ["First", "Second"]
         assert client.get("/api/digests").json()[0]["topics"] == ["Late"]
 
 def test_digest_detail_uses_snapshot_positions_and_survives_source_deletion(test_settings):

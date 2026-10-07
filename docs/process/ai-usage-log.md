@@ -633,3 +633,15 @@ Real usage records for the technical spec, alpha reflection, and final report. E
     - Before the fix round, Claude merged `main` into the branch so that Droid's worktree has the new skills and rules. Both conflicts were text appended at the end of the process logs, and both sides were kept.
     - Task group 11 names the seam for each task. It assigns `diagnosing-bugs` to the four bugs and `tdd` to the rest.
   - **Droid fix round 2, first stop (2026-10-07).** Droid fixed 11.1–11.3 with the `diagnosing-bugs` loop. For each one it reported the failing check it saw before the fix, its ranked causes, and the confirmed cause; for example, "Startup alert disappeared after two successful poll ticks", caused by a shared error state that the poll cleared. It then stopped at 11.4. The reason: 10.2 maps "Japanese" case-insensitively to `ja`, while 11.4 named `japanese` as an example that must not map. This was Claude's error in choosing the negative example; the intent was that the language-tag path must not accept unknown 8-letter subtags. Claude replaced the example with `abcdefgh` and resumed Droid.
+- **Fixed review step on group 11, and reviewer fixes (2026-10-07).**
+  - **The review.** Group 11 was reviewed with both parts of the step.
+    - `/code-review` reported 3 findings.
+    - The independent spec sub-agent reported 7, after re-introducing each old behavior in a copy of the repository. Every group 11 test failed as it should.
+    - Claude verified all of them. The real ones were a race in the digest list that returns a 500 (the sub-agent reproduced it), a names table that answered for `constructor`, an untested error path in `digestLang`, an untested focus branch, stale report sentences, a D5 note missing, and a POSIX-only `TZ=` prefix. Three were judged no change: a stale load alert until reload, hypotheses missing from commit messages, and an extra wording test.
+  - **The fixes.** The user chose to have Claude fix them directly rather than run Droid again: "你直接修吧，修完按流程审一遍" (fix it yourself, then review it following the process). The session's Droid credits stood at about 6.9M.
+    - Claude worked test-first, recorded as task group 12. The race test failed with `KeyError` before the fix. For guards that already existed, Claude removed the guard temporarily to show the test fails without it.
+    - One new focus test was flaky (1 of 3 runs failed). Claude made it wait for focus and confirmed it: 5 of 5 runs pass, and 3 of 3 runs fail with the mutation in place.
+  - **The review of Claude's own fixes, with the same step.**
+    - `/code-review` reported 3 low findings.
+    - The spec sub-agent confirmed all five fixes by mutation and found only nits. The timezone pin did not hold under `--pool=threads`, and two test cases could never fail.
+    - Claude fixed these as well. `src/test/setup.ts` now throws unless the zone is pinned. Lowercasing became locale-independent, shown by a test that emulates Turkish case rules and failed first. The cases that could never fail were removed.

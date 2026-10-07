@@ -183,6 +183,16 @@ it('does not invent source counts when the source list cannot be read', async ()
   await expectAccessible(container)
 })
 
+it('shows a short hero date but keeps the rail last-digest date long', async () => {
+  const { container } = mockPage({ history: [{
+    id: 3, created_at: '2026-10-05T09:00:00', item_count: 4, source_count: 2,
+  }] })
+  await screen.findByRole('heading', { name: 'Last digest' })
+  expect(container.querySelector('.hero-last')).toHaveTextContent('Last digest: No. 3 · 5 Oct 2026, 09:00')
+  expect(screen.getByRole('heading', { name: 'Last digest' }).closest('section'))
+    .toHaveTextContent('No. 3 · Monday, 5 October 2026, 09:00')
+})
+
 it('starts one run, polls to success and refreshes the last digest', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
   let historyReads = 0

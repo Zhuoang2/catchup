@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError, request } from '../api/client'
-import { dateTime, plural, tokenTotals } from '../components/format'
+import { dateTime, plural, shortDateTime, tokenTotals } from '../components/format'
 import { Icon } from '../components/Icon'
 import { Alert, Button, Chip, PageHead, Progress, Rail, StatusRegion, Stepper, buttonClass } from '../components/ui'
 
@@ -144,7 +144,7 @@ export default function Generate() {
             {running ? 'Generating…' : state === 'failed' ? 'Try again' : 'Generate digest'}
           </Button>
           {digests[0] && <p className="hero-meta hero-last">Last digest:{' '}
-            <Link to={`/digests/${digests[0].id}`}>No. {digests[0].id} · {dateTime(digests[0].created_at)}</Link>
+            <Link to={`/digests/${digests[0].id}`}>No. {digests[0].id} · {shortDateTime(digests[0].created_at)}</Link>
             {' · '}{plural(digests[0].item_count, 'item')}</p>}
         </>}
       </div>

@@ -44,7 +44,7 @@ Implementer notes:
 
 ## 3. App shell and shared components
 
-- [ ] 3.1 Build `frontend/src/components/AppShell.tsx` per design.md D3 and use it in `frontend/src/App.tsx` (routes unchanged):
+- [x] 3.1 Build `frontend/src/components/AppShell.tsx` per design.md D3 and use it in `frontend/src/App.tsx` (routes unchanged):
   - skip link, masthead (wordmark, today's long date, nav with `aria-current`, with Digest counting as History), and `main#main[tabindex=-1]`
   - compact masthead on `/digests/:id` and below 900 px
   - `useJump` for the skip link
@@ -53,7 +53,7 @@ Implementer notes:
   - the App test checks nav links and `aria-current`
   - a test checks that activating the skip link moves `document.activeElement` to `#main`
   - an axe scan passes
-- [ ] 3.2 Build the D3 components: `PageHead`, `SectionRow`, `Rail`, `Button`, `Chip`, `KindBadge`, `ReasonLabel`, `Alert`, `Switch`, `Stepper`, `Progress`, `StatusRegion`, `SummaryText`, `Icon`, `useJump`. Styles go in `components.css`, ported from the prototype. Verify with component tests:
+- [x] 3.2 Build the D3 components: `PageHead`, `SectionRow`, `Rail`, `Button`, `Chip`, `KindBadge`, `ReasonLabel`, `Alert`, `Switch`, `Stepper`, `Progress`, `StatusRegion`, `SummaryText`, `Icon`, `useJump`. Styles go in `components.css`, ported from the prototype. Verify with component tests:
   - `Switch` exposes `role="switch"`, its label box contains only the track and text, and `describedBy` is applied
   - `Stepper` exposes "(done)", "(in progress)", and "(next)"
   - `Progress` is named by its label

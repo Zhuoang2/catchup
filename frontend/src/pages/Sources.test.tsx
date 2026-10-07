@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Sources from './Sources'
@@ -159,6 +159,30 @@ describe('sources', () => {
     expect(await screen.findByText('No sources yet')).toBeInTheDocument()
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Your sources' }))
     await expectAccessible(container)
+  })
+
+  it('removes a deleted row before refresh and reports a refresh failure', async () => {
+    let deleted = false
+    let rejectRefresh!: (reason: Error) => void
+    const pendingRefresh = new Promise<ReturnType<typeof respond>>((_, reject) => {
+      rejectRefresh = reject
+    })
+    fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+      if (path === '/api/sources' && !deleted) return respond([saved])
+      if (options?.method === 'DELETE') { deleted = true; return { ok: true, status: 204 } }
+      if (path === '/api/sources') return pendingRefresh
+      throw Error(path)
+    })
+    page()
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Example News' }))
+    fireEvent.click(screen.getByRole('group', { name: 'Confirm deletion' }).querySelector('button')!)
+    await waitFor(() => expect(fetchMock.mock.calls.filter(([path]) => path === '/api/sources')).toHaveLength(2))
+    expect(screen.queryByText('Example News')).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Confirm deletion' })).toBeNull()
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Your sources' }))
+    await act(async () => { rejectRefresh(new Error('Offline')) })
+    expect(screen.getByRole('alert')).toHaveTextContent(/refresh/i)
+    expect(screen.getByLabelText('Website or feed URL')).not.toHaveAttribute('aria-invalid')
   })
 
   it('keeps delete failures at page level without invalidating the URL', async () => {

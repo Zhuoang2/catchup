@@ -227,7 +227,7 @@ The same implementer notes apply. Every finding below was verified by the review
 Every finding below was verified by the reviewer. Follow `AGENTS.md`: tasks 11.1–11.4 are bugs, handled with the `diagnosing-bugs` skill (a failing check that reproduces the symptom first, then the fix and a regression test). The other tasks use the `tdd` skill. The seams named under each task are the agreed seams. Commit after each task.
 
 - [x] 11.1 **Generate keeps load errors visible (`Generate.tsx`).** A successful poll clears only errors raised by polling, not the error from the startup requests. Seam: the rendered Generate page with mocked `request` and fake timers. Regression test: `/digests` rejects while an active run is summarizing; after two poll ticks the "Could not load some page details" alert is still shown.
-- [ ] 11.2 **Deleting a source separates the delete from the refresh (`Sources.tsx`).**
+- [x] 11.2 **Deleting a source separates the delete from the refresh (`Sources.tsx`).**
   - If the DELETE fails, show the page error and keep the confirmation open, as today.
   - If the DELETE succeeds, remove the source from the list right away. If the refresh then fails, show a page error that says the list could not be refreshed, not that the delete failed.
   - In both successful cases, move focus to the list heading, or to the empty-state heading (see 11.6).

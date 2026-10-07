@@ -152,10 +152,12 @@ export default function Sources() {
     setPageError('')
     try {
       await request<void>(`/sources/${source.id}`, { method: 'DELETE' })
-      setConfirmId(null)
-      await refresh()
-      setFocusAfterDelete(true)
-    } catch (err) { setPageError(describeError(err)) }
+    } catch (err) { setPageError(describeError(err)); return }
+    setSources(previous => previous.filter(entry => entry.id !== source.id))
+    setConfirmId(null)
+    setFocusAfterDelete(true)
+    try { await refresh() }
+    catch (err) { setPageError(`Could not refresh sources. ${describeError(err)}`) }
   }
 
   return <section className="page page-sources">

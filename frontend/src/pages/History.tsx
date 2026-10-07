@@ -7,7 +7,7 @@ import { PageHead, Rail, buttonClass } from '../components/ui'
 
 type DigestEntry = {
   id: number; created_at: string; item_count: number; source_count: number
-  topics?: { title: string }[]; language?: string | null
+  topics: string[]; language: string | null; creator_updates_only: boolean
 }
 
 export default function History() {
@@ -20,13 +20,7 @@ export default function History() {
     async function load() {
       try {
         const entries = await request<DigestEntry[]>('/digests')
-        // The list API contains counts but not titles; use the saved detail
-        // snapshots for previews without changing the endpoint.
-        const withTopics = await Promise.all(entries.map(async entry => {
-          const detail = await request<Pick<DigestEntry, 'topics' | 'language'>>(`/digests/${entry.id}`)
-          return { ...entry, topics: detail.topics, language: detail.language }
-        }))
-        if (mounted) setDigests(withTopics)
+        if (mounted) setDigests(entries)
       } catch (reason) {
         if (mounted) setError((reason as Error).message)
       } finally {
@@ -57,7 +51,8 @@ export default function History() {
             <span className="history-main"><span className="history-title">No. {digest.id} ·{' '}
               <time dateTime={digest.created_at}>{longDate(digest.created_at)} · {shortTime(digest.created_at)}</time></span>
               <span className="history-topics" lang={digest.language || undefined}>
-                {digest.topics?.length ? digest.topics.map(topic => topic.title).join(' · ') : 'Creator updates only'}
+                {digest.topics.length ? digest.topics.join(' · ') :
+                  digest.creator_updates_only ? 'Creator updates only' : 'No topics'}
               </span>
             </span>
             <span className="history-counts">{plural(digest.item_count, 'item')} · {plural(digest.source_count, 'source')}</span>

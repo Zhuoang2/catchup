@@ -16,9 +16,23 @@ def list_digests(session: Session = Depends(get_session)) -> list[dict]:
     digests = session.scalars(
         select(Digest).order_by(Digest.created_at.desc(), Digest.id.desc())
     ).all()
+    titles: dict[int, list[str]] = {digest.id: [] for digest in digests}
+    creator_ids: set[int] = set()
+    if digests:
+        for digest_id, title, kind in session.execute(
+            select(DigestTopic.digest_id, DigestTopic.title, DigestTopic.kind)
+            .where(DigestTopic.digest_id.in_(titles))
+            .order_by(DigestTopic.digest_id, DigestTopic.position, DigestTopic.id)
+        ):
+            if kind == "creator_updates":
+                creator_ids.add(digest_id)
+            else:
+                titles[digest_id].append(title)
     return [
         {"id": digest.id, "created_at": digest.created_at,
-         "item_count": digest.item_count, "source_count": digest.source_count}
+         "item_count": digest.item_count, "source_count": digest.source_count,
+         "language": digest.language, "topics": titles[digest.id],
+         "creator_updates_only": not titles[digest.id] and digest.id in creator_ids}
         for digest in digests
     ]
 

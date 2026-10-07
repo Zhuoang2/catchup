@@ -167,7 +167,7 @@ Implementer notes:
 
 The same implementer notes apply. Every finding below was verified by the reviewer against the code or in a browser. Fix them in order; commit after each task.
 
-- [ ] 10.1 **Digest list API and History (D4 History, D6; spec `digest-history` "List saved digests").** In `backend/src/catchup/api/digests.py`, `GET /api/digests` also returns `language`, `topics` (topic titles in order, excluding Creator updates), and `creator_updates_only`, loaded with one query for all listed digests. In `frontend/src/pages/History.tsx`, use these fields and remove the per-digest detail requests. Verify:
+- [x] 10.1 **Digest list API and History (D4 History, D6; spec `digest-history` "List saved digests").** In `backend/src/catchup/api/digests.py`, `GET /api/digests` also returns `language`, `topics` (topic titles in order, excluding Creator updates), and `creator_updates_only`, loaded with one query for all listed digests. In `frontend/src/pages/History.tsx`, use these fields and remove the per-digest detail requests. Verify:
   - a pytest checks the new fields, including an old row (`language: null`) and a Creator-updates-only digest
   - a pytest shows the number of SQL statements does not grow with the number of digests (for example with a SQLAlchemy `before_cursor_execute` counter for 1 and 5 digests)
   - a vitest checks that History issues exactly one request, and that previews and the "Creator updates only" row render

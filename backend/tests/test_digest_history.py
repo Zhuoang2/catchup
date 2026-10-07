@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
+from sqlalchemy import event
 
 from catchup.main import create_app
 from catchup.models import AppSettings, Digest, DigestItem, DigestRun, DigestTopic, Item, Source, SourceCheck
@@ -64,6 +65,68 @@ def test_history_lists_three_newest_first_with_counts(test_settings):
         assert [row["item_count"] for row in rows] == [3, 2, 1]
         assert [row["source_count"] for row in rows] == [1, 1, 1]
         assert rows[0]["created_at"] == "2026-10-02T00:00:00Z"
+        assert rows[0]["language"] is None
+        assert rows[0]["topics"] == []
+        assert rows[0]["creator_updates_only"] is False
+        assert rows[2]["topics"] == ["First", "Second"]
+
+
+def test_history_lists_snapshot_language_topics_and_creator_only(test_settings):
+    with TestClient(create_app(test_settings)) as client:
+        seed_history(client)
+        with client.app.state.session_factory() as session:
+            session.get(Digest, 1).language = "zh-Hans"
+            creator = DigestTopic(digest_id=2, position=0, title="Creator updates",
+                                  overview="", kind="creator_updates")
+            session.add(creator)
+            session.flush()
+            session.add(DigestItem(digest_id=2, topic_id=creator.id, position=0,
+                                   title="New episode", link="https://example.test/episode",
+                                   source_name="Saved show", summary_unavailable=True))
+            session.commit()
+        rows = client.get("/api/digests").json()
+        assert [(row["language"], row["topics"], row["creator_updates_only"]) for row in rows] == [
+            (None, [], False),
+            (None, [], True),
+            ("zh-Hans", ["First", "Second"], False),
+        ]
+
+
+def test_history_list_query_count_is_constant(test_settings):
+    with TestClient(create_app(test_settings)) as client:
+        with client.app.state.session_factory() as session:
+            engine = session.get_bind()
+
+        def count_queries():
+            statements = []
+
+            def record(_conn, _cursor, statement, _params, _context, _executemany):
+                if statement.lstrip().upper().startswith("SELECT"):
+                    statements.append(statement)
+
+            event.listen(engine, "before_cursor_execute", record)
+            try:
+                assert client.get("/api/digests").status_code == 200
+            finally:
+                event.remove(engine, "before_cursor_execute", record)
+            return len(statements)
+
+        with client.app.state.session_factory() as session:
+            for _ in range(5):
+                run = DigestRun(status="succeeded")
+                session.add(run)
+                session.flush()
+                digest = Digest(run_id=run.id, model_id="test", item_count=1, source_count=1)
+                session.add(digest)
+                session.flush()
+                session.add(DigestTopic(digest_id=digest.id, position=0,
+                                        title=f"Topic {digest.id}", overview="Saved"))
+                if digest.id == 1:
+                    session.commit()
+                    one = count_queries()
+            session.commit()
+        five = count_queries()
+        assert one == five == 2
 
 
 def test_digest_detail_uses_snapshot_positions_and_survives_source_deletion(test_settings):

@@ -44,3 +44,21 @@ Static UI classes with C7 rules but no app rules (9):
 ```
 
 The first six and `.page-offline` belong to prototype-only chrome or the separate self-contained offline page, not React's runtime CSS. `.page-history` and `.page-sources` share the app's `.page` grid; their page-specific content placement is handled by `.page > *`. At 320 px in a fresh isolated Chromium session, all four navigation labels were fully visible and `document.documentElement.scrollWidth === 320`.
+
+## Review fixes
+
+2026-10-06, branch `redesign-ui-ux`, review baseline `88b5b7d`. This section supersedes the earlier History per-detail-request note: History now uses one enriched list response, with two digest-list SELECTs regardless of list length.
+
+| Check | Result |
+| --- | --- |
+| `uv run pytest --cov=catchup --cov-report=term-missing -q` | 354 passed; 96% statement coverage (1,868 statements, 77 missed). Digest API: 100%. |
+| `npm test -- --run` | 79 passed in 12 files. 36 explicit `expectAccessible` call sites ran 41 axe scans when parameterized variants are counted, covering the new digest index, language, loading/error, Generate and field-error states. No axe violations; jsdom color contrast remains excluded as described above. |
+| `npm run build` | Passed TypeScript and production Vite build, including copying `offline.html` and the install assets. |
+| `openspec validate redesign-ui-ux --strict` | Valid. |
+| `docker build -t catchup-redesign-review-smoke .` and `scripts/docker-smoke.sh catchup-redesign-review-smoke` | Passed on Docker 29.8.0, including health, manifest/worker/offline files, non-root process, image exclusions and saved preference after restart. Smoke used a throwaway volume and loopback port. |
+| `python3 frontend/scripts/check-style-coverage.py` | Nine remaining prototype-only or generic-grid classes, listed and classified above; no uncovered runtime component class. |
+| Browser spot checks | At 320 px, all four nav labels fit without horizontal overflow. The standalone offline page at 320 px had the C7 serif body/brand, centered card, hidden decorative logo and small-caps Reload button; document width was 320 px. |
+
+Tests used mocked API/feed/model responses and fake timers, not live feeds or a real provider. No runtime dependencies, CI job names, protected OpenSpec plans/specs or prototype files changed in this review-fix round; only task checkboxes changed under the OpenSpec change folder. No full multi-theme visual parity, keyboard-only end-to-end pass, native PWA installation or Safari rendering was performed; the earlier manual-review limitations remain. The offline-page spot check loaded the standalone file, not a simulated service-worker navigation; the prior worker-isolation tests and Docker asset smoke still passed.
+
+Interpretive choices: a digest with no topics and no Creator updates displays “No topics”; the Creator-only flag requires an actual Creator-updates topic. When the model-settings read fails, Generate keeps active-run visibility rather than assuming first-run setup. Sources retains the “Your sources” heading in its empty state as the post-deletion focus target. The index displays section counts as explicitly required by task 10.7, despite the older prototype cascade hiding `.toc-count`. The independent style audit still reports generic page and standalone-offline selectors rather than silently filtering them out.

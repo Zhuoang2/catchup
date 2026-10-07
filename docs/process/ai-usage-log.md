@@ -2,6 +2,12 @@
 
 Real usage records for the technical spec, alpha reflection, and final report. Each entry: date, tool/model, purpose, prompt (verbatim or faithful excerpt), outcome, problems, adjustment.
 
+## 2026-10-06 — UI redesign review fixes (Factory Droid)
+
+- Prompt (faithful excerpt): "Implement approved review fixes 10.1–10.8 in order ... verify and commit after each task ... use the effective C7 cascade ... do not edit plans, specs or prototypes, add runtime dependencies, make real network calls or sleeps in tests, or push."
+- Outcome: Replaced per-digest History requests with constant-query list previews, mapped saved languages to BCP-47, kept Generate responsive across independent request failures, scoped form errors, restored delete focus, ported missing C7 rules, and aligned date/markup/offline styling. Final results: 354 backend tests (96% coverage), 79 frontend tests (41 axe scans), build, strict OpenSpec validation, and local Docker build/smoke passed. Details and unperformed manual checks are in `test-report-redesign-ui-ux.md`.
+- Problems / adjustment: This worktree needed `npm ci` and a locked backend environment. A Generate test initially asserted token text as a whole node and another waited on an always-visible heading; both were corrected to wait for the relevant rendered state. A real 320 px check found the fourth nav link overflowing by 2 px because the narrow padding rule lost to a more specific rule; matching specificity removed the overflow. An audit listed nine residual prototype-only/generic classes rather than treating them as unported live styles. No provider, feed or production deployment was contacted.
+
 ## 2026-10-06 — UI redesign implementation (Factory Droid)
 
 - Prompt (faithful excerpt): "Implement all 14 tasks, 1.1–9.1, for OpenSpec `redesign-ui-ux` ... verify each task before checking it and commit after each task group ... do not edit proposal.md, design.md, spec deltas, or prototypes; do not push, tag, or open a PR." After two stops on plan contradictions, the user approved the corrections in `e77e098` and `e05dada` and instructed Droid to stop only for genuinely blocking contradictions, choosing the design/prototype-consistent reading for minor ambiguities.

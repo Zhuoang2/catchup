@@ -220,4 +220,4 @@ The same implementer notes apply. Every finding below was verified by the review
   - `frontend/public/offline.html` matches the prototype's offline state (`render.js offline()` with the C7 styles: serif wordmark and heading, centered, small-caps Reload button), still self-contained with inline CSS.
 
   Verify with tests for the index counts, the hidden link text, the single kind label per Creator-updates group, the `Alert` roles, and the loading `h1`, plus axe scans. Re-run the `offline.html` checks from 8.2.
-- [ ] 10.8 **Re-run the integration checks** from 9.1 and update `docs/process/test-report-redesign-ui-ux.md` with a "Review fixes" section.
+- [x] 10.8 **Re-run the integration checks** from 9.1 and update `docs/process/test-report-redesign-ui-ux.md` with a "Review fixes" section.

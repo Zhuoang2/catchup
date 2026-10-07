@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError, request } from '../api/client'
 import { dateTime, parseDate } from '../components/format'
@@ -91,6 +91,26 @@ export default function Sources() {
   const [pageError, setPageError] = useState('')
   const [message, setMessage] = useState('')
   const [confirmId, setConfirmId] = useState<number | null>(null)
+  const [restoreFocusId, setRestoreFocusId] = useState<number | null>(null)
+  const [focusAfterDelete, setFocusAfterDelete] = useState(false)
+  const cancelRef = useRef<HTMLButtonElement>(null)
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  const deleteRefs = useRef(new Map<number, HTMLButtonElement>())
+
+  useEffect(() => {
+    if (confirmId !== null) cancelRef.current?.focus()
+    else if (restoreFocusId !== null) {
+      deleteRefs.current.get(restoreFocusId)?.focus()
+      setRestoreFocusId(null)
+    }
+  }, [confirmId, restoreFocusId])
+
+  useEffect(() => {
+    if (focusAfterDelete) {
+      headingRef.current?.focus()
+      setFocusAfterDelete(false)
+    }
+  }, [focusAfterDelete, sources])
 
   async function refresh() { setSources(await request<Source[]>('/sources')) }
 
@@ -134,6 +154,7 @@ export default function Sources() {
       await request<void>(`/sources/${source.id}`, { method: 'DELETE' })
       setConfirmId(null)
       await refresh()
+      setFocusAfterDelete(true)
     } catch (err) { setPageError(describeError(err)) }
   }
 
@@ -153,20 +174,24 @@ export default function Sources() {
     {message && <p role="status">{message}</p>}
     {preview && <SourcePreview preview={preview} onConfirm={() => void confirmSource()}
       onCancel={() => setPreview(null)}/>}
+    {!loading && <h2 ref={headingRef} tabIndex={-1} className="section-label">
+      Your sources {sources.length > 0 && <span className="count">{sources.length}</span>}
+    </h2>}
     {loading ? <p>Loading sources…</p> : !sources.length ? <div className="empty-state">
       <Icon name="sources" className="icon icon-empty"/><h2>No sources yet</h2>
       <p>Paste the address of something you follow. CatchUp finds its feed for you.</p>
       <ul className="examples"><li>A blog or news site</li><li>A podcast feed or Apple Podcasts link</li>
         <li>A YouTube channel</li><li>A Bluesky or Mastodon profile</li></ul>
     </div> : <>
-      <h2 className="section-label">Your sources <span className="count">{sources.length}</span></h2>
       <ul className="source-list">{sources.map(source => confirmId === source.id
         ? <li className="source-row source-confirm" key={source.id}>
           <div role="group" aria-label="Confirm deletion">
             <p className="confirm-text"><strong>Delete {source.title}?</strong> Saved digests will remain available.</p>
             <div className="actions"><Button variant="danger-solid" size="sm" type="button"
               onClick={() => void deleteSource(source)}>Delete</Button>
-              <Button variant="ghost" size="sm" type="button" onClick={() => setConfirmId(null)}>Cancel</Button></div>
+              <Button ref={cancelRef} variant="ghost" size="sm" type="button" onClick={() => {
+                setRestoreFocusId(source.id); setConfirmId(null)
+              }}>Cancel</Button></div>
           </div>
         </li>
         : <li className="source-row" key={source.id}>
@@ -175,6 +200,8 @@ export default function Sources() {
             <p className="source-feed" title={source.feed_url}>{source.feed_url}</p></div>
           <SourceStatus source={source}/>
           <Button variant="ghost" size="sm" className="btn-danger" type="button"
+            ref={node => { if (node) deleteRefs.current.set(source.id, node)
+              else deleteRefs.current.delete(source.id) }}
             aria-label={`Delete ${source.title}`} onClick={() => setConfirmId(source.id)}>Delete</Button>
         </li>)}</ul>
     </>}

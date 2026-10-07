@@ -146,13 +146,17 @@ describe('sources', () => {
     expect(screen.getByRole('group', { name: 'Confirm deletion' })).toHaveTextContent(
       'Delete Example News? Saved digests will remain available.',
     )
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }))
     await expectAccessible(container)
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(screen.getByRole('button', { name: 'Delete Example News' })).toBeInTheDocument()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Delete Example News' }))
     fireEvent.click(screen.getByRole('button', { name: 'Delete Example News' }))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }))
     fireEvent.click(screen.getByRole('group', { name: 'Confirm deletion' }).querySelector('button')!)
     expect(fetchMock).toHaveBeenCalledWith('/api/sources/2', { method: 'DELETE' })
     expect(await screen.findByText('No sources yet')).toBeInTheDocument()
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Your sources' }))
     await expectAccessible(container)
   })
 

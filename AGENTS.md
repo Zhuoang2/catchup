@@ -28,6 +28,13 @@ This supersedes the note in `docs/handoff.md` §9 that OpenSpec/RePPIT are not t
   - Closing: Claude Code reviews; after the user approves the merge, Claude Code runs `openspec archive <change-name>`.
 - Keep full RePPIT changes coarse: about 6–8 for the whole course. Everything else uses the lean path.
 - Implementers follow `tasks.md` in order, check off a task only after its verification passes, and do not edit `proposal.md`, `design.md`, or spec deltas. If the plan looks wrong, stop and report.
+- Implementation is test-first (D-016): when running `openspec-apply-change`, complete each task in `tasks.md` with the `tdd` skill. First write the task's spec scenarios and verification items as failing tests and watch them fail, then implement until they pass, one slice at a time. The seams to test are the ones named in the task's verification; they count as agreed with the user, so do not stop to ask. If a task names no testable seam, stop and report.
+- Bug fixing (D-016): for a bug, or a review finding whose cause is not yet known, use the `diagnosing-bugs` skill. Reproduce it with a failing check first, then rank hypotheses, fix, and add a regression test. When running unattended, put the ranked hypotheses and the confirmed cause in the final report and the commit message instead of waiting for the user.
+- Review after every Droid run, including fix rounds (D-016). Claude Code reviews the run's diff (from the commit Droid started at to the branch head) in a separate worktree:
+  1. Bugs: run Claude Code's built-in `/code-review` on that diff.
+  2. Spec: an independent sub-agent that has not seen the design discussion checks the diff against `openspec/changes/<change-name>/` (spec deltas, `design.md`, `tasks.md`). Quoting the spec line for each finding, it reports requirements that are missing or partial, behavior nobody asked for, requirements that look implemented but are wrong, and `tasks.md` verification claims that the tests do not actually perform.
+  3. Claude Code verifies every finding against the code or by running it before anything is changed, reports which findings were confirmed, rejected, or need the user's decision, and adds live checks (browser, measurements, Docker) where the change is user-visible.
+- Shared skills live in `.agents/skills/` (read by Droid; symlinked into `.claude/skills/` for Claude Code) and are pinned in `skills-lock.json`. Commit them, because a new worktree contains only committed files.
 
 ## Process evidence (course requirement)
 

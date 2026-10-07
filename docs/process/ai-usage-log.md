@@ -610,3 +610,14 @@ Real usage records for the technical spec, alpha reflection, and final report. E
     - The offline page, served by the worker with the server stopped, now has the C7 serif, centered style.
   - **Claude's own review error:** Claude had asked for visible per-section counts in the digest index. Droid noted that the C7 cascade hides `.toc-count` (`c3b.css:25`). Claude had compared `textContent`, which includes hidden elements, and misread the prototype. Claude restored the hidden rule (`d47fbf8`) and corrected task 10.7.
   - An offline check that first failed was a test artifact: Claude had deleted the worker's cache by hand earlier. A fresh origin (`127.0.0.1`) passed.
+- **Adding `tdd` and `diagnosing-bugs` to the workflow (2026-10-07).** The user compared the project flow with a reference flow (`/opsx:propose` → `/opsx:apply` with `/tdd` per task → `/code-review` → `/opsx:archive`, and `/diagnosing-bugs` for bugs). They pasted an installation note, saying "我觉得可以补这两个skills进我们的流程" (I think we can add these two skills to our flow).
+  - Claude read both skills from GitHub before installing. It found one conflict with unattended Droid runs: `tdd` requires confirming test seams with the user. Claude resolved it in the `AGENTS.md` rule: the seams named in each task's verification count as agreed.
+  - The pasted note said the skills would land in `.factory/skills/`. The installer actually used `.agents/skills/` plus symlinks for Claude Code. Claude checked Factory's documentation, which lists `<repo>/.agents/skills/**/SKILL.md` as a Droid skill location.
+  - Recorded as D-016.
+- **Choosing the review tools (2026-10-07).** The user pasted a comparison of Matt Pocock's `/code-review` (two axes: standards and spec) with Anthropic's `/code-review` plugin and the hosted Code Review service, and asked whether to install Pocock's version. Claude read that skill's `SKILL.md` and advised against installing it, for these reasons:
+  - Its name collides with the built-in skill.
+  - The repository has no coding-standards file.
+  - It needs a separate setup step.
+  - The existing review sub-agent already checked against the spec; the actual gap was that the fix round had no code review at all.
+
+  The comparison's concern that Anthropic's tool reads only `CLAUDE.md` did not apply, because `CLAUDE.md` is a symlink to `AGENTS.md`. The user agreed: "好，按这个步骤补审修复轮，写进 AGENTS.md" (OK, review the fix round with these steps and write it into AGENTS.md). The step is now in `AGENTS.md` and recorded under D-016.

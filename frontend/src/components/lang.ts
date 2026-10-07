@@ -15,11 +15,17 @@ const languageNames: Record<string, string> = {
   korean: 'ko',
   '한국어': 'ko',
 }
+const supportedLanguages = new Set(['en', 'zh', 'ja', 'ko', 'fr', 'de', 'es', 'it', 'pt', 'ru', 'ar', 'hi'])
 
 export function digestLang(language: string | null | undefined): string | undefined {
   const name = language?.trim().toLocaleLowerCase()
   if (!name || name === 'original') return undefined
-  if (name === 'en') return 'en'
-  if (name === 'zh-hans') return 'zh-Hans'
-  return languageNames[name]
+  if (languageNames[name]) return languageNames[name]
+  try {
+    const tag = Intl.getCanonicalLocales(name)[0]
+    return tag && supportedLanguages.has(tag.split('-')[0]) ? tag : undefined
+  } catch (error) {
+    if (error instanceof RangeError) return undefined
+    throw error
+  }
 }

@@ -28,12 +28,12 @@ Implementer notes:
 
 ## 2. Design system foundation
 
-- [ ] 2.1 Create `frontend/src/styles/tokens.css`, `base.css`, `layout.css`, and `components.css` per design.md D2, import them in `frontend/src/main.tsx`, and delete `frontend/src/style.css`. Requirements:
+- [x] 2.1 Create `frontend/src/styles/tokens.css`, `base.css`, `layout.css`, and `components.css` per design.md D2, import them in `frontend/src/main.tsx`, and delete `frontend/src/style.css`. Requirements:
   - `tokens.css` holds every color token in the D2 table with exactly those values, including `--error-border` (light on `:root`, dark under `prefers-color-scheme: dark`), plus the D2 non-color tokens (font stacks, type sizes, radii, spacing and widths) with their values from the C7 cascade.
   - `layout.css` holds the shared container, the 12-column grid with `subgrid` section rows, the rail, the compact masthead, and container queries at 900 and 640 px, ported from `c7.css` and `base.css`.
 
   Verify that `npm run build` succeeds and a grep finds no color literals outside `tokens.css` (apart from the allowed exceptions).
-- [ ] 2.2 Add `vitest-axe` and `axe-core` as dev dependencies, a shared test helper that runs `axe` on a rendered container and fails on violations, and `frontend/src/styles/tokens.test.ts`. The token test parses `tokens.css` and asserts these pairs for both themes:
+- [x] 2.2 Add `vitest-axe` and `axe-core` as dev dependencies, a shared test helper that runs `axe` on a rendered container and fails on violations, and `frontend/src/styles/tokens.test.ts`. The token test parses `tokens.css` and asserts these pairs for both themes:
   - text on `--bg` and `--surface`: `--fg`, `--muted`, `--subtle`, `--accent`, `--link`
   - `--accent-fg` on `--accent`
   - each tone on its soft background: `--ok`, `--warn`, `--error`

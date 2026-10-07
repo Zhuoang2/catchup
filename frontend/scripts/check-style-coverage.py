@@ -11,6 +11,16 @@ CASCADE = [
     *(PROTOTYPE / f"directions/{name}.css" for name in ("c", "c3", "c3b", "c7")),
 ]
 OWNED = [FRONTEND / f"src/styles/{name}.css" for name in ("base", "layout", "components")]
+PROTOTYPE_ONLY = {
+    "code": "Offline command block uses self-contained inline CSS",
+    "logo": "Prototype wordmark; standalone offline logo was removed",
+    "logo-lg": "Prototype-only large wordmark",
+    "offline-brand": "Prototype offline card; standalone page owns its own CSS",
+    "offline-card": "Prototype offline card; standalone page owns its own CSS",
+    "page-history": "Generic .page grid handles the History wrapper",
+    "page-offline": "Standalone offline page does not load app CSS",
+    "page-sources": "Generic .page grid handles the Sources wrapper",
+}
 
 
 def selectors(paths: list[Path]) -> set[str]:
@@ -33,12 +43,33 @@ def markup_classes(text: str) -> set[str]:
     return classes
 
 
-used = markup_classes((PROTOTYPE / "shared/render.js").read_text())
-for source in (FRONTEND / "src").rglob("*.tsx"):
-    if not source.name.endswith(".test.tsx"):
-        used.update(markup_classes(source.read_text()))
+def missing_selectors(prototype: set[str], owned: set[str],
+                      allowed: dict[str, str]) -> set[str]:
+    if any(not reason.strip() for reason in allowed.values()):
+        raise ValueError("Every allowed prototype-only selector needs a reason")
+    return prototype - owned - allowed.keys()
 
-missing = sorted((used & selectors(CASCADE)) - selectors(OWNED))
-print(f"Static UI classes with C7 rules but no app rules ({len(missing)}):")
-for name in missing:
-    print(f"  .{name}")
+
+def main() -> int:
+    used = markup_classes((PROTOTYPE / "shared/render.js").read_text())
+    for source in (FRONTEND / "src").rglob("*.tsx"):
+        if not source.name.endswith(".test.tsx"):
+            used.update(markup_classes(source.read_text()))
+
+    prototype, owned = selectors(CASCADE), selectors(OWNED)
+    static = sorted((used & prototype) - owned)
+    missing = sorted(missing_selectors(prototype, owned, PROTOTYPE_ONLY))
+    print(f"Static UI classes with C7 rules but no app rules ({len(static)}):")
+    for name in static:
+        print(f"  .{name}")
+    print(f"Allow-listed prototype-only selectors ({len(PROTOTYPE_ONLY)}):")
+    for name, reason in sorted(PROTOTYPE_ONLY.items()):
+        print(f"  .{name}: {reason}")
+    print(f"Uncovered prototype selectors ({len(missing)}):")
+    for name in missing:
+        print(f"  .{name}")
+    return bool(missing)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

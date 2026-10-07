@@ -62,3 +62,29 @@ The first six and `.page-offline` belong to prototype-only chrome or the separat
 Tests used mocked API/feed/model responses and fake timers, not live feeds or a real provider. No runtime dependencies, CI job names, protected OpenSpec plans/specs or prototype files changed in this review-fix round; only task checkboxes changed under the OpenSpec change folder. No full multi-theme visual parity, keyboard-only end-to-end pass, native PWA installation or Safari rendering was performed; the earlier manual-review limitations remain. The offline-page spot check loaded the standalone file, not a simulated service-worker navigation; the prior worker-isolation tests and Docker asset smoke still passed.
 
 Interpretive choices: a digest with no topics and no Creator updates displays “No topics”; the Creator-only flag requires an actual Creator-updates topic. When the model-settings read fails, Generate keeps active-run visibility rather than assuming first-run setup. Sources retains the “Your sources” heading in its empty state as the post-deletion focus target. The index displays section counts as explicitly required by task 10.7, despite the older prototype cascade hiding `.toc-count`. The independent style audit still reports generic page and standalone-offline selectors rather than silently filtering them out.
+
+### Second-review selector audit (task 11.10)
+
+The audit now checks the complete prototype-to-app class-selector difference, not just classes found in static markup. `python3 -m unittest test_check_style_coverage -v` passed three tests, including a dynamic-only selector check. `python3 frontend/scripts/check-style-coverage.py` printed:
+
+```text
+Static UI classes with C7 rules but no app rules (8):
+  .code
+  .logo
+  .logo-lg
+  .offline-brand
+  .offline-card
+  .page-history
+  .page-offline
+  .page-sources
+Allow-listed prototype-only selectors (8):
+  .code: Offline command block uses self-contained inline CSS
+  .logo: Prototype wordmark; standalone offline logo was removed
+  .logo-lg: Prototype-only large wordmark
+  .offline-brand: Prototype offline card; standalone page owns its own CSS
+  .offline-card: Prototype offline card; standalone page owns its own CSS
+  .page-history: Generic .page grid handles the History wrapper
+  .page-offline: Standalone offline page does not load app CSS
+  .page-sources: Generic .page grid handles the Sources wrapper
+Uncovered prototype selectors (0):
+```

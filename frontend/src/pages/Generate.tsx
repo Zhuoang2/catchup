@@ -48,22 +48,26 @@ export default function Generate() {
   const [modelReady, setModelReady] = useState<boolean | null>(null)
   const [sources, setSources] = useState<Source[]>([])
   const [digests, setDigests] = useState<Digest[]>([])
-  const [error, setError] = useState('')
+  const [error, setError] = useState<{ title: string; message: string } | null>(null)
 
   useEffect(() => {
     let mounted = true
-    Promise.all([
+    Promise.allSettled([
       request<{ key_set: boolean }>('/settings/model'),
       request<Source[]>('/sources'),
       request<Digest[]>('/digests'),
       request<Run | null>('/digest-runs/active'),
-    ]).then(([settings, savedSources, history, current]) => {
+    ] as const).then(([settings, savedSources, history, current]) => {
       if (!mounted) return
-      setModelReady(settings.key_set)
-      setSources(savedSources)
-      setDigests(history)
-      setRun(current)
-    }).catch((reason: Error) => { if (mounted) setError(reason.message) })
+      setModelReady(settings.status === 'fulfilled' ? settings.value.key_set : true)
+      if (savedSources.status === 'fulfilled') setSources(savedSources.value)
+      if (history.status === 'fulfilled') setDigests(history.value)
+      if (current.status === 'fulfilled') setRun(current.value)
+      const failure = [settings, savedSources, history, current].find(result => result.status === 'rejected')
+      if (failure?.status === 'rejected') {
+        setError({ title: 'Could not load some page details', message: (failure.reason as Error).message })
+      }
+    })
     return () => { mounted = false }
   }, [])
 
@@ -72,23 +76,38 @@ export default function Generate() {
     let mounted = true
     const timer = window.setInterval(() => {
       request<Run>(`/digest-runs/${run.id}`)
-        .then(result => { if (mounted) { setRun(result); setError('') } })
-        .catch((reason: Error) => { if (mounted) setError(reason.message) })
+        .then(result => { if (mounted) { setRun(result); setError(null) } })
+        .catch((reason: Error) => { if (mounted) setError({
+          title: 'Could not check digest progress', message: reason.message,
+        }) })
     }, 1000)
     return () => { mounted = false; window.clearInterval(timer) }
   }, [run?.id, run?.status])
 
+  useEffect(() => {
+    if (run?.status !== 'succeeded') return
+    let mounted = true
+    request<Digest[]>('/digests')
+      .then(history => { if (mounted) setDigests(history) })
+      .catch((reason: Error) => { if (mounted) setError({
+        title: 'Could not refresh digest history', message: reason.message,
+      }) })
+    return () => { mounted = false }
+  }, [run?.id, run?.status])
+
   async function generate() {
-    setError('')
+    setError(null)
     try {
       setRun(await request<Run>('/digest-runs', { method: 'POST' }))
     } catch (reason) {
       if (reason instanceof ApiError && reason.code === 'run_active') {
         try { setRun(await request<Run | null>('/digest-runs/active')) }
-        catch (refreshError) { setError((refreshError as Error).message) }
+        catch (refreshError) { setError({
+          title: 'Could not resume digest run', message: (refreshError as Error).message,
+        }) }
       } else if (reason instanceof ApiError && reason.code === 'model_not_configured') {
         setModelReady(false)
-      } else setError((reason as Error).message)
+      } else setError({ title: 'Could not start digest', message: (reason as Error).message })
     }
   }
 
@@ -107,7 +126,7 @@ export default function Generate() {
   return <section className="page page-generate">
     <PageHead title="Generate digest" lede={firstRun
       ? 'Check the sources you follow and summarize what is new since your last digest.'
-      : `Check your ${sources.length} sources and summarize everything new since your last digest.`}
+      : `Check your ${plural(sources.length, 'source')} and summarize everything new since your last digest.`}
       className="hero">
       <div className="hero-actions">
         {firstRun ? <>
@@ -115,7 +134,7 @@ export default function Generate() {
           <Button disabled aria-describedby="generate-why">Generate digest</Button>
           <p className="hero-meta" id="generate-why">Available once a model is set up and a source is added.</p>
         </> : <>
-          <Button variant={state === 'idle' || state === 'failed' && !configurationError ? 'primary' : 'secondary'}
+          <Button variant={running || state === 'idle' || state === 'failed' && !configurationError ? 'primary' : 'secondary'}
             size="lg" type="button" onClick={() => void generate()} disabled={running || modelReady === null}>
             {running ? 'Generating…' : state === 'failed' ? 'Try again' : 'Generate digest'}
           </Button>
@@ -125,7 +144,7 @@ export default function Generate() {
         </>}
       </div>
     </PageHead>
-    {error && <Alert tone="error" title="Could not load this page">{error}</Alert>}
+    {error && <Alert tone="error" title={error.title}>{error.message}</Alert>}
     {firstRun && <Alert title="Set up your model first." actions={<Link className={buttonClass('ghost')} to="/sources">Add sources</Link>}>
       CatchUp summarizes with your own AI model. Add a provider and key in Settings, then add a few sources.
     </Alert>}

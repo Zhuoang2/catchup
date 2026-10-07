@@ -42,10 +42,11 @@ it('puts model setup first with a visible disabled Generate and a state-aware ra
 })
 
 it('offers Generate as the only primary action while idle', async () => {
-  const { container } = mockPage({ history: [] })
+  const { container } = mockPage({ history: [], sources: [{ kind: 'feed' }] })
   await screen.findByRole('heading', { name: 'Your sources' })
   expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
   expect(screen.getByRole('button', { name: 'Generate digest' })).toHaveClass('btn-primary')
+  expect(screen.getByText(/Check your 1 source and summarize/)).toBeInTheDocument()
   await expectAccessible(container)
 })
 
@@ -56,7 +57,9 @@ it.each(['collecting', 'summarizing'])('shows %s progress and named source outco
   })).toBeInTheDocument()
   expect(screen.getByText('News').closest('li')).toHaveTextContent('Failed')
   expect(screen.getByText('Blog').closest('li')).toHaveTextContent('Possible gap')
-  expect(container.querySelectorAll('.btn-primary')).toHaveLength(0)
+  expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
+  expect(screen.getByRole('button', { name: 'Generating…' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Generating…' })).toHaveClass('btn-primary')
   await expectAccessible(container)
 })
 
@@ -71,6 +74,7 @@ it('shows the saved digest as the only primary action after success', async () =
   expect(screen.getByText('2 items waiting for transcripts or captions')).toBeInTheDocument()
   expect(screen.getByText('5 videos deferred to the next run')).toBeInTheDocument()
   expect(screen.getByRole('status')).toHaveTextContent('Digest ready: 12 items')
+  expect(container.querySelector('.result-ok .result-meta')).toHaveTextContent('Tokens: 12 in / 4 out')
   await expectAccessible(container)
 })
 
@@ -119,6 +123,99 @@ it('polls from summarizing to success with a persistent status region using fake
   expect(statusRegion).toHaveTextContent('Digest ready: 12 items')
 })
 
+it('keeps an active run visible when the digest list fails', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  fetchMock.mockImplementation(async (path: string) => {
+    if (path === '/api/settings/model') return respond({ key_set: true })
+    if (path === '/api/sources') return respond(sources)
+    if (path === '/api/digests') return respond({ error: { code: 'request_failed', message: 'History unavailable' } }, 503)
+    if (path === '/api/digest-runs/active') return respond({ ...run, status: 'summarizing',
+      items_total: 12, items_done: 5 })
+    if (path === '/api/digest-runs/1') return respond(run)
+    throw Error(path)
+  })
+  const { container } = render(<MemoryRouter><Generate/></MemoryRouter>)
+  expect(await screen.findByRole('progressbar', { name: 'Items summarized: 5 of 12' })).toBeInTheDocument()
+  expect(screen.getByRole('alert')).toHaveTextContent('History unavailable')
+  expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
+  expect(screen.getByRole('button', { name: 'Generating…' })).toBeDisabled()
+})
+
+it('starts one run, polls to success and refreshes the last digest', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  let historyReads = 0
+  fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+    if (path === '/api/settings/model') return respond({ key_set: true })
+    if (path === '/api/sources') return respond(sources)
+    if (path === '/api/digests') return respond(++historyReads === 1 ? history
+      : [{ id: 9, created_at: '2026-10-04T10:00:00Z', item_count: 12, source_count: 3 }])
+    if (path === '/api/digest-runs/active') return respond(null)
+    if (path === '/api/digest-runs' && options?.method === 'POST') return respond(run)
+    if (path === '/api/digest-runs/1') return respond({ ...run, status: 'succeeded',
+      items_total: 12, items_done: 12, digest_id: 9 })
+    throw Error(path)
+  })
+  render(<MemoryRouter><Generate/></MemoryRouter>)
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Generate digest' })).toBeEnabled())
+  fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
+  expect(await screen.findByRole('progressbar', { name: 'Sources checked: 2 of 3' })).toBeInTheDocument()
+  expect(fetchMock.mock.calls.filter(([path, options]) => path === '/api/digest-runs'
+    && options?.method === 'POST')).toHaveLength(1)
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  expect(await screen.findByRole('link', { name: 'View digest' })).toHaveAttribute('href', '/digests/9')
+  expect((await screen.findAllByRole('link', { name: /No. 9/ })).length).toBeGreaterThan(0)
+  expect(screen.getByRole('heading', { name: 'Last digest' }).closest('section')).toHaveTextContent('No. 9')
+  expect(historyReads).toBe(2)
+})
+
+it('switches to first-run after a model-not-configured POST', async () => {
+  fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+    if (path === '/api/settings/model') return respond({ key_set: true })
+    if (path === '/api/sources') return respond(sources)
+    if (path === '/api/digests') return respond([])
+    if (path === '/api/digest-runs/active') return respond(null)
+    if (path === '/api/digest-runs' && options?.method === 'POST') {
+      return respond({ error: { code: 'model_not_configured', message: 'Set up your model' } }, 400)
+    }
+    throw Error(path)
+  })
+  render(<MemoryRouter><Generate/></MemoryRouter>)
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Generate digest' })).toBeEnabled())
+  fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
+  expect((await screen.findAllByRole('link', { name: 'Set up your model' }))[0]).toHaveClass('btn-primary')
+  expect(screen.getByRole('button', { name: 'Generate digest' })).toBeDisabled()
+})
+
+it('uses action-specific alerts when starting or checking a run fails', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  let started = false
+  fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+    if (path === '/api/settings/model') return respond({ key_set: true })
+    if (path === '/api/sources') return respond(sources)
+    if (path === '/api/digests') return respond([])
+    if (path === '/api/digest-runs/active') return respond(null)
+    if (path === '/api/digest-runs' && options?.method === 'POST') {
+      if (!started) {
+        started = true
+        return respond({ error: { code: 'provider_error', message: 'Try later' } }, 503)
+      }
+      return respond(run)
+    }
+    if (path === '/api/digest-runs/1') return respond({
+      error: { code: 'request_failed', message: 'Progress unavailable' },
+    }, 503)
+    throw Error(path)
+  })
+  render(<MemoryRouter><Generate/></MemoryRouter>)
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Generate digest' })).toBeEnabled())
+  fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Could not start digest')
+  fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
+  expect(await screen.findByRole('progressbar')).toBeInTheDocument()
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  expect(screen.getByRole('alert')).toHaveTextContent('Could not check digest progress')
+})
+
 it('recovers a run-active conflict without a duplicate run', async () => {
   let activeReads = 0
   fetchMock.mockImplementation(async (path: string) => {
@@ -134,4 +231,6 @@ it('recovers a run-active conflict without a duplicate run', async () => {
   await waitFor(() => expect(screen.getByRole('button', { name: 'Generate digest' })).toBeEnabled())
   fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
   expect(await screen.findByRole('progressbar', { name: 'Sources checked: 2 of 3' })).toBeInTheDocument()
+  expect(fetchMock.mock.calls.filter(([path, options]) => path === '/api/digest-runs'
+    && options?.method === 'POST')).toHaveLength(1)
 })

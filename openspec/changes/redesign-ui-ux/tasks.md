@@ -172,7 +172,7 @@ The same implementer notes apply. Every finding below was verified by the review
   - a pytest shows the number of SQL statements does not grow with the number of digests (for example with a SQLAlchemy `before_cursor_execute` counter for 1 and 5 digests)
   - a vitest checks that History issues exactly one request, and that previews and the "Creator updates only" row render
 - [x] 10.2 **`lang` mapping (D5).** Add a helper, for example `frontend/src/components/lang.ts`, and use it everywhere `digest.language` reaches a `lang` attribute (`DigestView.tsx`, `History.tsx`). Verify with unit tests for `en`, `zh-Hans`, `original`, `null`, "Japanese", "日本語", "Français", "繁體中文", and an unknown "Klingon" (no `lang`). Add a DigestView test with `language: 'original'` asserting that no element in the digest has a `lang` attribute other than the app root, and an axe scan on it. Also tighten the old-digest test so it asserts that no `lang` attribute appears in the digest content at all, not just no `zh-Hans`.
-- [ ] 10.3 **Generate loading and state (`Generate.tsx`).**
+- [x] 10.3 **Generate loading and state (`Generate.tsx`).**
   - Load the four startup requests independently (for example `Promise.allSettled`), so one failure does not hide an active run or keep Generate disabled. Only the first-run state depends on `/settings/model`.
   - Refetch `/digests` when a run reaches `succeeded`, so the hero and the rail show the new edition.
   - While a run is collecting or summarizing, the Generate button is a disabled **primary** "Generating…" (D4 "Running"), as in `render.js generate()`.

@@ -115,7 +115,7 @@ Implementer notes:
 
 ## 7. Settings
 
-- [ ] 7.1 Rebuild `frontend/src/pages/Settings.tsx` per design.md D4 "Settings", ported from `render.js settings()`:
+- [x] 7.1 Rebuild `frontend/src/pages/Settings.tsx` per design.md D4 "Settings", ported from `render.js settings()`:
   - three section rows with `aria-hidden` step numbers and hidden "Step N: "
   - the privacy margin note
   - "Saved key ending in {last4}" as text, with the empty replace input and `aria-describedby`

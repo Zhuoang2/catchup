@@ -157,7 +157,7 @@ describe('sources', () => {
     fireEvent.click(screen.getByRole('group', { name: 'Confirm deletion' }).querySelector('button')!)
     expect(fetchMock).toHaveBeenCalledWith('/api/sources/2', { method: 'DELETE' })
     expect(await screen.findByText('No sources yet')).toBeInTheDocument()
-    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Your sources' }))
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'No sources yet' }))
     await expectAccessible(container)
   })
 
@@ -179,7 +179,7 @@ describe('sources', () => {
     await waitFor(() => expect(fetchMock.mock.calls.filter(([path]) => path === '/api/sources')).toHaveLength(2))
     expect(screen.queryByText('Example News')).toBeNull()
     expect(screen.queryByRole('group', { name: 'Confirm deletion' })).toBeNull()
-    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Your sources' }))
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'No sources yet' }))
     await act(async () => { rejectRefresh(new Error('Offline')) })
     expect(screen.getByRole('alert')).toHaveTextContent(/refresh/i)
     expect(screen.getByLabelText('Website or feed URL')).not.toHaveAttribute('aria-invalid')
@@ -215,6 +215,9 @@ describe('sources', () => {
   it('has a useful empty state without a checks rail', async () => {
     const { container } = page()
     expect(await screen.findByText('No sources yet')).toBeInTheDocument()
+    expect(container.querySelectorAll('.empty-state h2')).toHaveLength(1)
+    expect(screen.queryByRole('heading', { name: 'Your sources' })).toBeNull()
+    expect(screen.getByRole('heading', { name: 'No sources yet' })).toHaveAttribute('tabIndex', '-1')
     expect(screen.queryByRole('heading', { name: 'Checks' })).toBeNull()
     await expectAccessible(container)
   })

@@ -95,6 +95,7 @@ export default function Sources() {
   const [focusAfterDelete, setFocusAfterDelete] = useState(false)
   const cancelRef = useRef<HTMLButtonElement>(null)
   const headingRef = useRef<HTMLHeadingElement>(null)
+  const emptyHeadingRef = useRef<HTMLHeadingElement>(null)
   const deleteRefs = useRef(new Map<number, HTMLButtonElement>())
 
   useEffect(() => {
@@ -107,7 +108,7 @@ export default function Sources() {
 
   useEffect(() => {
     if (focusAfterDelete) {
-      headingRef.current?.focus()
+      (sources.length ? headingRef : emptyHeadingRef).current?.focus()
       setFocusAfterDelete(false)
     }
   }, [focusAfterDelete, sources])
@@ -176,11 +177,12 @@ export default function Sources() {
     {message && <p role="status">{message}</p>}
     {preview && <SourcePreview preview={preview} onConfirm={() => void confirmSource()}
       onCancel={() => setPreview(null)}/>}
-    {!loading && <h2 ref={headingRef} tabIndex={-1} className="section-label">
-      Your sources {sources.length > 0 && <span className="count">{sources.length}</span>}
+    {!loading && sources.length > 0 && <h2 ref={headingRef} tabIndex={-1} className="section-label">
+      Your sources <span className="count">{sources.length}</span>
     </h2>}
     {loading ? <p>Loading sources…</p> : !sources.length ? <div className="empty-state">
-      <Icon name="sources" className="icon icon-empty"/><h2>No sources yet</h2>
+      <Icon name="sources" className="icon icon-empty"/>
+      <h2 ref={emptyHeadingRef} tabIndex={-1}>No sources yet</h2>
       <p>Paste the address of something you follow. CatchUp finds its feed for you.</p>
       <ul className="examples"><li>A blog or news site</li><li>A podcast feed or Apple Podcasts link</li>
         <li>A YouTube channel</li><li>A Bluesky or Mastodon profile</li></ul>

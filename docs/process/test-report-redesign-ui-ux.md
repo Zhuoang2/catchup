@@ -25,3 +25,22 @@ The full D8 visual parity matrix (every prototype state in both themes at 1440 a
 Compared to the approved `e05dada` baseline, only `tasks.md` changed under the OpenSpec change folder. No prototype, proposal, design, spec delta, CI job name, or backend route was edited. Runtime dependencies are unchanged; frontend dev dependencies add only `axe-core` and `vitest-axe` (with their lockfile transitive packages). Color literals under `frontend/src` occur only in `tokens.css`, tests, and the two approved switch literals. Manifest, offline page, index theme metas, and generated icons mirror token colors under the scoped D2 exception.
 
 Interpretive choices made under the user's ambiguity guidance: History obtains topic previews from existing digest-detail responses because list responses have no titles; No new content has no primary action per the corrected D4 table; Settings' saved-key suffix appears as separate descriptive text, never in the password input or placeholder. The service worker falls back only after a rejected navigation, not on HTTP error responses.
+
+## Style coverage (review task 10.6)
+
+`python3 frontend/scripts/check-style-coverage.py` compares static class names in the C7 renderer and app TSX against the ordered prototype cascade and owned stylesheets. After porting the missing rules, it reports:
+
+```text
+Static UI classes with C7 rules but no app rules (9):
+  .code
+  .edition
+  .logo
+  .logo-lg
+  .offline-brand
+  .offline-card
+  .page-history
+  .page-offline
+  .page-sources
+```
+
+The first six and `.page-offline` belong to prototype-only chrome or the separate self-contained offline page, not React's runtime CSS. `.page-history` and `.page-sources` share the app's `.page` grid; their page-specific content placement is handled by `.page > *`. At 320 px in a fresh isolated Chromium session, all four navigation labels were fully visible and `document.documentElement.scrollWidth === 320`.

@@ -192,7 +192,7 @@ The same implementer notes apply. Every finding below was verified by the review
 
   Verify with tests: a failed delete leaves the URL input without `aria-invalid`, keeps the row, and shows the page-level alert; an `invalid_language` save error does not mark the key field; a load error is visible.
 - [x] 10.5 **Focus in the inline delete confirmation (`Sources.tsx`).** When the confirmation opens, focus its Cancel button. On Cancel, return focus to that row's Delete button. After a successful delete, focus the "Your sources" heading (make it focusable with `tabIndex={-1}`). Verify with tests asserting `document.activeElement` after each step.
-- [ ] 10.6 **Unported prototype styles.** Port the missing rules from the C7 cascade into `components.css` and `layout.css`, using the cascade's effective values:
+- [x] 10.6 **Unported prototype styles.** Port the missing rules from the C7 cascade into `components.css` and `layout.css`, using the cascade's effective values:
   - `.nav-link .icon { display: none }` (`c.css:23`)
   - `.topic > .topic-title { font-size: 1.45rem }` (`c7.css:21`)
   - the body font on `.app-nav`, `.digest-meta`, `.masthead-line`, `.section-label`, `.field-label`, `.btn`, `.source-feed` (`c3b.css:4`)

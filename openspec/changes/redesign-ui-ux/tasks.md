@@ -131,11 +131,11 @@ Implementer notes:
 
 ## 8. Installable app and offline page
 
-- [ ] 8.1 Add `frontend/scripts/make-icons.py` per design.md D7 (standard-library PNG writer), and commit its outputs to `frontend/public/`: `icon.svg`, `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `icon-1024.png`. Add `frontend/public/manifest.webmanifest`, and the manifest link, theme-color metas, and apple-touch-icon in `frontend/index.html`. Verify:
+- [x] 8.1 Add `frontend/scripts/make-icons.py` per design.md D7 (standard-library PNG writer), and commit its outputs to `frontend/public/`: `icon.svg`, `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `icon-1024.png`. Add `frontend/public/manifest.webmanifest`, and the manifest link, theme-color metas, and apple-touch-icon in `frontend/index.html`. Verify:
   - a test reads the manifest and checks `name`, `start_url`, `display`, and the four icons with sizes and purposes
   - it checks each PNG's header for its declared size
   - re-running the script produces byte-identical files
-- [ ] 8.2 Add `frontend/public/sw.js` and `frontend/public/offline.html` per design.md D7, and register the worker in `frontend/src/main.tsx` only in production builds. Verify with a vitest test that evaluates `sw.js` with fake `self`, `caches`, and `fetch`:
+- [x] 8.2 Add `frontend/public/sw.js` and `frontend/public/offline.html` per design.md D7, and register the worker in `frontend/src/main.tsx` only in production builds. Verify with a vitest test that evaluates `sw.js` with fake `self`, `caches`, and `fetch`:
   - install caches only `/offline.html`
   - a navigation whose fetch rejects gets the cached `offline.html`
   - a navigation returning 500 passes through
@@ -144,7 +144,7 @@ Implementer notes:
   - activate deletes old caches
 
   Also verify that `offline.html` contains both start commands and a Reload button, and that `npm run build` copies the files to `dist/`.
-- [ ] 8.3 Extend `scripts/docker-smoke.sh`: `/manifest.webmanifest` returns 200 with `application/manifest+json`, `/sw.js` returns 200 with a JavaScript content type, and `/offline.html` returns 200. Add a README section "Install as an app" covering:
+- [x] 8.3 Extend `scripts/docker-smoke.sh`: `/manifest.webmanifest` returns 200 with `application/manifest+json`, `/sw.js` returns 200 with a JavaScript content type, and `/offline.html` returns 200. Add a README section "Install as an app" covering:
   - Chrome/Edge install and Safari "Add to Dock"
   - that `localhost` and `127.0.0.1` count as separate installs
   - the offline page

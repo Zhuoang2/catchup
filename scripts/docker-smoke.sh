@@ -58,6 +58,23 @@ assert json.loads(request("/api/health")) == {"status": "ok"}
 print("PASS: GET /api/health (Host: localhost)")
 assert "<html" in request("/").lower()
 print("PASS: GET / returns HTML")
+for path, content_type in (
+    ("/manifest.webmanifest", "application/manifest+json"),
+    ("/sw.js", "javascript"),
+    ("/offline.html", None),
+):
+    with urlopen(Request(base + path, headers={"Host": "localhost"}), timeout=5) as response:
+        assert response.status == 200, (path, response.status)
+        if content_type == "javascript":
+            assert response.headers.get_content_type() in (
+                "text/javascript", "application/javascript"
+            ), (path, response.headers.get_content_type())
+        elif content_type:
+            assert response.headers.get_content_type() == content_type, (
+                path, response.headers.get_content_type()
+            )
+        assert response.read(), path
+    print(f"PASS: GET {path} (200 with expected type)")
 assert json.loads(request("/api/settings/preferences", "PUT", {"digest_language": "zh-Hans"})) == {
     "digest_language": "zh-Hans", "youtube_captions": False, "youtube_skip_shorts": True
 }

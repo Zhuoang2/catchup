@@ -84,6 +84,8 @@ it('shows no primary action after a no-new-content run, with rate limit and held
     source_checks: [{ ...run.source_checks[0], rate_limited: true, http_status: 429 }],
   } })
   expect(await screen.findByRole('heading', { name: 'No new content' })).toBeInTheDocument()
+  expect(container.querySelector('.result-none .result-head .icon-result')).toBeInTheDocument()
+  expect(container.querySelector('.result-none .result-meta')).toHaveTextContent('Nothing new')
   expect(container.querySelectorAll('.btn-primary')).toHaveLength(0)
   expect(screen.getByText('Rate limited · try later')).toBeInTheDocument()
   expect(screen.getByRole('status')).toHaveTextContent('No new content')

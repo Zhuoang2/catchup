@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { request } from '../api/client'
-import { dateTime, longDate, plural, shortTime, tokenTotals } from '../components/format'
+import { longDate, plural, shortDateTime, shortTime, tokenTotals } from '../components/format'
 import { Icon } from '../components/Icon'
 import { digestLang } from '../components/lang'
 import { PageHead, SectionRow, SummaryText, KindIcon, ReasonLabel,
@@ -30,7 +30,7 @@ function IndexLink({ id, title, lang }: { id: string; title: string; lang?: stri
 }
 
 function SourceTime({ value }: { value: string | null }) {
-  return value && <><span aria-hidden="true">·</span><time dateTime={value}>{dateTime(value)}</time></>
+  return value && <><span aria-hidden="true">·</span><time dateTime={value}>{shortDateTime(value)}</time></>
 }
 
 function DigestBody({ digest }: { digest: Digest }) {
@@ -57,8 +57,10 @@ function DigestBody({ digest }: { digest: Digest }) {
       {sectionCount > 1 && <nav className="toc" aria-label="In this digest">
         <p className="toc-title">In this digest</p><ol>
           {digest.topics.map((topic, index) =>
-            <li key={index}><IndexLink id={`t${index}`} title={topic.title} lang={lang}/></li>)}
-          {groups.length > 0 && <li><IndexLink id="creator" title="Creator updates"/></li>}
+            <li key={index}><IndexLink id={`t${index}`} title={topic.title} lang={lang}/>
+              {' '}<span className="toc-count">{topic.items.length}</span></li>)}
+          {groups.length > 0 && <li className="toc-creator"><IndexLink id="creator" title="Creator updates"/>
+            {' '}<span className="toc-count">{groups.reduce((count, group) => count + group.items.length, 0)}</span></li>}
         </ol>
       </nav>}
       <div className="digest-body">
@@ -71,6 +73,7 @@ function DigestBody({ digest }: { digest: Digest }) {
                   <SourceTime value={item.published_at}/></p>
                 <h3 className="item-title"><a href={item.link} target="_blank" rel="noopener noreferrer">
                   {item.title}<Icon name="external" className="icon icon-xs"/>
+                  <span className="sr-only"> (opens the original)</span>
                 </a></h3>
                 {item.summary_unavailable
                   ? <p className="summary-unavailable">Summary unavailable</p>
@@ -86,9 +89,11 @@ function DigestBody({ digest }: { digest: Digest }) {
             <h3 className="creator-source"><KindIcon kind={group.source_kind}/>{group.source_name}</h3>
             <ul className="creator-list">{group.items.map((item, position) =>
               <li className="creator-item" key={position}>
-                <a href={item.link} target="_blank" rel="noopener noreferrer">{item.title}<Icon name="external" className="icon icon-xs"/></a>
-                <span className="creator-meta"><KindIcon kind={item.source_kind}/>
-                  {item.published_at && <time dateTime={item.published_at}>{dateTime(item.published_at)}</time>}
+                <a href={item.link} target="_blank" rel="noopener noreferrer">{item.title}
+                  <Icon name="external" className="icon icon-xs"/>
+                  <span className="sr-only"> (opens the original)</span></a>
+                <span className="creator-meta">
+                  {item.published_at && <time dateTime={item.published_at}>{shortDateTime(item.published_at)}</time>}
                   {item.reason in reasons ? <ReasonLabel reason={item.reason as Reason}
                     waitDays={digest.transcript_wait_days ?? 7}/> : item.reason}
                 </span>
@@ -111,5 +116,10 @@ export default function DigestView() {
       .catch((reason: Error) => { if (mounted) setError(reason.message) })
     return () => { mounted = false }
   }, [id])
-  return <>{error && <p role="alert">{error}</p>}{digest && <DigestBody digest={digest}/>}</>
+  if (error) return <section className="page page-digest">
+    <PageHead title="Could not load digest"/>
+    <p role="alert">{error}</p><p className="back-link"><Link to="/digests">← All digests</Link></p>
+  </section>
+  if (!digest) return <section className="page page-digest"><PageHead title="Loading digest…"/></section>
+  return <DigestBody digest={digest}/>
 }

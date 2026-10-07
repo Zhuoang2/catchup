@@ -74,6 +74,14 @@ describe('shared components', () => {
       <Alert title="Notice">Something happened</Alert><StatusRegion>Ready</StatusRegion>
     </>)
     expect(screen.getByRole('status')).toHaveTextContent('Ready')
+    expect(screen.queryByRole('alert')).toBeNull()
+    await expectAccessible(container)
+  })
+  it('announces error alerts but not informational notices', async () => {
+    const { container } = render(<><Alert title="Note">No action required.</Alert>
+      <Alert tone="error" title="Failed">Try again.</Alert></>)
+    expect(screen.getByRole('alert')).toHaveTextContent('Failed')
+    expect(screen.getByRole('alert')).not.toHaveTextContent('No action required.')
     await expectAccessible(container)
   })
 })

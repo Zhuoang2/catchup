@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError, request } from '../api/client'
-import { dateTime, parseDate } from '../components/format'
+import { parseDate, shortDateTime } from '../components/format'
 import { Icon } from '../components/Icon'
 import { Button, Chip, KindBadge, PageHead, Rail, type SourceKind } from '../components/ui'
 
@@ -78,7 +78,7 @@ function SourceStatus({ source }: { source: Source }) {
     {source.possible_gap && <Chip tone="warn"
       title="Older items may have dropped off the feed between checks.">Possible gap</Chip>}
     {source.last_check_at && <time className="source-time" dateTime={source.last_check_at}>
-      {dateTime(source.last_check_at)}</time>}
+      {shortDateTime(source.last_check_at)}</time>}
   </div>
 }
 

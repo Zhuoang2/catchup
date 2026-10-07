@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppShell } from './components/AppShell'
 import { expectAccessible } from './test/accessibility'
 
@@ -8,7 +8,21 @@ function shell(path = '/') {
   return render(<MemoryRouter initialEntries={[path]}><AppShell><h1>Content</h1></AppShell></MemoryRouter>)
 }
 
+afterEach(() => vi.useRealTimers())
+
 describe('navigation', () => {
+  it('uses the browser local calendar date in the masthead', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-06T23:30:00-07:00'))
+    const now = new Date()
+    shell()
+    const time = document.querySelector('.masthead-line time')
+    expect(time).toHaveAttribute('dateTime', [
+      now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0'),
+    ].join('-'))
+    expect(time).toHaveTextContent(/\d{1,2} \w+ 2026/)
+  })
   it('shows links to all main pages and marks the current route', () => {
     shell('/digests/1')
     expect(screen.getByRole('link', { name: 'Generate' })).toHaveAttribute('href', '/')

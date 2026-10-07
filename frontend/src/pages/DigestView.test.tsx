@@ -45,12 +45,15 @@ it('renders saved topics, text summaries, dates and safe original links', async 
   )
   expect(screen.getByText('<strong>Plain summary</strong>')).toBeInTheDocument()
   expect(document.querySelector('img, strong')).toBeNull()
-  const link = screen.getByRole('link', { name: 'Saved article' })
+  const link = screen.getByRole('link', { name: 'Saved article (opens the original)' })
   expect(link).toHaveAttribute('href', 'https://example.test/article')
   expect(link).toHaveAttribute('target', '_blank')
   expect(link).toHaveAttribute('rel', 'noopener noreferrer')
   expect(link.closest('article')).toHaveTextContent('Blog')
   expect(link.closest('article')?.querySelector('time')).toHaveAttribute('dateTime', '2026-10-02T10:00:00Z')
+  expect(link.closest('article')?.querySelector('time')).toHaveTextContent(/\d{1,2} Oct 2026, \d{2}:\d{2}/)
+  expect(screen.getByRole('navigation', { name: 'In this digest' }).querySelectorAll('.toc-count'))
+    .toHaveLength(2)
   expect(screen.getByText('Summary unavailable')).toBeInTheDocument()
   expect(screen.getByRole('region', { name: 'Other' })).toHaveTextContent('Third summary')
   expect(fetchMock).toHaveBeenCalledWith('/api/digests/7', undefined)
@@ -59,7 +62,9 @@ it('renders saved topics, text summaries, dates and safe original links', async 
 it('reports an unavailable digest', async () => {
   fetchMock.mockResolvedValue(respond({ error: { code: 'not_found', message: 'Digest not found.' } }, 404))
   page()
+  expect(screen.getByRole('heading', { name: 'Loading digest…', level: 1 })).toBeInTheDocument()
   expect(await screen.findByRole('alert')).toHaveTextContent('Digest not found.')
+  expect(screen.getByRole('heading', { name: 'Could not load digest', level: 1 })).toBeInTheDocument()
 })
 
 it('renders creator updates after topics with saved wait labels', async () => {
@@ -82,6 +87,8 @@ it('renders creator updates after topics with saved wait labels', async () => {
   }))
   const { container } = page()
   const creator = await screen.findByRole('region', { name: 'Creator updates' })
+  expect(screen.getByRole('navigation', { name: 'In this digest' }).querySelector('.toc-creator .toc-count'))
+    .toHaveTextContent('5')
   expect(creator.compareDocumentPosition(screen.getByRole('region', { name: 'Technology' }))
     & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
   expect(screen.getByRole('region', { name: 'Show' })).toHaveTextContent('No transcript within 10 days')
@@ -89,7 +96,11 @@ it('renders creator updates after topics with saved wait labels', async () => {
   expect(screen.getByRole('region', { name: 'Channel' })).toHaveTextContent('This video has no captions')
   expect(screen.getByRole('region', { name: 'Channel' })).toHaveTextContent('Blocked by YouTube')
   expect(screen.getByRole('region', { name: 'Channel' })).toHaveTextContent('Captions could not be fetched')
-  expect(screen.getByRole('link', { name: 'Missing' }).closest('li')?.querySelector('time')).toBeTruthy()
+  expect(screen.getByRole('link', { name: 'Missing (opens the original)' }).closest('li')?.querySelector('time')).toHaveTextContent(
+    /\d{1,2} Oct 2026, \d{2}:\d{2}/)
+  expect(screen.getByRole('link', { name: 'Episode (opens the original)' })).toHaveAttribute(
+    'rel', 'noopener noreferrer')
+  expect(creator.querySelectorAll('.creator-item .icon-sm')).toHaveLength(0)
   await expectAccessible(container)
 })
 
@@ -119,7 +130,7 @@ it('keeps overview, bullets, and later prose in original order', async () => {
     }] }],
   }))
   page()
-  const item = (await screen.findByRole('link', { name: 'Episode' })).closest('article')!
+  const item = (await screen.findByRole('link', { name: 'Episode (opens the original)' })).closest('article')!
   const blocks = Array.from(item.querySelector('.summary')!.children)
   expect(blocks.map(element => element.tagName)).toEqual(['P', 'UL', 'P'])
   expect(blocks.map(element => element.textContent)).toEqual([
@@ -143,14 +154,16 @@ it('marks Chinese generated text, sizes transcript items by content, and focuses
   }))
   const { container } = page()
   await screen.findByRole('heading', { name: '中文主题' })
-  expect(screen.getByRole('link', { name: 'Original episode' }).closest('article')).toHaveClass('item-long')
-  expect(screen.getByRole('link', { name: 'Original article' }).closest('article')).toHaveClass('item-short')
+  expect(screen.getByRole('link', { name: 'Original episode (opens the original)' }).closest('article')).toHaveClass('item-long')
+  expect(screen.getByRole('link', { name: 'Original article (opens the original)' }).closest('article')).toHaveClass('item-short')
   expect(screen.getByText('要点一').tagName).toBe('LI')
   expect(screen.getByRole('heading', { name: '中文主题' })).toHaveAttribute('lang', 'zh-Hans')
   expect(screen.getByText('中文概要')).toHaveAttribute('lang', 'zh-Hans')
-  expect(screen.getByRole('link', { name: 'Original episode' })).not.toHaveAttribute('lang')
+  expect(screen.getByRole('link', { name: 'Original episode (opens the original)' })).not.toHaveAttribute('lang')
   expect(screen.getAllByText(/Podcast/)).not.toHaveLength(0)
   const jump = screen.getByRole('navigation', { name: 'In this digest' }).querySelector('a')!
+  expect(screen.getByRole('navigation', { name: 'In this digest' }).querySelectorAll('.toc-count'))
+    .toHaveLength(2)
   jump.click()
   expect(document.activeElement).toBe(screen.getByRole('region', { name: '中文主题' }))
   await expectAccessible(container)
@@ -184,7 +197,7 @@ it.each([{ language: 'en', kind: 'feed' }, { language: null, kind: null }])(
     await screen.findByRole('heading', { name: 'Topic' })
     expect(container.querySelector('[lang="zh-Hans"]')).toBeNull()
     if (language === null) expect(container.querySelector('.page-digest [lang]')).toBeNull()
-    if (!kind) expect(screen.getByRole('link', { name: 'Article' }).closest('article')?.querySelector('svg.icon-sm')).toBeNull()
+    if (!kind) expect(screen.getByRole('link', { name: 'Article (opens the original)' }).closest('article')?.querySelector('svg.icon-sm')).toBeNull()
     await expectAccessible(container)
   })
 

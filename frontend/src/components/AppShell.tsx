@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { Icon } from './Icon'
+import { localDateISO, longDate } from './format'
 import { useJump } from './useJump'
 
 const navigation = [
@@ -21,9 +22,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <a className="skip-link" href="#main" onClick={jump}>Skip to content</a>
     <header className="app-header page-frame">
       <Link className="brand" to="/">CatchUp</Link>
-      <p className="masthead-line"><time dateTime={today.toISOString().slice(0, 10)}>
-        {new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(today)}
-      </time></p>
+      <p className="masthead-line"><time dateTime={localDateISO(today)}>{longDate(localDateISO(today))}</time></p>
       <nav className="app-nav" aria-label="Main">
         {navigation.map(({ to, label, icon }) =>
           <Link key={to} to={to} className="nav-link"

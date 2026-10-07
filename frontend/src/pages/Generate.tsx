@@ -172,8 +172,10 @@ export default function Generate() {
       <HeldNotes run={run}/><SourceChecks checks={run.source_checks}/>
     </section>}
     {state === 'no_new_content' && run && <section className="card result-card result-none" aria-label="Digest run">
-      <h2 className="result-title">No new content</h2>
-      <p className="result-meta">Nothing new since your last digest · {tokenTotals(run.prompt_tokens, run.completion_tokens)}</p>
+      <div className="result-head"><Icon name="info" className="icon icon-result"/>
+        <div><h2 className="result-title">No new content</h2>
+          <p className="result-meta">Nothing new since your last digest · {tokenTotals(run.prompt_tokens, run.completion_tokens)}</p>
+        </div></div>
       <HeldNotes run={run}/><SourceChecks checks={run.source_checks}/>
     </section>}
     {state === 'failed' && run && <>

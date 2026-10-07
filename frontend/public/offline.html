@@ -5,28 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CatchUp isn't running</title>
   <style>
-    :root { color-scheme: light dark; --bg: #f4f0e6; --fg: #151412; --muted: #4a4741; --accent: #8a1c14; --surface: #f8f5ed; --border: #d4cdbd; }
+    :root { color-scheme: light dark; --bg: #f4f0e6; --fg: #151412; --muted: #4a4741; --accent: #8a1c14; --surface: #f8f5ed; --border: #d4cdbd;
+      --body: "Iowan Old Style", "Hoefler Text", Georgia, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Microsoft YaHei", serif;
+      --heading: "Big Caslon", "Baskerville", "Hoefler Text", Georgia, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Microsoft YaHei", serif; }
     @media (prefers-color-scheme: dark) {
       :root { --bg: #161513; --fg: #ece7dc; --muted: #b8b2a5; --accent: #e0796d; --surface: #1c1b18; --border: #33302a; }
     }
     * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--fg); font-family: system-ui, sans-serif; display: grid; place-items: center; padding: 1.5rem; }
-    main { width: min(100%, 32rem); padding: clamp(1.5rem, 6vw, 3rem); background: var(--surface); border: 1px solid var(--border); }
-    .logo { display: block; width: 3.5rem; height: 3.5rem; background: var(--fg); position: relative; }
-    .logo::before, .logo::after { content: ""; position: absolute; left: 23%; right: 23%; height: 5.5%; background: var(--bg); }
-    .logo::before { top: 38%; } .logo::after { top: 57%; }
-    .brand { font-size: .85rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-    h1 { font-size: clamp(2rem, 5vw, 3rem); line-height: 1.08; letter-spacing: -.04em; }
-    p { line-height: 1.55; } .hint { color: var(--muted); font-size: .9rem; }
-    pre { overflow-x: auto; background: var(--bg); border: 1px solid var(--border); padding: .8rem 1rem; }
-    button { background: var(--fg); color: var(--bg); border: 1px solid var(--fg); padding: .75rem 1.5rem; font: inherit; font-weight: 700; cursor: pointer; }
+    body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--fg); font-family: var(--body); display: grid; place-items: center; padding: 1.5rem; }
+    main { width: min(100%, 28rem); padding: 2.5rem 2rem; background: var(--surface); border: 1px solid var(--border);
+      display: grid; justify-items: center; text-align: center; gap: 1rem; }
+    .logo { display: none; }
+    .brand { font: 2rem var(--heading); }
+    h1 { font: 600 2rem/1.2 var(--heading); letter-spacing: -.01em; }
+    p { margin: 0; line-height: 1.55; } .lede, .hint { color: var(--muted); } .hint { font-size: .9rem; }
+    pre { max-width: 100%; overflow-x: auto; background: var(--bg); padding: .7rem .9rem; text-align: left; font: .9em ui-monospace, Menlo, monospace; }
+    button { background: var(--fg); color: var(--bg); border: 1px solid var(--fg); padding: .55rem 1rem;
+      font: 600 .94em var(--body); font-variant-caps: all-small-caps; letter-spacing: .12em; cursor: pointer; }
     button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   </style>
 </head>
 <body>
   <main>
     <span class="logo" aria-hidden="true"></span><p class="brand">CatchUp</p>
-    <h1>CatchUp isn't running</h1><p>Start it, then reload this window.</p>
+    <h1>CatchUp isn't running</h1><p class="lede">Start it, then reload this window.</p>
     <pre><code>docker compose up -d</code></pre>
     <p class="hint">Or, from a source checkout: <code>uv run catchup serve</code></p>
     <button type="button" id="reload">Reload</button>

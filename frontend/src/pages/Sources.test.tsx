@@ -131,6 +131,7 @@ describe('sources', () => {
     expect(screen.getByText(saved.feed_url)).toHaveAttribute('title', saved.feed_url)
     expect(screen.getByText('Possible gap')).toBeInTheDocument()
     expect(screen.getByText('Rate limited · try later')).toBeInTheDocument()
+    expect(container.querySelector('.source-time')).toHaveTextContent(/\d{1,2} Oct 2026, \d{2}:\d{2}/)
     await expectAccessible(container)
   })
 

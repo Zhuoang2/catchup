@@ -208,7 +208,7 @@ The same implementer notes apply. Every finding below was verified by the review
   Fix the 900 px rule that sets `--margin` on `.app` (a container cannot query itself) by setting it on `.page-frame` inside the query. Verify:
   - a script or test lists every class used in `render.js` output and in `frontend/src`, and reports any class with prototype rules but no app rules; include its output in the test report
   - in the browser at 320 px wide, all four nav links are fully visible and `document.documentElement.scrollWidth` is 320
-- [ ] 10.7 **Markup and copy from the prototype.**
+- [x] 10.7 **Markup and copy from the prototype.**
   - Use the prototype's short date format (`render.js fmt()`, for example "1 Oct 2026, 09:00") for item meta, Creator updates, and source check times. Keep the long date where the prototype uses it (headlines, history rows, the "Last digest" line).
   - The digest index shows each section's item count (`toc-count`).
   - Digest item and Creator-update links end with a visually hidden " (opens the original)".

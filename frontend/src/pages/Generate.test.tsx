@@ -143,6 +143,26 @@ it('keeps an active run visible when the digest list fails', async () => {
   expect(screen.getByRole('button', { name: 'Generating…' })).toBeDisabled()
 })
 
+it('keeps a startup load error visible through successful progress polls', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  fetchMock.mockImplementation(async (path: string) => {
+    if (path === '/api/settings/model') return respond({ key_set: true })
+    if (path === '/api/sources') return respond(sources)
+    if (path === '/api/digests') return respond({
+      error: { code: 'request_failed', message: 'History unavailable' },
+    }, 503)
+    if (path === '/api/digest-runs/active' || path === '/api/digest-runs/1') {
+      return respond({ ...run, status: 'summarizing', items_total: 12, items_done: 5 })
+    }
+    throw Error(path)
+  })
+  render(<MemoryRouter><Generate/></MemoryRouter>)
+  expect(await screen.findByRole('alert')).toHaveTextContent('Could not load some page details')
+  await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+  expect(fetchMock.mock.calls.filter(([path]) => path === '/api/digest-runs/1')).toHaveLength(2)
+  expect(screen.getByRole('alert')).toHaveTextContent('Could not load some page details')
+})
+
 it('starts one run, polls to success and refreshes the last digest', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
   let historyReads = 0

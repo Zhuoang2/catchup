@@ -48,7 +48,8 @@ export default function Generate() {
   const [modelReady, setModelReady] = useState<boolean | null>(null)
   const [sources, setSources] = useState<Source[]>([])
   const [digests, setDigests] = useState<Digest[]>([])
-  const [error, setError] = useState<{ title: string; message: string } | null>(null)
+  const [loadError, setLoadError] = useState<{ title: string; message: string } | null>(null)
+  const [error, setError] = useState<{ title: string; message: string; source?: 'poll' } | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -65,7 +66,7 @@ export default function Generate() {
       if (current.status === 'fulfilled') setRun(current.value)
       const failure = [settings, savedSources, history, current].find(result => result.status === 'rejected')
       if (failure?.status === 'rejected') {
-        setError({ title: 'Could not load some page details', message: (failure.reason as Error).message })
+        setLoadError({ title: 'Could not load some page details', message: (failure.reason as Error).message })
       }
     })
     return () => { mounted = false }
@@ -76,9 +77,12 @@ export default function Generate() {
     let mounted = true
     const timer = window.setInterval(() => {
       request<Run>(`/digest-runs/${run.id}`)
-        .then(result => { if (mounted) { setRun(result); setError(null) } })
+        .then(result => { if (mounted) {
+          setRun(result)
+          setError(previous => previous?.source === 'poll' ? null : previous)
+        } })
         .catch((reason: Error) => { if (mounted) setError({
-          title: 'Could not check digest progress', message: reason.message,
+          title: 'Could not check digest progress', message: reason.message, source: 'poll',
         }) })
     }, 1000)
     return () => { mounted = false; window.clearInterval(timer) }
@@ -144,6 +148,7 @@ export default function Generate() {
         </>}
       </div>
     </PageHead>
+    {loadError && <Alert tone="error" title={loadError.title}>{loadError.message}</Alert>}
     {error && <Alert tone="error" title={error.title}>{error.message}</Alert>}
     {firstRun && <Alert title="Set up your model first." actions={<Link className={buttonClass('ghost')} to="/sources">Add sources</Link>}>
       CatchUp summarizes with your own AI model. Add a provider and key in Settings, then add a few sources.

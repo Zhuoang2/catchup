@@ -601,3 +601,12 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - **Independent review subagent** (general-purpose, read-only): 17 findings. Claude verified all of them in code or in the browser and rejected none. The must-fix was that `lang` was set from the raw language setting, so "Same as original" produced `lang="original"`; Claude's own seed data used only Chinese and had missed it. The others included all-or-nothing loading on Generate and History, field errors attached to the wrong inputs, focus lost in the inline delete confirmation (also found by Claude), unported prototype rules, and lost Generate test coverage. Claude added two of its own: the offline page did not match the prototype, and the digest index lacked counts.
   - **Lesson:** the porting instruction "merge the five-file cascade" lost later overrides; the fix round asks for a mechanical class-coverage check against the prototype instead of trusting the port by eye.
   - The user chose to extend the list endpoint and keep the prototype's disabled primary button while running: "A 选 A1，B 按你的建议，改完续跑 Droid" (A: choose A1; B: as you recommend; after the changes, resume Droid). The user also pointed out that Claude's replies had drifted into English ("输出又变成英文了", the output has turned into English again); Claude saved this as a standing rule.
+  - **Fix round (2026-10-07).** Droid implemented tasks 10.1–10.8 in 8 commits (about 15 minutes, 264 turns; about 4.32M credits cumulative for the session); 354 backend and 79 frontend tests pass. Claude re-checked in a fresh worktree and in the browser:
+    - History issues one request.
+    - A digest saved with "Same as original" has no `lang` attribute.
+    - Focus moves to Cancel when the delete confirmation opens and returns to the row's Delete button on Cancel.
+    - At 320 px all four nav links fit with no overflow.
+    - The topic title (23.2 px) and the nav font now match the prototype.
+    - The offline page, served by the worker with the server stopped, now has the C7 serif, centered style.
+  - **Claude's own review error:** Claude had asked for visible per-section counts in the digest index. Droid noted that the C7 cascade hides `.toc-count` (`c3b.css:25`). Claude had compared `textContent`, which includes hidden elements, and misread the prototype. Claude restored the hidden rule (`d47fbf8`) and corrected task 10.7.
+  - An offline check that first failed was a test artifact: Claude had deleted the worker's cache by hand earlier. A fresh origin (`127.0.0.1`) passed.

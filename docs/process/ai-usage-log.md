@@ -621,3 +621,14 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - The existing review sub-agent already checked against the spec; the actual gap was that the fix round had no code review at all.
 
   The comparison's concern that Anthropic's tool reads only `CLAUDE.md` did not apply, because `CLAUDE.md` is a symlink to `AGENTS.md`. The user agreed: "好，按这个步骤补审修复轮，写进 AGENTS.md" (OK, review the fix round with these steps and write it into AGENTS.md). The step is now in `AGENTS.md` and recorded under D-016.
+- **First use of the fixed review step: reviewing the fix round of `redesign-ui-ux` (2026-10-07).**
+  - **The two reviews of `88b5b7d..f4f726e`:**
+    - Claude Code's built-in `/code-review` at high effort reported 9 findings, all low severity. The top ones: a successful poll cleared the startup load error; the delete and the list refresh shared one catch; `lang` ignored language tags typed into "Other".
+    - An independent spec sub-agent quoted the plan line for each of its 7 findings. It also confirmed group 10 by running probes: it put old behavior back into the code and saw the tests fail. The probes also showed one hollow test (the Creator-updates kind-label check passed even with the old code), a stale test report, and a timezone-dependent test.
+  - **Claude's verification:** 12 findings confirmed, 2 judged no change, and 1 overlapping between the two reviews. The 2 with no change:
+    - A failed model-settings read assumes a model is configured. Droid had documented this choice, and it is acceptable once the error stays visible.
+    - The "No topics" fallback is unreachable, because the runner saves no digest without topics or Creator updates.
+  - **Own error:** Claude's task 10.7 had told Droid to keep the long date on the hero "Last digest" line, but the prototype uses the short format there. It is corrected in 11.5.
+  - **Decision and fix round:** the user approved, and agreed to show "Your sources" only when sources exist and to focus the "No sources yet" heading after the last delete: "可以，标题按你的建议，改完续跑 Droid" (OK; the heading as you suggest; after the changes, resume Droid).
+    - Before the fix round, Claude merged `main` into the branch so that Droid's worktree has the new skills and rules. Both conflicts were text appended at the end of the process logs, and both sides were kept.
+    - Task group 11 names the seam for each task. It assigns `diagnosing-bugs` to the four bugs and `tdd` to the rest.

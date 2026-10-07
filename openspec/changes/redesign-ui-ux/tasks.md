@@ -154,7 +154,7 @@ Implementer notes:
 
 ## 9. Integration checks
 
-- [ ] 9.1 Run the full checks and record the results in `docs/process/test-report-redesign-ui-ux.md`:
+- [x] 9.1 Run the full checks and record the results in `docs/process/test-report-redesign-ui-ux.md`:
   - `uv run pytest` (with coverage)
   - `npm test -- --run` (count the axe-scanned states)
   - `npm run build`

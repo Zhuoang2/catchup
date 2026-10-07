@@ -2,6 +2,12 @@
 
 Real usage records for the technical spec, alpha reflection, and final report. Each entry: date, tool/model, purpose, prompt (verbatim or faithful excerpt), outcome, problems, adjustment.
 
+## 2026-10-06 — UI redesign implementation (Factory Droid)
+
+- Prompt (faithful excerpt): "Implement all 14 tasks, 1.1–9.1, for OpenSpec `redesign-ui-ux` ... verify each task before checking it and commit after each task group ... do not edit proposal.md, design.md, spec deltas, or prototypes; do not push, tag, or open a PR." After two stops on plan contradictions, the user approved the corrections in `e77e098` and `e05dada` and instructed Droid to stop only for genuinely blocking contradictions, choosing the design/prototype-consistent reading for minor ambiguities.
+- Outcome: Added snapshot migration and API fields, the C7 token system and shared React shell, redesigned Digest/History/Generate/Sources/Settings, install assets and offline-only service worker, plus tests and Docker smoke. Each of groups 1–8 was committed after its checks; the full results and remaining manual review are in `test-report-redesign-ui-ux.md`. The final automated run passed 352 backend tests (96% coverage), 56 frontend tests, build, strict validation, and Docker build/smoke.
+- Problems / adjustment: Installed locked frontend dependencies after Vitest was missing. Replaced a Vitest-incompatible raw CSS import with a filesystem read; jsdom cannot paint for axe contrast, so token contrast is tested numerically. Fixed Sources confirmation list semantics after axe flagged `role="group"` on an `li`. The first Docker smoke attempt exposed unreadable 600-mode static files in the non-root image; set public text assets to 644, rebuilt, and reran green. Browser spot checks covered the first-run layout, narrow Settings/Sources, and the real offline fallback, but the full visual parity and native install review remain for Claude.
+
 ## 2026-10-05 — Podcast and video sources, manual-test fixes (Factory Droid)
 
 - Prompt (faithful excerpt): "Manual-test round for add-podcast-and-video-sources ... two new commits ... track choice ... pull the branch's latest commit first, then implement tasks 9.1-9.2 in order ... no real network in tests, no real sleeps ... commit once after group 9."

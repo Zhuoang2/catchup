@@ -7,6 +7,7 @@ import { digestLang } from '../components/lang'
 import { PageHead, SectionRow, SummaryText, KindIcon, ReasonLabel,
   reasons, type Reason, type SourceKind } from '../components/ui'
 import { useJump } from '../components/useJump'
+import { useDocumentTitle } from '../components/useDocumentTitle'
 
 type DigestItem = {
   title: string; link: string; source_name: string; source_kind?: SourceKind | null
@@ -109,6 +110,8 @@ export default function DigestView() {
   const { id } = useParams()
   const [digest, setDigest] = useState<Digest | null>(null)
   const [error, setError] = useState('')
+  useDocumentTitle(!error && digest?.id === Number(id)
+    ? `No. ${digest.id} · ${shortDateTime(digest.created_at)}` : 'Digest')
   useEffect(() => {
     let mounted = true
     request<Digest>(`/digests/${id}`)

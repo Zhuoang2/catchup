@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ApiError, request } from '../api/client'
 import { parseDate, shortDateTime } from '../components/format'
 import { Icon } from '../components/Icon'
+import { useDocumentTitle } from '../components/useDocumentTitle'
 import { Button, Chip, KindBadge, PageHead, Rail, type SourceKind } from '../components/ui'
 
 type Entry = { title: string; link: string; published_at: string | null }
@@ -83,6 +84,7 @@ function SourceStatus({ source }: { source: Source }) {
 }
 
 export default function Sources() {
+  useDocumentTitle('Sources')
   const [url, setUrl] = useState('')
   const [preview, setPreview] = useState<Preview | null>(null)
   const [sources, setSources] = useState<Source[] | null>(null)

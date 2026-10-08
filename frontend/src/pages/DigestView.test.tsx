@@ -8,8 +8,8 @@ const fetchMock = vi.fn()
 const respond = (value: unknown, status = 200) => ({
   ok: status < 400, status, json: async () => value,
 })
-function page() {
-  return render(<MemoryRouter initialEntries={['/digests/7']}>
+function page(id = '7') {
+  return render(<MemoryRouter initialEntries={[`/digests/${id}`]}>
     <Routes><Route path="/digests/:id" element={<DigestView />} /></Routes>
   </MemoryRouter>)
 }
@@ -63,8 +63,19 @@ it('reports an unavailable digest', async () => {
   fetchMock.mockResolvedValue(respond({ error: { code: 'not_found', message: 'Digest not found.' } }, 404))
   page()
   expect(screen.getByRole('heading', { name: 'Loading digest…', level: 1 })).toBeInTheDocument()
+  expect(document.title).toBe('Digest · CatchUp')
   expect(await screen.findByRole('alert')).toHaveTextContent('Digest not found.')
+  expect(document.title).toBe('Digest · CatchUp')
   expect(screen.getByRole('heading', { name: 'Could not load digest', level: 1 })).toBeInTheDocument()
+})
+
+it('titles a saved edition using its local short date', async () => {
+  fetchMock.mockResolvedValue(respond({
+    id: 3, created_at: '2026-10-05T09:00:00', model_id: 'test', topics: [],
+  }))
+  page('3')
+  await screen.findByText(/Tokens: not reported/)
+  expect(document.title).toBe('No. 3 · 5 Oct 2026, 09:00 · CatchUp')
 })
 
 it('renders creator updates after topics with saved wait labels', async () => {

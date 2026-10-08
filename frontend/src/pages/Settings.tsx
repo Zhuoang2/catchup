@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { ApiError, request } from '../api/client'
 import { Icon } from '../components/Icon'
+import { useDocumentTitle } from '../components/useDocumentTitle'
 import { Button, PageHead, Switch } from '../components/ui'
 
 type ModelSettings = { base_url: string; model_id: string; key_set: boolean; api_key_last4: string | null }
@@ -33,6 +34,7 @@ function SettingsSection({ number, title, children }: {
 }
 
 export default function Settings() {
+  useDocumentTitle('Settings')
   const [baseUrl, setBaseUrl] = useState('https://api.deepseek.com')
   const [key, setKey] = useState('')
   const [last4, setLast4] = useState<string | null>(null)

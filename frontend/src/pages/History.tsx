@@ -4,6 +4,7 @@ import { request } from '../api/client'
 import { longDate, plural, shortTime } from '../components/format'
 import { Icon } from '../components/Icon'
 import { digestLang } from '../components/lang'
+import { useDocumentTitle } from '../components/useDocumentTitle'
 import { PageHead, Rail, buttonClass } from '../components/ui'
 
 type DigestEntry = {
@@ -12,6 +13,7 @@ type DigestEntry = {
 }
 
 export default function History() {
+  useDocumentTitle('History')
   const [digests, setDigests] = useState<DigestEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')

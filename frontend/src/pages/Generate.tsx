@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ApiError, request } from '../api/client'
 import { dateTime, plural, shortDateTime, tokenTotals } from '../components/format'
 import { Icon } from '../components/Icon'
+import { useDocumentTitle } from '../components/useDocumentTitle'
 import { Alert, Button, Chip, PageHead, Progress, Rail, StatusRegion, Stepper, buttonClass } from '../components/ui'
 
 type Check = {
@@ -45,6 +46,7 @@ function HeldNotes({ run }: { run: Run }) {
 }
 
 export default function Generate() {
+  useDocumentTitle('Generate')
   const [run, setRun] = useState<Run | null>(null)
   const [modelReady, setModelReady] = useState<boolean | null>(null)
   const [sources, setSources] = useState<Source[] | null>(null)

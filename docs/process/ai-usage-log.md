@@ -645,3 +645,16 @@ Real usage records for the technical spec, alpha reflection, and final report. E
     - `/code-review` reported 3 low findings.
     - The spec sub-agent confirmed all five fixes by mutation and found only nits. The timezone pin did not hold under `--pool=threads`, and two test cases could never fail.
     - Claude fixed these as well. `src/test/setup.ts` now throws unless the zone is pinned. Lowercasing became locale-independent, shown by a test that emulates Turkish case rules and failed first. The cases that could never fail were removed.
+- **Final review of the whole change (2026-10-07).** The user asked for another review before manual testing: "再审一遍" (review it again). Claude reviewed the whole change (`main...HEAD`) rather than only the last commit, with both parts of the fixed review step.
+  - **Findings.** `/code-review` reported 7 findings. The independent spec sub-agent went requirement by requirement and re-introduced broken behavior to see whether tests fail; it reported 11. Claude verified all of them, and after removing duplicates, 15 remained, none rejected. The most notable:
+    - "Digest ready: N items" left out Creator updates, because run `items_total` counts only summarized inputs.
+    - Sources showed a made-up empty state when loading failed.
+    - The cached offline page could never update, because the cache name is constant and `sw.js` does not change.
+    - Every screen had the same document title.
+    - A run failure was announced twice.
+    - In the dark theme, `--subtle` on `--hover` is 4.39:1.
+    - About a dozen behaviors could be broken without any test failing.
+  - **Decisions.** Two findings were contradictions in Claude's plan, which the user decided: "A、B 按你的建议，交给新的 Droid 会话" (A and B as you recommend; hand it to a new Droid session).
+    - The spec asked for the full feed URL while the design said 2 lines; full URLs were chosen.
+    - Generate had no state for a configured model with no sources; "Add sources" becomes the primary action.
+  - **Hand-off.** Claude wrote task group 13 with context for a new implementer and the seam for each task. The fix round goes to a new Droid session: the previous session's cumulative usage was about 6.9M credits, so a fresh session avoids re-sending that long context on every turn.

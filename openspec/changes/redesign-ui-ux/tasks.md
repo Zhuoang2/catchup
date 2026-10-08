@@ -296,3 +296,4 @@ Small fixes from the fixed review step on group 13 (`/code-review` plus an indep
 - [x] 14.3 The no-sources Generate state keeps the hero "Last digest" line.
 - [x] 14.4 The digest document title uses the short date only (D5).
 - [x] 14.5 Tests now cover a failed `/sources` load versus the no-sources state, first run with no sources, a running run with zero sources, the digest reset on id change, and `digest_item_count` being `null` for runs without a digest.
+- [x] 14.6 Follow-ups from reviewing group 14: the install request also uses `cache: 'no-cache'` (shared `offlinePage()` request); the refresh test pins the cache name `catchup-offline-v1`; the D7 note is dated 2026-10-08.

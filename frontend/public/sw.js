@@ -1,8 +1,10 @@
 const CACHE = 'catchup-offline-v1'
+// Revalidate with the server so the HTTP cache cannot hand back an old offline page.
+const offlinePage = () => new Request('/offline.html', { cache: 'no-cache' })
 
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE).then(cache => cache.add('/offline.html')).then(() => self.skipWaiting())
+    caches.open(CACHE).then(cache => cache.add(offlinePage())).then(() => self.skipWaiting())
   )
 })
 
@@ -32,7 +34,7 @@ function refreshOfflinePage(event) {
   try {
     event.waitUntil(
       caches.open(CACHE)
-        .then(cache => cache.add(new Request('/offline.html', { cache: 'no-cache' })))
+        .then(cache => cache.add(offlinePage()))
         .catch(() => {})
     )
   } catch {

@@ -42,7 +42,10 @@ describe('offline-only service worker', () => {
     w.handlers.install({ waitUntil: work => { install = work } })
     await install
     expect(w.open).toHaveBeenCalledWith('catchup-offline-v1')
-    expect(w.add).toHaveBeenCalledExactlyOnceWith('/offline.html')
+    expect(w.add).toHaveBeenCalledOnce()
+    const installed = w.add.mock.calls[0][0] as unknown as Request
+    expect(new URL(installed.url).pathname).toBe('/offline.html')
+    expect(installed.cache).toBe('no-cache')
     expect(w.put).not.toHaveBeenCalled()
     expect(w.skipWaiting).toHaveBeenCalledOnce()
     let activate: Promise<unknown> | undefined
@@ -90,6 +93,7 @@ describe('offline-only service worker', () => {
     // Revalidate with the server so the HTTP cache cannot hand back the old offline page.
     expect(new URL(refresh.url).pathname).toBe('/offline.html')
     expect(refresh.cache).toBe('no-cache')
+    expect(w.open).toHaveBeenLastCalledWith('catchup-offline-v1')
     expect(w.put).not.toHaveBeenCalled()
   })
 

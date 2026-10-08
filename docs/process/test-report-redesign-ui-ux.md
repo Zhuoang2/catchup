@@ -221,3 +221,5 @@ Tests used fake timers and mocked network/model/feed responses. The Docker smoke
 | `digest_item_count` is `null` for no-new-content and failed runs | With `0` returned instead: 2 failed. |
 
 Checks after these fixes: `uv run pytest -q` 357 passed; `npm test -- --run` 123 passed in four consecutive full runs, one from a `TZ=UTC` shell; `npm run build` passed; style coverage reports 0 uncovered prototype selectors; script unittests passed; `openspec validate redesign-ui-ux --strict` valid. Docker was not rebuilt for this round; `sw.js` changed, and `/sw.js` serving is covered by the earlier smoke run and must be re-checked in the manual test.
+
+Follow-up from the review of these fixes (`/code-review` 2 low findings; spec review: no must-fix or should-fix, verified in a real Chromium service worker that the refresh revalidates with `If-Modified-Since`): the install request now also uses `cache: 'no-cache'` (the install test failed first, then passed), and the refresh test pins the cache name (opening another cache now fails it). 357 backend and 123 frontend tests pass, twice in a row; the build passes.

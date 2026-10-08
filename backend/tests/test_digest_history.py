@@ -192,6 +192,8 @@ def test_digest_detail_uses_snapshot_positions_and_survives_source_deletion(test
         before = response.json()
         assert before["model_id"] == "test"
         assert before["language"] is None
+        assert before["item_count"] == 1
+        assert before["source_count"] == 1
         assert [topic["title"] for topic in before["topics"]] == ["First", "Second"]
         assert [item["title"] for item in before["topics"][0]["items"]] == [
             "Saved first", "Saved second",

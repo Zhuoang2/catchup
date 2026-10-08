@@ -21,6 +21,7 @@ type CreatorUpdate = {
 }
 type Digest = {
   id: number; created_at: string; model_id: string; language?: string | null; topics: Topic[]
+  item_count: number; source_count: number
   creator_updates?: CreatorUpdate[]; transcript_wait_days?: number
   prompt_tokens?: number | null; completion_tokens?: number | null
 }
@@ -38,16 +39,10 @@ function DigestBody({ digest }: { digest: Digest }) {
   const lang = digestLang(digest.language)
   const groups = digest.creator_updates ?? []
   const sectionCount = digest.topics.length + (groups.length ? 1 : 0)
-  const itemCount = digest.topics.reduce((count, topic) => count + topic.items.length, 0)
-    + groups.reduce((count, group) => count + group.items.length, 0)
-  const sourceCount = new Set([
-    ...digest.topics.flatMap(topic => topic.items.map(item => item.source_name)),
-    ...groups.map(group => group.source_name),
-  ]).size
   return <section className="page page-digest">
     <PageHead className="digest-head" eyebrow={`Digest · No. ${digest.id}`} title={<>{longDate(digest.created_at)}
       <span className="title-time"> · {shortTime(digest.created_at)}</span></>}>
-      <p className="digest-meta">{plural(itemCount, 'item')} · {plural(sourceCount, 'source')}
+      <p className="digest-meta">{plural(digest.item_count, 'item')} · {plural(digest.source_count, 'source')}
         {' · '}{digest.model_id} · <span className="tokens">{tokenTotals(digest.prompt_tokens, digest.completion_tokens)}</span></p>
       {!digest.topics.length && groups.length > 0 && <p className="digest-note">
         Nothing could be summarized this time. Here is what your sources published.

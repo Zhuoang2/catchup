@@ -78,6 +78,22 @@ it('titles a saved edition using its local short date', async () => {
   expect(document.title).toBe('No. 3 · 5 Oct 2026, 09:00 · CatchUp')
 })
 
+it('uses saved source count when two distinct sources have the same title', async () => {
+  fetchMock.mockResolvedValue(respond({
+    id: 7, created_at: '2026-10-03T10:00:00Z', model_id: 'test',
+    item_count: 2, source_count: 2,
+    topics: [{ title: 'Topic', overview: '', items: [
+      { title: 'First', link: 'https://one.example/a', source_name: 'Shared name',
+        published_at: null, summary: 'One', summary_unavailable: false },
+      { title: 'Second', link: 'https://two.example/b', source_name: 'Shared name',
+        published_at: null, summary: 'Two', summary_unavailable: false },
+    ] }],
+  }))
+  const { container } = page()
+  await screen.findByRole('heading', { name: 'Topic' })
+  expect(container.querySelector('.digest-meta')).toHaveTextContent('2 items · 2 sources')
+})
+
 it('renders creator updates after topics with saved wait labels', async () => {
   fetchMock.mockResolvedValue(respond({
     id: 7, created_at: '2026-10-03T10:00:00Z', model_id: 'test',

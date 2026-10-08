@@ -77,6 +77,7 @@ def get_digest(digest_id: int, session: Session = Depends(get_session)) -> dict:
     run = session.get(DigestRun, digest.run_id)
     return {
         "id": digest.id, "created_at": digest.created_at, "model_id": digest.model_id,
+        "item_count": digest.item_count, "source_count": digest.source_count,
         "language": digest.language,
         "creator_updates": creator_updates, "transcript_wait_days": digest.transcript_wait_days,
         "prompt_tokens": run.prompt_tokens if run else None,

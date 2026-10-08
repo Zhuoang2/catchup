@@ -50,6 +50,8 @@ export function validateTokens(text: string): string[] {
       ...['ok', 'warn', 'error'].map(tone =>
         [`--${tone}`, `--${tone}-soft`, 4.5] as [string, string, number]),
       ['--muted', '--neutral-soft', 4.5],
+      ['--muted', '--hover', 4.5],
+      ['--fg', '--hover', 4.5],
       ['--muted', '--disabled', 3],
     ]
     for (const [fg, bg, minimum] of pairs) {
@@ -87,4 +89,12 @@ it('shows the full feed URL without a line clamp', () => {
   expect(feed).toBeDefined()
   expect(feed).toMatch(/overflow-wrap:\s*anywhere/)
   expect(feed).not.toMatch(/(?:line-clamp|overflow:\s*hidden)/)
+})
+
+it('keeps secondary History text readable when a row is hovered', () => {
+  const components = readFileSync('src/styles/components.css', 'utf8')
+  const hoverRules = [...components.matchAll(/([^{}]*:hover[^{}]*)\{([^{}]+)\}/g)]
+  expect(hoverRules.some(([, selector, body]) =>
+    selector.includes('.history-link:hover .history-counts') && /color:\s*var\(--muted\)/.test(body))).toBe(true)
+  expect(hoverRules.every(([, , body]) => !/color:\s*var\(--subtle\)/.test(body))).toBe(true)
 })

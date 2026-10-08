@@ -156,6 +156,7 @@
 .rail-list li::before { content: ""; position: absolute; left: 0; top: .65em; width: .35rem; height: .35rem; background: var(--accent); }
 .history-link { display: grid; grid-template-columns: auto 1fr auto; gap: 1rem; align-items: center; padding: .8rem 0; border-bottom: 1px solid var(--border); text-decoration: none; color: var(--fg) !important; }
 .history-link:hover { background: var(--hover); }
+.history-link:hover .history-counts { color: var(--muted); }
 .history-date { display: grid; justify-items: center; width: 3rem; padding: .3rem 0; background: var(--fg); color: var(--bg); line-height: 1.1; }
 .history-day { font-size: 1.3em; font-weight: 700; }
 .history-month { font-size: .75em; font-variant-caps: all-small-caps; }

@@ -125,6 +125,25 @@ it('polls from summarizing to success with a persistent status region using fake
   expect(statusRegion).toHaveTextContent('Digest ready: 12 items')
 })
 
+it.each([[3, 1], [2, 0]])('announces %i saved items when %i were summarized', async (saved, summarized) => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  fetchMock.mockImplementation(async (path: string) => {
+    if (path === '/api/settings/model') return respond({ key_set: true })
+    if (path === '/api/sources') return respond(sources)
+    if (path === '/api/digests') return respond(history)
+    if (path === '/api/digest-runs/active') return respond({ ...run, status: 'summarizing',
+      items_total: summarized, items_done: summarized })
+    if (path === '/api/digest-runs/1') return respond({ ...run, status: 'succeeded',
+      items_total: summarized, items_done: summarized, digest_id: 8, digest_item_count: saved })
+    throw Error(path)
+  })
+  const { container } = render(<MemoryRouter><Generate/></MemoryRouter>)
+  await screen.findByRole('progressbar')
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  expect(screen.getByRole('status')).toHaveTextContent(`Digest ready: ${saved} items`)
+  expect(container.querySelector('.result-ok .result-meta')).toHaveTextContent(`${saved} items`)
+})
+
 it('keeps an active run visible when the digest list fails', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
   fetchMock.mockImplementation(async (path: string) => {

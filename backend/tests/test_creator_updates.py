@@ -137,6 +137,17 @@ def test_creator_updates_only_digest_reports_zero_tokens(ready):
     digest = client.get(f"/api/digests/{result['digest_id']}").json()
     assert digest["topics"] == [] and len(digest["creator_updates"]) == 1
     assert (digest["prompt_tokens"], digest["completion_tokens"]) == (0, 0)
+    assert client.get(f"/api/digest-runs/{result['id']}").json()["digest_item_count"] == 1
+
+
+def test_run_reports_saved_count_including_creator_updates(ready):
+    client, _ = ready
+    add_item(client, "feed", None, title="Article")
+    add_item(client, "youtube", "captions_off", title="Video", source_title="Channel")
+    add_item(client, "podcast", "no_transcript", title="Episode", source_title="Show")
+    result = execute(client)
+    assert result["items_total"] == 1
+    assert client.get(f"/api/digest-runs/{result['id']}").json()["digest_item_count"] == 3
 
 
 def test_failed_save_keeps_expiry_status_pending(ready):

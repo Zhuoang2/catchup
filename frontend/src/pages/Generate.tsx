@@ -11,6 +11,7 @@ type Check = {
 }
 type Run = {
   id: number; status: string; items_total: number; items_done: number; sources_total: number
+  digest_item_count: number | null
   source_checks: Check[]; error_kind: string | null; error_message: string | null; digest_id: number | null
   waiting_count: number; deferred_count: number; prompt_tokens: number | null; completion_tokens: number | null
 }
@@ -123,7 +124,7 @@ export default function Generate() {
     ? `Checking sources, ${run.source_checks.length} of ${run.sources_total}`
     : run?.status === 'summarizing' || run?.status === 'grouping'
       ? `Summarizing, ${run.items_done} of ${run.items_total}`
-      : run?.status === 'succeeded' ? `Digest ready: ${plural(run.items_total, 'item')}`
+      : run?.status === 'succeeded' ? `Digest ready: ${plural(run.digest_item_count ?? run.items_total, 'item')}`
         : run?.status === 'no_new_content' ? 'No new content'
           : run?.status === 'failed' ? 'Digest generation failed' : ''
 
@@ -170,7 +171,7 @@ export default function Generate() {
     {state === 'succeeded' && run && <section className="card result-card result-ok" aria-label="Digest run">
       <div className="result-head"><Icon name="check" className="icon icon-result"/>
         <div><h2 className="result-title">Your digest is ready</h2>
-          <p className="result-meta">{plural(run.items_total, 'item')} · {plural(run.sources_total, 'source')}
+          <p className="result-meta">{plural(run.digest_item_count ?? run.items_total, 'item')} · {plural(run.sources_total, 'source')}
             {' · '}{tokenTotals(run.prompt_tokens, run.completion_tokens)}</p>
         </div>
         {run.digest_id && <Link className={buttonClass('primary')} to={`/digests/${run.digest_id}`}>View digest</Link>}

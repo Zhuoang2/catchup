@@ -30,8 +30,9 @@ function mockPage(options: { ready?: boolean; run?: unknown; sources?: unknown[]
 beforeEach(() => { vi.stubGlobal('fetch', fetchMock) })
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); fetchMock.mockReset() })
 
-it('puts model setup first with a visible disabled Generate and a state-aware rail', async () => {
-  const { container } = mockPage({ ready: false, sources, history })
+it.each([['existing sources', sources], ['no sources (fresh install)', []]])(
+  'puts model setup first with a visible disabled Generate and a state-aware rail: %s', async (_case, list) => {
+  const { container } = mockPage({ ready: false, sources: list, history })
   expect((await screen.findAllByRole('link', { name: 'Set up your model' }))[0]).toHaveClass('btn-primary')
   expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
   expect(screen.getByRole('button', { name: 'Generate digest' })).toBeDisabled()
@@ -40,6 +41,7 @@ it('puts model setup first with a visible disabled Generate and a state-aware ra
   expect(screen.queryByRole('heading', { name: 'Last digest' })).toBeNull()
   expect(screen.queryByRole('heading', { name: 'Your sources' })).toBeNull()
   expect(container.querySelector('.hero-last')).toBeNull()
+  expect(screen.queryByRole('link', { name: 'Add sources' })).not.toHaveClass('btn-primary')
   await expectAccessible(container)
 })
 
@@ -61,6 +63,20 @@ it('offers Add sources as the only primary action when the configured model has 
   expect(generate).toBeDisabled()
   expect(generate).toHaveClass('btn-secondary')
   expect(generate).toHaveAccessibleDescription('Available once a source is added.')
+})
+
+it('keeps the hero last-digest link when the configured model has no sources', async () => {
+  const { container } = mockPage({ ready: true, sources: [], history })
+  await screen.findByRole('link', { name: 'Add sources' })
+  expect(container.querySelector('.hero-last')).toHaveTextContent('Last digest: No. 4')
+})
+
+it('shows a running run, not the no-sources state, when sources are empty', async () => {
+  const { container } = mockPage({ ready: true, sources: [], run: { ...run, status: 'collecting' } })
+  expect(await screen.findByRole('button', { name: 'Generating…' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Generating…' })).toHaveClass('btn-primary')
+  expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
+  expect(screen.queryByRole('link', { name: 'Add sources' })).toBeNull()
 })
 
 it.each(['collecting', 'summarizing'])('shows %s progress and named source outcomes', async status => {
@@ -246,6 +262,9 @@ it('does not invent source counts when the source list cannot be read', async ()
   expect(screen.queryByText(/Check your 0 sources/)).toBeNull()
   expect(screen.queryByText(/Add sources before generating a digest/)).toBeNull()
   expect(screen.queryByRole('heading', { name: 'Your sources' })).toBeNull()
+  expect(screen.queryByRole('link', { name: 'Add sources' })).toBeNull()
+  expect(screen.getByRole('button', { name: 'Generate digest' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: 'Generate digest' })).toHaveClass('btn-primary')
   await expectAccessible(container)
 })
 

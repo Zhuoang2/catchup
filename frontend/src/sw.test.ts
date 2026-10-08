@@ -8,6 +8,11 @@ type Event = {
   respondWith?: (response: Promise<unknown>) => void
 }
 
+// In a service worker, relative URLs resolve against the worker's location.
+class WorkerRequest extends Request {
+  constructor(input: string, init?: RequestInit) { super(new URL(input, 'http://localhost/'), init) }
+}
+
 function worker() {
   const handlers: Record<string, (event: Event) => void> = {}
   const add = vi.fn(async (_path: string) => undefined)
@@ -25,7 +30,7 @@ function worker() {
       addEventListener: (name: string, handler: (event: Event) => void) => { handlers[name] = handler },
       skipWaiting, clients: { claim },
     },
-    caches: { open, keys, delete: remove }, fetch, Response,
+    caches: { open, keys, delete: remove }, fetch, Response, Request: WorkerRequest,
   })
   return { handlers, add, put, offline, match, open, keys, remove, fetch, skipWaiting, claim }
 }
@@ -80,8 +85,23 @@ describe('offline-only service worker', () => {
     w.fetch.mockResolvedValueOnce({ ok: true, status: 200 })
     w.handlers.fetch({ request, respondWith: async response => { expect(await response).toEqual({ ok: true, status: 200 }) },
       waitUntil: async work => { await work } })
-    await vi.waitFor(() => expect(w.add).toHaveBeenCalledExactlyOnceWith('/offline.html'))
+    await vi.waitFor(() => expect(w.add).toHaveBeenCalledOnce())
+    const refresh = w.add.mock.calls[0][0] as unknown as Request
+    // Revalidate with the server so the HTTP cache cannot hand back the old offline page.
+    expect(new URL(refresh.url).pathname).toBe('/offline.html')
+    expect(refresh.cache).toBe('no-cache')
     expect(w.put).not.toHaveBeenCalled()
+  })
+
+  it('returns the real response even if scheduling the refresh throws', async () => {
+    const w = worker()
+    const request = { mode: 'navigate', url: 'http://localhost/history' }
+    let response: Promise<unknown> | undefined
+    w.fetch.mockResolvedValueOnce({ ok: true, status: 200 })
+    w.handlers.fetch({ request, respondWith: work => { response = work },
+      waitUntil: () => { throw new Error('InvalidStateError') } })
+    expect(await response).toEqual({ ok: true, status: 200 })
+    expect(w.match).not.toHaveBeenCalled()
   })
 
   it('does not refresh on HTTP 500 and ignores a rejected background refresh', async () => {
@@ -99,6 +119,6 @@ describe('offline-only service worker', () => {
     expect(await response).toEqual({ ok: true, status: 200 })
     await vi.waitFor(() => expect(waitUntil).toHaveBeenCalledOnce())
     await expect(waitUntil.mock.calls[0][0]).resolves.toBeUndefined()
-    expect(w.add).toHaveBeenCalledExactlyOnceWith('/offline.html')
+    expect(w.add).toHaveBeenCalledOnce()
   })
 })

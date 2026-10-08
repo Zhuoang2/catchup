@@ -87,6 +87,7 @@ def test_incremental_api_flow_with_stored_citations(test_settings, monkeypatch):
 
         second = generate(client)
         assert second["status"] == "no_new_content" and second["digest_id"] is None
+        assert second["digest_item_count"] is None
         assert second["source_checks"][0]["status"] == "no_new_items"
         assert len(client.get("/api/digests").json()) == 1
 

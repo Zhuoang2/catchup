@@ -18,15 +18,24 @@ self.addEventListener('fetch', event => {
   if (event.request.mode !== 'navigate') return
   event.respondWith(
     fetch(event.request).then(response => {
-      if (response.ok) {
-        event.waitUntil(
-          caches.open(CACHE).then(cache => cache.add('/offline.html')).catch(() => {})
-        )
-      }
+      if (response.ok) refreshOfflinePage(event)
       return response
-    }).catch(async () => {
+    }, async () => {
       const cache = await caches.open(CACHE)
       return await cache.match('/offline.html') ?? Response.error()
     })
   )
 })
+
+// Keep the cached offline page current without ever replacing a real response.
+function refreshOfflinePage(event) {
+  try {
+    event.waitUntil(
+      caches.open(CACHE)
+        .then(cache => cache.add(new Request('/offline.html', { cache: 'no-cache' })))
+        .catch(() => {})
+    )
+  } catch {
+    // The event can no longer be extended; the previously cached copy stays.
+  }
+}

@@ -85,13 +85,34 @@ it('clears a prior error when navigating to a different digest id', async () => 
   expect(screen.queryByText('Digest not found.')).toBeNull()
 })
 
+it('does not keep showing the previous digest while the next one loads', async () => {
+  let release!: () => void
+  const pending = new Promise<void>(resolve => { release = resolve })
+  fetchMock.mockImplementation(async (url: string) => {
+    if (url.endsWith('/8')) await pending
+    const id = Number(url.split('/').pop())
+    return respond({ id, created_at: '2026-10-03T10:00:00Z', model_id: `model-${id}`,
+      item_count: 0, source_count: 0, topics: [] })
+  })
+  render(<MemoryRouter initialEntries={['/digests/7']}>
+    <Link to="/digests/8">Next digest</Link>
+    <Routes><Route path="/digests/:id" element={<DigestView/>}/></Routes>
+  </MemoryRouter>)
+  expect(await screen.findByText(/model-7/)).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('link', { name: 'Next digest' }))
+  expect(await screen.findByRole('heading', { name: 'Loading digest…' })).toBeInTheDocument()
+  expect(screen.queryByText(/model-7/)).toBeNull()
+  release()
+  expect(await screen.findByText(/model-8/)).toBeInTheDocument()
+})
+
 it('titles a saved edition using its local short date', async () => {
   fetchMock.mockResolvedValue(respond({
     id: 3, created_at: '2026-10-05T09:00:00', model_id: 'test', topics: [],
   }))
   page('3')
   await screen.findByText(/Tokens: not reported/)
-  expect(document.title).toBe('No. 3 · 5 Oct 2026, 09:00 · CatchUp')
+  expect(document.title).toBe('No. 3 · 5 Oct 2026 · CatchUp')
 })
 
 it('uses saved source count when two distinct sources have the same title', async () => {

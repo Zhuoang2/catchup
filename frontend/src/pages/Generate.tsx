@@ -131,6 +131,10 @@ export default function Generate() {
         : run?.status === 'no_new_content' ? 'No new content'
           : run?.status === 'failed' ? `Digest generation failed: ${run.error_message || 'Digest generation failed. Try again.'}` : ''
 
+  const lastDigestLine = digests[0] && <p className="hero-meta hero-last">Last digest:{' '}
+    <Link to={`/digests/${digests[0].id}`}>No. {digests[0].id} · {shortDateTime(digests[0].created_at)}</Link>
+    {' · '}{plural(digests[0].item_count, 'item')}</p>
+
   return <section className="page page-generate">
     <PageHead title="Generate digest" lede={firstRun
       ? 'Check the sources you follow and summarize what is new since your last digest.'
@@ -146,14 +150,13 @@ export default function Generate() {
           <Link className={buttonClass('primary', 'lg')} to="/sources">Add sources</Link>
           <Button disabled aria-describedby="generate-sources-why">Generate digest</Button>
           <p className="hero-meta" id="generate-sources-why">Available once a source is added.</p>
+          {lastDigestLine}
         </> : <>
           <Button variant={running || state === 'idle' || state === 'failed' && !configurationError ? 'primary' : 'secondary'}
             size="lg" type="button" onClick={() => void generate()} disabled={running || modelReady === null}>
             {running ? 'Generating…' : state === 'failed' ? 'Try again' : 'Generate digest'}
           </Button>
-          {digests[0] && <p className="hero-meta hero-last">Last digest:{' '}
-            <Link to={`/digests/${digests[0].id}`}>No. {digests[0].id} · {shortDateTime(digests[0].created_at)}</Link>
-            {' · '}{plural(digests[0].item_count, 'item')}</p>}
+          {lastDigestLine}
         </>}
       </div>
     </PageHead>

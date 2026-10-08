@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { request } from '../api/client'
-import { longDate, plural, shortDateTime, shortTime, tokenTotals } from '../components/format'
+import { longDate, plural, shortDate, shortDateTime, shortTime, tokenTotals } from '../components/format'
 import { Icon } from '../components/Icon'
 import { digestLang } from '../components/lang'
 import { PageHead, SectionRow, SummaryText, KindIcon, ReasonLabel,
@@ -106,7 +106,7 @@ export default function DigestView() {
   const [digest, setDigest] = useState<Digest | null>(null)
   const [error, setError] = useState('')
   useDocumentTitle(!error && digest?.id === Number(id)
-    ? `No. ${digest.id} · ${shortDateTime(digest.created_at)}` : 'Digest')
+    ? `No. ${digest.id} · ${shortDate(digest.created_at)}` : 'Digest')
   useEffect(() => {
     let mounted = true
     setDigest(null)

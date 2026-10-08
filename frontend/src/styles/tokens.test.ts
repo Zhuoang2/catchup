@@ -105,3 +105,12 @@ it('styles disabled secondary buttons with the disabled and muted tokens', () =>
   expect(disabled).toMatch(/background:\s*var\(--disabled\)/)
   expect(disabled).toMatch(/color:\s*var\(--muted\)/)
 })
+
+it('does not restyle disabled buttons on hover', () => {
+  const components = readFileSync('src/styles/components.css', 'utf8')
+  const hoverRules = [...components.matchAll(/([^{}]*\.btn[^{}]*:hover[^{}]*)\{([^{}]+)\}/g)]
+  expect(hoverRules.length).toBeGreaterThan(0)
+  for (const [, selector] of hoverRules) {
+    for (const part of selector.split(',')) expect(part).toMatch(/:not\(:disabled\)/)
+  }
+})

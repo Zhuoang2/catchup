@@ -223,9 +223,12 @@ describe('sources', () => {
     fetchMock.mockResolvedValue(respond({
       error: { code: 'request_failed', message: 'Could not load sources.' },
     }, 503))
-    page()
+    const { container } = page()
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load sources.')
     expect(screen.getByLabelText('Website or feed URL')).not.toHaveAttribute('aria-invalid')
+    expect(screen.queryByRole('heading', { name: 'No sources yet' })).toBeNull()
+    expect(container.querySelector('.examples')).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Checks' })).toBeNull()
   })
 
   it('has a useful empty state without a checks rail', async () => {

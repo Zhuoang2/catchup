@@ -85,7 +85,7 @@ function SourceStatus({ source }: { source: Source }) {
 export default function Sources() {
   const [url, setUrl] = useState('')
   const [preview, setPreview] = useState<Preview | null>(null)
-  const [sources, setSources] = useState<Source[]>([])
+  const [sources, setSources] = useState<Source[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [fieldError, setFieldError] = useState('')
   const [pageError, setPageError] = useState('')
@@ -108,7 +108,7 @@ export default function Sources() {
 
   useEffect(() => {
     if (focusAfterDelete) {
-      (sources.length ? headingRef : emptyHeadingRef).current?.focus()
+      (sources?.length ? headingRef : emptyHeadingRef).current?.focus()
       setFocusAfterDelete(false)
     }
   }, [focusAfterDelete, sources])
@@ -154,7 +154,7 @@ export default function Sources() {
     try {
       await request<void>(`/sources/${source.id}`, { method: 'DELETE' })
     } catch (err) { setPageError(describeError(err)); return }
-    setSources(previous => previous.filter(entry => entry.id !== source.id))
+    setSources(previous => previous?.filter(entry => entry.id !== source.id) ?? null)
     setConfirmId(null)
     setFocusAfterDelete(true)
     try { await refresh() }
@@ -177,10 +177,10 @@ export default function Sources() {
     {message && <p role="status">{message}</p>}
     {preview && <SourcePreview preview={preview} onConfirm={() => void confirmSource()}
       onCancel={() => setPreview(null)}/>}
-    {!loading && sources.length > 0 && <h2 ref={headingRef} tabIndex={-1} className="section-label">
+    {!loading && sources !== null && sources.length > 0 && <h2 ref={headingRef} tabIndex={-1} className="section-label">
       Your sources <span className="count">{sources.length}</span>
     </h2>}
-    {loading ? <p>Loading sources…</p> : !sources.length ? <div className="empty-state">
+    {loading ? <p>Loading sources…</p> : sources === null ? null : !sources.length ? <div className="empty-state">
       <Icon name="sources" className="icon icon-empty"/>
       <h2 ref={emptyHeadingRef} tabIndex={-1}>No sources yet</h2>
       <p>Paste the address of something you follow. CatchUp finds its feed for you.</p>
@@ -217,7 +217,7 @@ export default function Sources() {
           <li>Bluesky and Mastodon profiles</li></ul>
         <p className="rail-meta">Apple Podcasts links work too; CatchUp finds the show’s feed.</p>
       </section>
-      {!!sources.length && <section className="rail-box"><h2 className="rail-title">Checks</h2>
+      {!!sources?.length && <section className="rail-box"><h2 className="rail-title">Checks</h2>
         <p className="rail-meta">Sources are checked when you generate a digest. “Possible gap” means older items may have dropped off the feed between checks.</p>
       </section>}
     </Rail>

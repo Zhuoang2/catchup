@@ -120,6 +120,7 @@ export default function Generate() {
 
   const firstRun = modelReady === false
   const running = !!run && active(run)
+  const noSources = modelReady === true && sources?.length === 0 && !run
   const state = firstRun ? 'first-run' : run?.status ?? 'idle'
   const configurationError = state === 'failed' && configErrors.includes(run?.error_kind ?? '')
   const status = run?.status === 'collecting' || run?.status === 'queued'
@@ -141,6 +142,10 @@ export default function Generate() {
           <Link className={buttonClass('primary', 'lg')} to="/settings">Set up your model</Link>
           <Button disabled aria-describedby="generate-why">Generate digest</Button>
           <p className="hero-meta" id="generate-why">Available once a model is set up and a source is added.</p>
+        </> : noSources ? <>
+          <Link className={buttonClass('primary', 'lg')} to="/sources">Add sources</Link>
+          <Button disabled aria-describedby="generate-sources-why">Generate digest</Button>
+          <p className="hero-meta" id="generate-sources-why">Available once a source is added.</p>
         </> : <>
           <Button variant={running || state === 'idle' || state === 'failed' && !configurationError ? 'primary' : 'secondary'}
             size="lg" type="button" onClick={() => void generate()} disabled={running || modelReady === null}>
@@ -157,8 +162,6 @@ export default function Generate() {
     {firstRun && <Alert title="Set up your model first." actions={<Link className={buttonClass('ghost')} to="/sources">Add sources</Link>}>
       CatchUp summarizes with your own AI model. Add a provider and key in Settings, then add a few sources.
     </Alert>}
-    {!firstRun && sources?.length === 0 && <p className="note">Add sources before generating a digest.{' '}
-      <Link to="/sources">Manage sources</Link></p>}
     {running && run && <section className="card run-card" aria-label="Digest run">
       <Stepper current={run.status === 'queued' ? 'collecting'
         : run.status === 'grouping' ? 'grouping' : run.status as 'collecting' | 'summarizing'}/>

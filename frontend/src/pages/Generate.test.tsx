@@ -50,6 +50,17 @@ it('offers Generate as the only primary action while idle', async () => {
   await expectAccessible(container)
 })
 
+it('offers Add sources as the only primary action when the configured model has no sources', async () => {
+  const { container } = mockPage({ ready: true, sources: [], history: [] })
+  expect(await screen.findByRole('link', { name: 'Add sources' })).toHaveAttribute('href', '/sources')
+  expect(screen.getByRole('link', { name: 'Add sources' })).toHaveClass('btn-primary')
+  expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
+  const generate = screen.getByRole('button', { name: 'Generate digest' })
+  expect(generate).toBeDisabled()
+  expect(generate).toHaveClass('btn-secondary')
+  expect(generate).toHaveAccessibleDescription('Available once a source is added.')
+})
+
 it.each(['collecting', 'summarizing'])('shows %s progress and named source outcomes', async status => {
   const { container } = mockPage({ run: { ...run, status, items_total: 12, items_done: 5 } })
   expect(await screen.findByRole('progressbar', {

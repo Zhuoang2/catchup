@@ -80,3 +80,11 @@ describe('C7 theme tokens', () => {
       .toContain('light: --subtle on --bg must be at least 4.5:1')
   })
 })
+
+it('shows the full feed URL without a line clamp', () => {
+  const components = readFileSync('src/styles/components.css', 'utf8')
+  const feed = components.match(/\.source-feed\s*\{([^}]+)\}/)?.[1]
+  expect(feed).toBeDefined()
+  expect(feed).toMatch(/overflow-wrap:\s*anywhere/)
+  expect(feed).not.toMatch(/(?:line-clamp|overflow:\s*hidden)/)
+})

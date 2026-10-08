@@ -17,7 +17,7 @@ function worker() {
   const open = vi.fn(async (_name: string) => ({ add, put, match }))
   const keys = vi.fn(async () => ['catchup-offline-v0', 'catchup-offline-v1', 'other-cache'])
   const remove = vi.fn(async (_name: string) => true)
-  const fetch = vi.fn(async (_request: { url: string }) => ({ status: 200 }))
+  const fetch = vi.fn(async (_request: { url: string }) => ({ ok: true, status: 200 }))
   const skipWaiting = vi.fn()
   const claim = vi.fn()
   runInNewContext(readFileSync('public/sw.js', 'utf8'), {
@@ -55,9 +55,9 @@ describe('offline-only service worker', () => {
     w.handlers.fetch({ request, respondWith: work => { response = work } })
     expect(await response).toBe(w.offline)
     expect(w.match).toHaveBeenCalledExactlyOnceWith('/offline.html')
-    w.fetch.mockResolvedValueOnce({ status: 500 })
+    w.fetch.mockResolvedValueOnce({ ok: false, status: 500 })
     w.handlers.fetch({ request, respondWith: work => { response = work } })
-    expect(await response).toEqual({ status: 500 })
+    expect(await response).toEqual({ ok: false, status: 500 })
     expect(w.match).toHaveBeenCalledTimes(1)
     expect(w.put).not.toHaveBeenCalled()
   })
@@ -72,5 +72,33 @@ describe('offline-only service worker', () => {
     expect(w.fetch).not.toHaveBeenCalled()
     expect(w.open).not.toHaveBeenCalled()
     expect(w.put).not.toHaveBeenCalled()
+  })
+
+  it('refreshes only the offline page after an OK navigation', async () => {
+    const w = worker()
+    const request = { mode: 'navigate', url: 'http://localhost/history' }
+    w.fetch.mockResolvedValueOnce({ ok: true, status: 200 })
+    w.handlers.fetch({ request, respondWith: async response => { expect(await response).toEqual({ ok: true, status: 200 }) },
+      waitUntil: async work => { await work } })
+    await vi.waitFor(() => expect(w.add).toHaveBeenCalledExactlyOnceWith('/offline.html'))
+    expect(w.put).not.toHaveBeenCalled()
+  })
+
+  it('does not refresh on HTTP 500 and ignores a rejected background refresh', async () => {
+    const w = worker()
+    const request = { mode: 'navigate', url: 'http://localhost/history' }
+    let response: Promise<unknown> | undefined
+    const waitUntil = vi.fn()
+    w.fetch.mockResolvedValueOnce({ ok: false, status: 500 })
+    w.handlers.fetch({ request, respondWith: work => { response = work }, waitUntil })
+    expect(await response).toEqual({ ok: false, status: 500 })
+    expect(waitUntil).not.toHaveBeenCalled()
+    w.add.mockRejectedValueOnce(new Error('offline refresh failed'))
+    w.fetch.mockResolvedValueOnce({ ok: true, status: 200 })
+    w.handlers.fetch({ request, respondWith: work => { response = work }, waitUntil })
+    expect(await response).toEqual({ ok: true, status: 200 })
+    await vi.waitFor(() => expect(waitUntil).toHaveBeenCalledOnce())
+    await expect(waitUntil.mock.calls[0][0]).resolves.toBeUndefined()
+    expect(w.add).toHaveBeenCalledExactlyOnceWith('/offline.html')
   })
 })

@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import DigestView from './DigestView'
 import { expectAccessible } from '../test/accessibility'
@@ -67,6 +67,21 @@ it('reports an unavailable digest', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent('Digest not found.')
   expect(document.title).toBe('Digest · CatchUp')
   expect(screen.getByRole('heading', { name: 'Could not load digest', level: 1 })).toBeInTheDocument()
+})
+
+it('clears a prior error when navigating to a different digest id', async () => {
+  fetchMock.mockImplementation(async (url: string) => url.endsWith('/7')
+    ? respond({ error: { code: 'not_found', message: 'Digest not found.' } }, 404)
+    : respond({ id: 8, created_at: '2026-10-03T10:00:00Z', model_id: 'test',
+      item_count: 0, source_count: 0, topics: [] }))
+  render(<MemoryRouter initialEntries={['/digests/7']}>
+    <Link to="/digests/8">Next digest</Link>
+    <Routes><Route path="/digests/:id" element={<DigestView/>}/></Routes>
+  </MemoryRouter>)
+  expect(await screen.findByRole('alert')).toHaveTextContent('Digest not found.')
+  fireEvent.click(screen.getByRole('link', { name: 'Next digest' }))
+  expect(await screen.findByText(/Tokens: not reported/)).toBeInTheDocument()
+  expect(screen.queryByText('Digest not found.')).toBeNull()
 })
 
 it('titles a saved edition using its local short date', async () => {

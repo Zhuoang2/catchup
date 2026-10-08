@@ -196,8 +196,10 @@ export default function Generate() {
         {run.error_message || 'Digest generation failed. Try again.'}
       </Alert>
       <section className="card result-card" aria-label="Digest run">
-        <p className="result-meta">{run.items_done} of {run.items_total} items were summarized before the error.
-          {' '}No digest was saved; all {run.items_total} items stay pending and those summaries are reused next time.
+        <p className="result-meta">{run.items_total > 0
+          ? <>{run.items_done} of {run.items_total} items were summarized before the error.
+            {' '}No digest was saved; all {run.items_total} items stay pending and those summaries are reused next time.</>
+          : 'No digest was saved.'}
           {' · '}{tokenTotals(run.prompt_tokens, run.completion_tokens)}</p>
         <SourceChecks checks={run.source_checks}/>
       </section>

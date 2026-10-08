@@ -119,6 +119,14 @@ it.each([
   await expectAccessible(container)
 })
 
+it('does not claim to have summarized zero items before an interrupted run', async () => {
+  const { container } = mockPage({ run: { ...run, status: 'failed', error_kind: 'interrupted',
+    items_total: 0, items_done: 0, error_message: 'Interrupted.' } })
+  expect(await screen.findByText('Interrupted.')).toBeInTheDocument()
+  expect(container.querySelector('.result-card .result-meta')).toHaveTextContent('No digest was saved.')
+  expect(container.querySelector('.result-card .result-meta')).not.toHaveTextContent('0 of 0')
+})
+
 it('polls from summarizing to success with a persistent status region using fake timers', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
   fetchMock.mockImplementation(async (path: string) => {

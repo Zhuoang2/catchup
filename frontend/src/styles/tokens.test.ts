@@ -98,3 +98,10 @@ it('keeps secondary History text readable when a row is hovered', () => {
     selector.includes('.history-link:hover .history-counts') && /color:\s*var\(--muted\)/.test(body))).toBe(true)
   expect(hoverRules.every(([, , body]) => !/color:\s*var\(--subtle\)/.test(body))).toBe(true)
 })
+
+it('styles disabled secondary buttons with the disabled and muted tokens', () => {
+  const components = readFileSync('src/styles/components.css', 'utf8')
+  const disabled = components.match(/\.btn:disabled\s*\{([^}]+)\}/)?.[1]
+  expect(disabled).toMatch(/background:\s*var\(--disabled\)/)
+  expect(disabled).toMatch(/color:\s*var\(--muted\)/)
+})

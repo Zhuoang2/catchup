@@ -109,6 +109,8 @@ export default function DigestView() {
     ? `No. ${digest.id} · ${shortDateTime(digest.created_at)}` : 'Digest')
   useEffect(() => {
     let mounted = true
+    setDigest(null)
+    setError('')
     request<Digest>(`/digests/${id}`)
       .then(result => { if (mounted) setDigest(result) })
       .catch((reason: Error) => { if (mounted) setError(reason.message) })

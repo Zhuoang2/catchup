@@ -126,7 +126,7 @@ export default function Generate() {
       ? `Summarizing, ${run.items_done} of ${run.items_total}`
       : run?.status === 'succeeded' ? `Digest ready: ${plural(run.digest_item_count ?? run.items_total, 'item')}`
         : run?.status === 'no_new_content' ? 'No new content'
-          : run?.status === 'failed' ? 'Digest generation failed' : ''
+          : run?.status === 'failed' ? `Digest generation failed: ${run.error_message || 'Digest generation failed. Try again.'}` : ''
 
   return <section className="page page-generate">
     <PageHead title="Generate digest" lede={firstRun
@@ -186,7 +186,7 @@ export default function Generate() {
       <HeldNotes run={run}/><SourceChecks checks={run.source_checks}/>
     </section>}
     {state === 'failed' && run && <>
-      <Alert tone="error" title="Digest generation failed"
+      <Alert tone="error" announce={false} title="Digest generation failed"
         actions={configurationError && <Link className={buttonClass('primary')} to="/settings">Check settings</Link>}>
         {run.error_message || 'Digest generation failed. Try again.'}
       </Alert>

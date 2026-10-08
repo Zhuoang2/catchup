@@ -99,7 +99,9 @@ it.each([
     ...run, status: 'failed', error_kind, items_total: 12, items_done: 3,
     error_message: 'The provider rejected the API key. Check the model settings.',
   } })
-  expect(await screen.findByRole('alert')).toHaveTextContent('Check the model settings')
+  expect(await screen.findByText('The provider rejected the API key. Check the model settings.')).toBeInTheDocument()
+  expect(screen.queryByRole('alert')).toBeNull()
+  expect(screen.getByRole('status')).toHaveTextContent('Digest generation failed: The provider rejected the API key.')
   expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
   expect(container.querySelector('.btn-primary')).toHaveTextContent(primary)
   expect(screen.getByText(/No digest was saved/)).toHaveTextContent('summaries are reused next time')
@@ -123,6 +125,25 @@ it('polls from summarizing to success with a persistent status region using fake
   await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
   expect(statusRegion).toBe(screen.getByRole('status'))
   expect(statusRegion).toHaveTextContent('Digest ready: 12 items')
+})
+
+it('announces a polled run failure only through the persistent status region', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  fetchMock.mockImplementation(async (path: string) => {
+    if (path === '/api/settings/model') return respond({ key_set: true })
+    if (path === '/api/sources') return respond(sources)
+    if (path === '/api/digests') return respond(history)
+    if (path === '/api/digest-runs/active') return respond(run)
+    if (path === '/api/digest-runs/1') return respond({ ...run, status: 'failed',
+      error_kind: 'provider_error', error_message: 'Provider is unavailable.' })
+    throw Error(path)
+  })
+  render(<MemoryRouter><Generate/></MemoryRouter>)
+  await screen.findByRole('progressbar')
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  expect(screen.getByText('Provider is unavailable.')).toBeInTheDocument()
+  expect(screen.queryByRole('alert')).toBeNull()
+  expect(screen.getByRole('status')).toHaveTextContent('Digest generation failed: Provider is unavailable.')
 })
 
 it.each([[3, 1], [2, 0]])('announces %i saved items when %i were summarized', async (saved, summarized) => {

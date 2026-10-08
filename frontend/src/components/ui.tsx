@@ -65,10 +65,10 @@ export function ReasonLabel({ reason, waitDays = 7 }: { reason: Reason; waitDays
   </span>
 }
 
-export function Alert({ tone = 'info', title, children, actions }: {
-  tone?: 'info' | 'error'; title: string; children: ReactNode; actions?: ReactNode
+export function Alert({ tone = 'info', title, children, actions, announce = true }: {
+  tone?: 'info' | 'error'; title: string; children: ReactNode; actions?: ReactNode; announce?: boolean
 }) {
-  return <div className={`alert alert-${tone}`} role={tone === 'error' ? 'alert' : undefined}><Icon name={tone === 'error' ? 'alert' : 'info'}/>
+  return <div className={`alert alert-${tone}`} role={tone === 'error' && announce ? 'alert' : undefined}><Icon name={tone === 'error' ? 'alert' : 'info'}/>
     <div><strong>{title}</strong><p>{children}</p>{actions && <div className="alert-actions">{actions}</div>}</div>
   </div>
 }

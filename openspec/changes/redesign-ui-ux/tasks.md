@@ -278,7 +278,7 @@ Context for a new implementer: groups 1–12 are done. A final review of `main..
   - Disabled secondary buttons look disabled: port a `.btn:disabled` rule (use the `--disabled` and `--muted` tokens; keep the `.btn-primary:disabled` rule).
 
   Seams: the rendered Generate and DigestView pages, and a stylesheet assertion for `.btn:disabled`. Tests: an interrupted run with `items_total: 0` shows no "0 of 0"; rerendering DigestView from an id that returned 404 to an id that resolves shows the digest, not the old error.
-- [ ] 13.11 **Tests that fail when behavior breaks.** Each of these was shown not to fail when broken; fix each test so it fails on the stated mutation. Re-introduce each mutation once to confirm, then remove it, and record the evidence in the test report.
+- [x] 13.11 **Tests that fail when behavior breaks.** Each of these was shown not to fail when broken; fix each test so it fails on the stated mutation. Re-introduce each mutation once to confirm, then remove it, and record the evidence in the test report.
   - `Sources.test.tsx` (11.6): assert the page's level-2 headings (`getAllByRole('heading', { level: 2 })`) in the empty state, so rendering "Your sources" there fails the test.
   - `Generate.test.tsx` (5.1): the first-run test uses non-empty history and sources fixtures, and asserts neither "Last digest" nor "Your sources" appears.
   - `DigestView.test.tsx` (4.1): assert the headline contains "No. {id}"; the meta line shows the item and source counts; summaries carry `lang="zh-Hans"` in the Chinese digest; a 141-character summary gets the wide class and a 140-character one does not.

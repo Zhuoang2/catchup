@@ -235,6 +235,8 @@ describe('sources', () => {
     const { container } = page()
     expect(await screen.findByText('No sources yet')).toBeInTheDocument()
     expect(container.querySelectorAll('.empty-state h2')).toHaveLength(1)
+    expect(screen.getAllByRole('heading', { level: 2 }).map(heading => heading.textContent))
+      .toEqual(['No sources yet', 'What you can add'])
     expect(screen.queryByRole('heading', { name: 'Your sources' })).toBeNull()
     expect(screen.getByRole('heading', { name: 'No sources yet' })).toHaveAttribute('tabIndex', '-1')
     expect(screen.queryByRole('heading', { name: 'Checks' })).toBeNull()

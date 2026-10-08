@@ -94,6 +94,20 @@ describe('model settings', () => {
     await expectAccessible(container)
   })
 
+  it('links a connection failure to the base URL instead of the key', async () => {
+    const original = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (url: string) => url === '/api/settings/model/test'
+      ? respond({ error: { code: 'connection_failed', message: 'Provider unreachable' } }, 503)
+      : original(url))
+    render(<Settings/>)
+    await screen.findByLabelText('Base URL')
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not reach the model provider')
+    expect(screen.getByLabelText('Base URL')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByLabelText('Base URL')).toHaveAttribute('aria-describedby', 'base-error')
+    expect(screen.getByLabelText('API key')).not.toHaveAttribute('aria-invalid')
+  })
+
   it('shows an input when another language is chosen', async () => {
     render(<Settings />)
     await screen.findByLabelText('Digest language')

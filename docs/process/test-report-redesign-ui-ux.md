@@ -145,3 +145,23 @@ Scope audit: in this second-review round the implementer changed only task check
 Follow-up from the review of these fixes: the race test also checks the topics of listed digests; `src/test/setup.ts` throws unless the zone is `America/Los_Angeles`, so a pool that ignores `test.env` (for example `--pool=threads` from a UTC shell) fails loudly; `digestLang` lowercases with `toLowerCase()` (a test emulating Turkish case rules failed with `toLocaleLowerCase()`); the `toString`/`hasOwnProperty` cases, which could not fail, were dropped.
 
 Checks after these fixes: `uv run pytest -q` 356 passed; `npm test -- --run` 98 passed, four consecutive full runs including one from a `TZ=UTC` shell; `npm run build` passed; `openspec validate redesign-ui-ux --strict` valid. `design.md` D5 gained an amendment note for language tags.
+
+## Final review fixes
+
+2026-10-07, task group 13, starting at `4b65d19`. Focused checks were run red before each fix, then green. The choices below follow the approved D4–D7 amendments.
+
+| Task | Failing check before the fix |
+| --- | --- |
+| 13.1 | Run API test raised `KeyError: digest_item_count` for one summary plus two Creator updates and for a Creator-only digest. Fake-timer Generate tests announced 1 or 0 summarized items instead of 3 or 2 saved items. |
+| 13.2 | Failed `/sources` load still rendered the “No sources yet” heading and examples. |
+| 13.3 | Polling to a failed run left an error `role="alert"` alongside the status region. |
+| 13.4 | Rendered routes left `document.title` blank on all four screens and digest loading/error/success. A first version of the success fixture used a different route id than the returned digest; the corrected fixture tests `/digests/3`. |
+| 13.5 | Configured model with a successfully loaded empty source list had no primary “Add sources” link and an enabled Generate button. Failed source reads retain the neutral state. |
+| 13.6 | Fake worker recorded no offline-page refresh and no `waitUntil` after a successful navigation. |
+| 13.7 | Stylesheet assertion found `-webkit-line-clamp: 2` and `overflow: hidden` on `.source-feed`. |
+| 13.8 | Digest-detail API test raised `KeyError: item_count`; rendered two distinct sources with the same title as “1 source”. |
+| 13.9 | Hover stylesheet assertion found no `--muted` override for History counts. Both themes' `--muted`/`--fg` on `--hover` contrast pairs pass. |
+| 13.10 | Interrupted zero-item run rendered “0 of 0”; navigation from a 404 to a valid digest kept the old error; stylesheet had no `.btn:disabled` rule. |
+| 13.11 | Strengthened test assertions were green against the unmutated implementation; mutation probes below each turned the targeted test red and were restored. |
+
+For 13.11, temporary mutations were applied one at a time and restored in `finally` before the focused suite and build passed (69 tests in five files). The following mutations each made its targeted test fail: show “Your sources” in an empty Sources page; show populated rail data on first run; remove the digest edition; replace saved source count and saved item count with zero; remove summary `lang`; shift the wide-summary threshold from 140 to 141; make failed and warning chips the same tone (separate probes); zero the podcast rail breakdown; zero the “Checking sources” numerator; stop marking the base URL invalid on `connection_failed`; and remove the skip link's focus handler. No temporary production mutation remains.

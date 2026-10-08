@@ -55,6 +55,7 @@ it('renders saved topics, text summaries, dates and safe original links', async 
   expect(screen.getByRole('navigation', { name: 'In this digest' }).querySelectorAll('.toc-count'))
     .toHaveLength(2)
   expect(screen.getByText('Summary unavailable')).toBeInTheDocument()
+  expect(document.querySelector('.digest-head')).toHaveTextContent('No. 7')
   expect(screen.getByRole('region', { name: 'Other' })).toHaveTextContent('Third summary')
   expect(fetchMock).toHaveBeenCalledWith('/api/digests/7', undefined)
 })
@@ -214,6 +215,7 @@ it('marks Chinese generated text, sizes transcript items by content, and focuses
   expect(screen.getByText('要点一').tagName).toBe('LI')
   expect(screen.getByRole('heading', { name: '中文主题' })).toHaveAttribute('lang', 'zh-Hans')
   expect(screen.getByText('中文概要')).toHaveAttribute('lang', 'zh-Hans')
+  expect(screen.getByText('要点一').closest('.summary')).toHaveAttribute('lang', 'zh-Hans')
   expect(screen.getByRole('link', { name: 'Original episode (opens the original)' })).not.toHaveAttribute('lang')
   expect(screen.getAllByText(/Podcast/)).not.toHaveLength(0)
   const jump = screen.getByRole('navigation', { name: 'In this digest' }).querySelector('a')!
@@ -222,6 +224,22 @@ it('marks Chinese generated text, sizes transcript items by content, and focuses
   jump.click()
   expect(document.activeElement).toBe(screen.getByRole('region', { name: '中文主题' }))
   await expectAccessible(container)
+})
+
+it('makes a 141-character summary wide but a 140-character summary short', async () => {
+  fetchMock.mockResolvedValue(respond({
+    id: 7, created_at: '2026-10-03T10:00:00Z', model_id: 'test',
+    item_count: 2, source_count: 1,
+    topics: [{ title: 'Length', overview: '', items: [140, 141].map(length => ({
+      title: `Story ${length}`, link: `https://example.test/${length}`, source_name: 'Feed',
+      published_at: null, summary: 'x'.repeat(length), summary_unavailable: false,
+    })) }],
+  }))
+  const { container } = page()
+  await screen.findByRole('heading', { name: 'Length' })
+  expect(screen.getByRole('link', { name: 'Story 140 (opens the original)' }).closest('article')).toHaveClass('item-short')
+  expect(screen.getByRole('link', { name: 'Story 141 (opens the original)' }).closest('article')).toHaveClass('item-long')
+  expect(container.querySelector('.digest-meta')).toHaveTextContent('2 items · 1 source')
 })
 
 it('hides the single-entry index and explains creator-only digests', async () => {

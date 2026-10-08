@@ -21,7 +21,7 @@ it.each([
 })
 
 function shell(path = '/') {
-  return render(<MemoryRouter initialEntries={[path]}><AppShell><h1>Content</h1></AppShell></MemoryRouter>)
+  return render(<MemoryRouter initialEntries={[path]}><AppShell><h1>Content</h1><a href="/digests">Read more</a></AppShell></MemoryRouter>)
 }
 
 afterEach(() => vi.useRealTimers())
@@ -49,6 +49,10 @@ describe('navigation', () => {
     shell()
     fireEvent.click(screen.getByRole('link', { name: 'Skip to content' }))
     expect(document.activeElement).toBe(screen.getByRole('main'))
+    const main = screen.getByRole('main')
+    const firstFocusable = main.querySelector('a[href], button:not([disabled]), input:not([disabled])')
+    expect(firstFocusable).toBe(screen.getByRole('link', { name: 'Read more' }))
+    expect(main.contains(firstFocusable)).toBe(true)
   })
 
   it('has no accessibility violations', async () => {

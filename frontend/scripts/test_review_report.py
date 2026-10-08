@@ -6,6 +6,18 @@ REPORT = Path(__file__).resolve().parents[2] / "docs/process/test-report-redesig
 
 
 class ReviewReportTests(unittest.TestCase):
+    def test_final_review_records_every_red_check_and_full_verification(self):
+        final = REPORT.read_text().split("## Final review fixes", 1)[-1]
+        for task in range(1, 13):
+            self.assertIn(f"13.{task}", final)
+        for check in (
+            "357 passed", "117 passed", "96%", "npm run build",
+            "openspec validate redesign-ui-ux --strict",
+            "Uncovered prototype selectors (0):", "docker build",
+            "scripts/docker-smoke.sh", "5 passed",
+        ):
+            self.assertIn(check, final)
+
     def test_second_review_records_checks_and_corrects_c7_counts(self):
         report = REPORT.read_text()
         self.assertIn("## Second review fixes", report)

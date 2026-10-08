@@ -163,5 +163,42 @@ Checks after these fixes: `uv run pytest -q` 356 passed; `npm test -- --run` 98 
 | 13.9 | Hover stylesheet assertion found no `--muted` override for History counts. Both themes' `--muted`/`--fg` on `--hover` contrast pairs pass. |
 | 13.10 | Interrupted zero-item run rendered “0 of 0”; navigation from a 404 to a valid digest kept the old error; stylesheet had no `.btn:disabled` rule. |
 | 13.11 | Strengthened test assertions were green against the unmutated implementation; mutation probes below each turned the targeted test red and were restored. |
+| 13.12 | The report-verification unittest failed because the final review section lacked task 13.12 and the full-check results; it passed after recording them below. |
 
 For 13.11, temporary mutations were applied one at a time and restored in `finally` before the focused suite and build passed (69 tests in five files). The following mutations each made its targeted test fail: show “Your sources” in an empty Sources page; show populated rail data on first run; remove the digest edition; replace saved source count and saved item count with zero; remove summary `lang`; shift the wide-summary threshold from 140 to 141; make failed and warning chips the same tone (separate probes); zero the podcast rail breakdown; zero the “Checking sources” numerator; stop marking the base URL invalid on `connection_failed`; and remove the skip link's focus handler. No temporary production mutation remains.
+
+### Final integration checks (task 13.12)
+
+| Check | Result |
+| --- | --- |
+| `uv run pytest --cov=catchup --cov-report=term-missing -q` | 357 passed; 96% statement coverage (1,871 statements, 77 missed); digest API 100%, runner 99%. |
+| `npm test -- --run` | 117 passed in 12 files; 37 explicit `expectAccessible` call sites, 42 axe scans including parameterized states; no reported violations. jsdom's paint-dependent color contrast is excluded; token tests check contrast in both themes. |
+| `npm run build` | TypeScript and production Vite build passed. |
+| `python3 -m unittest discover -s scripts -p 'test_*.py' -v` from `frontend/` | 5 passed after adding the final-report verification. The earlier root-level discover found 0 tests; this command uses the correct directory. |
+| `openspec validate redesign-ui-ux --strict` | Valid. |
+| `docker build -t catchup-redesign-group13-final .` and `scripts/docker-smoke.sh catchup-redesign-group13-final` | Passed with Docker 29.8.0: health, Host validation, manifest/worker/offline assets and MIME, non-root process, database volume, image exclusions, and preference persistence across restart. The script used a throwaway container and volume. |
+| `python3 scripts/check-style-coverage.py` from `frontend/` | Full output below: eight explained exceptions and no uncovered prototype selectors. |
+
+```text
+Static UI classes with C7 rules but no app rules (8):
+  .code
+  .logo
+  .logo-lg
+  .offline-brand
+  .offline-card
+  .page-history
+  .page-offline
+  .page-sources
+Allow-listed prototype-only selectors (8):
+  .code: Offline command block uses self-contained inline CSS
+  .logo: Prototype wordmark; standalone offline logo was removed
+  .logo-lg: Prototype-only large wordmark
+  .offline-brand: Prototype offline card; standalone page owns its own CSS
+  .offline-card: Prototype offline card; standalone page owns its own CSS
+  .page-history: Generic .page grid handles the History wrapper
+  .page-offline: Standalone offline page does not load app CSS
+  .page-sources: Generic .page grid handles the Sources wrapper
+Uncovered prototype selectors (0):
+```
+
+Tests used fake timers and mocked network/model/feed responses. The Docker smoke script used a loopback port and intentionally polled container health; it is not a unit test. No runtime dependencies, CI job names, protected planning artifacts or prototypes were changed. Full side-by-side visual parity, keyboard-only end-to-end pass, native installation, and Safari rendering remain manual review checks, not claims of this run.

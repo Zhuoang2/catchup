@@ -2,6 +2,12 @@
 
 Real usage records for the technical spec, alpha reflection, and final report. Each entry: date, tool/model, purpose, prompt (verbatim or faithful excerpt), outcome, problems, adjustment.
 
+## 2026-10-07 — UI redesign final review fixes (Factory Droid, GPT-6 Sol)
+
+- Prompt (faithful excerpt): "Implement tasks 13.1 through 13.12 in order: use diagnosing-bugs for 13.1-13.6 (show the failing check first, then fix, keep the regression test) and tdd for 13.7-13.11 ... check off a task only after its verification passes; commit after each task; do not edit proposal.md, design.md, specs/, or prototypes/; add no runtime dependencies; keep tests free of real network and real sleeps; never push, tag, or open a PR."
+- Outcome: Corrected run/digest snapshot counts, source-load and first-source states, one-time run failure announcement, per-screen titles, offline-page refresh, URL wrapping, hover contrast, copy and digest navigation. Strengthened tests were mutation-checked. Eleven task commits plus the final checks/report commit; 357 backend tests (96% coverage), 117 frontend tests, build, strict OpenSpec validation and local Docker build/smoke passed. See `test-report-redesign-ui-ux.md` for red checks and full results.
+- Problems / adjustment: This worktree lacked Vitest; installed locked frontend dependencies with `npm ci`. A first digest-title fixture mixed route id 7 with returned id 3; aligned them. A report unittest initially expected the prior four script tests rather than five after adding itself; corrected the assertion. The root-level unittest discover found zero tests; reran from `frontend/`. No external provider/feed was used in tests and no code was published.
+
 ## 2026-10-06 — UI redesign review fixes (Factory Droid)
 
 - Prompt (faithful excerpt): "Implement approved review fixes 10.1–10.8 in order ... verify and commit after each task ... use the effective C7 cascade ... do not edit plans, specs or prototypes, add runtime dependencies, make real network calls or sleeps in tests, or push."

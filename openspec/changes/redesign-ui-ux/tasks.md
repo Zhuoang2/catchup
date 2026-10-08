@@ -286,3 +286,13 @@ Context for a new implementer: groups 1–12 are done. A final review of `main..
   - Settings: `connection_failed` marks the base URL invalid and links its error.
   - App: after activating the skip link, the next Tab moves focus to the first focusable element inside `main` (use `@testing-library/user-event` only if it is already a dependency; otherwise assert that `main` is focused and that the first focusable element in it follows in DOM order).
 - [x] 13.12 **Checks and report.** Run the 9.1 checks (including `docker build` and `scripts/docker-smoke.sh` if Docker is available) and the style coverage script, and add a "Final review fixes" section to `docs/process/test-report-redesign-ui-ux.md` with the results and, for each task, the failing check seen before the fix.
+
+## 14. Reviewer fixes after the final review (done by Claude Code, 2026-10-08)
+
+Small fixes from the fixed review step on group 13 (`/code-review` plus an independent spec review) that the user asked the reviewer to make directly. Evidence is in the test report, "Reviewer fixes after the final review".
+
+- [x] 14.1 The service worker refreshes `/offline.html` with `cache: 'no-cache'`, and scheduling the refresh can no longer replace a real navigation response.
+- [x] 14.2 Disabled buttons keep their disabled look on hover.
+- [x] 14.3 The no-sources Generate state keeps the hero "Last digest" line.
+- [x] 14.4 The digest document title uses the short date only (D5).
+- [x] 14.5 Tests now cover a failed `/sources` load versus the no-sources state, first run with no sources, a running run with zero sources, the digest reset on id change, and `digest_item_count` being `null` for runs without a digest.

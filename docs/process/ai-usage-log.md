@@ -664,3 +664,12 @@ Real usage records for the technical spec, alpha reflection, and final report. E
     - The spec asked for the full feed URL while the design said 2 lines; full URLs were chosen.
     - Generate had no state for a configured model with no sources; "Add sources" becomes the primary action.
   - **Hand-off.** Claude wrote task group 13 with context for a new implementer and the seam for each task. The fix round goes to a new Droid session: the previous session's cumulative usage was about 6.9M credits, so a fresh session avoids re-sending that long context on every turn.
+- **Fixed review step on group 13, and reviewer fixes (2026-10-08).** The fresh Droid session (`b81cc6fa`) finished group 13 in 12 commits, using about 1.42M credits, compared with about 6.9M accumulated by the previous long session. Its report listed a failing check for every task.
+  - **The review.**
+    - `/code-review` reported 4 low findings.
+    - The spec sub-agent re-introduced broken behavior for each task. It confirmed that the production code matched the amended spec and design, with no missing items and nothing extra. It found five test gaps, a service-worker structure in which a throwing `waitUntil` could replace a real response, and a hover rule that restyled disabled buttons.
+    - Claude verified all of them. One `/code-review` finding (a cheap extra lookup per poll) was judged no change.
+  - **The fixes.** The user again chose a direct fix: "你直接修吧，修完按流程审一遍" (fix it yourself, then review it following the process). Claude wrote the tests first and saw 5 fail.
+    - While fixing the service worker, the new test failed for a test-environment reason: Node's `Request` rejects relative URLs, while a worker resolves them against its own location. Claude fixed the fake context, not the production code.
+    - Claude first wrote the mutation checks with `git checkout` to restore files, then noticed that this would wipe its own uncommitted fixes. It switched to a script that restores each file from an in-memory copy.
+    - Every mutation failed its test.

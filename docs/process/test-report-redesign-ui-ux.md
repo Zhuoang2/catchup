@@ -202,3 +202,22 @@ Uncovered prototype selectors (0):
 ```
 
 Tests used fake timers and mocked network/model/feed responses. The Docker smoke script used a loopback port and intentionally polled container health; it is not a unit test. No runtime dependencies, CI job names, protected planning artifacts or prototypes were changed. Full side-by-side visual parity, keyboard-only end-to-end pass, native installation, and Safari rendering remain manual review checks, not claims of this run.
+
+## Reviewer fixes after the final review
+
+2026-10-08, by Claude Code after the fixed review step on group 13 (`4b65d19..abf2b3c`). Each fix was test-first. For test gaps, the old or broken behavior was re-introduced temporarily, with the file restored from an in-memory copy afterwards.
+
+| Fix | Failing evidence |
+| --- | --- |
+| Offline page refresh uses `new Request('/offline.html', { cache: 'no-cache' })` | New assertion on the refresh request's `cache` mode failed, then passed. The fake worker context resolves relative `Request` URLs against `http://localhost/`, as a real worker resolves them against its own location. |
+| A throwing `waitUntil` cannot turn a 200 navigation into the offline page | New test "returns the real response even if scheduling the refresh throws" failed with the old `.then(...).catch(...)` chain, then passed. |
+| Disabled buttons do not change on hover (hover rules use `:not(:disabled)`) | New stylesheet assertion failed, then passed. |
+| No-sources state keeps the hero "Last digest" line | New test failed, then passed. |
+| Digest title "No. 3 · 5 Oct 2026 · CatchUp" (short date only, D5) | Updated title test failed against `shortDateTime`, then passed. |
+| Failed `/sources` load does not show the no-sources state | With `noSources` using `!sources?.length`: 1 failed. |
+| Fresh install (no model, no sources) puts "Set up your model" first | With first run suppressed when sources are empty: 1 failed. |
+| A running run with zero sources shows "Generating…", not "Add sources" | With `&& !run` removed: 1 failed. |
+| DigestView clears the previous digest while the next loads | With `setDigest(null)` removed: 1 failed. |
+| `digest_item_count` is `null` for no-new-content and failed runs | With `0` returned instead: 2 failed. |
+
+Checks after these fixes: `uv run pytest -q` 357 passed; `npm test -- --run` 123 passed in four consecutive full runs, one from a `TZ=UTC` shell; `npm run build` passed; style coverage reports 0 uncovered prototype selectors; script unittests passed; `openspec validate redesign-ui-ux --strict` valid. Docker was not rebuilt for this round; `sw.js` changed, and `/sw.js` serving is covered by the earlier smoke run and must be re-checked in the manual test.

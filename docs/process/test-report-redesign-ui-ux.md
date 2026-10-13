@@ -223,3 +223,25 @@ Tests used fake timers and mocked network/model/feed responses. The Docker smoke
 Checks after these fixes: `uv run pytest -q` 357 passed; `npm test -- --run` 123 passed in four consecutive full runs, one from a `TZ=UTC` shell; `npm run build` passed; style coverage reports 0 uncovered prototype selectors; script unittests passed; `openspec validate redesign-ui-ux --strict` valid. Docker was not rebuilt for this round; `sw.js` changed, and `/sw.js` serving is covered by the earlier smoke run and must be re-checked in the manual test.
 
 Follow-up from the review of these fixes (`/code-review` 2 low findings; spec review: no must-fix or should-fix, verified in a real Chromium service worker that the refresh revalidates with `If-Modified-Since`): the install request now also uses `cache: 'no-cache'` (the install test failed first, then passed), and the refresh test pins the cache name (opening another cache now fails it). 357 backend and 123 frontend tests pass, twice in a row; the build passes.
+
+## Automated end-to-end check with a stand-in model (2026-10-13)
+
+Run by Claude Code before the manual test, at the user's request, against the Docker image built from `015e86c` (`catchup:redesign-e2e`). The model provider was a local OpenAI-compatible stand-in, so no real key was used. It answered `/v1/models` and `/v1/chat/completions` with valid summary and grouping JSON and reported token usage. The sources were real public feeds, and the session drove the browser pane.
+
+| Step | Result |
+| --- | --- |
+| `docker build` and `scripts/docker-smoke.sh` | 11 of 11 checks passed, including `/manifest.webmanifest`, `/sw.js` and `/offline.html` |
+| First run | Title "Generate · CatchUp". The only primary action is "Set up your model"; Generate is disabled with its visible reason; the rail shows "Getting started". |
+| Settings | Test connection listed the stand-in's two models. After saving, the page shows "Saved key ending in 0001", and the key input is empty with the "replace" placeholder. |
+| Sources | A website feed, a podcast with published transcripts (Buzzsprout), and a YouTube channel (`@GoogleDevelopers`) were previewed and confirmed. Each shows its kind and method. YouTube shows "Caption fetching is off" with a link to Settings. |
+| Generate | The status region announced "Checking sources, 0 of 3" and then "Digest ready: 7 items": 5 summarized posts plus 2 Creator updates, so the count includes Creator updates. "View digest" is the only primary action, and the rail updated to "No. 1". The stand-in received 5 summary requests and 1 grouping request, all with an `Authorization` header. |
+| Digest No. 1 | Title "No. 1 · 13 Oct 2026 · CatchUp". Saved counts "7 items · 2 sources". The index lists the topic and Creator updates. Kind labels are present, and the reason reads "Caption fetching is off". The first topic starts at 354 px of a 900 px viewport. |
+| No new content | Generating again gave no primary action, Generate as secondary, "Tokens: 0 in / 0 out", and the hero kept "Last digest: No. 1". |
+| History and delete | History has one row with its topic preview and the rail archive count. Deleting the podcast moved focus to Cancel when the confirmation opened, and to the "Your sources" heading after the delete. |
+| 420 px, dark theme | Header 94 px, no horizontal overflow, all four nav links visible, dark tokens applied. |
+| Simplified Chinese | After switching the digest language and adding a feed with recent items (The Verge), digest No. 2 has 7 `lang="zh-Hans"` elements (topic title, overview, 5 summaries), while item titles stay `en`. Digest No. 1 still has no `zh-Hans` marks, so the saved snapshot is kept. |
+| Offline | The worker registered and cached only `/offline.html`. With the container stopped, `/digests` showed "CatchUp isn't running" in the C7 style. After restarting and clicking Reload, History came back with its data. |
+
+**Pane artifact, not an app defect.** When the browser pane opened `http://localhost:8800` as a plain URL, service-worker registration failed with "An unknown error occurred when fetching the script", while `fetch('/sw.js')` from the page returned 200 with `text/javascript`. Opened through an attach-only launch configuration, the app registered its worker itself. Installation in a real Chrome is part of the manual test.
+
+**Not covered by this run:** summaries from the real model, a failed run (it needs new items and a failing provider), and Chrome's install UI.

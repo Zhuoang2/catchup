@@ -682,3 +682,9 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - **What went wrong along the way:**
     - The review worktree under `/private/tmp` had lost its `.git` file to macOS temporary-file cleanup. All work was committed, so Claude pruned the worktree and recreated it.
     - The browser pane's accessibility listing showed the nav links without names, and service-worker registration failed when the pane opened the URL directly. Claude checked both rather than reporting them as bugs. The links' accessible names are covered by the jsdom tests. The worker registered normally when the pane attached through a launch configuration.
+- **Real model run, visual check, and a manual-test fix (2026-10-13).**
+  - **The real model run.** The user first reported "密钥填好了" (the key is filled in), but the container's settings still pointed at the stand-in. The logs showed a successful connection test and no save. Claude told the user what it saw instead of assuming success. After the user saved, Claude generated a real digest through the UI.
+  - **The visual check.** The user asked: "你先用视觉方法检查一下" (check it visually first). Claude reviewed screenshots of every screen and found two issues.
+    - Settings' Save button was below the fold, which was the cause of the missed save.
+    - Single-item topics leave a third of the row empty.
+  - **The user's decision:** "第2条你直接修，第1条先记成 issue" (fix item 2 yourself; file item 1 as an issue). Claude wrote the failing tests first, made the save bar sticky, and checked it in screenshots. The first version let text in other columns show beside the bar, so Claude extended the background across the row.

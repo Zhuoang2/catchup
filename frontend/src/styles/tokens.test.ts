@@ -114,3 +114,11 @@ it('does not restyle disabled buttons on hover', () => {
     for (const part of selector.split(',')) expect(part).toMatch(/:not\(:disabled\)/)
   }
 })
+
+it('keeps the Settings save bar visible at the bottom of the window', () => {
+  const layout = readFileSync('src/styles/layout.css', 'utf8')
+  const rule = layout.match(/\.save-bar\s*\{([^}]+)\}/)?.[1]
+  expect(rule).toMatch(/position:\s*sticky/)
+  expect(rule).toMatch(/bottom:\s*0/)
+  expect(rule).toMatch(/background:\s*var\(--bg\)/)
+})

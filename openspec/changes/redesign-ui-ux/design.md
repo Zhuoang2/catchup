@@ -183,6 +183,7 @@ Each page reproduces the corresponding `render.js` function, including its copy.
   - A saved key shows "Saved key ending in {last4}" as text, with an empty input "Paste a new key to replace it" (`aria-describedby` links the saved text, the hint, and the error).
   - The caption risk note sits directly under its switch and is linked by `aria-describedby`.
   - Today's save flow and error copy are kept (`Settings.tsx:14-27,78-102`).
+  - *Amended 2026-10-13 (manual test):* the save bar is sticky at the bottom of the window with a full-width background, and the test-connection message reads "Connection succeeded. Choose a model, then click Save." In the manual test the user tested the connection but did not see Save, which sat below the fold (1097 px on a 900 px window).
 
 ### D5. Accessibility mechanics
 - **Document titles** (amended 2026-10-07): "Generate · CatchUp", "Sources · CatchUp", "History · CatchUp", "Settings · CatchUp", and for a digest "No. {id} · {short date} · CatchUp" ("Digest · CatchUp" while loading or on error).

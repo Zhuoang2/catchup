@@ -88,7 +88,7 @@ export default function Settings() {
       })
       setModels(result.models)
       if (!result.models.includes(model)) setModel(result.models[0] ?? '')
-      setMessage('Connection succeeded. Choose a model and save.')
+      setMessage('Connection succeeded. Choose a model, then click Save.')
     } catch (err) { showError(err) }
   }
 

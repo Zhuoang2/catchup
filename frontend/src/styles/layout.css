@@ -37,7 +37,11 @@
 .settings-section > :not(.settings-title) { grid-column: 4 / span 6; }
 .settings-section > .note { grid-column: 10 / -1; grid-row: 1 / span 2; align-self: start; padding-left: .75rem; border-left: 1px solid var(--border); }
 .settings-section > .switch { justify-self: start; align-self: start; }
-.save-bar { grid-column: 4 / span 6; border-top: 1px solid var(--border); padding-top: 1rem; }
+/* Sticky so Save stays reachable while the three sections scroll by. */
+.save-bar { grid-column: 4 / span 6; border-top: 1px solid var(--border); padding-top: 1rem; padding-bottom: 1rem;
+  position: sticky; bottom: 0; z-index: 1; background: var(--bg);
+  /* Paint the background across the whole row so text in other columns does not show beside the bar. */
+  box-shadow: 0 0 0 100vmax var(--bg); clip-path: inset(0 -100vmax); }
 .app[data-screen="digest"] .app-header { flex-direction: row; flex-wrap: wrap; justify-content: space-between; align-items: center; padding-top: .7rem; gap: .5rem 1.5rem; }
 .app[data-screen="digest"] .brand { font-size: 1.9rem; }
 .app[data-screen="digest"] .masthead-line { display: none; }

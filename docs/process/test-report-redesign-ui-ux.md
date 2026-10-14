@@ -245,3 +245,17 @@ Run by Claude Code before the manual test, at the user's request, against the Do
 **Pane artifact, not an app defect.** When the browser pane opened `http://localhost:8800` as a plain URL, service-worker registration failed with "An unknown error occurred when fetching the script", while `fetch('/sw.js')` from the page returned 200 with `text/javascript`. Opened through an attach-only launch configuration, the app registered its worker itself. Installation in a real Chrome is part of the manual test.
 
 **Not covered by this run:** summaries from the real model, a failed run (it needs new items and a failing provider), and Chrome's install UI.
+
+## Real model run and visual check (2026-10-13)
+
+The user entered their DeepSeek key in Settings themselves; Claude never saw it. Claude then generated a digest through the UI against the real provider (`deepseek-flash`, digest language Simplified Chinese):
+
+- The status region went "Checking sources, 0 of 3" → "Summarizing, 0 of 7" … "7 of 7" → "Digest ready: 7 items" in about 20 seconds.
+- Tokens: 3,652 in / 4,855 out.
+- The YouTube source failed with "The source could not be fetched." This is YouTube's intermittent RSS failure seen before, not part of this change.
+- Digest No. 3 has 6 Chinese topics and 25 `lang="zh-Hans"` elements, and item titles stay `en`. One short summary sits in a narrow column beside a long one. The first topic starts at 381 px of a 900 px window.
+
+Visual check by screenshots of every screen at 1440 px light and 420 px dark. No layout defects. Two observations:
+
+1. **Single-item topics leave the right third of the row empty.** Real digests often have one item per topic, and a long item spans 6 of the 9 content columns. This is filed as a follow-up issue, together with the grouping granularity.
+2. **Settings Save sat below the fold.** In the manual test, the user tested the connection and did not save. The fix (task 14.7) makes the save bar sticky with a full-width background, and the message now names Save. New tests failed first: a stylesheet assertion and the message text. 124 frontend tests pass. Screenshots at 1440 px and 420 px show Save at 843–884 px of a 900 px window from the first paint, with no overflow.

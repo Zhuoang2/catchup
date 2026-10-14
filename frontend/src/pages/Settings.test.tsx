@@ -72,6 +72,8 @@ describe('model settings', () => {
     expect(await screen.findByRole('option', { name: 'live-b' })).toBeInTheDocument()
     expect(screen.getByLabelText('Model')).toHaveValue('live-a')
     expect(screen.getByLabelText('API key')).toHaveValue('')
+    // The Save button can sit below the fold, so the success message names it.
+    expect(screen.getByText('Connection succeeded. Choose a model, then click Save.')).toBeInTheDocument()
     await expectAccessible(container)
   })
 

@@ -375,6 +375,10 @@ def run_detail(session, run: DigestRun) -> dict:
         .where(SourceCheck.run_id == run.id).order_by(SourceCheck.id)
     ).all()
     digest = session.get(Digest, run.digest_id) if run.digest_id is not None else None
+    update_count = session.scalar(
+        select(func.count(DigestItem.id)).join(DigestTopic, DigestItem.topic_id == DigestTopic.id)
+        .where(DigestItem.digest_id == digest.id, DigestTopic.kind == "creator_updates")
+    ) if digest is not None else None
     return {
         "id": run.id, "status": run.status, "items_total": run.items_total,
         "items_done": run.items_done, "error_kind": run.error_kind,
@@ -382,6 +386,7 @@ def run_detail(session, run: DigestRun) -> dict:
         "prompt_tokens": run.prompt_tokens, "completion_tokens": run.completion_tokens,
         "error_message": run.error_message, "digest_id": run.digest_id,
         "digest_item_count": digest.item_count if digest is not None else None,
+        "digest_update_count": update_count,
         "started_at": run.started_at, "finished_at": run.finished_at,
         "sources_total": session.scalar(select(func.count(Source.id))) or 0,
         "source_checks": [

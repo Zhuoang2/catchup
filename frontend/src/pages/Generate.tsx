@@ -12,12 +12,20 @@ type Check = {
 }
 type Run = {
   id: number; status: string; items_total: number; items_done: number; sources_total: number
-  digest_item_count: number | null
+  digest_item_count: number | null; digest_update_count: number | null
   source_checks: Check[]; error_kind: string | null; error_message: string | null; digest_id: number | null
   waiting_count: number; deferred_count: number; prompt_tokens: number | null; completion_tokens: number | null
 }
 type Source = { kind: string }
 type Digest = { id: number; created_at: string; item_count: number; source_count: number }
+// "16 items (14 summarized, 2 in Creator updates)": the saved total, split when Creator updates are part of it.
+function savedItems(run: Run) {
+  const total = run.digest_item_count ?? run.items_total
+  const updates = run.digest_update_count ?? 0
+  if (!updates) return plural(total, 'item')
+  if (updates >= total) return `${plural(total, 'item')} in Creator updates`
+  return `${plural(total, 'item')} (${total - updates} summarized, ${updates} in Creator updates)`
+}
 const active = (run: Run) => ['queued', 'collecting', 'summarizing', 'grouping'].includes(run.status)
 const configErrors = ['auth_failed', 'insufficient_balance', 'model_not_configured', 'connection_failed']
 
@@ -127,7 +135,7 @@ export default function Generate() {
     ? `Checking sources, ${run.source_checks.length} of ${run.sources_total}`
     : run?.status === 'summarizing' || run?.status === 'grouping'
       ? `Summarizing, ${run.items_done} of ${run.items_total}`
-      : run?.status === 'succeeded' ? `Digest ready: ${plural(run.digest_item_count ?? run.items_total, 'item')}`
+      : run?.status === 'succeeded' ? `Digest ready: ${savedItems(run)}`
         : run?.status === 'no_new_content' ? 'No new content'
           : run?.status === 'failed' ? `Digest generation failed: ${run.error_message || 'Digest generation failed. Try again.'}` : ''
 
@@ -179,7 +187,7 @@ export default function Generate() {
     {state === 'succeeded' && run && <section className="card result-card result-ok" aria-label="Digest run">
       <div className="result-head"><Icon name="check" className="icon icon-result"/>
         <div><h2 className="result-title">Your digest is ready</h2>
-          <p className="result-meta">{plural(run.digest_item_count ?? run.items_total, 'item')} · {plural(run.sources_total, 'source')}
+          <p className="result-meta">{savedItems(run)} · {plural(run.sources_total, 'source')}
             {' · '}{tokenTotals(run.prompt_tokens, run.completion_tokens)}</p>
         </div>
         {run.digest_id && <Link className={buttonClass('primary')} to={`/digests/${run.digest_id}`}>View digest</Link>}

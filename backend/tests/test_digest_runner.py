@@ -121,7 +121,7 @@ def test_group_failure_preserves_pending_and_retry_uses_cached_summary(environme
     environment.app.state.model_client_factory = lambda *_: first
     failed = execute(environment)
     assert failed["status"] == "failed" and failed["error_kind"] == "provider_error"
-    assert failed["digest_item_count"] is None
+    assert failed["digest_item_count"] is None and failed["digest_update_count"] is None
     assert all_rows(environment, Digest) == []
     assert all_rows(environment, Item)[0].state == "pending"
     retry = FakeModel([{"topics": [{"title": "Topic", "overview": "Overview", "item_refs": ["i1"]}]}])

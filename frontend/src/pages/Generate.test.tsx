@@ -188,7 +188,11 @@ it('announces a polled run failure only through the persistent status region', a
   expect(screen.getByRole('status')).toHaveTextContent('Digest generation failed: Provider is unavailable.')
 })
 
-it.each([[3, 1], [2, 0]])('announces %i saved items when %i were summarized', async (saved, summarized) => {
+it.each([
+  [16, 14, 2, '16 items (14 summarized, 2 in Creator updates)'],
+  [3, 3, 0, '3 items'],
+  [2, 0, 2, '2 items in Creator updates'],
+])('announces %i saved items (%i summarized, %i in Creator updates)', async (saved, summarized, updates, text) => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
   fetchMock.mockImplementation(async (path: string) => {
     if (path === '/api/settings/model') return respond({ key_set: true })
@@ -197,14 +201,15 @@ it.each([[3, 1], [2, 0]])('announces %i saved items when %i were summarized', as
     if (path === '/api/digest-runs/active') return respond({ ...run, status: 'summarizing',
       items_total: summarized, items_done: summarized })
     if (path === '/api/digest-runs/1') return respond({ ...run, status: 'succeeded',
-      items_total: summarized, items_done: summarized, digest_id: 8, digest_item_count: saved })
+      items_total: summarized, items_done: summarized, digest_id: 8, digest_item_count: saved,
+      digest_update_count: updates })
     throw Error(path)
   })
   const { container } = render(<MemoryRouter><Generate/></MemoryRouter>)
   await screen.findByRole('progressbar')
   await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
-  expect(screen.getByRole('status')).toHaveTextContent(`Digest ready: ${saved} items`)
-  expect(container.querySelector('.result-ok .result-meta')).toHaveTextContent(`${saved} items`)
+  expect(screen.getByRole('status').textContent).toBe(`Digest ready: ${text}`)
+  expect(container.querySelector('.result-ok .result-meta')?.textContent).toMatch(new RegExp(`^${text.replace(/[()]/g, '\\$&')} · `))
 })
 
 it('keeps an active run visible when the digest list fails', async () => {

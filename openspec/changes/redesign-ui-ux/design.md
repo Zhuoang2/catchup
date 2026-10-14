@@ -157,7 +157,7 @@ Each page reproduces the corresponding `render.js` function, including its copy.
 
   - The failed copy states that summaries are reused and nothing was saved.
   - The rail shows Last digest (from `GET /api/digests`[0]: "No. id · date, time"), Your sources by kind, and How it works. On first run it shows Getting started instead.
-  - The status region text is "Checking sources, N of M", "Summarizing, N of M", "Digest ready: N items" (N is the saved digest's item count, including Creator updates; D6), "No new content", or "Digest generation failed: {message}". A failed run is announced only there; its visible error alert has no `role="alert"`.
+  - The status region text is "Checking sources, N of M", "Summarizing, N of M", "Digest ready: N items" (N is the saved digest's item count, including Creator updates; D6; *amended 2026-10-14:* when Creator updates are part of it, "Digest ready: 16 items (14 summarized, 2 in Creator updates)", or "2 items in Creator updates" when nothing was summarized, so the total no longer looks inconsistent with the "of 14" progress; runs also report `digest_update_count`), "No new content", or "Digest generation failed: {message}". A failed run is announced only there; its visible error alert has no `role="alert"`.
 - **Digest** (`render.js digest()`).
   - Compact masthead. The headline shows "No. {id}", the long date, and " · HH:MM".
   - The index is shown only when there are 2 or more sections.

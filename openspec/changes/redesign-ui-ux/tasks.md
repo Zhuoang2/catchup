@@ -299,3 +299,5 @@ Small fixes from the fixed review step on group 13 (`/code-review` plus an indep
 - [x] 14.6 Follow-ups from reviewing group 14: the install request also uses `cache: 'no-cache'` (shared `offlinePage()` request); the refresh test pins the cache name `catchup-offline-v1`; the D7 note is dated 2026-10-08.
 - [x] 14.7 Settings save bar is sticky at the bottom of the window (full-width background), and the test-connection message names the Save button. Found in the manual test.
 - [x] 14.8 Focused fields stay clear of the sticky save bar (`scroll-padding-bottom` while a save bar is present).
+- [x] 14.9 The ready message and result card split the saved count into summarized items and Creator updates (`digest_update_count` on runs). Requested by the user after the manual test.
+- [x] 14.10 `test_core_flow` pins the first-add clock: its fixture is dated 1-2 Oct 2026 and the 7-day lookback made it fail from 10 Oct on.

@@ -688,3 +688,7 @@ Real usage records for the technical spec, alpha reflection, and final report. E
     - Settings' Save button was below the fold, which was the cause of the missed save.
     - Single-item topics leave a third of the row empty.
   - **The user's decision:** "第2条你直接修，第1条先记成 issue" (fix item 2 yourself; file item 1 as an issue). Claude wrote the failing tests first, made the save bar sticky, and checked it in screenshots. The first version let text in other columns show beside the bar, so Claude extended the background across the row.
+- **Ready-count wording, a date-dependent test, and merge approval (2026-10-14).**
+  - The user asked: "为什么现在3个source进度条有14个items" (why does the progress bar show 14 items for 3 sources). Claude read the run's data and explained that 14 = 10 + 4 summarized items, while 2 YouTube videos went to Creator updates.
+  - The user then said: "改一下完成时的文字，然后批准合并" (change the completion text, then approved the merge). They also raised a new need: the main screen should show the latest digest instead of sending users to History. That need is handled as a separate change after this merge.
+  - Claude changed the text test-first. While running the full suite, it found a pre-existing date-dependent test failure. Following `diagnosing-bugs`, it reproduced the failure on the committed code, confirmed the cause (fixture dates against the 7-day first-add window), and pinned the clock. A shifted-clock probe found no other such test.

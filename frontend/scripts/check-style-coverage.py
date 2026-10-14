@@ -5,7 +5,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 FRONTEND = ROOT / "frontend"
-PROTOTYPE = ROOT / "openspec/changes/redesign-ui-ux/prototypes"
+# The C7 prototype lives with the redesign-ui-ux change, which is archived after merge.
+PROTOTYPE = next(
+    (path for path in [ROOT / "openspec/changes/redesign-ui-ux/prototypes",
+                       *sorted((ROOT / "openspec/changes/archive").glob("*-redesign-ui-ux/prototypes"))]
+     if path.is_dir()),
+    ROOT / "openspec/changes/redesign-ui-ux/prototypes",
+)
 CASCADE = [
     PROTOTYPE / "shared/base.css",
     *(PROTOTYPE / f"directions/{name}.css" for name in ("c", "c3", "c3b", "c7")),

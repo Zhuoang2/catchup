@@ -122,3 +122,9 @@ it('keeps the Settings save bar visible at the bottom of the window', () => {
   expect(rule).toMatch(/bottom:\s*0/)
   expect(rule).toMatch(/background:\s*var\(--bg\)/)
 })
+
+it('keeps focused fields clear of the sticky save bar', () => {
+  const layout = readFileSync('src/styles/layout.css', 'utf8')
+  const rule = layout.match(/:root:has\(\.save-bar\)\s*\{([^}]+)\}/)?.[1]
+  expect(rule).toMatch(/scroll-padding-bottom:\s*\d/)
+})

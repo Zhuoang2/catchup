@@ -38,6 +38,8 @@
 .settings-section > .note { grid-column: 10 / -1; grid-row: 1 / span 2; align-self: start; padding-left: .75rem; border-left: 1px solid var(--border); }
 .settings-section > .switch { justify-self: start; align-self: start; }
 /* Sticky so Save stays reachable while the three sections scroll by. */
+/* Reserve the bar's height when the browser scrolls a focused field into view. */
+:root:has(.save-bar) { scroll-padding-bottom: 5rem; }
 .save-bar { grid-column: 4 / span 6; border-top: 1px solid var(--border); padding-top: 1rem; padding-bottom: 1rem;
   position: sticky; bottom: 0; z-index: 1; background: var(--bg);
   /* Paint the background across the whole row so text in other columns does not show beside the bar. */

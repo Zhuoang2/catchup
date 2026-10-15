@@ -1,10 +1,9 @@
-# Spec Delta
+# user-interface Specification
 
 ## Purpose
-
 Defines how CatchUp's interface presents its screens and states: a newspaper-style layout that reads well in both themes and at any window width, one clear action per state, and behavior that works for keyboard and screen-reader users.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: One grid for masthead, navigation, and content
 The system SHALL place the masthead, the navigation, and page content in one shared container whose left and right edges align on every screen. On wide windows the content uses a 12-column grid, and page content MUST NOT be centered independently of the masthead. Below 900 px of window width, content becomes a single column. Screens MUST NOT scroll horizontally at a width of 320 px.
@@ -60,6 +59,7 @@ Creator updates SHALL be grouped by source, and each group shows the source kind
 ### Requirement: One primary action per state
 Each screen state SHALL offer at most one primary action. A state where nothing needs doing next, such as a run that found no new content, offers none. The primary action is:
 - **first run** (no model configured): set up the model, with Generate shown as unavailable together with the reason
+- **no sources yet** (a model is configured): add sources, with Generate shown as unavailable together with the reason
 - **a finished digest:** view the digest
 - **a configuration error:** check settings
 - **an open source preview:** confirm the source
@@ -69,6 +69,10 @@ Other actions remain available as secondary actions.
 #### Scenario: First run
 - **WHEN** no model is configured and the user opens Generate
 - **THEN** "Set up your model" is the only primary action, and Generate is disabled with a visible reason
+
+#### Scenario: No sources yet
+- **WHEN** a model is configured, no source has been added, and the user opens Generate
+- **THEN** "Add sources" is the only primary action, and Generate is disabled with a visible reason
 
 #### Scenario: Digest ready
 - **WHEN** a run has just saved a digest
@@ -111,6 +115,7 @@ The system SHALL support keyboard and assistive technology use:
 - The progress bar MUST have an accessible name.
 - Field errors and hints MUST be linked to their inputs, and invalid inputs marked invalid.
 - Scrolling MUST NOT animate when the user prefers reduced motion.
+- Each screen MUST have its own document title that names the screen, and a digest's title MUST include its edition number.
 
 #### Scenario: Skip link
 - **WHEN** a keyboard user activates "Skip to content"
@@ -122,4 +127,12 @@ The system SHALL support keyboard and assistive technology use:
 
 #### Scenario: Run finishes
 - **WHEN** a run finishes with a saved digest while the user is on Generate
-- **THEN** the status region announces that the digest is ready and how many items it has
+- **THEN** the status region announces that the digest is ready and how many items it has, counting Creator updates
+
+#### Scenario: Run fails
+- **WHEN** a run fails while the user is on Generate
+- **THEN** the failure is announced once, through the status region
+
+#### Scenario: Page title
+- **WHEN** the user opens digest No. 3
+- **THEN** the document title names the digest by its edition number, and each other screen has a different title

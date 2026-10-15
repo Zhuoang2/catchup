@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import History from './History'
+import { expectAccessible } from '../test/accessibility'
 
 const fetchMock = vi.fn()
 const respond = (value: unknown, status = 200) => ({
@@ -18,22 +19,31 @@ afterEach(() => {
 
 it('shows saved digests with time, item and source counts and detail links', async () => {
   fetchMock.mockResolvedValue(respond([
-    { id: 3, created_at: '2026-10-03T10:00:00Z', item_count: 8, source_count: 2 },
-    { id: 1, created_at: '2026-10-01T10:00:00Z', item_count: 1, source_count: 1 },
+    { id: 3, created_at: '2026-10-03T10:00:00Z', item_count: 8, source_count: 2,
+      language: 'zh-Hans', topics: ['中文主题'], creator_updates_only: false },
+    { id: 1, created_at: '2026-10-01T10:00:00Z', item_count: 1, source_count: 1,
+      language: 'en', topics: [], creator_updates_only: true },
   ]))
-  render(<MemoryRouter><History /></MemoryRouter>)
+  const { container } = render(<MemoryRouter><History /></MemoryRouter>)
   const links = await screen.findAllByRole('link')
   expect(links.map((link) => link.getAttribute('href'))).toEqual(['/digests/3', '/digests/1'])
   expect(links[0].querySelector('time')).toHaveAttribute('dateTime', '2026-10-03T10:00:00Z')
+  expect(links[0].querySelector('.edition')?.textContent).toBe('No. 3 · ')
   expect(links[0].closest('li')).toHaveTextContent('8 items · 2 sources')
   expect(links[1].closest('li')).toHaveTextContent('1 item · 1 source')
-  expect(fetchMock).toHaveBeenCalledWith('/api/digests', undefined)
+  expect(fetchMock).toHaveBeenCalledExactlyOnceWith('/api/digests', undefined)
+  expect(screen.getByText('中文主题')).toHaveAttribute('lang', 'zh-Hans')
+  expect(screen.getByText('Creator updates only')).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Archive' })).toBeInTheDocument()
+  await expectAccessible(container)
 })
 
 it('shows empty history and request errors', async () => {
   fetchMock.mockResolvedValueOnce(respond([]))
   const page = render(<MemoryRouter><History /></MemoryRouter>)
-  expect(await screen.findByText('No saved digests yet.')).toBeInTheDocument()
+  expect(await screen.findByText('No saved digests yet')).toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Archive' })).toBeNull()
+  await expectAccessible(page.container)
   page.unmount()
   fetchMock.mockResolvedValueOnce(respond({ error: { code: 'request_failed', message: 'Unavailable' } }, 503))
   render(<MemoryRouter><History /></MemoryRouter>)

@@ -60,9 +60,9 @@ def test_episode_waits_then_is_delivered_once(ready):
     assert not fake.calls
     digest = client.get(f"/api/digests/{second['digest_id']}").json()
     assert digest["topics"] == []
-    assert digest["creator_updates"] == [{"source_name": "Show", "items": [{
+    assert digest["creator_updates"] == [{"source_name": "Show", "source_kind": "podcast", "items": [{
         "title": "Item", "link": "https://site.example/Item", "published_at": None,
-        "reason": "no_transcript",
+        "reason": "no_transcript", "source_kind": "podcast",
     }]}]
     assert digest["transcript_wait_days"] == 7
     with client.app.state.session_factory() as session:
@@ -137,6 +137,19 @@ def test_creator_updates_only_digest_reports_zero_tokens(ready):
     digest = client.get(f"/api/digests/{result['digest_id']}").json()
     assert digest["topics"] == [] and len(digest["creator_updates"]) == 1
     assert (digest["prompt_tokens"], digest["completion_tokens"]) == (0, 0)
+    run = client.get(f"/api/digest-runs/{result['id']}").json()
+    assert (run["digest_item_count"], run["digest_update_count"]) == (1, 1)
+
+
+def test_run_reports_saved_count_including_creator_updates(ready):
+    client, _ = ready
+    add_item(client, "feed", None, title="Article")
+    add_item(client, "youtube", "captions_off", title="Video", source_title="Channel")
+    add_item(client, "podcast", "no_transcript", title="Episode", source_title="Show")
+    result = execute(client)
+    assert result["items_total"] == 1
+    run = client.get(f"/api/digest-runs/{result['id']}").json()
+    assert (run["digest_item_count"], run["digest_update_count"]) == (3, 2)
 
 
 def test_failed_save_keeps_expiry_status_pending(ready):
@@ -208,3 +221,26 @@ def test_old_digest_returns_empty_creator_updates(ready):
     result = execute(client)
     assert result["status"] == "succeeded"
     assert client.get(f"/api/digests/{result['digest_id']}").json()["creator_updates"] == []
+
+
+def test_zh_digest_snapshots_topic_and_creator_kinds(ready):
+    client, _ = ready
+    with client.app.state.session_factory() as session:
+        session.get(AppSettings, 1).digest_language = "zh-Hans"
+        session.commit()
+    add_item(client, "feed", None, title="Article")
+    add_item(client, "youtube", "captions_off", title="Video", source_title="Channel")
+    result = execute(client)
+    digest_id = result["digest_id"]
+    data = client.get(f"/api/digests/{digest_id}").json()
+    assert data["language"] == "zh-Hans"
+    assert data["topics"][0]["items"][0]["source_kind"] == "feed"
+    assert data["creator_updates"][0]["source_kind"] == "youtube"
+    assert data["creator_updates"][0]["items"][0]["source_kind"] == "youtube"
+    with client.app.state.session_factory() as session:
+        session.get(AppSettings, 1).digest_language = "en"
+        sources = session.scalars(select(Source)).all()
+        for source in sources:
+            session.delete(source)
+        session.commit()
+    assert client.get(f"/api/digests/{digest_id}").json() == data

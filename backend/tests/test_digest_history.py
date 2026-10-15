@@ -1,9 +1,10 @@
 from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
+from sqlalchemy import event
 
 from catchup.main import create_app
-from catchup.models import Digest, DigestItem, DigestRun, DigestTopic, Item, Source, SourceCheck
+from catchup.models import AppSettings, Digest, DigestItem, DigestRun, DigestTopic, Item, Source, SourceCheck
 
 
 def seed_history(client):
@@ -64,7 +65,124 @@ def test_history_lists_three_newest_first_with_counts(test_settings):
         assert [row["item_count"] for row in rows] == [3, 2, 1]
         assert [row["source_count"] for row in rows] == [1, 1, 1]
         assert rows[0]["created_at"] == "2026-10-02T00:00:00Z"
+        assert rows[0]["language"] is None
+        assert rows[0]["topics"] == []
+        assert rows[0]["creator_updates_only"] is False
+        assert rows[2]["topics"] == ["First", "Second"]
 
+
+def test_history_lists_snapshot_language_topics_and_creator_only(test_settings):
+    with TestClient(create_app(test_settings)) as client:
+        seed_history(client)
+        with client.app.state.session_factory() as session:
+            session.get(Digest, 1).language = "zh-Hans"
+            creator = DigestTopic(digest_id=2, position=0, title="Creator updates",
+                                  overview="", kind="creator_updates")
+            session.add(creator)
+            session.flush()
+            session.add(DigestItem(digest_id=2, topic_id=creator.id, position=0,
+                                   title="New episode", link="https://example.test/episode",
+                                   source_name="Saved show", summary_unavailable=True))
+            session.commit()
+        rows = client.get("/api/digests").json()
+        assert [(row["language"], row["topics"], row["creator_updates_only"]) for row in rows] == [
+            (None, [], False),
+            (None, [], True),
+            ("zh-Hans", ["First", "Second"], False),
+        ]
+
+
+def test_history_list_query_count_is_constant(test_settings):
+    with TestClient(create_app(test_settings)) as client:
+        with client.app.state.session_factory() as session:
+            engine = session.get_bind()
+
+        def count_queries():
+            statements = []
+
+            def record(_conn, _cursor, statement, _params, _context, _executemany):
+                if statement.lstrip().upper().startswith("SELECT"):
+                    statements.append(statement)
+
+            event.listen(engine, "before_cursor_execute", record)
+            try:
+                assert client.get("/api/digests").status_code == 200
+            finally:
+                event.remove(engine, "before_cursor_execute", record)
+            return len(statements)
+
+        with client.app.state.session_factory() as session:
+            for _ in range(5):
+                run = DigestRun(status="succeeded")
+                session.add(run)
+                session.flush()
+                digest = Digest(run_id=run.id, model_id="test", item_count=1, source_count=1)
+                session.add(digest)
+                session.flush()
+                session.add(DigestTopic(digest_id=digest.id, position=0,
+                                        title=f"Topic {digest.id}", overview="Saved"))
+                if digest.id == 1:
+                    session.commit()
+                    one = count_queries()
+            session.commit()
+        five = count_queries()
+        assert one == five == 2
+
+
+def test_history_list_loads_all_topics_without_bound_digest_ids(test_settings):
+    with TestClient(create_app(test_settings)) as client:
+        seed_history(client)
+        with client.app.state.session_factory() as session:
+            engine = session.get_bind()
+        topic_queries = []
+
+        def record(_conn, _cursor, statement, params, _context, _executemany):
+            if "FROM digest_topics" in statement:
+                topic_queries.append((statement, params))
+
+        event.listen(engine, "before_cursor_execute", record)
+        try:
+            rows = client.get("/api/digests")
+        finally:
+            event.remove(engine, "before_cursor_execute", record)
+        assert rows.status_code == 200
+        assert rows.json()[-1]["topics"] == ["First", "Second"]
+        assert len(topic_queries) == 1
+        assert not topic_queries[0][1]
+
+
+def test_history_list_ignores_a_digest_saved_between_its_two_queries(test_settings):
+    with TestClient(create_app(test_settings)) as client:
+        seed_history(client)
+        factory = client.app.state.session_factory
+        with factory() as session:
+            engine = session.get_bind()
+        saved = []
+
+        def save_digest_first(_conn, _cursor, statement, _params, _context, _executemany):
+            # A run finishing while History loads commits between the digest and topic SELECTs.
+            if "FROM digest_topics" in statement and not saved:
+                with factory() as other:
+                    run = DigestRun(status="succeeded")
+                    other.add(run)
+                    other.flush()
+                    digest = Digest(run_id=run.id, model_id="test", item_count=1, source_count=1)
+                    other.add(digest)
+                    other.flush()
+                    other.add(DigestTopic(digest_id=digest.id, position=0, title="Late", overview="Saved"))
+                    other.commit()
+                    saved.append(digest.id)
+
+        event.listen(engine, "before_cursor_execute", save_digest_first)
+        try:
+            rows = client.get("/api/digests")
+        finally:
+            event.remove(engine, "before_cursor_execute", save_digest_first)
+        assert saved
+        assert rows.status_code == 200
+        assert [row["id"] for row in rows.json()] == [3, 2, 1]
+        assert rows.json()[-1]["topics"] == ["First", "Second"]
+        assert client.get("/api/digests").json()[0]["topics"] == ["Late"]
 
 def test_digest_detail_uses_snapshot_positions_and_survives_source_deletion(test_settings):
     with TestClient(create_app(test_settings)) as client:
@@ -73,6 +191,9 @@ def test_digest_detail_uses_snapshot_positions_and_survives_source_deletion(test
         assert response.status_code == 200
         before = response.json()
         assert before["model_id"] == "test"
+        assert before["language"] is None
+        assert before["item_count"] == 1
+        assert before["source_count"] == 1
         assert [topic["title"] for topic in before["topics"]] == ["First", "Second"]
         assert [item["title"] for item in before["topics"][0]["items"]] == [
             "Saved first", "Saved second",
@@ -80,7 +201,7 @@ def test_digest_detail_uses_snapshot_positions_and_survives_source_deletion(test
         assert before["topics"][0]["overview"] == "Earlier"
         assert before["topics"][0]["items"][0] == {
             "title": "Saved first", "link": "https://example.test/first",
-            "source_name": "Saved source", "published_at": before["created_at"],
+            "source_name": "Saved source", "source_kind": None, "published_at": before["created_at"],
             "summary": "Saved summary", "summary_unavailable": False,
         }
         assert before["topics"][0]["items"][1]["summary_unavailable"] is True
@@ -88,6 +209,26 @@ def test_digest_detail_uses_snapshot_positions_and_survives_source_deletion(test
         assert client.delete(f"/api/sources/{source_id}").status_code == 204
         assert client.get("/api/digests/1").json() == before
         assert client.get("/api/digests/999").json()["error"]["code"] == "not_found"
+
+
+def test_saved_language_and_kind_survive_setting_change_and_source_deletion(test_settings):
+    with TestClient(create_app(test_settings)) as client:
+        source_id = seed_history(client)
+        with client.app.state.session_factory() as session:
+            session.get(Digest, 1).language = "zh-Hans"
+            session.add(AppSettings(id=1, digest_language="zh-Hans"))
+            session.query(DigestItem).filter(DigestItem.digest_id == 1).update(
+                {"source_kind": "podcast"}
+            )
+            session.commit()
+        saved = client.get("/api/digests/1").json()
+        assert saved["language"] == "zh-Hans"
+        assert saved["topics"][0]["items"][0]["source_kind"] == "podcast"
+        with client.app.state.session_factory() as session:
+            session.get(AppSettings, 1).digest_language = "en"
+            session.commit()
+        assert client.delete(f"/api/sources/{source_id}").status_code == 204
+        assert client.get("/api/digests/1").json() == saved
 
 
 def test_digest_history_survives_new_app_on_same_data_directory(test_settings):

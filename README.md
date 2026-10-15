@@ -63,6 +63,21 @@ From their respective directories, run backend tests with `uv run pytest`
 and frontend tests/build with `npm test -- --run` and `npm run build`.
 Tests require neither a network connection nor a real model key.
 
+## Install as an app
+
+Start CatchUp first, then open it in Chrome or Edge on macOS and use the
+browser's **Install** action in the address bar or menu. In Safari, use
+**File → Add to Dock**. Open the installed app while the server is running.
+`localhost` and `127.0.0.1` are separate origins, so installing from each
+address creates a separate app with separate browser state.
+
+If the server is unavailable, navigation shows an offline page with commands
+to start CatchUp and a Reload button. Digests and settings are not cached
+for offline use. To remove the service worker, open your browser's DevTools,
+go to Application (or Storage) → Service Workers, select CatchUp's origin,
+and choose **Unregister**. Reload the page afterwards. Unregister separately
+for `localhost` and `127.0.0.1` if you have used both.
+
 Collected content is sent to the
 configured model provider. Self-hosting does not keep that content local if
 you choose a cloud provider.

@@ -1,0 +1,15 @@
+html { background: var(--bg); color: var(--fg); }
+body { margin: 0; }
+*, *::before, *::after { box-sizing: border-box; }
+.app { min-height: 100vh; container-type: inline-size; background: var(--bg); color: var(--fg); font: var(--text)/1.6 var(--font-body); -webkit-font-smoothing: antialiased; }
+.app h1, .app h2, .app h3, .app p, .app ul, .app ol, .app dl, .app dd, .app pre { margin: 0; }
+.app ul, .app ol { padding: 0; list-style: none; }
+.app a { color: var(--link); text-underline-offset: 2px; }
+.app :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.app ::placeholder { color: var(--muted); opacity: 1; }
+.sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.skip-link { position: absolute; left: -9999px; }
+.skip-link:focus { left: 1rem; top: 1rem; z-index: 5; background: var(--surface); padding: .5rem .75rem; }
+.icon { width: 1.15em; height: 1.15em; flex: none; vertical-align: -.2em; }
+.icon-sm { width: 1em; height: 1em; }
+@media (prefers-reduced-motion: reduce) { .app * { transition: none !important; scroll-behavior: auto !important; } }

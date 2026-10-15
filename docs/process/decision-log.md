@@ -132,6 +132,13 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Accessibility details are owned, and checked by axe scans and a token contrast test.
   - Saved digests gain `language` and per-item `source_kind` (migration `0003`) so that the UI can mark language and kinds after settings or sources change.
 - **Amendment (2026-10-06, before implementation):** the error color moved from `#a33a00` / `#ff9a62` to `#a34200` / `#ffa65e` (light / dark) so that error, warn, and the brand accent differ by at least 20° in hue (they were 17.3° / 15.1° apart from the accent). Error text stays at ≥ 5.1:1. A state may have no primary action (No new content). Alternative considered: keep the reviewed colors and lower the accent–error threshold to 15°; rejected because the threshold would be chosen after the fact, and the user had asked for error to be clearly separate from the brand red.
+- **Amendment (2026-10-07, after the implementation review):** `GET /api/digests` also returns topic titles, the language, and a Creator-updates-only flag, so History needs one request. Alternative considered: keep the list endpoint unchanged and load each digest's detail per row with per-row failures; rejected because it stays N+1 and gets slower as history grows. While a run is in progress, Generate stays a disabled primary button as in the prototype. Digest languages are mapped to BCP 47 tags, and values with no known tag (such as "Same as original") get no `lang`.
+- **Amendment (2026-10-07, after the final review of the whole change):**
+  - With a model configured but no sources, Generate offers "Add sources" as the primary action and shows Generate as unavailable with the reason. Alternative considered: keep Generate enabled; rejected because the run can only end in "No new content".
+  - Feed URLs are shown in full and wrap. Alternative considered: the 2-line clamp from the design review; rejected because the spec asks for the full URL, a clamp hides information, and a `title` tooltip is not available on touch or to keyboard users.
+  - Each screen has its own document title.
+  - A failed run is announced once, through the status region.
+  - The cached offline page refreshes itself after successful navigations.
 
 ## D-016 Test-first implementation and a diagnose-first bug path, using the `tdd` and `diagnosing-bugs` skills — accepted (2026-10-07)
 

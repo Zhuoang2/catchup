@@ -12,7 +12,17 @@ The project is under active development. Requirements live in
 ## Development setup
 
 Install Python 3.11 or newer, [uv](https://docs.astral.sh/uv/), and Node.js
-20.19+ or 22.12+ (as required by Vite 8). From the repository root:
+20.19+ or 22.12+ (as required by Vite 8). From the repository root, first
+enable the pre-commit hook, which blocks commits whose staged lines look like
+API keys or secrets:
+
+```sh
+git config core.hooksPath "$PWD/.githooks"
+```
+
+Git does not clone this setting, so run it once per clone. It applies to every
+worktree of that clone, including worktrees on branches created before the
+hook was added. Then create the environment file:
 
 ```sh
 cp .env.example .env

@@ -595,3 +595,10 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - The existing review sub-agent already checked against the spec; the actual gap was that the fix round had no code review at all.
 
   The comparison's concern that Anthropic's tool reads only `CLAUDE.md` did not apply, because `CLAUDE.md` is a symlink to `AGENTS.md`. The user agreed: "好，按这个步骤补审修复轮，写进 AGENTS.md" (OK, review the fix round with these steps and write it into AGENTS.md). The step is now in `AGENTS.md` and recorded under D-016.
+
+## 2026-10-15 — Documenting the pre-commit hook setup (Claude Code, Opus 5.5)
+
+- Prompt (faithful excerpt): "`.githooks/pre-commit` ... only runs when `git config core.hooksPath .githooks` is set ... Add a short setup step to README.md ... and a one-line note in AGENTS.md ... telling developers and agents to run `git config core.hooksPath .githooks` after cloning ... do not change the hook itself ... small change: lean path."
+- Problem: the requested relative path conflicted with commit `72cb2b0`, which enables the hook with an absolute path so that worktrees on branches created before the hook still run it. Claude checked the active `redesign-ui-ux` branch: it has no `.githooks/pre-commit`, so with a relative path its worktree would skip the hook silently. Because worktrees share the clone's `.git/config`, the command is needed once per clone, not once per worktree.
+- Adjustment: Claude asked before editing. The user chose the absolute path `git config core.hooksPath "$PWD/.githooks"`, and a direct commit instead of an OpenSpec change, since a developer setup note has no product requirement to put in a spec delta.
+- Outcome: setup step added to the README development setup section and a one-line note to the `AGENTS.md` Commands section. The hook is unchanged.

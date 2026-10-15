@@ -7,6 +7,10 @@ Status: Proposal 1 chosen by the user on 2026-10-06 (port the C7 prototype CSS a
 
 Amended 2026-10-06 after Droid stopped on two contradictions in the plan (approved by the user): `--error` moved from `#a33a00` / `#ff9a62` to `#a34200` / `#ffa65e` so error, warn, and accent differ by at least 20° in hue; a state may have no primary action (No new content); `tokens.css` also carries `--error-border` and the non-color tokens.
 
+Amended 2026-10-07 after the implementation review (approved by the user): `GET /api/digests` also returns topic titles and the language (D4 History, D6); `lang` values are mapped (D5); the running state keeps a disabled primary Generate (D4); review fixes are task group 10.
+
+Amended again 2026-10-07 after the final review of the whole change (approved by the user): a "no sources yet" Generate state (D4); full feed URLs (D4 Sources); per-screen document titles and a single announcement of run failures (D5); runs report their saved digest's item count (D6); the cached offline page refreshes itself (D7). These are task group 13.
+
 The two-proposal comparison is in git history (`26c9d64`). The rejected alternative is recorded under D1.
 
 ## Context
@@ -144,6 +148,8 @@ Each page reproduces the corresponding `render.js` function, including its copy.
     |---|---|---|
     | First run | Set up your model | Generate, disabled with reason |
     | Idle | Generate digest | — |
+    | Running (collecting, summarizing) | "Generating…", disabled | — |
+    | No sources yet (model configured, no source) | Add sources | Generate, disabled with reason |
     | Succeeded | View digest | Generate digest |
     | No new content | — | Generate digest |
     | Failed (`auth_failed`, `insufficient_balance`, `model_not_configured`, `connection_failed`) | Check settings | Try again |
@@ -151,7 +157,7 @@ Each page reproduces the corresponding `render.js` function, including its copy.
 
   - The failed copy states that summaries are reused and nothing was saved.
   - The rail shows Last digest (from `GET /api/digests`[0]: "No. id · date, time"), Your sources by kind, and How it works. On first run it shows Getting started instead.
-  - The status region text is "Checking sources, N of M", "Summarizing, N of M", "Digest ready: N items", or "No new content".
+  - The status region text is "Checking sources, N of M", "Summarizing, N of M", "Digest ready: N items" (N is the saved digest's item count, including Creator updates; D6; *amended 2026-10-14:* when Creator updates are part of it, "Digest ready: 16 items (14 summarized, 2 in Creator updates)", or "2 items in Creator updates" when nothing was summarized, so the total no longer looks inconsistent with the "of 14" progress; runs also report `digest_update_count`), "No new content", or "Digest generation failed: {message}". A failed run is announced only there; its visible error alert has no `role="alert"`.
 - **Digest** (`render.js digest()`).
   - Compact masthead. The headline shows "No. {id}", the long date, and " · HH:MM".
   - The index is shown only when there are 2 or more sections.
@@ -163,12 +169,12 @@ Each page reproduces the corresponding `render.js` function, including its copy.
   - `lang` uses `digest.language` (D6) on topic titles, overviews, summaries, and index entries. Item titles have no `lang`.
   - The source kind uses `item.source_kind`: the icon plus a visually hidden kind label.
 - **History.**
-  - Rows show "No. {id} · long date · time", the topic previews, and the counts.
+  - Rows show "No. {id} · long date · time", the topic previews, and the counts. Previews come from `GET /api/digests` (D6) in the same single request; History makes no per-digest detail requests.
   - The rail shows Archive (hidden when empty) and "Kept as saved".
 - **Sources.**
   - Add form (rule style). The URL input has `aria-describedby` set to the hint id, plus the error id in the error state with `aria-invalid="true"`.
   - Preview becomes `secondary` while a preview is open.
-  - Rows show the `KindBadge`, a feed URL wrapped to 2 lines with `title`, the status chip (rate limited reads "Rate limited · try later"; "Possible gap" has an explanatory `title`), the time, and Delete.
+  - Rows show the `KindBadge`, the full feed URL, wrapping when long (no line clamp; `title` kept), the status chip (rate limited reads "Rate limited · try later"; "Possible gap" has an explanatory `title`), the time, and Delete.
   - Delete swaps the row for an inline confirmation in place of `window.confirm` (`Sources.tsx:83-92`).
   - The rail shows "What you can add" and Checks (Checks is hidden when there are no sources).
 - **Settings.**
@@ -177,8 +183,13 @@ Each page reproduces the corresponding `render.js` function, including its copy.
   - A saved key shows "Saved key ending in {last4}" as text, with an empty input "Paste a new key to replace it" (`aria-describedby` links the saved text, the hint, and the error).
   - The caption risk note sits directly under its switch and is linked by `aria-describedby`.
   - Today's save flow and error copy are kept (`Settings.tsx:14-27,78-102`).
+  - *Amended 2026-10-13 (manual test):* the save bar is sticky at the bottom of the window with a full-width background, and the test-connection message reads "Connection succeeded. Choose a model, then click Save." In the manual test the user tested the connection but did not see Save, which sat below the fold (1097 px on a 900 px window).
 
 ### D5. Accessibility mechanics
+- **Document titles** (amended 2026-10-07): "Generate · CatchUp", "Sources · CatchUp", "History · CatchUp", "Settings · CatchUp", and for a digest "No. {id} · {short date} · CatchUp" ("Digest · CatchUp" while loading or on error).
+- **Contrast on hover** (amended 2026-10-07): secondary text in a hovered row uses `--muted`, because `--subtle` on `--hover` is 4.39:1 in the dark theme.
+- **`lang` mapping.** `digest.language` stores the setting as chosen, which may be `original` or free text from "Other". A single helper maps it to a BCP 47 tag: `en` and `zh-Hans` map to themselves; free text maps through a small case-insensitive table of language names in English and in the language itself (for example "Japanese" or "日本語" to `ja`, "Français" to `fr`, "Traditional Chinese" or "繁體中文" to `zh-Hant`); `original`, `null`, and anything else get no `lang` attribute.
+  - *Amended 2026-10-07 (tasks 11.4 and 12.2):* a value that is a well-formed BCP 47 tag with a supported primary language subtag is also accepted, in canonical case (for example `zh-hant` becomes `zh-Hant`). Names are looked up in a `Map`, so built-in object keys such as `constructor` are never treated as names.
 - **The prototype's verified behaviors carry over:**
   - `lang` (D4)
   - focus moves (`useJump` for the skip link and the index)
@@ -193,13 +204,15 @@ Each page reproduces the corresponding `render.js` function, including its copy.
   - `vitest-axe` runs `axe` on every page state in the tests, and fails on any violation.
   - A token test parses `tokens.css` and asserts the contrast pairs listed in the review (text ≥ 4.5:1, the switch boundary ≥ 3:1) for both themes. It is a port of the prototype check, with the correct cascade.
 
-### D6. Snapshot fields (backend)
+### D6. Snapshot fields and the digest list (backend)
 - Alembic `0003`:
   - `digests.language` (String(40), nullable)
   - `digest_items.source_kind` (String(16), nullable)
 - `digest/runner.py` writes `language` (the language read at run start, `runner.py:174-175`) and, for every saved digest item, the item's `Source.kind` at save time.
 - `GET /api/digests/{id}` returns `language`, and `source_kind` on topic items and on Creator updates groups and items (`api/digests.py:26-70`).
+- `GET /api/digests` also returns, for each digest, `language` and `topics` (the titles of its topics, in order; "Creator updates" is not included, and `creator_updates_only` is true when the digest has only Creator updates). It uses one query for the topics of all listed digests, not one per digest.
 - Old rows return `null`; the UI then omits `lang` and the kind icon.
+- *Amended 2026-10-07:* `GET /api/digests/{id}` also returns the saved `item_count` and `source_count`, which the digest header shows instead of recounting. Run responses (`GET /api/digest-runs/{id}`, `/active`, and the POST) include `digest_item_count`, the saved digest's `item_count` (`null` until a digest is saved).
 - Downgrade drops both columns.
 
 ### D7. Installable app and offline page
@@ -217,6 +230,7 @@ Each page reproduces the corresponding `render.js` function, including its copy.
   - `install`: cache `/offline.html`, then `skipWaiting()`
   - `activate`: delete other caches, then `clients.claim()`
   - `fetch`: only for `request.mode === 'navigate'`, `fetch(request)`, and on a network error (rejection) respond with the cached `/offline.html`. Responses (4xx/5xx) pass through, and all other requests are not intercepted. It never calls `cache.put` for anything else, so app code and `/api` are never cached.
+  - *Amended 2026-10-07:* after a navigation succeeds with an OK response, the worker refreshes its cached `/offline.html` in the background (`event.waitUntil`), so a changed offline page reaches installed users without changing `sw.js`. A failed refresh keeps the old copy. *(2026-10-08)* Both the install and the refresh request use `cache: 'no-cache'`, so the browser revalidates instead of reusing an HTTP-cached copy, and the refresh can never replace the navigation's own response.
 - **`frontend/public/offline.html`:** a self-contained page with inline CSS that uses the D2 tokens (both themes through `prefers-color-scheme`), the wordmark, the message and the two commands from the prototype, and a Reload button.
 - **Registration:** in `main.tsx`, only when `import.meta.env.PROD` and `'serviceWorker' in navigator`, register `/sw.js` with scope `/`.
 - **Serving:** no backend change. Vite copies `public/` to the `dist/` root, and the SPA fallback serves those files (`main.py:93-102`). The manifest MIME type was verified in research.

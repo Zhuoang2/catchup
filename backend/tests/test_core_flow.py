@@ -2,6 +2,7 @@
 
 import socket
 from dataclasses import replace
+from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
@@ -31,6 +32,9 @@ def test_incremental_api_flow_with_stored_citations(test_settings, monkeypatch):
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", port))]
 
     monkeypatch.setattr(socket, "getaddrinfo", public_dns)
+    # The fixture entries are dated 1-2 Oct 2026; pin the first-add clock to the fixture's timeline so
+    # the 7-day lookback does not depend on the day the suite runs (it started failing on 10 Oct).
+    monkeypatch.setattr("catchup.api.sources.utc_now", lambda: datetime(2026, 10, 4, 12, tzinfo=timezone.utc))
     settings = replace(test_settings, secret_key="test-only-instance-secret", short_text_chars=0)
     app = create_app(settings)
     model = FixtureModel()
@@ -87,6 +91,7 @@ def test_incremental_api_flow_with_stored_citations(test_settings, monkeypatch):
 
         second = generate(client)
         assert second["status"] == "no_new_content" and second["digest_id"] is None
+        assert second["digest_item_count"] is None and second["digest_update_count"] is None
         assert second["source_checks"][0]["status"] == "no_new_items"
         assert len(client.get("/api/digests").json()) == 1
 

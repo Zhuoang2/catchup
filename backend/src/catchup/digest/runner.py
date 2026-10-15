@@ -279,9 +279,9 @@ def run_digest(app: FastAPI, run_id: int) -> None:
         # Snapshot and delivery share one transaction: a failed save cannot lose pending items.
         with factory() as session:
             items = {
-                item.id: (item, source_name)
-                for item, source_name in session.execute(
-                    select(Item, Source.title).join(Source, Item.source_id == Source.id)
+                item.id: (item, source_name, source_kind)
+                for item, source_name, source_kind in session.execute(
+                    select(Item, Source.title, Source.kind).join(Source, Item.source_id == Source.id)
                     .where(Item.id.in_([entry.id for entry in inputs] + [id for id, _ in creator_updates]))
                 )
             }
@@ -302,7 +302,8 @@ def run_digest(app: FastAPI, run_id: int) -> None:
             all_ids = saved_ids + [item_id for item_id, _ in updates]
             digest = Digest(run_id=run_id, model_id=model_id, item_count=len(all_ids),
                             source_count=len({items[item_id][0].source_id for item_id in all_ids}),
-                            transcript_wait_days=app.state.settings.transcript_wait_days)
+                            transcript_wait_days=app.state.settings.transcript_wait_days,
+                            language=language)
             session.add(digest)
             session.flush()
             for position, (topic, item_ids) in enumerate(saved_topics):
@@ -312,11 +313,12 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                 session.add(saved_topic)
                 session.flush()
                 for index, item_id in enumerate(item_ids):
-                    item, source_name = items[item_id]
+                    item, source_name, source_kind = items[item_id]
                     summary = summaries[item_id]
                     session.add(DigestItem(
                         digest_id=digest.id, topic_id=saved_topic.id, position=index,
                         item_id=item.id, title=item.title, link=item.link, source_name=source_name,
+                        source_kind=source_kind,
                         published_at=item.published_at, summary=summary.summary,
                         summary_unavailable=summary.unavailable,
                     ))
@@ -336,10 +338,11 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                     row[0],
                 ))
                 for position, (item_id, reason) in enumerate(updates):
-                    item, source_name = items[item_id]
+                    item, source_name, source_kind = items[item_id]
                     session.add(DigestItem(
                         digest_id=digest.id, topic_id=creator_topic.id, position=position,
                         item_id=item.id, title=item.title, link=item.link, source_name=source_name,
+                        source_kind=source_kind,
                         published_at=item.published_at, summary=None, summary_unavailable=False,
                         update_reason=reason,
                     ))
@@ -371,12 +374,19 @@ def run_detail(session, run: DigestRun) -> dict:
         select(SourceCheck, Source.title).join(Source, SourceCheck.source_id == Source.id)
         .where(SourceCheck.run_id == run.id).order_by(SourceCheck.id)
     ).all()
+    digest = session.get(Digest, run.digest_id) if run.digest_id is not None else None
+    update_count = session.scalar(
+        select(func.count(DigestItem.id)).join(DigestTopic, DigestItem.topic_id == DigestTopic.id)
+        .where(DigestItem.digest_id == digest.id, DigestTopic.kind == "creator_updates")
+    ) if digest is not None else None
     return {
         "id": run.id, "status": run.status, "items_total": run.items_total,
         "items_done": run.items_done, "error_kind": run.error_kind,
         "waiting_count": run.waiting_count, "deferred_count": run.deferred_count,
         "prompt_tokens": run.prompt_tokens, "completion_tokens": run.completion_tokens,
         "error_message": run.error_message, "digest_id": run.digest_id,
+        "digest_item_count": digest.item_count if digest is not None else None,
+        "digest_update_count": update_count,
         "started_at": run.started_at, "finished_at": run.finished_at,
         "sources_total": session.scalar(select(func.count(Source.id))) or 0,
         "source_checks": [

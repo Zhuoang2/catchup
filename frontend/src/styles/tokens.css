@@ -1,0 +1,67 @@
+:root {
+  --bg: #f4f0e6;
+  --surface: #f8f5ed;
+  --fg: #151412;
+  --muted: #4a4741;
+  --subtle: #66625a;
+  --border: #d4cdbd;
+  --border-strong: #151412;
+  --hover: #ebe5d7;
+  --accent: #8a1c14;
+  --accent-fg: #fbf7ef;
+  --accent-soft: #efdcd5;
+  --link: #151412;
+  --ok: #1e6b34;
+  --ok-soft: #e2f0e5;
+  --warn: #6b5e00;
+  --warn-soft: #f1ecc8;
+  --error: #a34200;
+  --error-soft: #fbe3d6;
+  --error-border: #a34200;
+  --neutral-soft: #e9e3d5;
+  --info-soft: #ece6d8;
+  --disabled: #dcd9d0;
+  --nav-active: transparent;
+  --cjk: "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Microsoft YaHei";
+  --font-body: "Iowan Old Style", "Hoefler Text", Georgia, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Microsoft YaHei", serif;
+  --font-heading: "Big Caslon", "Baskerville", "Hoefler Text", Georgia, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Microsoft YaHei", serif;
+  --text: 16.5px;
+  --title-size: 2.4rem;
+  --title-tracking: -0.02em;
+  --topic-size: 1.65rem;
+  --heading-weight: 700;
+  --radius: 0;
+  --radius-sm: 0;
+  --gap: 1rem;
+  --gutter: 1.5rem;
+  --margin: 2rem;
+  --content: 64rem;
+  --page: 78rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161513;
+    --surface: #1c1b18;
+    --fg: #ece7dc;
+    --muted: #b8b2a5;
+    --subtle: #8c8679;
+    --border: #33302a;
+    --border-strong: #ece7dc;
+    --hover: #24221e;
+    --accent: #e0796d;
+    --accent-fg: #161513;
+    --accent-soft: #3a211d;
+    --link: #ece7dc;
+    --ok: #7fd08f;
+    --ok-soft: #1a2b1e;
+    --warn: #d9c25a;
+    --warn-soft: #2f2b16;
+    --error: #ffa65e;
+    --error-soft: #3a2418;
+    --error-border: #ffa65e;
+    --neutral-soft: #24221e;
+    --info-soft: #22201c;
+    --disabled: #33322f;
+  }
+}

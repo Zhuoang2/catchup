@@ -51,7 +51,7 @@ The user chose the visual direction **C7 · Front page grid** after two prototyp
 
 - **Frontend:** a rewrite of `frontend/src/pages/*.tsx`, `App.tsx`, and the styles. New `frontend/src/styles/` and `frontend/src/components/`. New `frontend/public/` (manifest, icons, `sw.js`, `offline.html`). An icon script under `frontend/scripts/`. `index.html` links the manifest.
 - **Frontend dev dependencies:** `vitest-axe` and `axe-core`. No runtime dependencies are added.
-- **Backend:** Alembic migration `0003` (`digests.language`, `digest_items.source_kind`), `digest/runner.py` (writes the snapshot), and `api/digests.py` (returns it). No change to static serving.
+- **Backend:** Alembic migration `0003` (`digests.language`, `digest_items.source_kind`), `digest/runner.py` (writes the snapshot), and `api/digests.py` (returns it; the digest list also returns topic titles and the language). No change to static serving.
 - **CI and packaging:** `scripts/docker-smoke.sh` also checks the manifest, the service worker, and the offline page. The CI job names are unchanged.
 - **Docs:** a README section on installing the app.
-- **Not changed:** API endpoints, routes, and backend behavior outside the snapshot fields.
+- **Not changed:** no new API endpoints or routes. Existing endpoints only gain fields: the snapshot fields, and topic titles with the language on the digest list. Backend behavior is otherwise unchanged.

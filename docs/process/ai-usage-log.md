@@ -2,6 +2,12 @@
 
 Real usage records for the technical spec, alpha reflection, and final report. Each entry: date, tool/model, purpose, prompt (verbatim or faithful excerpt), outcome, problems, adjustment. The user often wrote prompts in Chinese; those prompts are quoted here in English translation.
 
+## 2026-10-15 — Latest digest on Home (Factory Droid, GPT-6 Sol)
+
+- Prompt (faithful excerpt): "Implement OpenSpec change show-latest-digest-on-home using the openspec-apply-change skill. Work through ... tasks.md in order, completing each task test-first with the tdd skill: write the task's verification items as failing tests and watch them fail, then implement until they pass. ... Commit after each task group. Do not push, tag, or open a PR."
+- Outcome: Added the one-request latest digest endpoint, shared digest reading article, Home layout and in-place digest replacement, Latest navigation and documentation. Four implementation group commits and a final checks/report commit. Full results and omitted live checks are in `test-report-show-latest-digest-on-home.md`.
+- Problems / adjustment: The new API tests initially returned 422 as expected; frontend dependencies were missing and installed from the lockfile. During the page rename, obsolete last-digest link/date tests were replaced with no-link and in-place article checks, while the existing run-state tests were retained. The style audit alone did not inspect the new run-bar selectors, so a failing CSS rule test was added before styling. No external provider or feed was contacted in tests, and no code was pushed.
+
 ## 2026-10-07 — UI redesign final review fixes (Factory Droid, GPT-6 Sol)
 
 - Prompt (faithful excerpt): "Implement tasks 13.1 through 13.12 in order: use diagnosing-bugs for 13.1-13.6 (show the failing check first, then fix, keep the regression test) and tdd for 13.7-13.11 ... check off a task only after its verification passes; commit after each task; do not edit proposal.md, design.md, specs/, or prototypes/; add no runtime dependencies; keep tests free of real network and real sleeps; never push, tag, or open a PR."

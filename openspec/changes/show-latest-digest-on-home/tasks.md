@@ -103,7 +103,7 @@ Implementer notes:
 
 ## 5. Integration checks and report
 
-- [ ] 5.1 Run the full checks:
+- [x] 5.1 Run the full checks:
   - `uv run pytest` in `backend/`, noting the test count and coverage
   - `npm test -- --run` in `frontend/`, noting the test count and axe scans
   - `npm run build`

@@ -31,7 +31,7 @@ Implementer notes:
 
 ## 2. Item row layout and the style audit
 
-- [ ] 2.1 In `frontend/src/styles/tokens.test.ts`, add failing CSS assertions on `layout.css` (design D1–D4):
+- [x] 2.1 In `frontend/src/styles/tokens.test.ts`, add failing CSS assertions on `layout.css` (design D1–D4):
   - `.items > .item` spans `1 / -1`, uses `grid-template-columns: subgrid`, and has rows `auto auto 1fr`.
   - `.item-meta` and `.item-title` inside an item take `1 / span 3`.
   - `.summary` and `.summary-unavailable` inside an item take `4 / -1` and span all rows (`1 / -1`).
@@ -40,13 +40,13 @@ Implementer notes:
   - Inside `@container (max-width: 900px)`, the item is one column (`grid-template-columns: minmax(0, 1fr)`), and its children reset to `grid-column: 1 / -1` and `grid-row: auto`.
 
   Verify: the new assertions fail before 2.2.
-- [ ] 2.2 Implement the placements in `frontend/src/styles/layout.css` (`:23-29` and the 900 px block at `:65-68`), following design D1–D4.
+- [x] 2.2 Implement the placements in `frontend/src/styles/layout.css` (`:23-29` and the 900 px block at `:65-68`), following design D1–D4.
   - Remove the length, `:only-child`, long-after-long, and vertical-rule rules.
   - Keep `.topic > .items` (`:23`) and the topic column (`:22`) as they are.
   - Adjust `frontend/src/styles/components.css:112` (`.item` gap) only if the subgrid needs it.
 
   Verify: the 2.1 assertions pass, and `npm test -- --run` and `npm run build` pass.
-- [ ] 2.3 Update the style audit (design D5):
+- [x] 2.3 Update the style audit (design D5):
   - In `frontend/scripts/check-style-coverage.py`, add `item-long` and `item-short` to `PROTOTYPE_ONLY`, each with a reason, because the archived C7 prototype still uses them.
   - In `frontend/scripts/test_check_style_coverage.py`, assert the new entries, as for `.hero-last`.
 

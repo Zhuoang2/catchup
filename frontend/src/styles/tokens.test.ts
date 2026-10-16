@@ -145,3 +145,40 @@ it('spans and separates the Home run bar with one-row ready controls at all widt
   expect(actions).toMatch(/display:\s*flex/)
   expect(actions).toMatch(/align-items:\s*center/)
 })
+
+it('lays out every digest item as a full-width row with its heading beside the summary', () => {
+  const layout = readFileSync('src/styles/layout.css', 'utf8')
+  const wide = layout.split('@container (max-width: 900px)')[0]
+  const rule = (selector: string) => wide.match(new RegExp(
+    `(?:^|\\})\\s*${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{([^}]+)\\}`,
+  ))?.[1]
+  const item = rule('.items > .item')
+  expect(item).toMatch(/grid-column:\s*1\s*\/\s*-1/)
+  expect(item).toMatch(/grid-template-columns:\s*subgrid/)
+  expect(item).toMatch(/grid-template-rows:\s*auto\s+auto\s+1fr/)
+  for (const [selector, row] of [
+    ['.items > .item > .item-meta', '1'],
+    ['.items > .item > .item-title', '2'],
+  ]) {
+    expect(rule(selector)).toMatch(/grid-column:\s*1\s*\/\s*span\s+3/)
+    expect(rule(selector)).toMatch(new RegExp(`grid-row:\\s*${row}\\s*;`))
+  }
+  const summary = rule('.items > .item > .summary, .items > .item > .summary-unavailable')
+  expect(summary).toMatch(/grid-column:\s*4\s*\/\s*-1/)
+  expect(summary).toMatch(/grid-row:\s*1\s*\/\s*-1/)
+  const separator = rule('.items > .item + .item')
+  expect(separator).toMatch(/border-top:\s*1px solid var\(--border\)/)
+  expect(separator).not.toMatch(/border-left:/)
+  expect(layout).not.toMatch(/\.item-(?:long|short)\b|\.item:only-child\b/)
+})
+
+it('stacks digest item children in DOM order below the 900px breakpoint', () => {
+  const layout = readFileSync('src/styles/layout.css', 'utf8')
+  const narrow = layout.split('@container (max-width: 900px)')[1]
+    .split('@container (max-width: 640px)')[0]
+  const item = narrow.match(/\.items\s*>\s*\.item\s*\{([^}]+)\}/)?.[1]
+  expect(item).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)/)
+  const children = narrow.match(/\.items\s*>\s*\.item\s*>\s*\*\s*\{([^}]+)\}/)?.[1]
+  expect(children).toMatch(/grid-column:\s*1\s*\/\s*-1/)
+  expect(children).toMatch(/grid-row:\s*auto/)
+})

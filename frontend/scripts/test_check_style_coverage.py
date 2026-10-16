@@ -23,6 +23,8 @@ class StyleCoverageTests(unittest.TestCase):
         self.assertIn("Uncovered prototype selectors (0):", result.stdout)
         self.assertIn(".logo: Prototype wordmark", result.stdout)
         self.assertIn(".hero-last: Prototype Last digest line removed from Home", result.stdout)
+        self.assertIn(".item-long: Archived C7 prototype long-item layout", result.stdout)
+        self.assertIn(".item-short: Archived C7 prototype short-item layout", result.stdout)
 
     def test_reports_prototype_rules_even_when_markup_has_no_static_class(self):
         self.assertEqual(

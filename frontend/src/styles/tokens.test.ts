@@ -128,3 +128,20 @@ it('keeps focused fields clear of the sticky save bar', () => {
   const rule = layout.match(/:root:has\(\.save-bar\)\s*\{([^}]+)\}/)?.[1]
   expect(rule).toMatch(/scroll-padding-bottom:\s*\d/)
 })
+
+it('spans and separates the Home run bar with one-row ready controls at all widths', () => {
+  const layout = readFileSync('src/styles/layout.css', 'utf8')
+  const components = readFileSync('src/styles/components.css', 'utf8')
+  const wide = layout.match(/\.page-home\s*>\s*\.run-bar\s*\{([^}]+)\}/)?.[1]
+  expect(wide).toMatch(/grid-column:\s*1\s*\/\s*-1/)
+  const narrow = layout.slice(layout.indexOf('@container (max-width: 900px)'))
+  expect(narrow).toMatch(/\.page\s*>\s*\*[^{}]*\{[^}]*grid-column:\s*1\s*\/\s*-1/)
+  expect(narrow).not.toMatch(/\.page-home\s*>\s*\.run-bar\s*\{/)
+  const bar = components.match(/\.run-bar\s*\{([^}]+)\}/)?.[1]
+  expect(bar).toMatch(/border-bottom:\s*1px solid var\(--border-strong\)/)
+  expect(components).toMatch(/\.run-bar\s+\.check-row:last-child\s*\{[^}]*border-bottom:\s*0/)
+  expect(components).not.toMatch(/\.hero-last\b/)
+  const actions = components.match(/\.run-bar-actions\s*\{([^}]+)\}/)?.[1]
+  expect(actions).toMatch(/display:\s*flex/)
+  expect(actions).toMatch(/align-items:\s*center/)
+})

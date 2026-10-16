@@ -19,6 +19,7 @@ CASCADE = [
 OWNED = [FRONTEND / f"src/styles/{name}.css" for name in ("base", "layout", "components")]
 PROTOTYPE_ONLY = {
     "code": "Offline command block uses self-contained inline CSS",
+    "hero-last": "Prototype Last digest line removed from Home",
     "logo": "Prototype wordmark; standalone offline logo was removed",
     "logo-lg": "Prototype-only large wordmark",
     "offline-brand": "Prototype offline card; standalone page owns its own CSS",

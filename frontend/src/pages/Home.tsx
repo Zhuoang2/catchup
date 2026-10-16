@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError, request } from '../api/client'
-import { dateTime, plural, shortDateTime, tokenTotals } from '../components/format'
+import { DigestArticle } from '../components/DigestArticle'
+import { plural, tokenTotals } from '../components/format'
+import type { Digest } from '../components/DigestArticle'
 import { Icon } from '../components/Icon'
 import { useDocumentTitle } from '../components/useDocumentTitle'
 import { Alert, Button, Chip, PageHead, Progress, Rail, StatusRegion, Stepper, buttonClass } from '../components/ui'
@@ -17,7 +19,6 @@ type Run = {
   waiting_count: number; deferred_count: number; prompt_tokens: number | null; completion_tokens: number | null
 }
 type Source = { kind: string }
-type Digest = { id: number; created_at: string; item_count: number; source_count: number }
 // "16 items (14 summarized, 2 in Creator updates)": the saved total, split when Creator updates are part of it.
 function savedItems(run: Run) {
   const total = run.digest_item_count ?? run.items_total
@@ -29,8 +30,9 @@ function savedItems(run: Run) {
 const active = (run: Run) => ['queued', 'collecting', 'summarizing', 'grouping'].includes(run.status)
 const configErrors = ['auth_failed', 'insufficient_balance', 'model_not_configured', 'connection_failed']
 
-function SourceChecks({ checks }: { checks: Check[] }) {
-  return <><h2 className="section-label">Sources</h2><ul className="check-list">{checks.map(check =>
+function SourceChecks({ checks, compact = false }: { checks: Check[]; compact?: boolean }) {
+  if (!checks.length) return null
+  return <>{compact ? <p className="section-label">Sources</p> : <h2 className="section-label">Sources</h2>}<ul className="check-list">{checks.map(check =>
     <li className="check-row" key={check.source_id}>
       <span className="check-title">{check.source_title}</span><span className="check-status">
         <Chip tone={check.rate_limited ? 'warn' : check.status === 'failed' ? 'error'
@@ -53,32 +55,103 @@ function HeldNotes({ run }: { run: Run }) {
   </ul> : null
 }
 
-export default function Generate() {
-  useDocumentTitle('Generate')
+function RunStateContent({ run, compact, firstRun, loadingNewDigest, configurationError }: {
+  run: Run; compact: boolean; firstRun: boolean; loadingNewDigest?: boolean; configurationError?: boolean
+}) {
+  if (active(run)) {
+    const checking = run.status === 'collecting' || run.status === 'queued'
+    const progress = checking ? run.source_checks.length : run.items_done
+    const total = checking ? run.sources_total : run.items_total
+    const content = <>
+      <Stepper current={run.status === 'queued' ? 'collecting'
+        : run.status === 'grouping' ? 'grouping' : run.status as 'collecting' | 'summarizing'}/>
+      <Progress label={checking ? `Sources checked: ${progress} of ${total}`
+        : `Items summarized: ${progress} of ${total}`}
+        value={progress} max={total}/>
+      <SourceChecks checks={run.source_checks} compact={compact}/>
+    </>
+    return compact ? content : <section className="card run-card" aria-label="Digest run">{content}</section>
+  }
+
+  if (firstRun) return null
+
+  if (run.status === 'succeeded' || run.status === 'no_new_content') {
+    const succeeded = run.status === 'succeeded'
+    const title = succeeded ? 'Your digest is ready' : 'No new content'
+    const details = succeeded
+      ? <>{savedItems(run)} · {plural(run.sources_total, 'source')}
+        {' · '}{tokenTotals(run.prompt_tokens, run.completion_tokens)}</>
+      : <>Nothing new since your last digest · {tokenTotals(run.prompt_tokens, run.completion_tokens)}</>
+    const content = <>
+      {compact ? <p className="result-meta">{title} · {details}</p>
+        : <div className="result-head">
+          <Icon name={succeeded ? 'check' : 'info'} className="icon icon-result"/>
+          <div><h2 className="result-title">{title}</h2><p className="result-meta">{details}</p></div>
+        </div>}
+      {!compact && succeeded && loadingNewDigest && <p>Loading the new digest…</p>}
+      <HeldNotes run={run}/><SourceChecks checks={run.source_checks} compact={compact}/>
+    </>
+    return compact ? content : <section className={`card result-card ${succeeded ? 'result-ok' : 'result-none'}`}
+      aria-label="Digest run">{content}</section>
+  }
+
+  if (run.status === 'failed') {
+    const details = run.items_total > 0
+      ? <>{run.items_done} of {run.items_total} items were summarized before the error.
+        {' '}No digest was saved; all {run.items_total} items stay pending and those summaries are reused next time.</>
+      : 'No digest was saved.'
+    const result = <>
+      <p className="result-meta">{details}{' · '}{tokenTotals(run.prompt_tokens, run.completion_tokens)}</p>
+      <SourceChecks checks={run.source_checks} compact={compact}/>
+    </>
+    return <>
+      <Alert tone="error" announce={false} title="Digest generation failed"
+        actions={!compact && configurationError &&
+          <Link className={buttonClass('primary')} to="/settings">Check settings</Link>}>
+        {run.error_message || 'Digest generation failed. Try again.'}
+      </Alert>
+      {compact ? result : <section className="card result-card" aria-label="Digest run">{result}</section>}
+    </>
+  }
+  return null
+}
+
+export default function Home() {
   const [run, setRun] = useState<Run | null>(null)
   const [modelReady, setModelReady] = useState<boolean | null>(null)
   const [sources, setSources] = useState<Source[] | null>(null)
-  const [digests, setDigests] = useState<Digest[]>([])
-  const [loadError, setLoadError] = useState<{ title: string; message: string } | null>(null)
+  const [digest, setDigest] = useState<Digest | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [latestLoadError, setLatestLoadError] = useState<string | null>(null)
+  const [pageDetailsError, setPageDetailsError] = useState<string | null>(null)
   const [error, setError] = useState<{ title: string; message: string; source?: 'poll' } | null>(null)
+  const [newDigestError, setNewDigestError] = useState<{ id: number; message: string } | null>(null)
+  const pageMounted = useRef(false)
+  const [pendingDigests] = useState(() => new Set<number>())
+  useDocumentTitle(digest ? `Latest · No. ${digest.id}` : 'Latest')
+
+  useEffect(() => {
+    pageMounted.current = true
+    return () => { pageMounted.current = false }
+  }, [])
 
   useEffect(() => {
     let mounted = true
     Promise.allSettled([
       request<{ key_set: boolean }>('/settings/model'),
       request<Source[]>('/sources'),
-      request<Digest[]>('/digests'),
+      request<Digest | null>('/digests/latest'),
       request<Run | null>('/digest-runs/active'),
     ] as const).then(([settings, savedSources, history, current]) => {
       if (!mounted) return
       setModelReady(settings.status === 'fulfilled' ? settings.value.key_set : true)
       if (savedSources.status === 'fulfilled') setSources(savedSources.value)
-      if (history.status === 'fulfilled') setDigests(history.value)
+      if (history.status === 'fulfilled') setDigest(history.value)
       if (current.status === 'fulfilled') setRun(current.value)
-      const failure = [settings, savedSources, history, current].find(result => result.status === 'rejected')
-      if (failure?.status === 'rejected') {
-        setLoadError({ title: 'Could not load some page details', message: (failure.reason as Error).message })
-      }
+      if (history.status === 'rejected') setLatestLoadError((history.reason as Error).message)
+      const detailsFailure = [settings, savedSources, current].find(result => result.status === 'rejected')
+      if (detailsFailure?.status === 'rejected') setPageDetailsError((detailsFailure.reason as Error).message)
+      setLoading(false)
     })
     return () => { mounted = false }
   }, [])
@@ -100,18 +173,22 @@ export default function Generate() {
   }, [run?.id, run?.status])
 
   useEffect(() => {
-    if (run?.status !== 'succeeded') return
-    let mounted = true
-    request<Digest[]>('/digests')
-      .then(history => { if (mounted) setDigests(history) })
-      .catch((reason: Error) => { if (mounted) setError({
-        title: 'Could not refresh digest history', message: reason.message,
-      }) })
-    return () => { mounted = false }
-  }, [run?.id, run?.status])
+    const id = run?.status === 'succeeded' ? run.digest_id : null
+    if (!id || (digest && digest.id >= id) || pendingDigests.has(id)) return
+    pendingDigests.add(id)
+    request<Digest>(`/digests/${id}`)
+      .then(result => { if (pageMounted.current) {
+        setDigest(previous => !previous || result.id > previous.id ? result : previous)
+        setNewDigestError(previous => previous?.id === id ? null : previous)
+      } })
+      .catch((reason: Error) => { if (pageMounted.current) setNewDigestError(previous =>
+        !previous || id >= previous.id ? { id, message: reason.message } : previous) })
+      .finally(() => { pendingDigests.delete(id) })
+  }, [run?.status, run?.digest_id, digest?.id])
 
   async function generate() {
     setError(null)
+    setNewDigestError(null)
     try {
       setRun(await request<Run>('/digest-runs', { method: 'POST' }))
     } catch (reason) {
@@ -131,6 +208,7 @@ export default function Generate() {
   const noSources = modelReady === true && sources?.length === 0 && !run
   const state = firstRun ? 'first-run' : run?.status ?? 'idle'
   const configurationError = state === 'failed' && configErrors.includes(run?.error_kind ?? '')
+  const visibleNewDigestError = newDigestError && (!digest || newDigestError.id > digest.id) ? newDigestError : null
   const status = run?.status === 'collecting' || run?.status === 'queued'
     ? `Checking sources, ${run.source_checks.length} of ${run.sources_total}`
     : run?.status === 'summarizing' || run?.status === 'grouping'
@@ -139,11 +217,40 @@ export default function Generate() {
         : run?.status === 'no_new_content' ? 'No new content'
           : run?.status === 'failed' ? `Digest generation failed: ${run.error_message || 'Digest generation failed. Try again.'}` : ''
 
-  const lastDigestLine = digests[0] && <p className="hero-meta hero-last">Last digest:{' '}
-    <Link to={`/digests/${digests[0].id}`}>No. {digests[0].id} · {shortDateTime(digests[0].created_at)}</Link>
-    {' · '}{plural(digests[0].item_count, 'item')}</p>
-
-  return <section className="page page-generate">
+  return <>
+  {loading ? <section className="page page-generate"><PageHead title="Loading…"/></section>
+    : digest ? <DigestArticle digest={digest} className="page-home" before={
+      <section className="run-bar" aria-label="Digest run">
+        <div className="run-bar-actions">
+          {firstRun ? <>
+            <Link className={buttonClass('primary', 'lg')} to="/settings">Set up your model</Link>
+            <Button disabled aria-describedby="home-model-why">Generate digest</Button>
+            <p className="hero-meta" id="home-model-why">Available once a model is set up and a source is added.</p>
+          </> : noSources ? <>
+            <Link className={buttonClass('primary', 'lg')} to="/sources">Add sources</Link>
+            <Button disabled aria-describedby="home-sources-why">Generate digest</Button>
+            <p className="hero-meta" id="home-sources-why">Available once a source is added.</p>
+          </> : <>
+            {configurationError && <Link className={buttonClass('primary')} to="/settings">Check settings</Link>}
+            <Button variant={running || state === 'idle' || state === 'failed' && !configurationError ? 'primary' : 'secondary'}
+              size="lg" type="button" onClick={() => void generate()} disabled={running || modelReady === null}>
+              {running ? 'Generating…' : state === 'failed' ? 'Try again' : 'Generate digest'}
+            </Button>
+          </>}
+          {sources !== null && <p className="hero-meta">{plural(sources.length, 'source')} ·{' '}
+            <Link to="/sources">Manage sources</Link></p>}
+        </div>
+        {pageDetailsError && <Alert tone="error" title="Could not load some page details">
+          {pageDetailsError}</Alert>}
+        {error && <Alert tone="error" title={error.title}>{error.message}</Alert>}
+        {visibleNewDigestError && <Alert tone="error" title="Could not load the new digest"
+          actions={<Link to={`/digests/${visibleNewDigestError.id}`}>View digest</Link>}>
+          {visibleNewDigestError.message}
+        </Alert>}
+        {run && <RunStateContent run={run} compact firstRun={firstRun}/>}
+      </section>
+    }/>
+    : <section className="page page-generate">
     <PageHead title="Generate digest" lede={firstRun
       ? 'Check the sources you follow and summarize what is new since your last digest.'
       : sources === null ? 'Check your sources and summarize everything new since your last digest.'
@@ -158,74 +265,33 @@ export default function Generate() {
           <Link className={buttonClass('primary', 'lg')} to="/sources">Add sources</Link>
           <Button disabled aria-describedby="generate-sources-why">Generate digest</Button>
           <p className="hero-meta" id="generate-sources-why">Available once a source is added.</p>
-          {lastDigestLine}
         </> : <>
           <Button variant={running || state === 'idle' || state === 'failed' && !configurationError ? 'primary' : 'secondary'}
             size="lg" type="button" onClick={() => void generate()} disabled={running || modelReady === null}>
             {running ? 'Generating…' : state === 'failed' ? 'Try again' : 'Generate digest'}
           </Button>
-          {lastDigestLine}
         </>}
       </div>
     </PageHead>
-    {loadError && <Alert tone="error" title={loadError.title}>{loadError.message}</Alert>}
+    {latestLoadError && <Alert tone="error" title="Could not load the latest digest"
+      actions={<Link to="/digests">View History</Link>}>{latestLoadError}</Alert>}
+    {pageDetailsError && <Alert tone="error" title="Could not load some page details">
+      {pageDetailsError}</Alert>}
     {error && <Alert tone="error" title={error.title}>{error.message}</Alert>}
+    {visibleNewDigestError && <Alert tone="error" title="Could not load the new digest"
+      actions={<Link to={`/digests/${visibleNewDigestError.id}`}>View digest</Link>}>
+      {visibleNewDigestError.message}</Alert>}
     {firstRun && <Alert title="Set up your model first." actions={<Link className={buttonClass('ghost')} to="/sources">Add sources</Link>}>
       CatchUp summarizes with your own AI model. Add a provider and key in Settings, then add a few sources.
     </Alert>}
-    {running && run && <section className="card run-card" aria-label="Digest run">
-      <Stepper current={run.status === 'queued' ? 'collecting'
-        : run.status === 'grouping' ? 'grouping' : run.status as 'collecting' | 'summarizing'}/>
-      <Progress label={run.status === 'collecting' || run.status === 'queued'
-        ? `Sources checked: ${run.source_checks.length} of ${run.sources_total}`
-        : `Items summarized: ${run.items_done} of ${run.items_total}`}
-        value={run.status === 'collecting' || run.status === 'queued'
-          ? run.source_checks.length : run.items_done}
-        max={run.status === 'collecting' || run.status === 'queued' ? run.sources_total : run.items_total}/>
-      <SourceChecks checks={run.source_checks}/>
-    </section>}
-    {state === 'succeeded' && run && <section className="card result-card result-ok" aria-label="Digest run">
-      <div className="result-head"><Icon name="check" className="icon icon-result"/>
-        <div><h2 className="result-title">Your digest is ready</h2>
-          <p className="result-meta">{savedItems(run)} · {plural(run.sources_total, 'source')}
-            {' · '}{tokenTotals(run.prompt_tokens, run.completion_tokens)}</p>
-        </div>
-        {run.digest_id && <Link className={buttonClass('primary')} to={`/digests/${run.digest_id}`}>View digest</Link>}
-      </div>
-      <HeldNotes run={run}/><SourceChecks checks={run.source_checks}/>
-    </section>}
-    {state === 'no_new_content' && run && <section className="card result-card result-none" aria-label="Digest run">
-      <div className="result-head"><Icon name="info" className="icon icon-result"/>
-        <div><h2 className="result-title">No new content</h2>
-          <p className="result-meta">Nothing new since your last digest · {tokenTotals(run.prompt_tokens, run.completion_tokens)}</p>
-        </div></div>
-      <HeldNotes run={run}/><SourceChecks checks={run.source_checks}/>
-    </section>}
-    {state === 'failed' && run && <>
-      <Alert tone="error" announce={false} title="Digest generation failed"
-        actions={configurationError && <Link className={buttonClass('primary')} to="/settings">Check settings</Link>}>
-        {run.error_message || 'Digest generation failed. Try again.'}
-      </Alert>
-      <section className="card result-card" aria-label="Digest run">
-        <p className="result-meta">{run.items_total > 0
-          ? <>{run.items_done} of {run.items_total} items were summarized before the error.
-            {' '}No digest was saved; all {run.items_total} items stay pending and those summaries are reused next time.</>
-          : 'No digest was saved.'}
-          {' · '}{tokenTotals(run.prompt_tokens, run.completion_tokens)}</p>
-        <SourceChecks checks={run.source_checks}/>
-      </section>
-    </>}
-    <StatusRegion>{status}</StatusRegion>
+    {run && <RunStateContent run={run} compact={false} firstRun={firstRun}
+      loadingNewDigest={!!run.digest_id && !visibleNewDigestError} configurationError={configurationError}/>}
     <Rail>{firstRun ? <>
       <section className="rail-box"><h2 className="rail-title">Getting started</h2>
         <ol className="rail-steps"><li><Link to="/settings">Set up your model</Link></li>
           <li><Link to="/sources">Add a few sources</Link></li><li>Generate your first digest</li></ol>
       </section>
     </> : <>
-      {digests[0] && <section className="rail-box"><h2 className="rail-title">Last digest</h2>
-        <p><Link to={`/digests/${digests[0].id}`}>No. {digests[0].id} · {dateTime(digests[0].created_at)}</Link></p>
-        <p className="rail-meta">{plural(digests[0].item_count, 'item')} · {plural(digests[0].source_count, 'source')}</p>
-      </section>}
       {sources !== null && <section className="rail-box"><h2 className="rail-title">Your sources</h2>
         <p className="rail-big">{sources.length}</p>
         <p className="rail-meta">{plural(sources.filter(s => s.kind === 'podcast').length, 'podcast')} ·{' '}
@@ -238,5 +304,7 @@ export default function Generate() {
         <p className="rail-meta">Each digest covers everything new since the previous one. Podcasts and videos are summarized only from transcripts or captions.</p>
       </section>
     </Rail>
-  </section>
+  </section>}
+  <StatusRegion>{status}</StatusRegion>
+  </>
 }

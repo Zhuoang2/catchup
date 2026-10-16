@@ -54,6 +54,92 @@ def seed_history(client):
         return source.id
 
 
+def test_latest_digest_is_null_without_history(test_settings):
+    with TestClient(create_app(test_settings)) as client:
+        response = client.get("/api/digests/latest")
+        assert response.status_code == 200
+        assert response.json() is None
+
+
+def test_latest_digest_matches_detail_with_all_saved_fields(test_settings):
+    with TestClient(create_app(test_settings)) as client:
+        seed_history(client)
+        with client.app.state.session_factory() as session:
+            digest = session.get(Digest, 3)
+            digest.language = "zh-Hans"
+            digest.transcript_wait_days = 10
+            run = session.get(DigestRun, digest.run_id)
+            run.prompt_tokens = 81
+            run.completion_tokens = 23
+            topic = DigestTopic(digest_id=3, position=0, title="Technology", overview="Saved")
+            creator = DigestTopic(digest_id=3, position=1, title="Creator updates",
+                                  overview="", kind="creator_updates")
+            session.add_all([topic, creator])
+            session.flush()
+            session.add_all([
+                DigestItem(digest_id=3, topic_id=topic.id, position=0, title="Article",
+                           link="https://example.test/article", source_name="Blog",
+                           summary="Summary", summary_unavailable=False),
+                DigestItem(digest_id=3, topic_id=creator.id, position=0, title="Episode",
+                           link="https://example.test/episode", source_name="Show",
+                           source_kind="podcast", update_reason="no_transcript",
+                           summary_unavailable=True),
+            ])
+            session.commit()
+        response = client.get("/api/digests/latest")
+        assert response.status_code == 200
+        detail = client.get("/api/digests/3")
+        assert detail.status_code == 200
+        assert response.json() == detail.json()
+        assert response.json()["language"] == "zh-Hans"
+        assert response.json()["transcript_wait_days"] == 10
+        assert (response.json()["prompt_tokens"], response.json()["completion_tokens"]) == (81, 23)
+        assert response.json()["topics"][0]["items"][0]["title"] == "Article"
+        assert response.json()["creator_updates"][0]["items"][0]["title"] == "Episode"
+        assert client.get("/api/digests/1").json()["id"] == 1
+
+
+def test_latest_returns_creator_updates_only_digest(test_settings):
+    with TestClient(create_app(test_settings)) as client:
+        seed_history(client)
+        with client.app.state.session_factory() as session:
+            creator = DigestTopic(digest_id=3, position=0, title="Creator updates",
+                                  overview="", kind="creator_updates")
+            session.add(creator)
+            session.flush()
+            session.add(DigestItem(digest_id=3, topic_id=creator.id, position=0,
+                                   title="Video", link="https://example.test/video",
+                                   source_name="Channel", source_kind="youtube",
+                                   update_reason="captions_off", summary_unavailable=True))
+            session.commit()
+        latest = client.get("/api/digests/latest")
+        assert latest.status_code == 200
+        assert latest.json() == client.get("/api/digests/3").json()
+        assert latest.json()["topics"] == []
+        assert latest.json()["creator_updates"][0]["items"][0]["title"] == "Video"
+
+
+def test_latest_breaks_creation_time_ties_with_higher_id(test_settings):
+    with TestClient(create_app(test_settings)) as client:
+        seed_history(client)
+        assert client.get("/api/digests/latest").json()["id"] == 3
+        assert client.get("/api/digests/2").json()["id"] == 2
+
+
+def test_latest_prefers_newer_creation_time_over_higher_id(test_settings):
+    with TestClient(create_app(test_settings)) as client:
+        seed_history(client)
+        with client.app.state.session_factory() as session:
+            session.get(Digest, 1).created_at = datetime(2026, 10, 3, tzinfo=timezone.utc)
+            session.commit()
+        rows = client.get("/api/digests").json()
+        latest = client.get("/api/digests/latest")
+        assert [row["id"] for row in rows] == [1, 3, 2]
+        assert latest.status_code == 200
+        assert latest.json() == client.get("/api/digests/1").json()
+        assert latest.json()["id"] == rows[0]["id"]
+
+
 def test_history_lists_three_newest_first_with_counts(test_settings):
     with TestClient(create_app(test_settings)) as client:
         assert client.get("/api/digests").json() == []

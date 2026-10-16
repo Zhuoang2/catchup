@@ -722,3 +722,60 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - A direct edit in the doc had brought back "retried up to 3 times". Claude flagged it with the code reference instead of reverting it, and the user approved the fix.
   - Claude's replies drifted into English after long English tool output and subagent reports. The user pointed it out twice ("Why are the replies in English again?" and "You used English again.").
   - The user saw a "red" table column. It was Claude's own selection, shown as a collaborator highlight; the exported HTML confirmed that the cells have no background colour.
+
+## 2026-10-16 — `show-latest-digest-on-home` (#27): research, proposals, and plan (Claude Code, Opus 5.5, with two Explore subagents)
+
+- Prompts (translated from Chinese):
+  - "It's merged; start the research for #27."
+  - After the two proposals: "Where did Generate go in Proposal 1?"
+  - "Choose Proposal 1, use Latest for the navigation, and do #25 separately."
+- Research:
+  - Claude read the Generate, DigestView, History, App, and AppShell code and the three related specs itself.
+  - Two read-only Explore subagents covered the backend digest and run endpoints, and the layout CSS and frontend tests.
+  - Claude spot-checked their key claims against the code before writing `research.md`: list ordering, `/active` returning `null`, the SPA fallback, the grid rules, the status region, and the test names and lines.
+  - The research found that the main screen never loads digest content, that the reading layout is an unexported component with its own `h1`, that the two screens use different grid splits, and that there is no latest-digest endpoint.
+- Proposals: (1) `/` becomes the latest digest under a compact run bar; (2) Generate stays, with the digest embedded below. The user's question showed that Proposal 1 had not said where Generate goes. Claude answered with a text mock-up of the run bar in each state, and noted that generating from other screens still means going back to `/`.
+- Plan:
+  - `proposal.md`, the spec deltas (`user-interface`: one requirement added and four modified; `digest-history`: one added), the final `design.md` (D1–D8), and a `tasks.md` in five groups, with failing-first tests named in each task.
+  - The two lessons from the redesign became verification items: the test count must not drop when `Generate.test.tsx` moves, and the status region must not remount.
+  - `openspec validate --strict` passes. D-017 and a requirements-changes row record the decision.
+- Problems / adjustment: the first proposal summary described the run bar only in prose, which left the user unsure where Generate went. Claude now includes a layout sketch whenever a proposal moves or removes a control.
+
+## 2026-10-15 to 2026-10-16 — Latest digest on Home (Factory Droid, GPT-6 Sol)
+
+- Prompt (faithful excerpt): "Implement OpenSpec change show-latest-digest-on-home using the openspec-apply-change skill. Work through ... tasks.md in order, completing each task test-first with the tdd skill: write the task's verification items as failing tests and watch them fail, then implement until they pass. ... Commit after each task group. Do not push, tag, or open a PR."
+- Outcome: Added the one-request latest digest endpoint, shared digest reading article, Home layout and in-place digest replacement, Latest navigation and documentation. Four implementation group commits and a final checks/report commit. Full results and omitted live checks are in `test-report-show-latest-digest-on-home.md`.
+- Problems / adjustment: The new API tests initially returned 422 as expected; frontend dependencies were missing and installed from the lockfile. During the page rename, obsolete last-digest link/date tests were replaced with no-link and in-place article checks, while the existing run-state tests were retained. The style audit alone did not inspect the new run-bar selectors, so a failing CSS rule test was added before styling. No external provider or feed was contacted in tests, and no code was pushed.
+- Review fixes (2026-10-16): Claude Code asked Droid to implement review tasks 6.1–6.9 in order, reproduce bugs first, use `tdd` for tests and styling, commit each task, and leave planning artifacts untouched. After Droid stopped because a purely structural refactor could not have a failing behavior test, Claude Code amended 6.7 (commit c5c9fbd) to use the existing Home tests as its safety net and asked Droid to continue. Regression tests reproduced stale alerts, duplicate first-digest actions, mismatched error text, and an overlapping-fetch race before fixes. Stronger success tests required the article to load; a Home/History comparison checked identical reading markup. The shared run-state refactor kept 49 Home tests green. A CSS test failed before the redundant and double rules were removed. The backend timestamp-order test passed immediately because the API already sorted correctly. Removing `.hero-last` made the style audit fail against an archived prototype; Droid documented the prototype-only exception rather than restoring dead app CSS. Final checks: 362 backend tests (96% coverage), 152 frontend tests, build, style audit, strict OpenSpec validation, and local Docker build passed. Live browser and real-run checks remain for review; no push, tag, or PR was made.
+- Review fixes, round 2 (2026-10-16): Claude Code's review found the first-run regression and stale alert races; Droid reproduced and fixed them, strengthened mutation-sensitive tests, separated startup errors, and passed 362 backend tests, 159 frontend tests (58 axe scans), build, style audit, strict validation, and local Docker build.
+- Review fixes, round 3 (2026-10-16): Claude Code asked Droid to fix the higher-id error race and empty queued-source labels, then refactor and recheck; failing-first tests reproduced both bugs, and 362 backend tests, 162 frontend tests (58 axe scans), build, style audit, strict validation, and Docker build passed.
+
+## 2026-10-16 — `show-latest-digest-on-home` (#27): review of the Droid run and three fix rounds (Claude Code, Opus 5.5, with one spec-review subagent; Factory Droid session `21b6d3aa`)
+
+- Process: the fixed review step (D-016) ran after every Droid run.
+  - `/code-review` on the run's diff.
+  - An independent spec subagent that had not seen the design discussion. The same agent was resumed each round, so it could check earlier findings.
+  - Claude verified every finding with a probe test, a mutation, or the code before anything changed.
+  - Live checks ran on a local review instance with a stub model and public feeds.
+- Round 1 (groups 1–5):
+  - 9 findings were confirmed and none rejected. Examples: a stale startup error re-announced after the swap, a leftover "View digest" in the first-digest card, three success tests that passed in the fetch-error state, an in-flight swap dropped by a new run, and a spec scenario that ignored the back link.
+  - Live checks passed: the in-place swap kept focus, made no `focus()` calls and no scroll, and announced once; the 1440/900/420 px layouts were fine.
+  - Claude asked four questions. The user replied "As you recommend" (translated). Claude amended design D3/D5/D7 and the "Same digest in both places" scenario, and added task group 6.
+- Prompt to Droid (faithful excerpt): "Implement 6.1-6.9 in order with the openspec-apply-change skill: diagnosing-bugs for 6.1-6.4 and tdd for 6.5-6.8, always writing the failing test first. Check off each task only after its verification passes. … If a task is blocked or the plan looks wrong, stop and report instead of improvising."
+- Problem: Droid stopped at 6.7, a pure refactor that the plan had put under `tdd`'s red-first rule. Droid was right, and the plan was Claude's error.
+  - Adjustment: Claude marked 6.7 as `tdd`'s refactor step, with the existing tests as its safety net (commit c5c9fbd), and resumed Droid.
+  - Later plans label refactor tasks explicitly (7.6, 8.3).
+- Round 2 (group 6):
+  - The 6.7 refactor had changed first-run behavior while all 49 Home tests passed; a probe test showed it.
+  - The spec subagent's mutations showed that one 6.4 test could not detect the regression it named.
+  - Also found: a stale-alert race, the no-digest success card left without coverage, and a lost second startup error.
+  - Droid's log entry attributed Claude's prompts to the user. Claude corrected it.
+  - The user replied "As you recommend" (translated) → group 7.
+- Round 3 (group 7): mutations confirmed each fix, and four low items remained. The user chose "As you recommend, one more small round" (translated) → group 8.
+- Round 4 (group 8):
+  - Mutations and failing-first runs confirmed both fixes. A probe of zero-check runs in both layouts found no regression.
+  - One optional item remains: a mutable Set held in `useState`. Both reviewers rated it low, and it was left as is.
+  - Live checks passed: no empty "Sources" label while checking, and a real run swapped No. 2 for No. 3 in place.
+- Lessons:
+  - Before a refactor, check that its safety net still covers the code being moved. Here, 6.5 had weakened it.
+  - A verification claim counts only if the test fails under a mutation of the fix. The spec subagent now mutation-tests the claims.

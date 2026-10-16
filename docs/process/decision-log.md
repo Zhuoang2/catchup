@@ -159,3 +159,23 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
     - It requires a separate setup step (`docs/agents/issue-tracker.md`).
     - The project's review sub-agent already checked against the spec. The missing piece was running the review on every round.
   - Its three spec questions were adopted into the sub-agent brief.
+
+## D-017 The main screen shows the latest digest, with a compact run bar; navigation item "Latest" — accepted (2026-10-16)
+
+- **Decision.** `/` shows the newest saved digest in the existing reading layout. A run bar above it holds Generate, the source count, and the current run's progress, outcomes, and result.
+  - When a run saves a digest, the new digest replaces the shown one in place, without moving focus.
+  - With no digest saved yet, `/` keeps the Generate guidance and rail.
+  - The first navigation item is renamed "Latest". A new `GET /api/digests/latest` returns the newest digest, or `null`.
+  - Planned as OpenSpec change `show-latest-digest-on-home` (issue #27).
+- **Why.** Reading the digest is CatchUp's main activity. The user asked that the main screen show it instead of sending people to History after each run (issue #27, after the redesign's manual test).
+- **Alternatives:**
+  - Keep Generate as the main screen and embed the latest digest below it. Rejected:
+    - Reading would stay below the hero, the cards, and the rail.
+    - Two grids would be mixed on one page.
+    - The whole reading layout would need heading-level variants.
+  - Reuse the first entry of `GET /api/digests` and then the detail request, with no new endpoint. Rejected: two requests, and the list has no limit.
+  - Navigation labels "Today" or "Front page". The user chose "Latest".
+- **Consequences:**
+  - "View digest" disappears from the finished-run state, which now offers no primary action.
+  - The main screen shows no side rail while a digest is shown; the source count moves into the run bar.
+  - The single-item topic layout (#25) becomes more visible. It stays a separate change, planned next.

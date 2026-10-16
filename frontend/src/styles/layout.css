@@ -15,6 +15,7 @@
 .page > .page-head { grid-column: 1 / -1; }
 .page-digest .page-head { display: grid; grid-template-columns: subgrid; border-bottom: 1px solid var(--border-strong); padding-bottom: 1rem; }
 .page-digest .page-head > * { grid-column: 1 / -1; }
+.page-home > .run-bar { grid-column: 1 / -1; }
 .page-digest .digest-layout, .page-digest .digest-body { display: contents; }
 .page-digest .toc { grid-column: 1 / -1; margin-top: -1rem; }
 .topic, .creator, .settings-section { grid-column: 1 / -1 !important; display: grid; grid-template-columns: subgrid; column-gap: var(--gutter); border-top: 3px solid var(--fg); padding-top: .9rem; }

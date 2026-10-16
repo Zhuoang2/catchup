@@ -120,7 +120,7 @@ Implementer notes:
 Notes for this round:
 - These tasks come from the review of groups 1–5. Each finding was confirmed against the code, and the user decided how to resolve it on 2026-10-16. `design.md` (D3, D5, D7) and the spec scenario "Same digest in both places" were amended to match. Read those passages again first.
 - **Use `diagnosing-bugs`** for 6.1–6.4: reproduce each bug with a failing test first, rank hypotheses, fix, and keep the test as the regression test. Put the confirmed cause in the commit message.
-- **Use `tdd`** for 6.5–6.8.
+- **Use `tdd`** for 6.5, 6.6, and 6.8. Task 6.7 is the refactor step of `tdd`: it changes no behavior, so it has no failing test of its own. The tests from groups 3 and 6.1–6.6 are its safety net and must stay green.
 - Do not edit `proposal.md`, `design.md`, or the spec deltas.
 
 - [x] 6.1 Stale errors in the run bar (design D3, D5). Two bugs:
@@ -160,7 +160,7 @@ Notes for this round:
   Verify: the two `section.page-digest` elements match once the run bar, the "← All digests" link, and the `page-home` class are removed. They must have identical markup, or at least identical headings, index, topic rows, items, and Creator updates.
 - [ ] 6.7 Shared run-state component (design D3 "Shared run-state content"). Today the running, succeeded, no-new-content, and failed content is written twice in `Home.tsx`: once in the run bar (`:180-211`) and once in the no-digest cards (`:247-288`).
   - Extract one component that renders this content for both. Its options cover the differences: headings in the cards, paragraphs in the bar.
-  - Do this after 6.1–6.5, so that every behavior is covered by tests first.
+  - Do this after 6.1–6.6, so that every behavior is covered by tests first. Do not write a red-first test for it, and do not test the component's internals.
 
   Verify:
   - Every `Home.test.tsx` test passes, with no change other than those made in 6.1–6.6.

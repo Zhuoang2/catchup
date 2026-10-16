@@ -722,3 +722,21 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - A direct edit in the doc had brought back "retried up to 3 times". Claude flagged it with the code reference instead of reverting it, and the user approved the fix.
   - Claude's replies drifted into English after long English tool output and subagent reports. The user pointed it out twice ("Why are the replies in English again?" and "You used English again.").
   - The user saw a "red" table column. It was Claude's own selection, shown as a collaborator highlight; the exported HTML confirmed that the cells have no background colour.
+
+## 2026-10-16 — `show-latest-digest-on-home` (#27): research, proposals, and plan (Claude Code, Opus 5.5, with two Explore subagents)
+
+- Prompts (translated from Chinese):
+  - "It's merged; start the research for #27."
+  - After the two proposals: "Where did Generate go in Proposal 1?"
+  - "Choose Proposal 1, use Latest for the navigation, and do #25 separately."
+- Research:
+  - Claude read the Generate, DigestView, History, App, and AppShell code and the three related specs itself.
+  - Two read-only Explore subagents covered the backend digest and run endpoints, and the layout CSS and frontend tests.
+  - Claude spot-checked their key claims against the code before writing `research.md`: list ordering, `/active` returning `null`, the SPA fallback, the grid rules, the status region, and the test names and lines.
+  - The research found that the main screen never loads digest content, that the reading layout is an unexported component with its own `h1`, that the two screens use different grid splits, and that there is no latest-digest endpoint.
+- Proposals: (1) `/` becomes the latest digest under a compact run bar; (2) Generate stays, with the digest embedded below. The user's question showed that Proposal 1 had not said where Generate goes. Claude answered with a text mock-up of the run bar in each state, and noted that generating from other screens still means going back to `/`.
+- Plan:
+  - `proposal.md`, the spec deltas (`user-interface`: one requirement added and four modified; `digest-history`: one added), the final `design.md` (D1–D8), and a `tasks.md` in five groups, with failing-first tests named in each task.
+  - The two lessons from the redesign became verification items: the test count must not drop when `Generate.test.tsx` moves, and the status region must not remount.
+  - `openspec validate --strict` passes. D-017 and a requirements-changes row record the decision.
+- Problems / adjustment: the first proposal summary described the run bar only in prose, which left the user unsure where Generate went. Claude now includes a layout sketch whenever a proposal moves or removes a control.

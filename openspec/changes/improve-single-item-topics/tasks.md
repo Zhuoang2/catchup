@@ -67,3 +67,34 @@ Implementer notes:
   Add an entry for this run to `docs/process/ai-usage-log.md`, after the latest entry: the prompt as a faithful excerpt, the outcome, and the problems.
 
   Verify: every command passes, and the report exists with the actual numbers.
+
+## 4. Review fixes, round 1
+
+Notes for this round:
+- These tasks come from the review of groups 1–3 (`/code-review`, the spec subagent, and live checks in a browser). Each finding was confirmed by rendering, a screenshot, or a mutation.
+- On 2026-10-16 the user decided to stack items at 1100 px and below. `design.md` (D1, D4, Risks, Testing), `proposal.md`, and the spec delta were amended, the latter with a new "Medium window" scenario. Read those passages first.
+- **Use `diagnosing-bugs`** for 4.1 and **`tdd`** for 4.2. Task 4.3 is a refactor step with no red test.
+- Do not edit `proposal.md`, `design.md`, or the spec deltas.
+
+- [ ] 4.1 Items overlap at 900 px and below (design D1, D4).
+  - Cause: the narrow reset `.items > .item > * { grid-column: 1 / -1; grid-row: auto; }` (`layout.css:67`) has specificity (0,2,0), and the wide placements at `:25-27` have (0,3,0). They still apply inside the container query.
+  - Effect, measured live at 420 and 900 px on real digests: the item's columns become `0px 170px 170px`, and each summary is painted over its source line and title.
+  - **Fix:** move every side-by-side rule into one `@container (width > 1100px)` block, and delete the narrow reset. The side-by-side rules are the item's `subgrid`, `column-gap`, and `grid-template-rows`, plus the meta, title, and summary placements. Outside any query, keep only the item's `grid-column: 1 / -1` and the top rule between items.
+
+  Verify with a failing-first test in `frontend/src/styles/tokens.test.ts`. It replaces the two tests added in 2.1 and parses `layout.css` by block. It asserts:
+  - Inside `@container (width > 1100px)`: `.items > .item` has `grid-template-columns: subgrid`, `column-gap: var(--gutter)`, and `grid-template-rows: auto auto 1fr`. The meta and title take `1 / span 3` with rows 1 and 2. The summary and unavailable note take `4 / -1` and `1 / -1`.
+  - Outside that block: none of these placements or that row template appears anywhere in `layout.css`. No rule targets `.items > .item > *`, `.item-meta`, `.item-title`, `.summary`, or `.summary-unavailable` for placement.
+  - Outside any query: `.items > .item` spans `1 / -1`, and `.items > .item + .item` has the top rule.
+  - The test fails on the current `layout.css`. Removing `column-gap: var(--gutter)` from the wide block makes it fail.
+- [ ] 4.2 Keep the earlier assertions that still apply: no `.item-long`, `.item-short`, or `.item:only-child` rules, and no `border-left` between items. Fold them into the 4.1 test or keep them separately.
+
+  Verify: `npm test -- --run`, `npm run build`, and the style audit with its unit test all pass.
+- [ ] 4.3 Refactor step, with no red test: in `frontend/src/components/DigestArticle.tsx:66-67`, turn the `{ return … }` arrow body that has nothing else in it into an expression body.
+
+  Verify: `npm test -- --run` passes with no test changes in this task.
+- [ ] 4.4 Docs:
+  - Append a "Review fixes, round 1" section to `docs/process/test-report-improve-single-item-topics.md`, with the re-run commands and their real results, including the axe scan count.
+  - In `docs/process/ai-usage-log.md`, correct your entry's false outcome claim "preserved one-column stacking below 900 px". The first version did not; say so, and point to 4.1.
+  - Add the Droid session id (`92a71026`) to that entry's heading or prompt line, as the previous Droid entry does, and add one short sentence on this round.
+
+  Verify: the report has the actual numbers, and the log entry no longer claims working narrow stacking for the first version.

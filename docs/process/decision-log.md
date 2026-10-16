@@ -200,4 +200,4 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - No vertical rule between an item's title and its summary.
   - The topic column stays 3 columns wide.
   - Short items take a full row of their own.
-  - At 900 px and below, the layout is unchanged.
+  - At 900 px and below, the layout is unchanged. Items stack (source line, title, summary) at 1100 px and below. This was decided after review, when titles wrapped to 4–5 lines in a 191 px heading column at 901 px.

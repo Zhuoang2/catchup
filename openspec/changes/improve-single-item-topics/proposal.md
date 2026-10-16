@@ -20,6 +20,7 @@ As a result, 14 of 16 rows in a real Chinese digest end 302 px short of the cont
   - the topic column (title and overview in page columns 1–3)
   - the top rule between items, which now spans the item's full width
   - the single-column layout at 900 px and below
+- **Stacked items at 1100 px and below.** From 901 to 1100 px, the topic column stays, and each item stacks its source line, title, and summary across the item area. This keeps titles from wrapping to 4–5 lines in a narrow heading column.
   - the Creator updates layout
   - the DOM order of an item: source line, then title, then summary
 - **Out of scope:** grouping granularity (fewer, broader topics), the second cause named in #25. It is split out into its own later change.

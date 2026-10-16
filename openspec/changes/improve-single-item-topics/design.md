@@ -35,9 +35,10 @@ See `proposal.md` for the motivation. The current state that shapes the approach
 
 ## Decisions
 
-### D1. The item is a subgrid row of the item grid
+### D1. The item is a subgrid row of the item grid (above 1100 px)
+- **Scope.** The placements below apply only inside `@container (width > 1100px)`. At 1100 px and below, no item placement rule applies, so there is nothing to reset (D4). This replaces the first version's reset rule in the 900 px block, which lost to the wide placements on specificity, so items overlapped (review, 2026-10-16).
 - **Placement:**
-  - `.items > .item` spans `1 / -1` of the 9-column item grid, as a subgrid, so its columns line up with the page grid.
+  - `.items > .item` spans `1 / -1` of the 9-column item grid, as a subgrid with `column-gap: var(--gutter)`, so its columns line up with the page grid. The gap must be set, because `.item` otherwise gets a 0.45rem gap from `components.css:112`.
   - `.item-meta` and `.item-title` take item columns `1 / span 3` (page columns 4–6), in rows 1 and 2.
   - `.summary` and `.summary-unavailable` take `4 / -1` (page columns 7–12) and span all of the item's rows.
 - **The heading stays together.** The item's rows are `auto auto 1fr`, so a summary taller than the heading gives its extra height to the last row. The source line and title therefore stay together at the top of the row instead of spreading apart.
@@ -58,12 +59,16 @@ See `proposal.md` for the motivation. The current state that shapes the approach
 - **The topic column** stays at 3 columns (the same decision).
 - **Row gap.** The row gap between items in a topic stays as today (`layout.css:23`).
 
-### D4. Narrow layout (900 px and below)
-- **Item grid:** the item grid is already one column (`layout.css:66`).
-- **The item itself:**
-  - It becomes one column (`grid-template-columns: minmax(0, 1fr)`).
-  - Its children reset to `grid-column: 1 / -1; grid-row: auto`, so the source line, title, and summary stack in DOM order, as today.
-- **Rules:** the existing top rule between items (`layout.css:67-68`) stays.
+### D4. Stacked items at 1100 px and below
+- **The user's decision (2026-10-16).** Just above 900 px, the review measured a 191 px heading column, and 10 of 14 real titles wrapped to 4–5 lines. Items therefore stack at 1100 px and below instead of 900 px.
+- **From 901 to 1100 px:**
+  - The topic row is unchanged: the title and overview take page columns 1–3, and the items take 4–12.
+  - Each item spans the whole item area (`1 / -1`, outside any query). Its children stack in DOM order (source line, then title, then summary) in `.item`'s single implicit column.
+  - The summary is 622–771 px wide and ends at the content's right edge, about 38–47 CJK characters per line. This is longer than the 35 at 1440 px, and within the spec, which limits line length at 1440 px.
+- **At 900 px and below:** everything is one column, as today (`layout.css:59-68`).
+  - The 900 px block needs no item rule, because no placement applies below 1100 px.
+  - The top rule between items comes from the rule outside any query.
+- **Rules:** the top rule between items (`border-top` with `padding-top: 1rem`) is set once, outside any query.
 
 ### D5. Style audit
 - `.item-long` and `.item-short` go into `PROTOTYPE_ONLY` in `frontend/scripts/check-style-coverage.py`, each with a reason, the same way `.hero-last` was handled.
@@ -81,7 +86,9 @@ The issue's own suggestion, a 4 : 8 split for single-item topics, was also rejec
 
 ## Risks / Trade-offs
 
-- **[Narrow heading column]** Just above 900 px, the heading column is about 190 px wide (216 px at 1000 px), so titles wrap more. → The live checks at 901 and 1000 px confirm that titles stay readable, and the 900 px breakpoint is unchanged.
+- **[Narrow heading column]** At 1101 px the heading column is about 240 px wide, so titles still wrap more than at 1440 px. → Below 1100 px items stack (D4). The live checks at 1101 and 1440 px count title lines.
+- **[Longer lines from 901 to 1100 px]** Stacked summaries run to about 38–47 CJK characters per line. → Accepted by the user with the 1100 px breakpoint, and within the spec's 1440 px limit.
+- **[Cascade fights between queries]** A narrow-window reset can lose to wide-window placements on specificity, which is what happened in the first version. → All side-by-side placements live in one `width > 1100px` query, and a CSS test asserts that none of them appears outside it.
 - **[Short items take a full row]** A one-line summary now has its own row, where before it shared one with a long item. → Short items are rare in real digests: 1 of 14 and 1 of 7 summaries. Their row is shorter, since the title sits beside the summary.
 - **[The heading spreads apart]** Without explicit rows, a tall summary would stretch the meta and title rows. → D1's `auto auto 1fr` rows, a CSS assertion, and a live check that the title starts right below the source line.
 - **[It looks like a table]** Three narrow-to-wide bands (topic, heading, summary) read more like a table than a page. → The rules stay horizontal only, and the topic's 3 px rule still opens each section.
@@ -106,10 +113,10 @@ The issue's own suggestion, a 4 : 8 split for single-item topics, was also rejec
 - **Audits:** the style audit and `npm run build`.
 - **Review step (D-016):** `/code-review`, the spec subagent, and live checks.
   - The live checks run on a review build that shows the real Chinese digests No. 3 and No. 4 (read-only from the e2e container's data) and an English stub digest.
-  - Widths: 1440, 1000, 901, 900, and 420 px.
+  - Widths: 1440, 1101, 1100, 1000, 900, and 420 px.
   - What to check:
     - At 1440 px, every summary ends at x = 1312.
     - At 1440 px, no summary line holds more than 40 Chinese or 80 Latin characters.
     - The title starts right below the source line.
-    - At 900 px and below, items stack.
+    - At 1100 px and below, items stack, with the summary ending at the content's right edge, and nothing overlaps.
     - There is no overflow at 420 px.

@@ -76,7 +76,7 @@ Notes for this round:
 - **Use `diagnosing-bugs`** for 4.1 and **`tdd`** for 4.2. Task 4.3 is a refactor step with no red test.
 - Do not edit `proposal.md`, `design.md`, or the spec deltas.
 
-- [ ] 4.1 Items overlap at 900 px and below (design D1, D4).
+- [x] 4.1 Items overlap at 900 px and below (design D1, D4).
   - Cause: the narrow reset `.items > .item > * { grid-column: 1 / -1; grid-row: auto; }` (`layout.css:67`) has specificity (0,2,0), and the wide placements at `:25-27` have (0,3,0). They still apply inside the container query.
   - Effect, measured live at 420 and 900 px on real digests: the item's columns become `0px 170px 170px`, and each summary is painted over its source line and title.
   - **Fix:** move every side-by-side rule into one `@container (width > 1100px)` block, and delete the narrow reset. The side-by-side rules are the item's `subgrid`, `column-gap`, and `grid-template-rows`, plus the meta, title, and summary placements. Outside any query, keep only the item's `grid-column: 1 / -1` and the top rule between items.

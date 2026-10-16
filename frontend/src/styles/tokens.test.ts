@@ -146,39 +146,62 @@ it('spans and separates the Home run bar with one-row ready controls at all widt
   expect(actions).toMatch(/align-items:\s*center/)
 })
 
-it('lays out every digest item as a full-width row with its heading beside the summary', () => {
-  const layout = readFileSync('src/styles/layout.css', 'utf8')
-  const wide = layout.split('@container (max-width: 900px)')[0]
-  const rule = (selector: string) => wide.match(new RegExp(
-    `(?:^|\\})\\s*${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{([^}]+)\\}`,
-  ))?.[1]
-  const item = rule('.items > .item')
-  expect(item).toMatch(/grid-column:\s*1\s*\/\s*-1/)
+type LayoutRule = { selector: string; body: string; container: string | null }
+
+function layoutRules(text: string, container: string | null = null): LayoutRule[] {
+  const css = text.replace(/\/\*[\s\S]*?\*\//g, '')
+  const rules: LayoutRule[] = []
+  let start = 0
+  while (start < css.length) {
+    const open = css.indexOf('{', start)
+    if (open < 0) break
+    const selector = css.slice(start, open).trim()
+    let close = open + 1
+    let depth = 1
+    while (depth && close < css.length) {
+      if (css[close] === '{') depth++
+      if (css[close] === '}') depth--
+      close++
+    }
+    const body = css.slice(open + 1, close - 1)
+    if (selector.startsWith('@container')) rules.push(...layoutRules(body, selector))
+    else rules.push({ selector, body, container })
+    start = close
+  }
+  return rules
+}
+
+it('places digest headings beside summaries only above 1100px', () => {
+  const rules = layoutRules(readFileSync('src/styles/layout.css', 'utf8'))
+  const wide = rules.filter(rule => rule.container === '@container (width > 1100px)')
+  const outside = rules.filter(rule => rule.container !== '@container (width > 1100px)')
+  const wideRule = (selector: string) => wide.find(rule => rule.selector.split(',').map(part => part.trim()).includes(selector))?.body
+
+  const item = wideRule('.items > .item')
   expect(item).toMatch(/grid-template-columns:\s*subgrid/)
+  expect(item).toMatch(/column-gap:\s*var\(--gutter\)/)
   expect(item).toMatch(/grid-template-rows:\s*auto\s+auto\s+1fr/)
   for (const [selector, row] of [
     ['.items > .item > .item-meta', '1'],
     ['.items > .item > .item-title', '2'],
   ]) {
-    expect(rule(selector)).toMatch(/grid-column:\s*1\s*\/\s*span\s+3/)
-    expect(rule(selector)).toMatch(new RegExp(`grid-row:\\s*${row}\\s*;`))
+    expect(wideRule(selector)).toMatch(/grid-column:\s*1\s*\/\s*span\s+3/)
+    expect(wideRule(selector)).toMatch(new RegExp(`grid-row:\\s*${row}\\s*;`))
   }
-  const summary = rule('.items > .item > .summary, .items > .item > .summary-unavailable')
-  expect(summary).toMatch(/grid-column:\s*4\s*\/\s*-1/)
-  expect(summary).toMatch(/grid-row:\s*1\s*\/\s*-1/)
-  const separator = rule('.items > .item + .item')
-  expect(separator).toMatch(/border-top:\s*1px solid var\(--border\)/)
-  expect(separator).not.toMatch(/border-left:/)
-  expect(layout).not.toMatch(/\.item-(?:long|short)\b|\.item:only-child\b/)
-})
+  for (const selector of ['.items > .item > .summary', '.items > .item > .summary-unavailable']) {
+    expect(wideRule(selector)).toMatch(/grid-column:\s*4\s*\/\s*-1/)
+    expect(wideRule(selector)).toMatch(/grid-row:\s*1\s*\/\s*-1/)
+  }
 
-it('stacks digest item children in DOM order below the 900px breakpoint', () => {
-  const layout = readFileSync('src/styles/layout.css', 'utf8')
-  const narrow = layout.split('@container (max-width: 900px)')[1]
-    .split('@container (max-width: 640px)')[0]
-  const item = narrow.match(/\.items\s*>\s*\.item\s*\{([^}]+)\}/)?.[1]
-  expect(item).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)/)
-  const children = narrow.match(/\.items\s*>\s*\.item\s*>\s*\*\s*\{([^}]+)\}/)?.[1]
-  expect(children).toMatch(/grid-column:\s*1\s*\/\s*-1/)
-  expect(children).toMatch(/grid-row:\s*auto/)
+  const outsideItems = outside.filter(rule => rule.selector.startsWith('.items > .item'))
+  expect(outsideItems.map(rule => rule.selector)).toEqual([
+    '.items > .item', '.items > .item + .item',
+  ])
+  expect(outsideItems.every(rule => rule.container === null)).toBe(true)
+  expect(outsideItems[0].body).toMatch(/grid-column:\s*1\s*\/\s*-1/)
+  expect(outsideItems[0].body).not.toMatch(/grid-template-columns|grid-template-rows|column-gap/)
+  expect(outsideItems[1].body).toMatch(/border-top:\s*1px solid var\(--border\)/)
+  expect(outside.map(rule => rule.body).join(' ')).not.toMatch(/grid-template-rows:\s*auto\s+auto\s+1fr/)
+  expect(outside.filter(rule => /\.items\s*>\s*\.item\s*>\s*\*|\.item-meta|\.item-title|\.summary-unavailable|\.summary\b/.test(rule.selector))
+    .every(rule => !/grid-column:|grid-row:/.test(rule.body))).toBe(true)
 })

@@ -245,6 +245,38 @@ it('clears a failed new-digest fetch when another run is started', async () => {
   expect(screen.queryByText('Could not load the new digest')).toBeNull()
 })
 
+it.each([
+  ['failure', respond({ error: { code: 'not_found', message: 'Missing edition' } }, 404)],
+  ['success', respond({ ...digest, id: 8 })],
+])('shows a pending first digest without an action, then handles %s', async (outcome, response) => {
+  let release!: (value: ReturnType<typeof respond>) => void
+  const pending = new Promise<ReturnType<typeof respond>>(resolve => { release = resolve })
+  fetchMock.mockImplementation(async (path: string) => {
+    if (path === '/api/settings/model') return respond({ key_set: true })
+    if (path === '/api/sources') return respond(sources)
+    if (path === '/api/digests/latest') return respond(null)
+    if (path === '/api/digest-runs/active') return respond({ ...run, status: 'succeeded', digest_id: 8 })
+    if (path === '/api/digests/8') return pending
+    throw Error(path)
+  })
+  const { container } = render(<MemoryRouter><Home/></MemoryRouter>)
+  expect(await screen.findByText('Loading the new digest…')).toBeInTheDocument()
+  expect(container.querySelectorAll('.btn-primary')).toHaveLength(0)
+  expect(screen.queryByRole('link', { name: 'View digest' })).toBeNull()
+  await expectAccessible(container)
+  await act(async () => { release(response); await pending })
+  if (outcome === 'failure') {
+    expect(await screen.findByText('Could not load the new digest')).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: 'View digest' })).toHaveLength(1)
+    expect(screen.getByRole('link', { name: 'View digest' })).toHaveAttribute('href', '/digests/8')
+    expect(container.querySelectorAll('.btn-primary')).toHaveLength(0)
+  } else {
+    expect(await screen.findByRole('heading', { name: 'Technology' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'View digest' })).toBeNull()
+  }
+  await expectAccessible(container)
+})
+
 it('keeps other startup request errors in the bar when an article is shown', async () => {
   fetchMock.mockImplementation(async (path: string) => {
     if (path === '/api/settings/model') return respond({ key_set: true })

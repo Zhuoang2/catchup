@@ -264,8 +264,8 @@ export default function Home() {
           <p className="result-meta">{savedItems(run)} · {plural(run.sources_total, 'source')}
             {' · '}{tokenTotals(run.prompt_tokens, run.completion_tokens)}</p>
         </div>
-        {run.digest_id && <Link className={buttonClass('primary')} to={`/digests/${run.digest_id}`}>View digest</Link>}
       </div>
+      {run.digest_id && !newDigestError && <p>Loading the new digest…</p>}
       <HeldNotes run={run}/><SourceChecks checks={run.source_checks}/>
     </section>}
     {state === 'no_new_content' && run && <section className="card result-card result-none" aria-label="Digest run">

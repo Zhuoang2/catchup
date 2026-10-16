@@ -131,7 +131,7 @@ Notes for this round:
   - `/digests/latest` fails at startup, then a run succeeds and its digest is fetched. Afterwards no alert says "Could not load the latest digest", and no `role="alert"` is present.
   - A failed new-digest fetch shows "Could not load the new digest". Clicking Generate digest removes that alert.
   - A startup failure of another request (such as `/sources`) while a digest is shown still shows "Could not load some page details" in the run bar.
-- [ ] 6.2 No "View digest" after the first digest is saved (spec "Digest ready"; design D3). In the no-digest layout, the success card shows a primary "View digest" link today (`Home.tsx:264`). When the new-digest fetch fails, the link appears twice: once in the card and once in the alert.
+- [x] 6.2 No "View digest" after the first digest is saved (spec "Digest ready"; design D3). In the no-digest layout, the success card shows a primary "View digest" link today (`Home.tsx:264`). When the new-digest fetch fails, the link appears twice: once in the card and once in the alert.
   - While the new digest is being fetched, the card shows "Loading the new digest…".
   - The card has no primary action and no "View digest" link.
   - If the fetch fails, the alert's link to `/digests/{digest_id}` is the only link to the new digest.

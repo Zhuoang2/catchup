@@ -197,7 +197,7 @@ Notes for this round:
   - No-digest layout: a failed run, then that POST. No "Digest generation failed" text or result card remains, and "Set up your model" is the only primary action.
   - Digest layout: a succeeded run, then that POST. The run bar shows no result line.
   - A running run's progress still shows in first run, as before 6.7.
-- [ ] 7.2 Hide a new-digest error for an older digest (design D5). The catch handler sets "Could not load the new digest" for digest 8 even when a newer digest is, or is about to be, shown. Two ways this happens:
+- [x] 7.2 Hide a new-digest error for an older digest (design D5). The catch handler sets "Could not load the new digest" for digest 8 even when a newer digest is, or is about to be, shown. Two ways this happens:
   - **Overlapping runs.** Fetch 8 is pending, run 2 starts, fetch 8 fails, and run 2 then saves digest 9. The alert linking to `/digests/8` stays above No. 9.
   - **Same tick.** Fetch 9 resolves and fetch 8 rejects before the next render, so `shownDigest.current` is stale.
 

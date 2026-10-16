@@ -373,6 +373,74 @@ it.each([
   expect(document.title).toBe(`Latest · No. ${shownId} · CatchUp`)
   if (shownId === 9) expect(screen.queryByRole('heading', { name: 'Fetched edition' })).toBeNull()
 })
+
+it('hides an older digest fetch error after an overlapping run shows a newer edition', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  let release8!: (response: ReturnType<typeof respond>) => void
+  const pending8 = new Promise<ReturnType<typeof respond>>(resolve => { release8 = resolve })
+  fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+    if (path === '/api/settings/model') return respond({ key_set: true })
+    if (path === '/api/sources') return respond(sources)
+    if (path === '/api/digests/latest') return respond(digest)
+    if (path === '/api/digest-runs/active') return respond(run)
+    if (path === '/api/digest-runs/1') return respond({ ...run, status: 'succeeded', digest_id: 8 })
+    if (path === '/api/digests/8') return pending8
+    if (path === '/api/digest-runs' && options?.method === 'POST') return respond({ ...run, id: 2 })
+    if (path === '/api/digest-runs/2') return respond({ ...run, id: 2, status: 'succeeded', digest_id: 9 })
+    if (path === '/api/digests/9') return respond({ ...digest, id: 9,
+      topics: [{ ...digest.topics[0], title: 'Newer edition' }] })
+    throw Error(path)
+  })
+  render(<MemoryRouter><Home/></MemoryRouter>)
+  await screen.findByRole('progressbar')
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/digests/8', undefined))
+  fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
+  await screen.findByRole('progressbar')
+  await act(async () => { release8(respond({ error: { code: 'not_found', message: 'Missing 8' } }, 404)); await pending8 })
+  expect(await screen.findByRole('alert')).toHaveTextContent('Could not load the new digest')
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  expect(await screen.findByRole('heading', { name: 'Newer edition' })).toBeInTheDocument()
+  expect(screen.queryByRole('alert')).toBeNull()
+  expect(screen.queryByRole('link', { name: 'View digest' })).toBeNull()
+})
+
+it('hides an older fetch error when the newer digest resolves in the same tick', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  let release8!: (response: ReturnType<typeof respond>) => void
+  let release9!: (response: ReturnType<typeof respond>) => void
+  const pending8 = new Promise<ReturnType<typeof respond>>(resolve => { release8 = resolve })
+  const pending9 = new Promise<ReturnType<typeof respond>>(resolve => { release9 = resolve })
+  fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+    if (path === '/api/settings/model') return respond({ key_set: true })
+    if (path === '/api/sources') return respond(sources)
+    if (path === '/api/digests/latest') return respond(digest)
+    if (path === '/api/digest-runs/active') return respond(run)
+    if (path === '/api/digest-runs/1') return respond({ ...run, status: 'succeeded', digest_id: 8 })
+    if (path === '/api/digests/8') return pending8
+    if (path === '/api/digest-runs' && options?.method === 'POST') return respond({ ...run, id: 2 })
+    if (path === '/api/digest-runs/2') return respond({ ...run, id: 2, status: 'succeeded', digest_id: 9 })
+    if (path === '/api/digests/9') return pending9
+    throw Error(path)
+  })
+  render(<MemoryRouter><Home/></MemoryRouter>)
+  await screen.findByRole('progressbar')
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/digests/8', undefined))
+  fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
+  await screen.findByRole('progressbar')
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/digests/9', undefined))
+  await act(async () => {
+    release9(respond({ ...digest, id: 9, topics: [{ ...digest.topics[0], title: 'Newer edition' }] }))
+    release8(respond({ error: { code: 'not_found', message: 'Missing 8' } }, 404))
+    await Promise.all([pending9, pending8])
+  })
+  expect(screen.getByRole('heading', { name: 'Newer edition' })).toBeInTheDocument()
+  expect(screen.queryByRole('alert')).toBeNull()
+  expect(screen.queryByRole('link', { name: 'View digest' })).toBeNull()
+})
+
 it('requests only the latest digest, never the full history list', async () => {
   mockPage()
   await screen.findByRole('heading', { name: 'Generate digest' })

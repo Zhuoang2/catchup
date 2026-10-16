@@ -126,8 +126,6 @@ export default function Home() {
   const [newDigestError, setNewDigestError] = useState<{ id: number; message: string } | null>(null)
   const mounted = useRef(false)
   const pendingDigests = useRef(new Set<number>())
-  const shownDigest = useRef(digest)
-  shownDigest.current = digest
   useDocumentTitle(digest ? `Latest · No. ${digest.id}` : 'Latest')
 
   useEffect(() => {
@@ -181,12 +179,12 @@ export default function Home() {
     if (!id || (digest && digest.id >= id) || pendingDigests.current.has(id)) return
     pendingDigests.current.add(id)
     request<Digest>(`/digests/${id}`)
-      .then(result => { if (mounted.current && (!shownDigest.current || result.id > shownDigest.current.id)) {
+      .then(result => { if (mounted.current) {
         setDigest(previous => !previous || result.id > previous.id ? result : previous)
         setLoadError(previous => previous?.title === 'Could not load the latest digest' ? null : previous)
         setNewDigestError(previous => previous?.id === id ? null : previous)
       } })
-      .catch((reason: Error) => { if (mounted.current && (!shownDigest.current || id > shownDigest.current.id)) setNewDigestError({
+      .catch((reason: Error) => { if (mounted.current) setNewDigestError({
         id, message: reason.message,
       }) })
       .finally(() => { pendingDigests.current.delete(id) })
@@ -214,6 +212,7 @@ export default function Home() {
   const noSources = modelReady === true && sources?.length === 0 && !run
   const state = firstRun ? 'first-run' : run?.status ?? 'idle'
   const configurationError = state === 'failed' && configErrors.includes(run?.error_kind ?? '')
+  const visibleNewDigestError = newDigestError && (!digest || newDigestError.id > digest.id) ? newDigestError : null
   const status = run?.status === 'collecting' || run?.status === 'queued'
     ? `Checking sources, ${run.source_checks.length} of ${run.sources_total}`
     : run?.status === 'summarizing' || run?.status === 'grouping'
@@ -248,9 +247,9 @@ export default function Home() {
         {loadError && loadError.title !== 'Could not load the latest digest' &&
           <Alert tone="error" title={loadError.title}>{loadError.message}</Alert>}
         {error && <Alert tone="error" title={error.title}>{error.message}</Alert>}
-        {newDigestError && <Alert tone="error" title="Could not load the new digest"
-          actions={<Link to={`/digests/${newDigestError.id}`}>View digest</Link>}>
-          {newDigestError.message}
+        {visibleNewDigestError && <Alert tone="error" title="Could not load the new digest"
+          actions={<Link to={`/digests/${visibleNewDigestError.id}`}>View digest</Link>}>
+          {visibleNewDigestError.message}
         </Alert>}
         {run && <RunStateContent run={run} compact firstRun={firstRun}/>}
       </section>
@@ -282,9 +281,9 @@ export default function Home() {
       actions={loadError.title === 'Could not load the latest digest' && <Link to="/digests">View History</Link>}>
       {loadError.message}</Alert>}
     {error && <Alert tone="error" title={error.title}>{error.message}</Alert>}
-    {newDigestError && <Alert tone="error" title="Could not load the new digest"
-      actions={<Link to={`/digests/${newDigestError.id}`}>View digest</Link>}>
-      {newDigestError.message}</Alert>}
+    {visibleNewDigestError && <Alert tone="error" title="Could not load the new digest"
+      actions={<Link to={`/digests/${visibleNewDigestError.id}`}>View digest</Link>}>
+      {visibleNewDigestError.message}</Alert>}
     {firstRun && <Alert title="Set up your model first." actions={<Link className={buttonClass('ghost')} to="/sources">Add sources</Link>}>
       CatchUp summarizes with your own AI model. Add a provider and key in Settings, then add a few sources.
     </Alert>}

@@ -39,14 +39,24 @@ describe('navigation', () => {
   })
   it('shows links to all main pages and marks the current route', () => {
     shell('/digests/1')
-    expect(screen.getByRole('link', { name: 'Generate' })).toHaveAttribute('href', '/')
+    expect([...screen.getByRole('navigation', { name: 'Main' }).querySelectorAll('a')]
+      .map(link => link.textContent)).toEqual(['Latest', 'Sources', 'History', 'Settings'])
+    expect(screen.getByRole('link', { name: 'Latest' })).toHaveAttribute('href', '/')
     expect(screen.getByRole('link', { name: 'Sources' })).toHaveAttribute('href', '/sources')
     expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings')
     expect(screen.getByRole('link', { name: 'History' })).toHaveAttribute('href', '/digests')
     expect(screen.getByRole('link', { name: 'History' })).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByRole('link', { name: 'Generate' })).not.toHaveAttribute('aria-current')
+    expect(screen.getByRole('link', { name: 'Latest' })).not.toHaveAttribute('aria-current')
+    expect(document.querySelector('.app')).toHaveAttribute('data-screen', 'digest')
   })
 
+  it('keeps the full masthead and current Latest navigation on the main screen', async () => {
+    const { container } = shell('/')
+    expect(screen.getByRole('link', { name: 'Latest' })).toHaveAttribute('aria-current', 'page')
+    expect(container.querySelector('.app')).toHaveAttribute('data-screen', 'latest')
+    expect(container.querySelector('.masthead-line time')).toBeInTheDocument()
+    await expectAccessible(container)
+  })
   it('moves keyboard focus to main when the skip link is activated', () => {
     shell()
     fireEvent.click(screen.getByRole('link', { name: 'Skip to content' }))

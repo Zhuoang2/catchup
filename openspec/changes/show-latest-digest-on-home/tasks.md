@@ -89,7 +89,7 @@ Implementer notes:
 
 ## 4. Navigation, masthead, and titles
 
-- [ ] 4.1 In `frontend/src/components/AppShell.tsx`, label the `/` item "Latest", keeping the `generate` icon. Use the screen key `latest` (`data-screen="latest"`), and mark that item `aria-current="page"` on `/`. History stays current on `/digests/:id`.
+- [x] 4.1 In `frontend/src/components/AppShell.tsx`, label the `/` item "Latest", keeping the `generate` icon. Use the screen key `latest` (`data-screen="latest"`), and mark that item `aria-current="page"` on `/`. History stays current on `/digests/:id`.
 
   Verify with failing-first tests in `frontend/src/App.test.tsx`:
   - The nav reads Latest, Sources, History, Settings.
@@ -97,7 +97,7 @@ Implementer notes:
   - `data-screen` is `latest` on `/` and `digest` on `/digests/1`, so only the digest page gets the compact masthead.
   - The titles test expects "Latest · CatchUp" for `/` (with `/digests/latest` mocked as `null`).
   - The shell axe test still passes.
-- [ ] 4.2 Update `README.md` wherever it describes the Generate screen or a "Generate" navigation item, so that it describes the main screen ("Latest") with the latest digest and its Generate button. The usage sentence near the top (`README.md:5`) is one such place.
+- [x] 4.2 Update `README.md` wherever it describes the Generate screen or a "Generate" navigation item, so that it describes the main screen ("Latest") with the latest digest and its Generate button. The usage sentence near the top (`README.md:5`) is one such place.
 
   Verify: `grep -n -i "generate" README.md` shows only accurate uses (the Generate action, or the Docker key-generation step).
 

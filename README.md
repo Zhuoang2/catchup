@@ -1,10 +1,11 @@
 # CatchUp
 
 CatchUp is a self-hosted, on-demand personal digest. Configure an
-OpenAI-compatible model (DeepSeek is tested), add the sites and feeds you
-follow, and click Generate Digest. CatchUp collects what is new since each
-source's last successful check and writes a topic-grouped digest with links
-to the originals. Saved digests stay available in History.
+OpenAI-compatible model (DeepSeek is tested), then add the sites and feeds you
+follow. The main screen, Latest, shows your newest saved digest and a Generate
+digest button. CatchUp collects what is new since each source's last successful
+check and writes a topic-grouped digest with links to the originals. Older
+digests stay available in History.
 
 The project is under active development. Requirements live in
 `openspec/specs/`; completed changes are in `openspec/changes/archive/`.

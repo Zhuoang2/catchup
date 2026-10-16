@@ -54,6 +54,65 @@ function HeldNotes({ run }: { run: Run }) {
   </ul> : null
 }
 
+function RunStateContent({ run, compact, loadingNewDigest, configurationError }: {
+  run: Run; compact: boolean; loadingNewDigest?: boolean; configurationError?: boolean
+}) {
+  if (active(run)) {
+    const checking = run.status === 'collecting' || run.status === 'queued'
+    const progress = checking ? run.source_checks.length : run.items_done
+    const total = checking ? run.sources_total : run.items_total
+    const content = <>
+      <Stepper current={run.status === 'queued' ? 'collecting'
+        : run.status === 'grouping' ? 'grouping' : run.status as 'collecting' | 'summarizing'}/>
+      <Progress label={checking ? `Sources checked: ${progress} of ${total}`
+        : `Items summarized: ${progress} of ${total}`}
+        value={progress} max={total}/>
+      <SourceChecks checks={run.source_checks} compact={compact}/>
+    </>
+    return compact ? content : <section className="card run-card" aria-label="Digest run">{content}</section>
+  }
+
+  if (run.status === 'succeeded' || run.status === 'no_new_content') {
+    const succeeded = run.status === 'succeeded'
+    const title = succeeded ? 'Your digest is ready' : 'No new content'
+    const details = succeeded
+      ? <>{savedItems(run)} · {plural(run.sources_total, 'source')}
+        {' · '}{tokenTotals(run.prompt_tokens, run.completion_tokens)}</>
+      : <>Nothing new since your last digest · {tokenTotals(run.prompt_tokens, run.completion_tokens)}</>
+    const content = <>
+      {compact ? <p className="result-meta">{title} · {details}</p>
+        : <div className="result-head">
+          <Icon name={succeeded ? 'check' : 'info'} className="icon icon-result"/>
+          <div><h2 className="result-title">{title}</h2><p className="result-meta">{details}</p></div>
+        </div>}
+      {!compact && succeeded && loadingNewDigest && <p>Loading the new digest…</p>}
+      <HeldNotes run={run}/><SourceChecks checks={run.source_checks} compact={compact}/>
+    </>
+    return compact ? content : <section className={`card result-card ${succeeded ? 'result-ok' : 'result-none'}`}
+      aria-label="Digest run">{content}</section>
+  }
+
+  if (run.status === 'failed') {
+    const details = run.items_total > 0
+      ? <>{run.items_done} of {run.items_total} items were summarized before the error.
+        {' '}No digest was saved; all {run.items_total} items stay pending and those summaries are reused next time.</>
+      : 'No digest was saved.'
+    const result = <>
+      <p className="result-meta">{details}{' · '}{tokenTotals(run.prompt_tokens, run.completion_tokens)}</p>
+      <SourceChecks checks={run.source_checks} compact={compact}/>
+    </>
+    return <>
+      <Alert tone="error" announce={false} title="Digest generation failed"
+        actions={!compact && configurationError &&
+          <Link className={buttonClass('primary')} to="/settings">Check settings</Link>}>
+        {run.error_message || 'Digest generation failed. Try again.'}
+      </Alert>
+      {compact ? result : <section className="card result-card" aria-label="Digest run">{result}</section>}
+    </>
+  }
+  return null
+}
+
 export default function Home() {
   const [run, setRun] = useState<Run | null>(null)
   const [modelReady, setModelReady] = useState<boolean | null>(null)
@@ -191,38 +250,7 @@ export default function Home() {
           actions={<Link to={`/digests/${newDigestError.id}`}>View digest</Link>}>
           {newDigestError.message}
         </Alert>}
-        {running && run && <>
-          <Stepper current={run.status === 'queued' ? 'collecting'
-            : run.status === 'grouping' ? 'grouping' : run.status as 'collecting' | 'summarizing'}/>
-          <Progress label={run.status === 'collecting' || run.status === 'queued'
-            ? `Sources checked: ${run.source_checks.length} of ${run.sources_total}`
-            : `Items summarized: ${run.items_done} of ${run.items_total}`}
-            value={run.status === 'collecting' || run.status === 'queued'
-              ? run.source_checks.length : run.items_done}
-            max={run.status === 'collecting' || run.status === 'queued' ? run.sources_total : run.items_total}/>
-          <SourceChecks checks={run.source_checks} compact/>
-        </>}
-        {state === 'succeeded' && run && <>
-          <p className="result-meta">Your digest is ready · {savedItems(run)} · {plural(run.sources_total, 'source')}
-            {' · '}{tokenTotals(run.prompt_tokens, run.completion_tokens)}</p>
-          <HeldNotes run={run}/><SourceChecks checks={run.source_checks} compact/>
-        </>}
-        {state === 'no_new_content' && run && <>
-          <p className="result-meta">No new content · Nothing new since your last digest ·{' '}
-            {tokenTotals(run.prompt_tokens, run.completion_tokens)}</p>
-          <HeldNotes run={run}/><SourceChecks checks={run.source_checks} compact/>
-        </>}
-        {state === 'failed' && run && <>
-          <Alert tone="error" announce={false} title="Digest generation failed">
-            {run.error_message || 'Digest generation failed. Try again.'}
-          </Alert>
-          <p className="result-meta">{run.items_total > 0
-            ? <>{run.items_done} of {run.items_total} items were summarized before the error.
-              {' '}No digest was saved; all {run.items_total} items stay pending and those summaries are reused next time.</>
-            : 'No digest was saved.'}
-            {' · '}{tokenTotals(run.prompt_tokens, run.completion_tokens)}</p>
-          <SourceChecks checks={run.source_checks} compact/>
-        </>}
+        {run && <RunStateContent run={run} compact/>}
       </section>
     }/>
     : <section className="page page-generate">
@@ -258,48 +286,8 @@ export default function Home() {
     {firstRun && <Alert title="Set up your model first." actions={<Link className={buttonClass('ghost')} to="/sources">Add sources</Link>}>
       CatchUp summarizes with your own AI model. Add a provider and key in Settings, then add a few sources.
     </Alert>}
-    {running && run && <section className="card run-card" aria-label="Digest run">
-      <Stepper current={run.status === 'queued' ? 'collecting'
-        : run.status === 'grouping' ? 'grouping' : run.status as 'collecting' | 'summarizing'}/>
-      <Progress label={run.status === 'collecting' || run.status === 'queued'
-        ? `Sources checked: ${run.source_checks.length} of ${run.sources_total}`
-        : `Items summarized: ${run.items_done} of ${run.items_total}`}
-        value={run.status === 'collecting' || run.status === 'queued'
-          ? run.source_checks.length : run.items_done}
-        max={run.status === 'collecting' || run.status === 'queued' ? run.sources_total : run.items_total}/>
-      <SourceChecks checks={run.source_checks}/>
-    </section>}
-    {state === 'succeeded' && run && <section className="card result-card result-ok" aria-label="Digest run">
-      <div className="result-head"><Icon name="check" className="icon icon-result"/>
-        <div><h2 className="result-title">Your digest is ready</h2>
-          <p className="result-meta">{savedItems(run)} · {plural(run.sources_total, 'source')}
-            {' · '}{tokenTotals(run.prompt_tokens, run.completion_tokens)}</p>
-        </div>
-      </div>
-      {run.digest_id && !newDigestError && <p>Loading the new digest…</p>}
-      <HeldNotes run={run}/><SourceChecks checks={run.source_checks}/>
-    </section>}
-    {state === 'no_new_content' && run && <section className="card result-card result-none" aria-label="Digest run">
-      <div className="result-head"><Icon name="info" className="icon icon-result"/>
-        <div><h2 className="result-title">No new content</h2>
-          <p className="result-meta">Nothing new since your last digest · {tokenTotals(run.prompt_tokens, run.completion_tokens)}</p>
-        </div></div>
-      <HeldNotes run={run}/><SourceChecks checks={run.source_checks}/>
-    </section>}
-    {state === 'failed' && run && <>
-      <Alert tone="error" announce={false} title="Digest generation failed"
-        actions={configurationError && <Link className={buttonClass('primary')} to="/settings">Check settings</Link>}>
-        {run.error_message || 'Digest generation failed. Try again.'}
-      </Alert>
-      <section className="card result-card" aria-label="Digest run">
-        <p className="result-meta">{run.items_total > 0
-          ? <>{run.items_done} of {run.items_total} items were summarized before the error.
-            {' '}No digest was saved; all {run.items_total} items stay pending and those summaries are reused next time.</>
-          : 'No digest was saved.'}
-          {' · '}{tokenTotals(run.prompt_tokens, run.completion_tokens)}</p>
-        <SourceChecks checks={run.source_checks}/>
-      </section>
-    </>}
+    {run && <RunStateContent run={run} compact={false}
+      loadingNewDigest={!!run.digest_id && !newDigestError} configurationError={configurationError}/>}
     <Rail>{firstRun ? <>
       <section className="rail-box"><h2 className="rail-title">Getting started</h2>
         <ol className="rail-steps"><li><Link to="/settings">Set up your model</Link></li>

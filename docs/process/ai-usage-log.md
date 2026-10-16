@@ -699,3 +699,26 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Problem: the requested relative path conflicted with commit `72cb2b0`, which enables the hook with an absolute path so that worktrees on branches created before the hook still run it. Claude checked `redesign-ui-ux` (since merged in #26): its branch has no `.githooks/pre-commit`, so with a relative path a worktree on it would skip the hook silently. Because worktrees share the clone's `.git/config`, the command is needed once per clone, not once per worktree.
 - Adjustment: Claude asked before editing. The user chose the absolute path `git config core.hooksPath "$PWD/.githooks"`, and a direct commit instead of an OpenSpec change, since a developer setup note has no product requirement to put in a spec delta.
 - Outcome: setup step added to the README development setup section and a one-line note to the `AGENTS.md` Commands section. The hook is unchanged.
+
+## 2026-10-14 to 2026-10-15 — Technical spec (Claude Code, Opus 5.5, with an independent review subagent)
+
+- Prompts (verbatim, with translations):
+  - "CI 通过后我来合并，先开 issue 再写技术规格" (I will merge after CI passes; first open the issue, then write the technical spec).
+  - The user shared the course's project description, the spec template, and an editable copy: "Here are CS146S Final Project Description and CS146S Aut26 Technical Spec template and a copy of Technical Spec template, which you can edit directly".
+  - "这个成功指标是文档里面要求的吗" (are these success metrics required by the template?), then "可以，就按这张表写进文档" (OK, write it into the doc with this table).
+  - After the doc check: "按建议改，表头也固定一下" (change it as suggested, and pin the table header too).
+  - After merging #26: "把pdf让审查对话看一遍，有没有问题" (have the review agent look over the PDF; are there any problems?), then "1-5 按你的改，6 去掉代码格式，收尾也一起做" (do items 1–5 as you proposed, remove the code formatting for item 6, and do the cleanup too), and "行高也收紧，然后最后检查一遍" (tighten the row heights too, then do a final check).
+- Outcome: a two-page spec in the template's order (Architecture, API Design, Technical Stack, Business Context Summary, Agent Readiness), submitted on Gradescope on 2026-10-15. `docs/technical-spec.md` matches the submitted document word for word; the figure is `assets/catchup-architecture.png`, rendered from `assets/catchup-architecture.html`; the submitted PDF is in the project root.
+- Process:
+  - Claude drafted the text in Markdown and checked each claim against the code. The success-metric targets were Claude's proposal; the user confirmed them unchanged.
+  - An independent subagent that had not seen the drafting reviewed three times: once before the template rewrite, once on the template version, and once on the exported PDF. Claude verified each finding against the code or the PDF before changing anything.
+  - Round 2 had 13 findings: 10 fixed, 2 partly adopted, 1 rejected, and 1 left to the user (the user kept the "A week of 10+ sources" wording). The most serious one was a wrong claim: the model client makes up to 3 attempts, not 3 retries (`llm/client.py`, `range(3)`).
+  - Round 3 found no blockers. Its main finding was that the figure's labels were too small to read in print at 75% width, so the figure and both tables were widened to the full text width.
+- Problems and adjustments:
+  - The built-in browser was not signed in, and Claude did not sign in for the user; it edited the doc as an anonymous editor. Text went in through a pasted HTML fragment with inline styles that match the template. The first pastes needed fixes: zero list margins, no heading indent, black code text, and left-aligned table cells.
+  - A cross-origin hand-off of the figure from a local page into the Docs tab was blocked by the permission classifier, and Claude did not work around it. Anonymous editors cannot upload images ("您必须登录才能上传图片", you must sign in to upload images), so the user inserted the figure and Claude resized it.
+  - Fitting two pages in Docs' own layout took several rounds, because Chrome's preview underestimated the length. Claude reserved the figure's height with a same-height placeholder and used a 9.5 pt body, 1.52/1.9 cm margins, and wording trims. One fact, "one run at a time", now appears only in the figure and the API table.
+  - Three times, text meant for a dialog or input box went into the document because the box did not have focus: "[F]" at the end, "9.5" before the figure, and a phrase in front of a heading. Each was caught, either from the screen or by comparing the exported text's length, and undone or replaced. Afterwards Claude checked which element had focus, the dialog's field values, and the document length before every edit.
+  - A direct edit in the doc had brought back "retried up to 3 times". Claude flagged it with the code reference instead of reverting it, and the user approved the fix.
+  - Claude's replies drifted into English after long English tool output and subagent reports. The user pointed it out twice ("怎么又变成英文回复了", "你又用英文了"; why are the replies in English again / you used English again).
+  - The user saw a "red" table column. It was Claude's own selection, shown as a collaborator highlight; the exported HTML confirmed that the cells have no background colour.

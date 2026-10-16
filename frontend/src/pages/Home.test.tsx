@@ -376,11 +376,12 @@ it('waits for all four startup requests before showing the no-digest page', asyn
   release()
   expect(await screen.findByRole('button', { name: 'Generate digest' })).toBeInTheDocument()
 })
-function mockPage(options: { ready?: boolean; run?: unknown; sources?: unknown[]; latest?: unknown } = {}) {
+function mockPage(options: { ready?: boolean; run?: unknown; sources?: unknown[]; latest?: unknown; detail?: unknown } = {}) {
   fetchMock.mockImplementation(async (path: string) => {
     if (path === '/api/settings/model') return respond({ key_set: options.ready ?? true })
     if (path === '/api/sources') return respond(options.sources ?? sources)
     if (path === '/api/digests/latest') return respond(options.latest ?? null)
+    if (path === '/api/digests/8' && options.detail) return respond(options.detail)
     if (path === '/api/digest-runs/active') return respond(options.run ?? null)
     throw Error(`Unexpected request ${path}`)
   })
@@ -458,18 +459,21 @@ it.each(['collecting', 'summarizing'])('shows %s progress and named source outco
   await expectAccessible(container)
 })
 
-it('shows the saved digest as the only primary action after success', async () => {
+it('shows the saved digest with no primary action after success', async () => {
   const { container } = mockPage({ run: {
     ...run, status: 'succeeded', items_total: 12, items_done: 12, digest_id: 8,
     waiting_count: 2, deferred_count: 5, prompt_tokens: 12, completion_tokens: 4,
-  } })
-  expect(await screen.findByRole('link', { name: 'View digest' })).toHaveAttribute('href', '/digests/8')
-  expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
+  }, detail: { ...digest, id: 8 } })
+  const statusRegion = screen.getByRole('status')
+  expect(await screen.findByRole('heading', { name: 'Technology' })).toBeInTheDocument()
+  expect(screen.getByRole('status')).toBe(statusRegion)
+  expect(screen.queryByRole('link', { name: 'View digest' })).toBeNull()
+  expect(container.querySelectorAll('.btn-primary')).toHaveLength(0)
   expect(screen.getByRole('button', { name: 'Generate digest' })).toHaveClass('btn-secondary')
   expect(screen.getByText('2 items waiting for transcripts or captions')).toBeInTheDocument()
   expect(screen.getByText('5 videos deferred to the next run')).toBeInTheDocument()
   expect(screen.getByRole('status')).toHaveTextContent('Digest ready: 12 items')
-  expect(container.querySelector('.result-ok .result-meta')).toHaveTextContent('Tokens: 12 in / 4 out')
+  expect(screen.getByRole('region', { name: 'Digest run' })).toHaveTextContent('Tokens: 12 in / 4 out')
   await expectAccessible(container)
 })
 
@@ -520,6 +524,7 @@ it('polls from summarizing to success with a persistent status region using fake
     if (path === '/api/digest-runs/active') return respond({ ...run, status: 'summarizing', items_total: 12, items_done: 5 })
     if (path === '/api/digest-runs/1') return respond({ ...run, status: 'succeeded',
       items_total: 12, items_done: 12, digest_id: 8 })
+    if (path === '/api/digests/8') return respond({ ...digest, id: 8 })
     throw Error(path)
   })
   render(<MemoryRouter><Home/></MemoryRouter>)
@@ -528,6 +533,9 @@ it('polls from summarizing to success with a persistent status region using fake
   await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
   expect(statusRegion).toBe(screen.getByRole('status'))
   expect(statusRegion).toHaveTextContent('Digest ready: 12 items')
+  expect(await screen.findByRole('heading', { name: 'Technology' })).toBeInTheDocument()
+  expect(screen.getByRole('status')).toBe(statusRegion)
+  expect(document.title).toBe('Latest · No. 8 · CatchUp')
 })
 
 it('announces a polled run failure only through the persistent status region', async () => {
@@ -564,13 +572,18 @@ it.each([
     if (path === '/api/digest-runs/1') return respond({ ...run, status: 'succeeded',
       items_total: summarized, items_done: summarized, digest_id: 8, digest_item_count: saved,
       digest_update_count: updates })
+    if (path === '/api/digests/8') return respond({ ...digest, id: 8 })
     throw Error(path)
   })
   const { container } = render(<MemoryRouter><Home/></MemoryRouter>)
   await screen.findByRole('progressbar')
+  const statusRegion = screen.getByRole('status')
   await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
   expect(screen.getByRole('status').textContent).toBe(`Digest ready: ${text}`)
-  expect(container.querySelector('.result-ok .result-meta')?.textContent).toMatch(new RegExp(`^${text.replace(/[()]/g, '\\$&')} · `))
+  expect(await screen.findByRole('heading', { name: 'Technology' })).toBeInTheDocument()
+  expect(screen.getByRole('status')).toBe(statusRegion)
+  expect(container.querySelector('.run-bar .result-meta')?.textContent)
+    .toContain(`${text} · 3 sources`)
 })
 
 it('keeps an active run visible when the latest digest fails to load', async () => {

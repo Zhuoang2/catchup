@@ -149,7 +149,7 @@ Notes for this round:
   Verify with failing-first tests (fake timers, deferred fetch):
   - Run 1 succeeds with digest 8, and run 2 starts while `/api/digests/8` is pending. Once the fetch resolves, digest 8 is shown.
   - A fetch for a lower id that resolves after a higher-id digest is shown does not replace it.
-- [ ] 6.5 Make the success-path tests exercise the success path. The tests at `Home.test.tsx:309`, `:362`, and `:400` do not mock `/api/digests/8`, so they pass in the fetch-error state, and `:309` asserts the old "View digest".
+- [x] 6.5 Make the success-path tests exercise the success path. The tests at `Home.test.tsx:309`, `:362`, and `:400` do not mock `/api/digests/8`, so they pass in the fetch-error state, and `:309` asserts the old "View digest".
   - Mock the digest in each of these tests.
   - Replace `:309`'s "View digest" assertion with the 6.2 behavior.
   - `:362` and `:400` also assert that the digest article is shown and that the status region is the same node.

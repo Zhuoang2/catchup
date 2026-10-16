@@ -712,6 +712,52 @@ it('switches to first-run after a model-not-configured POST', async () => {
   expect(screen.getByRole('button', { name: 'Generate digest' })).toBeDisabled()
 })
 
+it('hides a failed run card when a retry reveals the model is not configured', async () => {
+  fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+    if (path === '/api/settings/model') return respond({ key_set: true })
+    if (path === '/api/sources') return respond(sources)
+    if (path === '/api/digests/latest') return respond(null)
+    if (path === '/api/digest-runs/active') return respond({
+      ...run, status: 'failed', error_kind: 'provider_error', error_message: 'Provider unavailable.',
+    })
+    if (path === '/api/digest-runs' && options?.method === 'POST') return respond({
+      error: { code: 'model_not_configured', message: 'Set up your model' },
+    }, 400)
+    throw Error(path)
+  })
+  const { container } = render(<MemoryRouter><Home/></MemoryRouter>)
+  fireEvent.click(await screen.findByRole('button', { name: 'Try again' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Generate digest' })).toBeDisabled())
+  expect(screen.queryByText('Digest generation failed')).toBeNull()
+  expect(container.querySelector('.result-card')).toBeNull()
+  expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
+  expect(screen.getAllByRole('link', { name: 'Set up your model' })[0]).toHaveClass('btn-primary')
+})
+
+it('hides a completed run line in the bar when the model becomes unconfigured', async () => {
+  fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+    if (path === '/api/settings/model') return respond({ key_set: true })
+    if (path === '/api/sources') return respond(sources)
+    if (path === '/api/digests/latest') return respond(digest)
+    if (path === '/api/digest-runs/active') return respond({ ...run, status: 'succeeded', digest_id: 4 })
+    if (path === '/api/digest-runs' && options?.method === 'POST') return respond({
+      error: { code: 'model_not_configured', message: 'Set up your model' },
+    }, 400)
+    throw Error(path)
+  })
+  render(<MemoryRouter><Home/></MemoryRouter>)
+  fireEvent.click(await screen.findByRole('button', { name: 'Generate digest' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Generate digest' })).toBeDisabled())
+  expect(screen.getByRole('region', { name: 'Digest run' }).querySelector('.result-meta')).toBeNull()
+  expect(screen.getByRole('heading', { name: 'Technology' })).toBeInTheDocument()
+})
+
+it.each([null, digest])('keeps running progress in first run with digest %s', async latest => {
+  const { container } = mockPage({ ready: false, latest, run })
+  expect(await screen.findByRole('progressbar', { name: 'Sources checked: 2 of 3' })).toBeInTheDocument()
+  expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
+})
+
 it('uses action-specific alerts when starting or checking a run fails', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
   let started = false

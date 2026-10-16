@@ -190,7 +190,7 @@ Notes for this round:
 - **Use `tdd`** for 7.3–7.5 and 7.7. Task 7.6 is a refactor step: like 6.7, it has no red test, and the existing tests must stay green.
 - Do not edit `proposal.md`, `design.md`, or the spec deltas.
 
-- [ ] 7.1 Restore first-run gating of finished runs (design D3, shared run-state content). Before 6.7, the succeeded, no-new-content, and failed content was gated on `state`, which is `'first-run'` when no model is set. `RunStateContent` now keys on `run.status` alone (`Home.tsx:253`, `:289`).
+- [x] 7.1 Restore first-run gating of finished runs (design D3, shared run-state content). Before 6.7, the succeeded, no-new-content, and failed content was gated on `state`, which is `'first-run'` when no model is set. `RunStateContent` now keys on `run.status` alone (`Home.tsx:253`, `:289`).
   - Reproduction: a run fails, the user clicks "Try again", and the POST returns `model_not_configured`. "Digest generation failed" now stays next to "Set up your model first".
 
   Verify with failing-first tests, in both layouts:

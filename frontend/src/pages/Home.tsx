@@ -54,8 +54,8 @@ function HeldNotes({ run }: { run: Run }) {
   </ul> : null
 }
 
-function RunStateContent({ run, compact, loadingNewDigest, configurationError }: {
-  run: Run; compact: boolean; loadingNewDigest?: boolean; configurationError?: boolean
+function RunStateContent({ run, compact, firstRun, loadingNewDigest, configurationError }: {
+  run: Run; compact: boolean; firstRun: boolean; loadingNewDigest?: boolean; configurationError?: boolean
 }) {
   if (active(run)) {
     const checking = run.status === 'collecting' || run.status === 'queued'
@@ -71,6 +71,8 @@ function RunStateContent({ run, compact, loadingNewDigest, configurationError }:
     </>
     return compact ? content : <section className="card run-card" aria-label="Digest run">{content}</section>
   }
+
+  if (firstRun) return null
 
   if (run.status === 'succeeded' || run.status === 'no_new_content') {
     const succeeded = run.status === 'succeeded'
@@ -250,7 +252,7 @@ export default function Home() {
           actions={<Link to={`/digests/${newDigestError.id}`}>View digest</Link>}>
           {newDigestError.message}
         </Alert>}
-        {run && <RunStateContent run={run} compact/>}
+        {run && <RunStateContent run={run} compact firstRun={firstRun}/>}
       </section>
     }/>
     : <section className="page page-generate">
@@ -286,7 +288,7 @@ export default function Home() {
     {firstRun && <Alert title="Set up your model first." actions={<Link className={buttonClass('ghost')} to="/sources">Add sources</Link>}>
       CatchUp summarizes with your own AI model. Add a provider and key in Settings, then add a few sources.
     </Alert>}
-    {run && <RunStateContent run={run} compact={false}
+    {run && <RunStateContent run={run} compact={false} firstRun={firstRun}
       loadingNewDigest={!!run.digest_id && !newDigestError} configurationError={configurationError}/>}
     <Rail>{firstRun ? <>
       <section className="rail-box"><h2 className="rail-title">Getting started</h2>

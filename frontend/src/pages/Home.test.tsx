@@ -339,6 +339,9 @@ it.each([
   vi.useFakeTimers({ shouldAdvanceTime: true })
   let release!: (value: ReturnType<typeof respond>) => void
   const pending = new Promise<ReturnType<typeof respond>>(resolve => { release = resolve })
+  let ninthFetches = 0
+  // Hold an unexpected second fetch so a transient older edition cannot be hidden by its response.
+  const repeatedNinth = new Promise<ReturnType<typeof respond>>(() => {})
   fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
     if (path === '/api/settings/model') return respond({ key_set: true })
     if (path === '/api/sources') return respond(sources)
@@ -352,8 +355,8 @@ it.each([
     if (path === '/api/digest-runs/2') return respond({
       ...run, id: 2, status: secondStatus, digest_id: secondStatus === 'succeeded' ? 9 : null,
     })
-    if (path === '/api/digests/9') return respond({ ...digest, id: 9,
-      topics: [{ ...digest.topics[0], title: 'Newer edition' }] })
+    if (path === '/api/digests/9') return ++ninthFetches === 1 ? respond({ ...digest, id: 9,
+      topics: [{ ...digest.topics[0], title: 'Newer edition' }] }) : repeatedNinth
     throw Error(path)
   })
   render(<MemoryRouter><Home/></MemoryRouter>)
@@ -368,10 +371,13 @@ it.each([
   } else expect(screen.getByRole('status')).toHaveTextContent('No new content')
   await act(async () => { release(respond({ ...digest, id: 8,
     topics: [{ ...digest.topics[0], title: 'Fetched edition' }] })); await pending })
+  if (shownId === 9) {
+    expect(screen.queryByRole('heading', { name: 'Fetched edition' })).toBeNull()
+    expect(fetchMock.mock.calls.filter(([path]) => path === '/api/digests/9')).toHaveLength(1)
+  }
   expect(await screen.findByRole('heading', { name: shownId === 8 ? 'Fetched edition' : 'Newer edition' }))
     .toBeInTheDocument()
   expect(document.title).toBe(`Latest · No. ${shownId} · CatchUp`)
-  if (shownId === 9) expect(screen.queryByRole('heading', { name: 'Fetched edition' })).toBeNull()
 })
 
 it('hides an older digest fetch error after an overlapping run shows a newer edition', async () => {

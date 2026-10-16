@@ -206,7 +206,7 @@ Notes for this round:
   - Remove the `shownDigest` ref and its write during render (`Home.tsx:127`). The functional `setDigest` updater keeps the success path ordered.
 
   Verify with failing-first tests for both cases: after No. 9 is shown, no `role="alert"` and no link to `/digests/8` remain.
-- [ ] 7.3 Make the 6.4 "succeeded" case detect the regression it names. Today it still passes with the lower-id guards removed: digest 8 briefly overwrites 9, and the effect then fetches 9 again.
+- [x] 7.3 Make the 6.4 "succeeded" case detect the regression it names. Today it still passes with the lower-id guards removed: digest 8 briefly overwrites 9, and the effect then fetches 9 again.
 
   Verify:
   - The test asserts that `/api/digests/9` is requested exactly once.

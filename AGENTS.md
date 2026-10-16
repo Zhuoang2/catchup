@@ -54,6 +54,7 @@ This file contains only project-specific context. Personal global agent rules ar
 
 Run backend commands from `backend/` and frontend commands from `frontend/`:
 
+- Once per clone, from the repository root: `git config core.hooksPath "$PWD/.githooks"` enables the pre-commit hook that blocks staged API keys and secrets; all worktrees of that clone share the setting.
 - Install: `uv sync` (backend), `npm ci` (frontend).
 - Backend dev server: `uv run uvicorn catchup.main:app --reload`.
 - Backend CLI alternative: `uv run catchup serve` (or `uv run catchup serve --help`).

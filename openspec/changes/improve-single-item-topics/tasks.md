@@ -15,14 +15,14 @@ Implementer notes:
 
 ## 1. One item layout in the markup
 
-- [ ] 1.1 In `frontend/src/pages/DigestView.test.tsx`, write the failing tests first:
+- [x] 1.1 In `frontend/src/pages/DigestView.test.tsx`, write the failing tests first:
   - Replace the length-based class assertions (`:234-235`) and the 140/141-character test (`:250-264`) with one test. It renders a topic with four items: a summary with "- " key points, a 141-character summary, a 140-character summary, and a "Summary unavailable" item.
   - The test checks that each item is an `article` whose class list is exactly `item`, with no `item-long` or `item-short`.
   - It also checks each item's children in DOM order: `p.item-meta`, then `h3.item-title`, then `div.summary` or `p.summary-unavailable`.
   - Keep the rest of the Chinese test at `:218-248`: `lang` marks, key points as a list, the index, focus, and `expectAccessible`.
 
   Verify: the new test fails before 1.2, because the classes are still rendered.
-- [ ] 1.2 In `frontend/src/components/DigestArticle.tsx:67-68`, remove the `wide` computation and render `className="item"`. The markup is otherwise unchanged.
+- [x] 1.2 In `frontend/src/components/DigestArticle.tsx:67-68`, remove the `wide` computation and render `className="item"`. The markup is otherwise unchanged.
 
   Verify:
   - The 1.1 test passes.

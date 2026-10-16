@@ -64,8 +64,7 @@ export function DigestArticle({ digest, className = '', before, headEnd }: {
         {digest.topics.map((topic, index) =>
           <SectionRow key={index} id={`t${index}`} title={topic.title} overview={topic.overview} lang={lang}>
             <div className="items">{topic.items.map((item, position) => {
-              const wide = (item.summary?.length ?? 0) > 140 || item.summary?.split('\n').some(line => line.startsWith('- '))
-              return <article key={position} className={`item ${wide ? 'item-long' : 'item-short'}`}>
+              return <article key={position} className="item">
                 <p className="item-meta"><KindIcon kind={item.source_kind}/><span>{item.source_name}</span>
                   <SourceTime value={item.published_at}/></p>
                 <h3 className="item-title"><a href={item.link} target="_blank" rel="noopener noreferrer">

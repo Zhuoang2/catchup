@@ -215,7 +215,7 @@ it('keeps overview, bullets, and later prose in original order', async () => {
   ])
 })
 
-it('marks Chinese generated text, sizes transcript items by content, and focuses index targets', async () => {
+it('marks Chinese generated text and focuses index targets', async () => {
   fetchMock.mockResolvedValue(respond({
     id: 7, language: 'zh-Hans', created_at: '2026-10-03T10:00:00Z', model_id: 'test',
     topics: [
@@ -231,8 +231,6 @@ it('marks Chinese generated text, sizes transcript items by content, and focuses
   }))
   const { container } = page()
   await screen.findByRole('heading', { name: '中文主题' })
-  expect(screen.getByRole('link', { name: 'Original episode (opens the original)' }).closest('article')).toHaveClass('item-long')
-  expect(screen.getByRole('link', { name: 'Original article (opens the original)' }).closest('article')).toHaveClass('item-short')
   expect(screen.getByText('要点一').tagName).toBe('LI')
   expect(screen.getByRole('heading', { name: '中文主题' })).toHaveAttribute('lang', 'zh-Hans')
   expect(screen.getByText('中文概要')).toHaveAttribute('lang', 'zh-Hans')
@@ -247,20 +245,34 @@ it('marks Chinese generated text, sizes transcript items by content, and focuses
   await expectAccessible(container)
 })
 
-it('makes a 141-character summary wide but a 140-character summary short', async () => {
+it('keeps every item in one markup order regardless of summary length or availability', async () => {
   fetchMock.mockResolvedValue(respond({
     id: 7, created_at: '2026-10-03T10:00:00Z', model_id: 'test',
-    item_count: 2, source_count: 1,
-    topics: [{ title: 'Length', overview: '', items: [140, 141].map(length => ({
-      title: `Story ${length}`, link: `https://example.test/${length}`, source_name: 'Feed',
-      published_at: null, summary: 'x'.repeat(length), summary_unavailable: false,
-    })) }],
+    item_count: 4, source_count: 1,
+    topics: [{ title: 'One layout', overview: '', items: [
+      { title: 'Key points', link: 'https://example.test/points', source_name: 'Feed',
+        published_at: null, summary: 'Overview\n- First point\n- Second point', summary_unavailable: false },
+      { title: 'Story 141', link: 'https://example.test/141', source_name: 'Feed',
+        published_at: null, summary: 'x'.repeat(141), summary_unavailable: false },
+      { title: 'Story 140', link: 'https://example.test/140', source_name: 'Feed',
+        published_at: null, summary: 'x'.repeat(140), summary_unavailable: false },
+      { title: 'Unavailable', link: 'https://example.test/unavailable', source_name: 'Feed',
+        published_at: null, summary: null, summary_unavailable: true },
+    ] }],
   }))
   const { container } = page()
-  await screen.findByRole('heading', { name: 'Length' })
-  expect(screen.getByRole('link', { name: 'Story 140 (opens the original)' }).closest('article')).toHaveClass('item-short')
-  expect(screen.getByRole('link', { name: 'Story 141 (opens the original)' }).closest('article')).toHaveClass('item-long')
-  expect(container.querySelector('.digest-meta')).toHaveTextContent('2 items · 1 source')
+  const topic = await screen.findByRole('region', { name: 'One layout' })
+  const articles = Array.from(topic.querySelectorAll('article'))
+  expect(articles).toHaveLength(4)
+  for (const [index, article] of articles.entries()) {
+    expect(article.classList.value).toBe('item')
+    expect(Array.from(article.children).map(child =>
+      `${child.tagName.toLowerCase()}.${child.className}`)).toEqual([
+      'p.item-meta', 'h3.item-title',
+      index === 3 ? 'p.summary-unavailable' : 'div.summary',
+    ])
+  }
+  expect(container.querySelector('.digest-meta')).toHaveTextContent('4 items · 1 source')
 })
 
 it('hides the single-entry index and explains creator-only digests', async () => {

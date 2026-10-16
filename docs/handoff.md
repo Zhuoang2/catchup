@@ -1,122 +1,124 @@
-# CatchUp 项目交接
+# CatchUp project hand-off
 
-更新：2026-10-01（America/Los_Angeles）。用途：将已完成的产品讨论和 proposal 交给 Claude Code，继续技术设计与实施。
+Updated: 2026-10-01 (America/Los_Angeles). Purpose: hand the finished product discussion and the proposal to Claude Code to continue technical design and implementation.
 
-## 1. 项目状态与材料
+This is a snapshot of the hand-off as of 2026-10-01, translated from the original Chinese on 2026-10-15. Later decisions are recorded in `AGENTS.md` and `docs/process/decision-log.md`, and they take precedence over this file.
 
-- 名称已定：**CatchUp: An Open-Source, AI-Powered Personal Digest**。
-- 课程：Stanford CS146S，Fall 2026。Proposal 作者：Zhuoang Tao。
-- 已完成：产品讨论、范围收敛、英文 proposal 及语言润色、有限竞品调研、流程图。
-- 尚未实现：应用代码、数据模型、来源适配器、模型连接、测试、部署、项目仓库与项目看板。此文件夹检查时只有 proposal PDF；现增加交接材料，没有初始化应用。
-- Proposal 的提交状态未验证；文件存在不代表已提交。
-- 本目录之外还有课程练习；不要将其误认为 CatchUp 代码。
+## 1. Project status and materials
 
-| 材料 | 用途 |
+- Name decided: **CatchUp: An Open-Source, AI-Powered Personal Digest**.
+- Course: Stanford CS146S, Fall 2026. Proposal author: Zhuoang Tao.
+- Done: product discussion, scope narrowing, the English proposal and its language polishing, limited competitor research, the workflow figure.
+- Not yet implemented: application code, data model, source adapters, model connection, tests, deployment, project repository, and project board. When this folder was checked it held only the proposal PDF; the hand-off materials have now been added, and no application has been initialized.
+- The proposal's submission status is unverified; the file existing does not mean it was submitted.
+- Outside this folder there are other course exercises; do not mistake them for CatchUp code.
+
+| Material | Purpose |
 | --- | --- |
-| `../CLAUDE.md` | Claude Code 的简短项目入口 |
-| `proposal.md` | 交接时读取的 Google Doc 正文快照 |
-| `../CS146S Aut26 Final Project Proposal Zhuoang Tao.pdf` | 用户原有两页 PDF，保留不覆盖 |
-| `course-requirements.pdf` | 原始课程要求副本 |
-| `../assets/catchup-workflow.png` | 无标题、无脚注、上下白边已裁紧的英文流程图 |
+| `../CLAUDE.md` | Short project entry point for Claude Code |
+| `proposal.md` | Snapshot of the Google Doc's text, read at hand-off |
+| `../CS146S Aut26 Final Project Proposal Zhuoang Tao.pdf` | The user's original two-page PDF; keep it, do not overwrite |
+| `course-requirements.pdf` | Copy of the original course requirements |
+| `../assets/catchup-workflow.png` | English workflow figure with no title or footnote, top and bottom margins cropped tight |
 
-Google Doc：链接不放入公开仓库，见用户本人的 Google Drive。
-后续如需再次同步，需相应账号权限。当前交接不依赖 Google Docs 连接器。
-本机原始讨论记忆位于父目录 `../work/agent-memory.md`（相对此项目根目录），含无关工具记录与已过时想法，因此本交接已提炼相关部分，未整份复制。
-用户最新明确指示优先；遇到材料冲突应指出差异。下面区分已确认内容与建议，不把未定方案当作承诺。
+Google Doc: the link is kept out of the public repository; it is in the user's own Google Drive.
+Syncing it again later needs the matching account permissions. This hand-off does not depend on a Google Docs connector.
+The original discussion memory on this machine is in the parent folder at `../work/agent-memory.md` (relative to this project root). It contains unrelated tool records and outdated ideas, so this hand-off extracts the relevant parts instead of copying the whole file.
+The user's latest explicit instructions take priority; when materials conflict, point out the difference. The sections below separate confirmed content from suggestions and do not treat undecided options as commitments.
 
-## 2. 已确认的产品定位
+## 2. Confirmed product positioning
 
-为定期关注多个信息来源的人，收集新内容并生成按主题组织、带原文链接的简报，帮助用户判断哪些内容值得深入阅读、观看或收听。
-主题不限定 AI。学生、开发者、行业信息读者都可使用。
-最终计划开源，用户自行部署，配置自己的模型 API 和受支持的模型；初期面向能按教程设置的用户。
-先做通过浏览器使用的本地/自托管网页应用，之后再考虑浏览器插件。
-使用云模型时内容会发送给该模型服务；“本地部署”不等于“全部内容只在本地处理”。
+For people who regularly follow several information sources: collect new content and produce a digest organized by topic, with links to the originals, to help users decide what is worth reading, watching, or listening to in depth.
+Topics are not limited to AI. Students, developers, and readers of industry news can all use it.
+The final plan is open source and self-deployed by the user, who configures their own model API and a supported model; the first version is aimed at users who can follow a setup guide.
+First build a local / self-hosted web application used through the browser; consider a browser extension later.
+When a cloud model is used, content is sent to that model service; "local deployment" does not mean "all content is processed only locally".
 
-## 3. 首版核心流程与范围
+## 3. Core flow and scope of the first version
 
-1. 用户配置受支持的模型 API、自己的凭据和模型。不是固定只能使用某一个模型；具体兼容接口尚未选择。
-2. 粘贴来源网址，识别并预览名称/地址/最近内容，确认后保存。重复或不支持的来源应说明。
-3. 用户手动点击 Generate Digest。
-4. 获取**上次成功请求到本次请求**之间的新内容；区分检查失败与成功检查但没有更新，避免重复收录。
-5. 根据内容生成摘要，按主题组织，保留来源名称和原文链接。
-6. 保存简报供后续查看。核心流程跑通后加入收藏、点赞与反馈。
+1. The user configures a supported model API, their own credentials, and a model. It is not fixed to one particular model; the exact compatible interface is not chosen yet.
+2. Paste a source URL, detect and preview its name / address / recent content, and save it after confirmation. Duplicate or unsupported sources should be explained.
+3. The user clicks Generate Digest manually.
+4. Collect the new content between **the last successful request and this request**; distinguish a failed check from a successful check with no updates, and avoid including anything twice.
+5. Summarize the content, organize it by topic, and keep the source names and links to the originals.
+6. Save the digest for later viewing. After the core flow works, add favorites, likes, and feedback.
 
-来源：选定的公开网站/博客，以及存在可获取字幕或文字稿的播客和长视频。
-先做好新增文章/节目/视频发现，不承诺任意网站都能抓取。
-单篇文章链接与订阅其来源以后的更新是不同操作；识别单篇文章时应明确关注范围。
-“有字幕或文字稿”是首版音视频前提；未处理画面时不能声称总结了视觉内容。
+Sources: selected public websites / blogs, and podcasts and long videos that have accessible captions or transcripts.
+Do new-article / new-episode / new-video discovery well first; do not promise that any website can be scraped.
+A single article link and subscribing to its source's future updates are different operations; when a single article is detected, make the scope of what is followed clear.
+"Has captions or a transcript" is the precondition for audio and video in the first version; without processing the visuals, do not claim to have summarized visual content.
 
-## 4. 已明确推迟的范围
+## 4. Scope explicitly deferred
 
-- 自动定时扫描、每日自动推送、实时监控：首版不做。早期“每天自动日报”的讨论已被手动触发方案替代。
-- 浏览器插件：后续便捷添加来源或读取用户授权页面。
-- 登录/付费内容：后续逐站评估。建议利用用户已登录的浏览器页面并授权提取，不读取用户保存的密码，不上传会话 cookie 来做通用登录。
-- 已有页面的有意义修改：后续支持选定课程/活动页面，而非首版必做。
-- 缺少文字稿时的音视频转录、完整外部 agent 集成：未承诺，不能自动扩为 MVP。
-- 收藏、点赞、反馈是希望有的功能，安排在核心流程之后，不是被删除。
-- 摘要质量标准与详细 UI 待有可用原型后细化；仍需做实际评估。
+- Automatic scheduled scans, automatic daily pushes, real-time monitoring: not in the first version. The early "automatic daily report" discussion has been replaced by the manually triggered approach.
+- Browser extension: later, for adding sources conveniently or reading pages the user authorizes.
+- Logged-in / paid content: evaluate site by site later. Suggested approach: use pages in the user's already logged-in browser with their authorization to extract content; do not read the user's saved passwords, and do not upload session cookies for general-purpose login.
+- Meaningful changes to existing pages: later, support selected course / event pages; not required for the first version.
+- Transcribing audio and video that lack a transcript, and full external agent integration: not promised, and must not automatically grow into the MVP.
+- Favorites, likes, and feedback are wanted features scheduled after the core flow; they are not removed.
+- Summary quality criteria and the detailed UI will be refined once a working prototype exists; real evaluation is still needed.
 
-## 5. 尚未确定、实施时需要处理的问题
+## 5. Open questions to settle during implementation
 
-以下是开放项，不能作为已定需求写进实现承诺：
+These are open items and must not be written into implementation commitments as decided requirements:
 
-- 技术栈、数据库、进程/后台任务形式、安装与部署方式。
-- 首批支持的网站、RSS/页面适配策略、播客/视频平台及文字稿获取方式。
-- 首批模型供应商、接口协议与模型选择方式；模型 API 不等于自动控制整个 AI agent。
-- 首次生成回看多长时间；首次添加新来源时如何补历史。
-- 成功请求的精确定义、部分来源失败时的补查和重试、时区与时间边界、发布时间缺失或不可信时的处理。
-- 按来源保存成功检查点是一项建议，尚未正式选定。不能让全局成功时间掩盖某个失败来源未收集的内容。
-- 长时间未使用带来的大量内容：批次、长度、API 成本与进度提示。
-- 部署给个人使用还是共享实例、示范站如何隔离凭据和数据。
-- 质量评估样例及具体标准、收藏/反馈的交互细节。
+- Technology stack, database, process / background-job model, installation and deployment method.
+- The first supported websites, the RSS / page adaptation strategy, the podcast / video platforms, and how transcripts are obtained.
+- The first model providers, interface protocol, and how a model is chosen; a model API does not mean automatically controlling a whole AI agent.
+- How far back the first generation looks; how history is backfilled when a new source is first added.
+- The exact definition of a successful request, re-checking and retries when some sources fail, time zones and time boundaries, and handling of missing or unreliable publication times.
+- Saving a successful checkpoint per source is a suggestion, not yet formally chosen. A global success time must not hide content that a failed source did not collect.
+- Large volumes of content after a long absence: batches, length, API cost, and progress indication.
+- Deploying for personal use or as a shared instance, and how a demo site isolates credentials and data.
+- Quality-evaluation samples and concrete criteria; interaction details for favorites / feedback.
 
-优先提出与课程周期相称的简单方案；不需要为了显得 substantial 增加多智能体、微服务或插件。
-不要重复要求用户重新决定项目主题、是否开源、是否手动触发等已确认问题。
+Prefer simple approaches that fit the course timeline; there is no need to add multi-agent systems, microservices, or extensions just to look substantial.
+Do not ask the user again to re-decide confirmed questions such as the project topic, whether it is open source, or whether it is manually triggered.
 
-## 6. 课程要求（从原始 brief 核对）
+## 6. Course requirements (checked against the original brief)
 
-团队 1–2 人，完成解决真实问题的 substantial software application。核心还包括在开发全生命周期使用 AI 并提供证据，不能只展示产品会调用模型。
-原始 brief 写明以下截止时间均为周四 11:59pm；年份来自本课程 Fall 2026 上下文。
+Teams of 1–2 people complete a substantial software application that solves a real problem. The core also includes using AI across the whole development lifecycle and providing evidence of it; showing only that the product calls a model is not enough.
+The original brief states that all deadlines below are Thursdays at 11:59 pm; the year comes from this course's Fall 2026 context.
 
-| 日期 | 交付物 |
+| Date | Deliverable |
 | --- | --- |
-| 2026-10-01 | 两页 proposal |
-| 2026-10-15 | 两页 Technical Spec：架构、API、技术栈、业务背景 |
-| 2026-11-05 | Alpha、项目任务看板/backlog、AI 工具使用简短反思 |
-| 2026-12-10 | 最终演示、代码、已部署应用、4+ 页报告、约 5 分钟展示 |
+| 2026-10-01 | Two-page proposal |
+| 2026-10-15 | Two-page Technical Spec: architecture, API, technical stack, business context |
+| 2026-11-05 | Alpha, project task board / backlog, short reflection on AI tool use |
+| 2026-12-10 | Final demo, code, deployed application, 4+ page report, about a 5-minute presentation |
 
-需保留真实需求变化、提示词例子、设计决策、代码审查、测试/覆盖情况、AI 成功与失败案例。采用版本控制、代码评审和项目看板，记录团队职责（单人也应说明）。
-评分：Context Communication 18；AI Integration Evidence 10；System Design & Functionality 30；Testing & QA 15；Collaboration & Process 10；Reflection 12；Documentation/Repo/Demo 5。
-Proposal 指导另要求 AI Tool Usage Plan，现稿已覆盖 UI/UX、代码/重构、自动测试、审查/QA、CI/CD/部署。
-没有要求创造全新品类或必须商业化；课程原文没有用来源数量或功能数量定义 substantial。
+Keep real requirement changes, prompt examples, design decisions, code reviews, testing / coverage, and AI success and failure cases. Use version control, code review, and a project board, and record team responsibilities (also needed for a one-person team).
+Grading: Context Communication 18; AI Integration Evidence 10; System Design & Functionality 30; Testing & QA 15; Collaboration & Process 10; Reflection 12; Documentation/Repo/Demo 5.
+The proposal guidance also asks for an AI Tool Usage Plan; the current draft covers UI/UX, code / refactoring, automated testing, review / QA, and CI/CD / deployment.
+There is no requirement to create an entirely new category or to commercialize; the course text does not define "substantial" by the number of sources or features.
 
-## 7. 竞品参考与验证边界
+## 7. Competitor references and limits of verification
 
-已有相近产品，不能宣称“首次实现网站跟踪 + AI 摘要”。
-这些是设计参考，不是待逐项复刻的需求，也没有验证所有产品的抓取稳定性或摘要质量。
+Similar products already exist, so do not claim "the first to combine website tracking with AI summaries".
+These are design references, not requirements to copy one by one, and the scraping reliability and summary quality of these products have not all been verified.
 
-- Readless（https://www.readless.app/）：操作过公开演示的简洁/详细/综合视图与分类，看到主题概览、逐条详情、阅读时长和来源引用。仅演示数据。
-- Visualping（https://visualping.io/）：输入公开博客实际加载页面预览并选择“新文章”关注条件，未创建监控/注册。可借鉴预览并确认关注内容。
-- Inoreader：公开资料涉及 feed、页面变化和 AI 报告；登录后的核心阅读流程没有实测。来源添加帮助：https://www.inoreader.com/help/basic/feeds-sources/how-do-i-add-a-feed
-- Readwise Reader（https://readwise.io/read）：查看公开介绍和登录入口；历史、收藏与私有内容流程没有实测。
+- Readless (https://www.readless.app/): tried the public demo's concise / detailed / combined views and categories; saw topic overviews, per-item details, reading time, and source citations. Demo data only.
+- Visualping (https://visualping.io/): entered a public blog, previewed the actually loaded page, and chose the "new articles" watch condition; no monitor was created and no account was registered. The idea of previewing and confirming what to watch is worth borrowing.
+- Inoreader: public material covers feeds, page changes, and AI reports; the logged-in core reading flow was not tested. Help page for adding sources: https://www.inoreader.com/help/basic/feeds-sources/how-do-i-add-a-feed
+- Readwise Reader (https://readwise.io/read): viewed the public introduction and the login page; history, favorites, and private-content flows were not tested.
 
-已选的方向：来源预览确认、按主题组织、保留原文引用。详细交互可在实现中继续参考，无需在开工前重新做完整竞品研究。
+Directions chosen: preview and confirm sources, organize by topic, keep citations of the originals. Detailed interactions can keep drawing on these during implementation; a full competitor study is not needed again before starting.
 
-## 8. 推荐接手顺序（实施建议，并非已经完成）
+## 8. Recommended order for taking over (implementation suggestions, not yet done)
 
-1. 阅读本文件、proposal 和课程 brief，简短复述范围，只列影响首个可用版本的关键未定项。
-2. 提出一套推荐技术方案并说明代价，安排能在课程节点交付的里程碑；把关键决策与未定项记入项目文件。
-3. 优先做端到端的小范围真实流程：配置模型 → 添加一个支持的来源 → 采集新内容 → 生成带引用的简报 → 保存并可重新打开。
-4. 增加来源类型、时间边界、重复请求、部分失败与恢复的测试；随后加入有文字稿的音视频、收藏和反馈。
-5. 用真实来源核对摘要质量，验证干净环境安装，准备部署示范与课程过程证据。
+1. Read this file, the proposal, and the course brief; restate the scope briefly and list only the key open items that affect the first usable version.
+2. Propose one recommended technical approach and its trade-offs, and plan milestones that can be delivered by the course deadlines; record the key decisions and open items in project files.
+3. First build a small, real end-to-end flow: configure a model → add one supported source → collect new content → generate a digest with citations → save it and reopen it.
+4. Add tests for source types, time boundaries, repeated requests, partial failure, and recovery; then add audio and video with transcripts, favorites, and feedback.
+5. Check summary quality with real sources, verify installation in a clean environment, and prepare the deployment demo and the course's process evidence.
 
-推荐验收场景：无新内容不重复生成旧条目；失败与无更新分开显示；重试不漏项/重复；应用重启后历史保留；摘要事实能回到来源；缺少字幕时明确提示不支持。
-这些是待落实的验收建议，尚无代码或测试证明通过。
+Recommended acceptance scenarios: no new content does not regenerate old items; failures and "no updates" are shown separately; retries neither miss nor duplicate items; history survives an application restart; summary facts can be traced back to the source; missing captions are clearly reported as unsupported.
+These are acceptance suggestions still to be implemented; no code or test yet shows that they pass.
 
-## 9. 工具迁移边界
+## 9. Limits of the tool migration
 
-本交接迁移的是文件、需求和设计背景。Codex 对话上下文、工具连接、登录状态、个人技能、API 密钥不会因复制目录而自动转移。
-开发 CatchUp 所用的 Claude Code 登录，与 CatchUp 运行时调用模型的 API 凭据是两套配置。
-本机已验证 `claude --version` 返回 2.1.283；未验证 Claude 登录或剩余额度。
-无需启动前先装 Codex 的全部技能。课程根目录里的 OpenSpec/RePPIT 记录不是 CatchUp 的既定技术流程。
-个人全局规则保持在用户既有 `~/.codex/AGENTS.md`，不在项目文件中重复建立副本。首轮提示词可要求 Claude 在同一台机器上读取原文件；换机器时自行迁移该唯一来源。
+This hand-off migrates files, requirements, and design background. The Codex conversation context, tool connections, login state, personal skills, and API keys do not transfer just because the folder is copied.
+The Claude Code login used to develop CatchUp and the API credentials CatchUp uses at runtime to call a model are two separate configurations.
+On this machine, `claude --version` was verified to return 2.1.283; the Claude login and remaining quota were not verified.
+There is no need to install all of Codex's skills before starting. The OpenSpec/RePPIT records in the course root folder are not CatchUp's established technical workflow.
+Personal global rules stay in the user's existing `~/.codex/AGENTS.md` and are not duplicated in project files. The first prompt can ask Claude to read the original file on the same machine; when switching machines, migrate that single source yourself.

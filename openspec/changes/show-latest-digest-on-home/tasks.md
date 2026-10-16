@@ -246,7 +246,7 @@ Notes for this round:
 - **Use `diagnosing-bugs`** for 8.1 and **`tdd`** for 8.2. Task 8.3 is a refactor step with no red test.
 - Do not edit `proposal.md`, `design.md`, or the spec deltas.
 
-- [ ] 8.1 An older failure overwrites a newer one (design D5). The catch handler replaces `newDigestError` unconditionally (`Home.tsx:183`).
+- [x] 8.1 An older failure overwrites a newer one (design D5). The catch handler replaces `newDigestError` unconditionally (`Home.tsx:183`).
   - Reproduction: No. 4 is shown and fetch 8 is pending. Run 2 saves 9, and fetch 9 fails. Then fetch 8 fails, so the alert now links to `/digests/8`, and no link to No. 9 remains.
   - Fix: keep the error with the higher id.
 

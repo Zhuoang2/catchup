@@ -496,6 +496,43 @@ it('hides an older fetch error when the newer digest resolves in the same tick',
   expect(screen.queryByRole('link', { name: 'View digest' })).toBeNull()
 })
 
+it('keeps the higher digest error when an older pending fetch also fails', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  let release8!: (response: ReturnType<typeof respond>) => void
+  const pending8 = new Promise<ReturnType<typeof respond>>(resolve => { release8 = resolve })
+  fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+    if (path === '/api/settings/model') return respond({ key_set: true })
+    if (path === '/api/sources') return respond(sources)
+    if (path === '/api/digests/latest') return respond(digest)
+    if (path === '/api/digest-runs/active') return respond(run)
+    if (path === '/api/digest-runs/1') return respond({ ...run, status: 'succeeded', digest_id: 8 })
+    if (path === '/api/digests/8') return pending8
+    if (path === '/api/digest-runs' && options?.method === 'POST') return respond({ ...run, id: 2 })
+    if (path === '/api/digest-runs/2') return respond({ ...run, id: 2, status: 'succeeded', digest_id: 9 })
+    if (path === '/api/digests/9') return respond({
+      error: { code: 'not_found', message: 'Missing 9' },
+    }, 404)
+    throw Error(path)
+  })
+  render(<MemoryRouter><Home/></MemoryRouter>)
+  await screen.findByRole('progressbar')
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/digests/8', undefined))
+  fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
+  await screen.findByRole('progressbar')
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  expect(await screen.findByRole('alert')).toHaveTextContent('Missing 9')
+  expect(screen.getByRole('link', { name: 'View digest' })).toHaveAttribute('href', '/digests/9')
+  await act(async () => {
+    release8(respond({ error: { code: 'not_found', message: 'Missing 8' } }, 404))
+    await pending8
+  })
+  expect(screen.getAllByRole('alert')).toHaveLength(1)
+  expect(screen.getByRole('alert')).toHaveTextContent('Could not load the new digest')
+  expect(screen.getByRole('alert')).toHaveTextContent('Missing 9')
+  expect(screen.getByRole('link', { name: 'View digest' })).toHaveAttribute('href', '/digests/9')
+})
+
 it('requests only the latest digest, never the full history list', async () => {
   mockPage()
   await screen.findByRole('heading', { name: 'Generate digest' })

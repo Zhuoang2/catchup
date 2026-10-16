@@ -180,9 +180,8 @@ export default function Home() {
         setDigest(previous => !previous || result.id > previous.id ? result : previous)
         setNewDigestError(previous => previous?.id === id ? null : previous)
       } })
-      .catch((reason: Error) => { if (pageMounted.current) setNewDigestError({
-        id, message: reason.message,
-      }) })
+      .catch((reason: Error) => { if (pageMounted.current) setNewDigestError(previous =>
+        !previous || id >= previous.id ? { id, message: reason.message } : previous) })
       .finally(() => { pendingDigests.current.delete(id) })
   }, [run?.status, run?.digest_id, digest?.id])
 

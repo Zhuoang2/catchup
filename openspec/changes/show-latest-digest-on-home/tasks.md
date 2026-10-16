@@ -238,3 +238,32 @@ Notes for this round:
   - In `docs/process/ai-usage-log.md`, add one short sentence on round 2 to your "Latest digest on Home" entry. Do not change the other entries.
 
   Verify: every command passes, and the report has the actual numbers.
+
+## 8. Review fixes, round 3
+
+Notes for this round:
+- These four small items come from the review of group 7. Each was confirmed by a probe or by the code, and the user chose to fix them before merging (2026-10-16). Design D5 and D7 were amended; read those two passages first.
+- **Use `diagnosing-bugs`** for 8.1 and **`tdd`** for 8.2. Task 8.3 is a refactor step with no red test.
+- Do not edit `proposal.md`, `design.md`, or the spec deltas.
+
+- [ ] 8.1 An older failure overwrites a newer one (design D5). The catch handler replaces `newDigestError` unconditionally (`Home.tsx:183`).
+  - Reproduction: No. 4 is shown and fetch 8 is pending. Run 2 saves 9, and fetch 9 fails. Then fetch 8 fails, so the alert now links to `/digests/8`, and no link to No. 9 remains.
+  - Fix: keep the error with the higher id.
+
+  Verify with a failing-first test for that sequence: after both failures, exactly one "Could not load the new digest" alert links to `/digests/9`.
+- [ ] 8.2 No source-check label or list before the first check (design D7). Today a queued run shows a bare "Sources" label: a paragraph in the bar, a heading in the run card. Under the label is an empty list.
+  - `SourceChecks` renders nothing when there are no checks, in both layouts.
+  - Then remove the `.run-bar .check-list:empty` rule (`components.css:75`) and its `tokens.test.ts` assertion, because no empty list remains.
+
+  Verify:
+  - Failing-first tests for a queued run with no source checks, in both layouts: no "Sources" text, and no `.check-list`.
+  - The existing source-check tests still pass.
+  - `python3 frontend/scripts/check-style-coverage.py` passes.
+- [ ] 8.3 Refactor step, with no red test:
+  - Derive `loadingNewDigest` from `visibleNewDigestError` instead of the raw `newDigestError` (`Home.tsx:288`), so that one rule decides whether the fetch failed.
+  - Initialize the `pendingDigests` Set lazily, so that a render no longer builds a Set it throws away (`Home.tsx:129`).
+
+  Verify: `npm test -- --run` passes with no test changes in this task.
+- [ ] 8.4 Re-run the 5.1 checks and append a "Review fixes, round 3" section to `docs/process/test-report-show-latest-digest-on-home.md`, with real results and the axe scan count. In `docs/process/ai-usage-log.md`, add one short sentence on round 3 to your "Latest digest on Home" entry.
+
+  Verify: every command passes, and the report has the actual numbers.

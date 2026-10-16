@@ -83,7 +83,7 @@ The digest below stays rendered in every state.
 - When the polled run reaches `succeeded` with a `digest_id`, the page fetches `/digests/{digest_id}` and shows it. It does not fetch `/digests/latest`, because the run identifies its own digest.
 - No element is focused programmatically, and the page does not scroll.
 - The status region text is today's "Digest ready: …" (`Generate.tsx:138`).
-- If the fetch fails, an error `Alert`, "Could not load the new digest", links to `/digests/{digest_id}`, and the previous digest stays shown. Starting another run clears this alert. Once a digest with a higher id is shown, the alert for an older one is not shown.
+- If the fetch fails, an error `Alert`, "Could not load the new digest", links to `/digests/{digest_id}`, and the previous digest stays shown. Starting another run clears this alert. Once a digest with a higher id is shown, the alert for an older one is not shown. When the fetches for two digests fail, the alert keeps the one with the higher id.
 - A fetched digest is shown even if another run has started in the meantime. It never replaces a digest with a higher id.
 - The `/digests` refresh effect (`Generate.tsx:102-111`) is removed.
 
@@ -94,7 +94,7 @@ The digest below stays rendered in every state.
 
 ### D7. Styles
 - `.page-home > .run-bar` spans `1 / -1` in the digest grid. At 900 px and below, the existing `.page > *` rule in the single-column block already spans it, so there is no second rule.
-- A rule under the bar separates it from the digest head. It is the only line there: the bar's last source-check row has no bottom border, and an empty source-check list has no top border.
+- A rule under the bar separates it from the digest head. It is the only line there: the bar's last source-check row has no bottom border. Before the first source check arrives, no source-check label or list is rendered, in the bar or in the cards.
 - The `.hero-last` rules are removed together with the "Last digest" line.
 - In the ready state, the bar's controls sit on one row.
 - The bar reuses the existing hero-action, stepper, progress, and check-list styles. It adds only the classes it needs, each with a rule (`frontend/scripts/check-style-coverage.py` reports any without one).

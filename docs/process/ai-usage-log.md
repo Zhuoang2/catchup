@@ -779,3 +779,24 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Lessons:
   - Before a refactor, check that its safety net still covers the code being moved. Here, 6.5 had weakened it.
   - A verification claim counts only if the test fails under a mutation of the fix. The spec subagent now mutation-tests the claims.
+
+## 2026-10-16 — `improve-single-item-topics` (#25): research, proposals, and plan (Claude Code, Opus 5.5, with two Explore subagents)
+
+- Prompts (translated from Chinese):
+  - "Delete the remote branch, then start the research for #25."
+  - "Start the proposals."
+  - "Choose Proposal 1, do G separately, start the plan."
+- Research:
+  - Claude read the reading-layout CSS, `DigestArticle`, the width-class tests, and the specs itself.
+  - Two read-only Explore subagents covered the grouping pipeline, and the redesign's design records, prototypes, and test report. Claude spot-checked their key citations against the files.
+  - Claude also measured the two real Chinese digests in the user's local e2e instance at 1440 px, read-only through the built-in browser.
+  - The measurement changed the problem statement. The empty right third is not limited to single-item topics: every long item that is not followed by a short item leaves it, and nearly every real summary is over the 140-character cut-off. As a result, 14 of 16 rows in one digest ended 302 px short of the edge.
+- Proposals:
+  - (1) the item title beside its summary, one row per item
+  - (2) long items across the full width, with two text columns
+  - Option G: a grouping prompt for fewer, broader topics
+  - Each came with a layout sketch, since both move content. While checking the numbers, Claude corrected the narrow-window widths (190 px just above 900 px).
+- Plan:
+  - `proposal.md`, a `user-interface` delta (the "Digest reading layout" requirement modified, and "Single-item topic" and "Narrow window" scenarios added), the final `design.md` (D1–D6), and a `tasks.md` in three groups with failing-first tests.
+  - The user's choices were recorded as D-018. Option G became issue #32.
+- Problem / adjustment: the first draft of the spec capped summary lines at "about 50 characters of mixed text". Pure English lines at that width hold about 75 characters, so the rule would have failed on English digests. Claude split the rule: at most 40 Chinese or 80 Latin characters per line at 1440 px.

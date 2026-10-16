@@ -179,3 +179,25 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - "View digest" disappears from the finished-run state, which now offers no primary action.
   - The main screen shows no side rail while a digest is shown; the source count moves into the run bar.
   - The single-item topic layout (#25) becomes more visible. It stays a separate change, planned next.
+
+## D-018 Each digest item is a row with its title beside its summary; one width for every item — accepted (2026-10-16)
+
+- **Decision.** On wide windows, each item in a topic is one row:
+  - its source line and linked title in page columns 4–6
+  - its summary in columns 7–12, ending at the content's right edge
+  - The summary keeps the former long-item measure: 580 px at 1440 px, about 35 CJK or 75 Latin characters per line.
+  - The long/short item classes and their 140-character threshold are removed.
+  - Planned as OpenSpec change `improve-single-item-topics` (issue #25).
+- **Why.** Long items spanned 6 of the 9 item columns, and a long item after a long item restarted the row. Nearly every real summary counted as long, so in a real Chinese digest 14 of 16 rows ended 302 px short of the content edge. Since D-017, that digest is the main screen.
+- **Alternatives:**
+  - Long items across all 9 item columns, with the summary in two text columns (Proposal 2). Rejected:
+    - It splits 2–4 sentence summaries and key-point lists across columns.
+    - It still leaves a gap after a short item.
+    - It keeps the 140-character rule.
+  - A 4 : 8 split for single-item topics (suggested in #25). Rejected: about 47 CJK characters per line, and it does not fix rows of consecutive long items.
+  - Fewer, broader topics through the grouping prompt (Option G). Split out to issue #32: once the layout fills every row, it is a digest-quality question.
+- **Consequences:**
+  - No vertical rule between an item's title and its summary.
+  - The topic column stays 3 columns wide.
+  - Short items take a full row of their own.
+  - At 900 px and below, the layout is unchanged.

@@ -1,6 +1,6 @@
 # AI Tool Usage Log
 
-Real usage records for the technical spec, alpha reflection, and final report. Each entry: date, tool/model, purpose, prompt (verbatim or faithful excerpt), outcome, problems, adjustment.
+Real usage records for the technical spec, alpha reflection, and final report. Each entry: date, tool/model, purpose, prompt (verbatim or faithful excerpt), outcome, problems, adjustment. The user often wrote prompts in Chinese; those prompts are quoted here in English translation.
 
 ## 2026-10-07 — UI redesign final review fixes (Factory Droid, GPT-6 Sol)
 
@@ -112,12 +112,12 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 ## 2026-10-01 — Codex → Claude Code handoff prompt (Claude Code, Opus 5.5)
 
 - Purpose: Transfer the project from Codex to Claude Code.
-- Prompt (user, verbatim):
+- Prompt (user, translated from Chinese):
 
-  > 请接手 CatchUp 项目。先读取 CLAUDE.md、docs/handoff.md、docs/proposal.md，以及项目文件夹中的 Final Project Description，了解产品设想和课程要求。同时读取本机存在的 ~/.codex/AGENTS.md。
-  > 课程要求以 Final Project Description 原文为准；交接文件中的课程摘要仅供参考。如发现材料之间存在冲突，请明确指出。
-  > 已确认的产品方向不需要重新 brainstorm。请区分既定需求、后续功能和未定技术细节，先简短复述你的理解，再结合课程交付要求和时间节点，提出推荐技术方案与分阶段实施计划，随后推进核心流程。只对确实影响实现的关键未定项向我提问。
-  > 开发过程中保留需求变化、设计决策、测试结果，以及真实的 AI 工具使用实例、提示词调整和成功或失败经验，为 technical spec、alpha release 和最终报告积累材料。
+  > Please take over the CatchUp project. First read CLAUDE.md, docs/handoff.md, docs/proposal.md, and the Final Project Description in the project folder to understand the product idea and the course requirements. Also read ~/.codex/AGENTS.md on this machine.
+  > The original Final Project Description is authoritative for the course requirements; the course summary in the handoff file is for reference only. If you find conflicts between the materials, point them out explicitly.
+  > The confirmed product direction does not need another brainstorm. Distinguish confirmed requirements, later features, and undecided technical details. First restate your understanding briefly; then, given the course deliverables and deadlines, propose a recommended technical approach and a phased implementation plan, and then move the core flow forward. Ask me only about key open items that really affect the implementation.
+  > During development, keep the requirement changes, design decisions, test results, and real examples of AI tool use, prompt adjustments, and successes or failures, to build up material for the technical spec, the alpha release, and the final report.
 
 - What worked: The prompt named the source of truth for course rules (the original brief over the handoff summary). It separated confirmed requirements from open decisions and told the agent not to reopen settled questions.
 - Outcome so far: Claude compared the handoff's course summary with the brief and listed the differences in its reply. It initialized git and OpenSpec, merged the project instruction files, and created these process logs.
@@ -391,16 +391,16 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 ## 2026-10-04 — `add-podcast-and-video-sources`: merge decision and supplementary research (Claude Code, Opus 5.5, with a general-purpose subagent)
 
 - Prompts (user, verbatim, with English translations):
-  - "另外，你提的第 1 点（长字幕截断）很重要，请在方案里一并处理。" (Also, your point 1, long-transcript truncation, is important; handle it in the plan as well.)
-  - "哦，先不要合并。再尝试一下别的能处理 YouTube 视频的方法。我之前处理哔哩哔哩的视频是用一个语音转文字的模型去识别视频来获取字幕，来获取说话的内容，然后再让 AI 总结的。这套流程可以在 YouTube 上面用吗？" (Oh, don't merge yet. Try other ways of handling YouTube videos. For Bilibili videos I used a speech-to-text model to get captions of what is said, then had an AI summarize them. Can this pipeline work on YouTube?)
-  - "OK，我明白了。那我们就先合并五和六，然后开始补充调研吧。" (OK, I understand. Then let's merge #5 and #6 first and start the supplementary research.)
+  - "Also, your point 1, long-transcript truncation, is important; handle it in the plan as well."
+  - "Oh, don't merge yet. Try other ways of handling YouTube videos. For Bilibili videos I used a speech-to-text model to get captions of what is said, then had an AI summarize them. Can this pipeline work on YouTube?"
+  - "OK, I understand. Then let's merge #5 and #6 first and start the supplementary research."
 
   The research covered `<podcast:transcript>` formats, iTunes Lookup, DeepSeek context and output limits, and token counts for the 3.6-hour sample under different processing approaches.
 - Claude renamed the change folder, moved #5 to In Progress on the board, and ran `/reppit-research` in OpenSpec mode. A background subagent fetched the podcast namespace spec, six real transcript feeds, five feeds without transcripts, feedparser behavior, iTunes Lookup, and adoption statistics. In parallel, Claude read the code path and ran the current `discover()` live against podcast URLs.
 - Claude re-checked the two subagent findings that affect the design before writing them down:
   - Feed sizes against the 5 MB fetch limit: The Daily's full archive is 20.3 MB, and The Vergecast fails on main today.
   - feedparser keeping only the last `<podcast:transcript>` tag: 4 tags in the raw XML, 1 returned.
-- Token counts: Claude first asked to download DeepSeek's 1.9 MB offline tokenizer. The user asked "为什么需要知道 token 数？" (Why do you need to know the token count?). Claude explained that they decide between a single call and chunking, and pointed out that `deepseek-flash`'s 1M-token context makes exact counts unnecessary. With the user's agreement, it used DeepSeek's documented character ratios instead: about 51k tokens for the 3.6-hour sample. Lesson: check the limit that drives the decision before asking for precise measurements.
+- Token counts: Claude first asked to download DeepSeek's 1.9 MB offline tokenizer. The user asked "Why do you need to know the token count?" Claude explained that they decide between a single call and chunking, and pointed out that `deepseek-flash`'s 1M-token context makes exact counts unnecessary. With the user's agreement, it used DeepSeek's documented character ratios instead: about 51k tokens for the 3.6-hour sample. Lesson: check the limit that drives the decision before asking for precise measurements.
 - Speech-to-text facts were recorded as context only. No audio was downloaded. YouTube's terms forbid downloading, and the handoff does not commit to transcription.
 - Date correction: entries above dated 2026-10-05 actually happened on 2026-10-04 (local time, per commit timestamps).
 
@@ -412,11 +412,11 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 
   Claude recommended P1.
 - The user chose P1 and, before planning, sent five amendments (verbatim excerpts, with English translations):
-  - "把"未总结（无字幕）"改成一个正面的版块"创作者更新"（Creator updates），放在主题摘要之后 … 按创作者 / 节目分组 … 不调用模型。" (Turn "not summarized (no captions)" into a positive "Creator updates" section after the topic summaries … grouped by creator / show … no model call.)
-  - "修正"晚到的字幕"和"不重复出现"的矛盾 … 播客条目没有文字稿时，先不进简报，最多等待 7 天 … 每个条目在所有简报里只出现一次。" (Fix the contradiction between "late transcripts" and "no repeats" … a podcast item without a transcript stays out of digests and waits up to 7 days … every item appears in exactly one digest.)
-  - "一次调用的上限不要写死 … 优先根据模型 /models 返回的 context_window 自动推算单次调用的字符上限；拿不到时退回 60,000 字符。" (Do not hard-code the single-call limit … derive it from the `context_window` returned by `/models`; fall back to 60,000 characters.)
-  - "它虽然没有 SSRF 风险，但绕过了 safe_fetch 的请求间隔和限流 … 逐个视频顺序获取，使用同一个 host spacer；每次运行设置获取字幕的视频数上限；把"被 YouTube 屏蔽"和"视频本身没有字幕"分开记录、分开显示。" (It has no SSRF risk, but it bypasses safe_fetch's spacing and rate limiting … fetch videos one by one with the same host spacer; cap the videos per run; record and show "blocked by YouTube" separately from "the video has no captions".)
-  - "优先使用视频原语言的字幕（人工字幕 > 自动字幕），不使用 YouTube 的机器翻译字幕；摘要语言由模型负责转换。" (Prefer captions in the video's original language (manual > auto), never YouTube's machine-translated captions; the model handles the summary language.)
+  - "Turn 'not summarized (no captions)' into a positive 'Creator updates' section after the topic summaries … grouped by creator / show … no model call."
+  - "Fix the contradiction between 'late transcripts' and 'no repeats' … a podcast item without a transcript stays out of digests and waits up to 7 days … every item appears in exactly one digest."
+  - "Do not hard-code the single-call limit … derive it from the `context_window` returned by `/models`; fall back to 60,000 characters."
+  - "It has no SSRF risk, but it bypasses safe_fetch's spacing and rate limiting … fetch videos one by one with the same host spacer; cap the videos per run; record and show 'blocked by YouTube' separately from 'the video has no captions'."
+  - "Prefer captions in the video's original language (manual > auto), never YouTube's machine-translated captions; the model handles the summary language."
 - **What the amendments fixed.** The user found a real flaw in Claude's design: "listed once" and "re-checked for 7 days" contradicted each other under the existing delivered/pending states. Claude had also left the single-call budget as a fixed number that suited only large-context models. Lesson: when a design adds a waiting state, walk through an item's full lifecycle across several runs before proposing it.
 - **What Claude added while revising, and the user accepted:**
   - a fifth reason, `captions_failed`
@@ -432,7 +432,7 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 
   `openspec validate --strict` passes.
 - **A drafting slip, caught before validation:** spec wording used "MAY" and "may" for normative rules, which the OpenSpec instructions forbid. Claude rewrote the sentences with SHALL/MUST.
-- **Independent plan review.** The user asked: "开另一个对话审查一遍你的计划，不要直接全盘接收他的修改建议，对照他的回答进行核实，确认真有问题了再进行修改" (Open another conversation to review your plan; don't accept its suggestions wholesale; verify them against its answers, and change things only once a problem is confirmed). Claude ran a fresh general-purpose subagent with no access to the planning conversation. Its instructions were to report only evidence-backed problems, without editing files.
+- **Independent plan review.** The user asked: "Open another conversation to review your plan; don't accept its suggestions wholesale; verify them against its answers, and change things only once a problem is confirmed". Claude ran a fresh general-purpose subagent with no access to the planning conversation. Its instructions were to report only evidence-backed problems, without editing files.
   - The reviewer reported 20 findings: 1 blocker, 5 major, 14 minor or unverified.
 - **Claude's verification of each finding:**
   - Code reads:
@@ -465,7 +465,7 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - A lower fallback than 60,000 characters: the user set that value; small local models are documented instead.
 - **Raised with the user instead of changed:** whether newly uploaded videos without auto-captions yet deserve a grace period (unverified; it would change the user's "list once immediately" rule).
 - Lesson: the reviewer's highest-value findings were lifecycle bugs across runs and failure paths, which the planner had walked only on the happy path. Checking every claim also caught one wrong claim, which would have removed agreed scope.
-- **Second review round.** The user replied "可以加等待期，修改完让审查对话重新检查一下" (Add the waiting period, then have the review conversation check again). Claude added `caption_wait`/`unplayable_wait` with `CATCHUP_CAPTION_WAIT_HOURS` (default 24). Reading the library source (1.2.4) showed why both cases must wait:
+- **Second review round.** The user replied "Add the waiting period, then have the review conversation check again". Claude added `caption_wait`/`unplayable_wait` with `CATCHUP_CAPTION_WAIT_HOURS` (default 24). Reading the library source (1.2.4) showed why both cases must wait:
   - `TranscriptsDisabled` is raised whenever `captionTracks` is missing, so uploader-disabled and not-yet-generated captions cannot be told apart.
   - Upcoming premieres raise `VideoUnplayable`.
 - **The re-review found no blockers.**
@@ -519,7 +519,7 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - The live `/models` response gave `context_window` 1,048,576, which closed the plan's only open question.
   - With captions off, a Creator-updates-only digest listed the Google for Developers video with `captions_off`; the Short did not appear.
 - **YouTube RSS outage.** Every channel's `feeds/videos.xml` returned 404 for more than 40 minutes, with any User-Agent. This is the intermittent outage noted in #6.
-  - For the captions-on step, with the user's choice ("选 B" (option B)), Claude reset the already delivered test video to `to_fetch` in the throwaway database, which simulates a new upload. The caption fetch and summary then ran for real.
+  - For the captions-on step, with the user's choice ("option B"), Claude reset the already delivered test video to `to_fetch` in the throwaway database, which simulates a new upload. The caption fetch and summary then ran for real.
 - **The test found two defects:**
   - **Wrong caption language.** CatchUp summarized **Arabic** captions of an English video. YouTube had listed an auto-generated track for each of 20 auto-dub languages, Arabic first, which refuted the plan's unverified assumption that "the first auto-generated track is the original".
     - Claude inspected the player data: `audioTracks[defaultAudioTrackIndex]` is `en-US.4` (dubs are `.10`), and its `defaultCaptionTrackIndex` points at the manual English track.
@@ -533,27 +533,27 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 
 ## 2026-10-05 to 2026-10-06 — `redesign-ui-ux`: research, design brief, and prototype rounds (Claude Code, Opus 5.5, with the user)
 
-- **Kickoff.** After D-014 (local web app, installable as a PWA), the user asked: "我觉得下一步我们可以先去设计一下 UI 和 UX。你觉得呢？" (I think the next step could be designing the UI and UX first. What do you think?)
+- **Kickoff.** After D-014 (local web app, installable as a PWA), the user asked: "I think the next step could be designing the UI and UX first. What do you think?"
   - `/reppit-research` documented the frontend as it is: five pages, about 620 lines, a 4-line stylesheet, every state and API shape, and how FastAPI serves `dist/`.
   - It also checked the PWA facts: Chrome install criteria; localhost counts as a secure context; Safari "Add to Dock"; no Firefox install on macOS; `.webmanifest` MIME type in the published image.
   - Claude then wrote `design-brief.md` for Claude Design (claude.ai/design), with real zh-Hans sample content from the manual test.
-- **Claude Design was unavailable.** The user reported: "我这个账号好像用不了design功能，这几个插件你有什么推荐吗" (my account doesn't seem to have the Design feature; any recommendation among these plugins?).
+- **Claude Design was unavailable.** The user reported: "My account doesn't seem to have the Design feature; any recommendation among these plugins?"
   - Claude recommended the Design plugin for critique and accessibility later, and HTML prototypes now.
   - The user installed the plugin on claude.ai. Its skills did not load into the running session, so it was deferred to a new session.
-- **Round 1.** The user asked: "好，做5个吧，开始做原型吧" (OK, make five; start the prototypes).
+- **Round 1.** The user asked: "OK, make five; start the prototypes".
   - Claude built a shared renderer (`shared/data.js`, `render.js`, `base.css`): all six screens and 22 states, with a control bar for direction, screen, state, theme, and a 420 px width, using container queries.
   - It built five direction stylesheets: A quiet reader, B focused workspace, C morning briefing, D soft cards, E native desktop.
   - A token contrast script found 4 AA misses, which were fixed.
   - Invented article titles were replaced with labeled placeholders.
-- **The user chose C:** "我比较喜欢C · 晨报那种newspaper的风格" (I prefer C, the morning-briefing newspaper style). Via a question, the user decided:
+- **The user chose C:** "I prefer C, the morning-briefing newspaper style". Via a question, the user decided:
   - error color separate from the brand red
   - a masthead with date and edition number
   - two body-font versions to compare (C2)
-- **The user asked for more variants:** "感觉差不多，我觉得以C为模版重新设计几版吧" (they feel about the same; redesign a few versions using C as the template).
+- **The user asked for more variants:** "They feel about the same; redesign a few versions using C as the template".
   - Claude built C3 Broadsheet, C4 Salmon paper, C5 Tabloid, and C6 Swiss grid.
   - It fixed narrow-window navigation, which vanished in the C family, and disabled-button specificity.
   - It also fixed its own contrast script, which merged dark-theme variables in the wrong cascade order.
-- **"C3确实看上去挺好，但是总感觉哪里怪怪的"** (C3 does look good, but something feels off). Claude diagnosed six causes from a full-size screenshot:
+- **"C3 does look good, but something feels off"**. Claude diagnosed six causes from a full-size screenshot:
   - two-column splits of short summaries
   - justified mixed CJK/Latin text stretching letter spacing
   - a CJK drop cap
@@ -562,21 +562,21 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - a web-style TOC sidebar
 
   The fix was C3b.
-- **"C3b正文的部分和其他部分的宽窄不一样，我觉的可以学习一下报纸网站的风格和排版"** (C3b's body is a different width from everything else; learn from newspaper websites).
+- **"C3b's body is a different width from everything else; learn from newspaper websites"**.
   - nytimes.com was blocked in the browser pane, and the hidden pane could not take screenshots, so Claude measured layouts with JavaScript instead:
     - Guardian front: a 1300 px container, 16×60 px columns, a 20 px gap, a 3-column section-title column, and 1 px column rules.
     - Guardian article: a 220 px meta column, a 620 px (8-column) centre column that is aligned, not centered, and a 4-column rail.
     - FT: a 1228 px container, a centered logo, and left-aligned sections.
   - The result is C7: one container, 12 columns, topic section rows with the title in columns 1–3 and newspaper columns of items.
-- **"这些地方没有居中不太好看吧"** (these parts not being centered doesn't look good, does it?), about Settings.
+- **"These parts not being centered doesn't look good, does it?"**, about Settings.
   - Claude kept the grid alignment rather than centering, which would reintroduce C3b's misaligned edges.
   - It filled the width the way newspaper sites do: a 4-column rail with a rule on Generate, Sources, and History, and Settings as section rows with margin notes.
-- **The user settled:** "好，先用 C7，提交原型吧" (OK, go with C7 for now; commit the prototypes).
+- **The user settled:** "OK, go with C7 for now; commit the prototypes".
 - **Failures and lessons:**
   - A hash-only navigation does not reload the page, so CSS edits looked unapplied twice. Claude switched the preview server to `Cache-Control: no-store`, reloaded explicitly, and confirmed computed styles before concluding anything.
   - The contrast script initially got the CSS cascade wrong. Re-deriving the merge order from CSS specificity found two more misses.
   - Measuring real sites with JavaScript produced concrete numbers (container, columns, column widths) that a screenshot alone would not. Those numbers settled the "centered or aligned" question.
-- **Design plugin review of C7 (2026-10-06).** The user asked: "在新会话里让Design 插件对 C7 做一次设计评审和无障碍检查，等他结束之后检查结果" (In a new session, have the Design plugin run a design critique and an accessibility check on C7; check the results when it finishes).
+- **Design plugin review of C7 (2026-10-06).** The user asked: "In a new session, have the Design plugin run a design critique and an accessibility check on C7; check the results when it finishes".
   - In the new session the plugin skills loaded. Claude ran them through an independent subagent (`design:design-critique`, then `design:accessibility-review`) that had no access to the design discussion. The plugin's own MCP connectors (Figma, Notion, …) needed authorization and were not used.
   - **Findings:** 0 critical, 12 major critique findings, and 15 WCAG 2.1 AA issues (7 major, 8 minor), each with a measurement or a CSS selector.
   - **Claude's verification** re-measured the key ones and confirmed them all: `--subtle` 4.15:1; switch track 1.24:1; error ≈ warn; the first topic at 70% of the viewport; "No. 3" vs "No. 1"; no `lang` on Chinese text; scroll without focus; a live region that disappears; dates a day early.
@@ -584,7 +584,7 @@ Real usage records for the technical spec, alpha reflection, and final report. E
     - Claude's earlier contrast script had used 3:1 for informative `--subtle` text.
     - Its own "error separate from brand red" fix had made error nearly identical to warn.
     - Its margin-note placement put the YouTube risk note about 550 px from its toggle. The reviewer was right to reverse this.
-  - **The user approved the fix plan:** "可以，按这个方案改吧" (OK, change it according to this plan).
+  - **The user approved the fix plan:** "OK, change it according to this plan".
   - **Fixes applied** to the shared renderer and the C-family styles (listed in `openspec/changes/redesign-ui-ux/design-review-c7.md`, "Resolution"). They were re-verified by measurement:
     - the first topic now starts at 45% of the viewport
     - the narrow header shrank from 250 to 113 px
@@ -594,19 +594,19 @@ Real usage records for the technical spec, alpha reflection, and final report. E
     - a single primary action per Generate state
     - strict contrast passes in both themes
 - **Proposal and plan (2026-10-06).** `/reppit-proposal` compared two approaches. P1 ported the prototype CSS with a minimal service worker; P2 used CSS Modules, Radix, and a Workbox precache. Before proposing, Claude found that saved digests lack a language and item source kinds (`models.py:128-161`), which C7 needs for `lang` and kind icons, so both proposals included migration `0003`.
-  - The user replied: "选方案一，按你的建议，提交后开始 /reppit-plan" (Choose Proposal 1, following your recommendations; commit, then start /reppit-plan).
+  - The user replied: "Choose Proposal 1, following your recommendations; commit, then start /reppit-plan".
   - `/reppit-plan` wrote `proposal.md`, three spec deltas (new `user-interface`; modified `local-deployment` and `digest-history`), the final `design.md` (D1–D8, with the effective C7 token table extracted programmatically from the prototype cascade), and `tasks.md` (9 groups, 14 tasks). `openspec validate --strict` passes.
-- **Droid run 1 stopped on the plan (2026-10-06).** After the user approved the plan ("没问题，开始吧", no problem, go ahead), Claude committed it (`3fe19a6`) and launched Factory Droid in a fresh session (`droid exec --auto medium -w redesign-ui-ux`), telling it to stop and report if the plan looked contradictory.
+- **Droid run 1 stopped on the plan (2026-10-06).** After the user approved the plan ("No problem, go ahead"), Claude committed it (`3fe19a6`) and launched Factory Droid in a fresh session (`droid exec --auto medium -w redesign-ui-ux`), telling it to stop and report if the plan looked contradictory.
   - Droid read the artifacts and stopped after 6 turns, with no files changed. It reported two contradictions: task 2.2's ≥ 20° hue test fails on the D2 colors (accent vs error 17.3° light, 15.1° dark), and task 5.1 required exactly one primary button in every Generate state while D4 gives No new content none.
   - **Claude's verification:** both confirmed by computing the hues and reading `render.js generate()`. Both were Claude's planning errors: the 20° threshold had not been checked against the token values, and the spec said "exactly one" while the design table had a state with none. Claude also found a third issue Droid would hit next: `tokens.css` had to hold "exactly the D2 table", but the prototype also uses `--error-border` and non-color tokens, and the switch thumb has an `rgba()` shadow outside the allowed exceptions.
-  - The user chose to shift the error color (option A over lowering the threshold) and approved the other two fixes: "选 A，2 和 3 按你的方案改，改完续跑 Droid" (Choose A; change 2 and 3 per your proposal; then resume Droid).
+  - The user chose to shift the error color (option A over lowering the threshold) and approved the other two fixes: "Choose A; change 2 and 3 per your proposal; then resume Droid".
   - **Lesson:** every numeric check written into a plan is now computed against the planned values before the plan is handed off.
   - **Droid run 2 (same session) stopped again** before task 1.1: the manifest and `index.html` `theme-color` values must be literal colors, which the "no color literals outside `tokens.css`" rule forbade. Confirmed. Before resuming, Claude re-computed every numeric check in the plan (all contrast pairs in both themes, the hue gaps, the `#77736a` failure case), checked that every cited spec scenario exists, and that `vitest-axe` accepts vitest 4. It then scoped the rule to the app's stylesheets and components, listed the files that must mirror the tokens literally (offline page, manifest, meta tags, icon script and icons, tests), and stated the meta tag values.
 - **Droid run 3 and the implementation review (2026-10-06/07).** Resumed in the same session with the clarified plan and the instruction to stop only for genuine blockers. Droid implemented all 14 tasks in 9 commits (about 49 minutes, 155 turns; about 2.39M credits cumulative for the session) and wrote a test report that explicitly listed what it had not verified (the visual parity matrix, a keyboard pass, browser install UI).
   - **Claude's review** in a separate worktree re-ran every check (352 backend tests at 96%, 56 frontend tests, the build, strict validation). It seeded a throwaway database with the prototype's sample data and compared the app with the prototype in the browser pane by measuring computed styles and positions instead of reading small screenshots. It drove live state changes by updating the run in the database while the page polled. Layout and copy matched closely; the first topic starts at 40% of a 900 px viewport and the narrow header is 94 px.
   - **Independent review subagent** (general-purpose, read-only): 17 findings. Claude verified all of them in code or in the browser and rejected none. The must-fix was that `lang` was set from the raw language setting, so "Same as original" produced `lang="original"`; Claude's own seed data used only Chinese and had missed it. The others included all-or-nothing loading on Generate and History, field errors attached to the wrong inputs, focus lost in the inline delete confirmation (also found by Claude), unported prototype rules, and lost Generate test coverage. Claude added two of its own: the offline page did not match the prototype, and the digest index lacked counts.
   - **Lesson:** the porting instruction "merge the five-file cascade" lost later overrides; the fix round asks for a mechanical class-coverage check against the prototype instead of trusting the port by eye.
-  - The user chose to extend the list endpoint and keep the prototype's disabled primary button while running: "A 选 A1，B 按你的建议，改完续跑 Droid" (A: choose A1; B: as you recommend; after the changes, resume Droid). The user also pointed out that Claude's replies had drifted into English ("输出又变成英文了", the output has turned into English again); Claude saved this as a standing rule.
+  - The user chose to extend the list endpoint and keep the prototype's disabled primary button while running: "A: choose A1; B: as you recommend; after the changes, resume Droid". The user also pointed out that Claude's replies had drifted into English ("The output has turned into English again"); Claude saved this as a standing rule.
   - **Fix round (2026-10-07).** Droid implemented tasks 10.1–10.8 in 8 commits (about 15 minutes, 264 turns; about 4.32M credits cumulative for the session); 354 backend and 79 frontend tests pass. Claude re-checked in a fresh worktree and in the browser:
     - History issues one request.
     - A digest saved with "Same as original" has no `lang` attribute.
@@ -616,7 +616,7 @@ Real usage records for the technical spec, alpha reflection, and final report. E
     - The offline page, served by the worker with the server stopped, now has the C7 serif, centered style.
   - **Claude's own review error:** Claude had asked for visible per-section counts in the digest index. Droid noted that the C7 cascade hides `.toc-count` (`c3b.css:25`). Claude had compared `textContent`, which includes hidden elements, and misread the prototype. Claude restored the hidden rule (`d47fbf8`) and corrected task 10.7.
   - An offline check that first failed was a test artifact: Claude had deleted the worker's cache by hand earlier. A fresh origin (`127.0.0.1`) passed.
-- **Adding `tdd` and `diagnosing-bugs` to the workflow (2026-10-07).** The user compared the project flow with a reference flow (`/opsx:propose` → `/opsx:apply` with `/tdd` per task → `/code-review` → `/opsx:archive`, and `/diagnosing-bugs` for bugs). They pasted an installation note, saying "我觉得可以补这两个skills进我们的流程" (I think we can add these two skills to our flow).
+- **Adding `tdd` and `diagnosing-bugs` to the workflow (2026-10-07).** The user compared the project flow with a reference flow (`/opsx:propose` → `/opsx:apply` with `/tdd` per task → `/code-review` → `/opsx:archive`, and `/diagnosing-bugs` for bugs). They pasted an installation note, saying "I think we can add these two skills to our flow".
   - Claude read both skills from GitHub before installing. It found one conflict with unattended Droid runs: `tdd` requires confirming test seams with the user. Claude resolved it in the `AGENTS.md` rule: the seams named in each task's verification count as agreed.
   - The pasted note said the skills would land in `.factory/skills/`. The installer actually used `.agents/skills/` plus symlinks for Claude Code. Claude checked Factory's documentation, which lists `<repo>/.agents/skills/**/SKILL.md` as a Droid skill location.
   - Recorded as D-016.
@@ -626,7 +626,7 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - It needs a separate setup step.
   - The existing review sub-agent already checked against the spec; the actual gap was that the fix round had no code review at all.
 
-  The comparison's concern that Anthropic's tool reads only `CLAUDE.md` did not apply, because `CLAUDE.md` is a symlink to `AGENTS.md`. The user agreed: "好，按这个步骤补审修复轮，写进 AGENTS.md" (OK, review the fix round with these steps and write it into AGENTS.md). The step is now in `AGENTS.md` and recorded under D-016.
+  The comparison's concern that Anthropic's tool reads only `CLAUDE.md` did not apply, because `CLAUDE.md` is a symlink to `AGENTS.md`. The user agreed: "OK, review the fix round with these steps and write it into AGENTS.md". The step is now in `AGENTS.md` and recorded under D-016.
 - **First use of the fixed review step: reviewing the fix round of `redesign-ui-ux` (2026-10-07).**
   - **The two reviews of `88b5b7d..f4f726e`:**
     - Claude Code's built-in `/code-review` at high effort reported 9 findings, all low severity. The top ones: a successful poll cleared the startup load error; the delete and the list refresh shared one catch; `lang` ignored language tags typed into "Other".
@@ -635,7 +635,7 @@ Real usage records for the technical spec, alpha reflection, and final report. E
     - A failed model-settings read assumes a model is configured. Droid had documented this choice, and it is acceptable once the error stays visible.
     - The "No topics" fallback is unreachable, because the runner saves no digest without topics or Creator updates.
   - **Own error:** Claude's task 10.7 had told Droid to keep the long date on the hero "Last digest" line, but the prototype uses the short format there. It is corrected in 11.5.
-  - **Decision and fix round:** the user approved, and agreed to show "Your sources" only when sources exist and to focus the "No sources yet" heading after the last delete: "可以，标题按你的建议，改完续跑 Droid" (OK; the heading as you suggest; after the changes, resume Droid).
+  - **Decision and fix round:** the user approved, and agreed to show "Your sources" only when sources exist and to focus the "No sources yet" heading after the last delete: "OK; the heading as you suggest; after the changes, resume Droid".
     - Before the fix round, Claude merged `main` into the branch so that Droid's worktree has the new skills and rules. Both conflicts were text appended at the end of the process logs, and both sides were kept.
     - Task group 11 names the seam for each task. It assigns `diagnosing-bugs` to the four bugs and `tdd` to the rest.
   - **Droid fix round 2, first stop (2026-10-07).** Droid fixed 11.1–11.3 with the `diagnosing-bugs` loop. For each one it reported the failing check it saw before the fix, its ranked causes, and the confirmed cause; for example, "Startup alert disappeared after two successful poll ticks", caused by a shared error state that the poll cleared. It then stopped at 11.4. The reason: 10.2 maps "Japanese" case-insensitively to `ja`, while 11.4 named `japanese` as an example that must not map. This was Claude's error in choosing the negative example; the intent was that the language-tag path must not accept unknown 8-letter subtags. Claude replaced the example with `abcdefgh` and resumed Droid.
@@ -644,14 +644,14 @@ Real usage records for the technical spec, alpha reflection, and final report. E
     - `/code-review` reported 3 findings.
     - The independent spec sub-agent reported 7, after re-introducing each old behavior in a copy of the repository. Every group 11 test failed as it should.
     - Claude verified all of them. The real ones were a race in the digest list that returns a 500 (the sub-agent reproduced it), a names table that answered for `constructor`, an untested error path in `digestLang`, an untested focus branch, stale report sentences, a D5 note missing, and a POSIX-only `TZ=` prefix. Three were judged no change: a stale load alert until reload, hypotheses missing from commit messages, and an extra wording test.
-  - **The fixes.** The user chose to have Claude fix them directly rather than run Droid again: "你直接修吧，修完按流程审一遍" (fix it yourself, then review it following the process). The session's Droid credits stood at about 6.9M.
+  - **The fixes.** The user chose to have Claude fix them directly rather than run Droid again: "Fix it yourself, then review it following the process". The session's Droid credits stood at about 6.9M.
     - Claude worked test-first, recorded as task group 12. The race test failed with `KeyError` before the fix. For guards that already existed, Claude removed the guard temporarily to show the test fails without it.
     - One new focus test was flaky (1 of 3 runs failed). Claude made it wait for focus and confirmed it: 5 of 5 runs pass, and 3 of 3 runs fail with the mutation in place.
   - **The review of Claude's own fixes, with the same step.**
     - `/code-review` reported 3 low findings.
     - The spec sub-agent confirmed all five fixes by mutation and found only nits. The timezone pin did not hold under `--pool=threads`, and two test cases could never fail.
     - Claude fixed these as well. `src/test/setup.ts` now throws unless the zone is pinned. Lowercasing became locale-independent, shown by a test that emulates Turkish case rules and failed first. The cases that could never fail were removed.
-- **Final review of the whole change (2026-10-07).** The user asked for another review before manual testing: "再审一遍" (review it again). Claude reviewed the whole change (`main...HEAD`) rather than only the last commit, with both parts of the fixed review step.
+- **Final review of the whole change (2026-10-07).** The user asked for another review before manual testing: "Review it again". Claude reviewed the whole change (`main...HEAD`) rather than only the last commit, with both parts of the fixed review step.
   - **Findings.** `/code-review` reported 7 findings. The independent spec sub-agent went requirement by requirement and re-introduced broken behavior to see whether tests fail; it reported 11. Claude verified all of them, and after removing duplicates, 15 remained, none rejected. The most notable:
     - "Digest ready: N items" left out Creator updates, because run `items_total` counts only summarized inputs.
     - Sources showed a made-up empty state when loading failed.
@@ -660,7 +660,7 @@ Real usage records for the technical spec, alpha reflection, and final report. E
     - A run failure was announced twice.
     - In the dark theme, `--subtle` on `--hover` is 4.39:1.
     - About a dozen behaviors could be broken without any test failing.
-  - **Decisions.** Two findings were contradictions in Claude's plan, which the user decided: "A、B 按你的建议，交给新的 Droid 会话" (A and B as you recommend; hand it to a new Droid session).
+  - **Decisions.** Two findings were contradictions in Claude's plan, which the user decided: "A and B as you recommend; hand it to a new Droid session".
     - The spec asked for the full feed URL while the design said 2 lines; full URLs were chosen.
     - Generate had no state for a configured model with no sources; "Add sources" becomes the primary action.
   - **Hand-off.** Claude wrote task group 13 with context for a new implementer and the seam for each task. The fix round goes to a new Droid session: the previous session's cumulative usage was about 6.9M credits, so a fresh session avoids re-sending that long context on every turn.
@@ -669,12 +669,12 @@ Real usage records for the technical spec, alpha reflection, and final report. E
     - `/code-review` reported 4 low findings.
     - The spec sub-agent re-introduced broken behavior for each task. It confirmed that the production code matched the amended spec and design, with no missing items and nothing extra. It found five test gaps, a service-worker structure in which a throwing `waitUntil` could replace a real response, and a hover rule that restyled disabled buttons.
     - Claude verified all of them. One `/code-review` finding (a cheap extra lookup per poll) was judged no change.
-  - **The fixes.** The user again chose a direct fix: "你直接修吧，修完按流程审一遍" (fix it yourself, then review it following the process). Claude wrote the tests first and saw 5 fail.
+  - **The fixes.** The user again chose a direct fix: "Fix it yourself, then review it following the process". Claude wrote the tests first and saw 5 fail.
     - While fixing the service worker, the new test failed for a test-environment reason: Node's `Request` rejects relative URLs, while a worker resolves them against its own location. Claude fixed the fake context, not the production code.
     - Claude first wrote the mutation checks with `git checkout` to restore files, then noticed that this would wipe its own uncommitted fixes. It switched to a script that restores each file from an in-memory copy.
     - Every mutation failed its test.
   - **Review of these fixes with the same step.** `/code-review` reported 2 low findings. The spec sub-agent tested `sw.js` in a real Chromium service worker: the relative `Request` resolved correctly, the no-cache refresh revalidated even under `max-age=3600`, a 404 passed through, and the offline page appeared with the server stopped. It re-introduced about 20 broken behaviors, and each made a test fail. Its only findings were two nits: the refresh test did not pin the cache name, and a note was misdated. Claude fixed these together with the install request, which was not yet no-cache. The new install test failed first.
-- **Automated end-to-end check before the manual test (2026-10-13).** The user asked: "可以先自动测试吗？我可以把deepseek密钥存在一个地方" (Can we test automatically first? I can store the DeepSeek key somewhere).
+- **Automated end-to-end check before the manual test (2026-10-13).** The user asked: "Can we test automatically first? I can store the DeepSeek key somewhere".
   - Claude explained that it will not read or submit a real third-party API key, even from a file. Instead it proposed two layers:
     - a fully automated run with a local OpenAI-compatible stand-in model;
     - a later real-model run in which the user pastes the key into Settings once, and Claude drives the rest.
@@ -683,14 +683,14 @@ Real usage records for the technical spec, alpha reflection, and final report. E
     - The review worktree under `/private/tmp` had lost its `.git` file to macOS temporary-file cleanup. All work was committed, so Claude pruned the worktree and recreated it.
     - The browser pane's accessibility listing showed the nav links without names, and service-worker registration failed when the pane opened the URL directly. Claude checked both rather than reporting them as bugs. The links' accessible names are covered by the jsdom tests. The worker registered normally when the pane attached through a launch configuration.
 - **Real model run, visual check, and a manual-test fix (2026-10-13).**
-  - **The real model run.** The user first reported "密钥填好了" (the key is filled in), but the container's settings still pointed at the stand-in. The logs showed a successful connection test and no save. Claude told the user what it saw instead of assuming success. After the user saved, Claude generated a real digest through the UI.
-  - **The visual check.** The user asked: "你先用视觉方法检查一下" (check it visually first). Claude reviewed screenshots of every screen and found two issues.
+  - **The real model run.** The user first reported "The key is filled in", but the container's settings still pointed at the stand-in. The logs showed a successful connection test and no save. Claude told the user what it saw instead of assuming success. After the user saved, Claude generated a real digest through the UI.
+  - **The visual check.** The user asked: "Check it visually first". Claude reviewed screenshots of every screen and found two issues.
     - Settings' Save button was below the fold, which was the cause of the missed save.
     - Single-item topics leave a third of the row empty.
-  - **The user's decision:** "第2条你直接修，第1条先记成 issue" (fix item 2 yourself; file item 1 as an issue). Claude wrote the failing tests first, made the save bar sticky, and checked it in screenshots. The first version let text in other columns show beside the bar, so Claude extended the background across the row.
+  - **The user's decision:** "Fix item 2 yourself; file item 1 as an issue". Claude wrote the failing tests first, made the save bar sticky, and checked it in screenshots. The first version let text in other columns show beside the bar, so Claude extended the background across the row.
 - **Ready-count wording, a date-dependent test, and merge approval (2026-10-14).**
-  - The user asked: "为什么现在3个source进度条有14个items" (why does the progress bar show 14 items for 3 sources). Claude read the run's data and explained that 14 = 10 + 4 summarized items, while 2 YouTube videos went to Creator updates.
-  - The user then said: "改一下完成时的文字，然后批准合并" (change the completion text, then approved the merge). They also raised a new need: the main screen should show the latest digest instead of sending users to History. That need is handled as a separate change after this merge.
+  - The user asked: "Why does the progress bar show 14 items for 3 sources?" Claude read the run's data and explained that 14 = 10 + 4 summarized items, while 2 YouTube videos went to Creator updates.
+  - The user then said: "Change the completion text, and then the merge is approved." They also raised a new need: the main screen should show the latest digest instead of sending users to History. That need is handled as a separate change after this merge.
   - Claude changed the text test-first. While running the full suite, it found a pre-existing date-dependent test failure. Following `diagnosing-bugs`, it reproduced the failure on the committed code, confirmed the cause (fixture dates against the 7-day first-add window), and pinned the clock. A shifted-clock probe found no other such test.
 
 ## 2026-10-15 — Documenting the pre-commit hook setup (Claude Code, Opus 5.5)
@@ -699,3 +699,26 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Problem: the requested relative path conflicted with commit `72cb2b0`, which enables the hook with an absolute path so that worktrees on branches created before the hook still run it. Claude checked `redesign-ui-ux` (since merged in #26): its branch has no `.githooks/pre-commit`, so with a relative path a worktree on it would skip the hook silently. Because worktrees share the clone's `.git/config`, the command is needed once per clone, not once per worktree.
 - Adjustment: Claude asked before editing. The user chose the absolute path `git config core.hooksPath "$PWD/.githooks"`, and a direct commit instead of an OpenSpec change, since a developer setup note has no product requirement to put in a spec delta.
 - Outcome: setup step added to the README development setup section and a one-line note to the `AGENTS.md` Commands section. The hook is unchanged.
+
+## 2026-10-14 to 2026-10-15 — Technical spec (Claude Code, Opus 5.5, with an independent review subagent)
+
+- Prompts (verbatim, with translations):
+  - "I will merge after CI passes; first open the issue, then write the technical spec".
+  - The user shared the course's project description, the spec template, and an editable copy: "Here are CS146S Final Project Description and CS146S Aut26 Technical Spec template and a copy of Technical Spec template, which you can edit directly".
+  - "Are these success metrics required by the template?", then "OK, write it into the doc with this table".
+  - After the doc check: "Change it as suggested, and pin the table header too".
+  - After merging #26: "Have the review agent look over the PDF; are there any problems?", then "Do items 1–5 as you proposed, remove the code formatting for item 6, and do the cleanup too", and "Tighten the row heights too, then do a final check".
+- Outcome: a two-page spec in the template's order (Architecture, API Design, Technical Stack, Business Context Summary, Agent Readiness), submitted on Gradescope on 2026-10-15. `docs/technical-spec.md` matches the submitted document word for word; the figure is `assets/catchup-architecture.png`, rendered from `assets/catchup-architecture.html`; the submitted PDF is in the project root.
+- Process:
+  - Claude drafted the text in Markdown and checked each claim against the code. The success-metric targets were Claude's proposal; the user confirmed them unchanged.
+  - An independent subagent that had not seen the drafting reviewed three times: once before the template rewrite, once on the template version, and once on the exported PDF. Claude verified each finding against the code or the PDF before changing anything.
+  - Round 2 had 13 findings: 10 fixed, 2 partly adopted, 1 rejected, and 1 left to the user (the user kept the "A week of 10+ sources" wording). The most serious one was a wrong claim: the model client makes up to 3 attempts, not 3 retries (`llm/client.py`, `range(3)`).
+  - Round 3 found no blockers. Its main finding was that the figure's labels were too small to read in print at 75% width, so the figure and both tables were widened to the full text width.
+- Problems and adjustments:
+  - The built-in browser was not signed in, and Claude did not sign in for the user; it edited the doc as an anonymous editor. Text went in through a pasted HTML fragment with inline styles that match the template. The first pastes needed fixes: zero list margins, no heading indent, black code text, and left-aligned table cells.
+  - A cross-origin hand-off of the figure from a local page into the Docs tab was blocked by the permission classifier, and Claude did not work around it. Anonymous editors cannot upload images ("You must sign in to upload images"), so the user inserted the figure and Claude resized it.
+  - Fitting two pages in Docs' own layout took several rounds, because Chrome's preview underestimated the length. Claude reserved the figure's height with a same-height placeholder and used a 9.5 pt body, 1.52/1.9 cm margins, and wording trims. One fact, "one run at a time", now appears only in the figure and the API table.
+  - Three times, text meant for a dialog or input box went into the document because the box did not have focus: "[F]" at the end, "9.5" before the figure, and a phrase in front of a heading. Each was caught, either from the screen or by comparing the exported text's length, and undone or replaced. Afterwards Claude checked which element had focus, the dialog's field values, and the document length before every edit.
+  - A direct edit in the doc had brought back "retried up to 3 times". Claude flagged it with the code reference instead of reverting it, and the user approved the fix.
+  - Claude's replies drifted into English after long English tool output and subagent reports. The user pointed it out twice ("Why are the replies in English again?" and "You used English again.").
+  - The user saw a "red" table column. It was Claude's own selection, shown as a collaborator highlight; the exported HTML confirmed that the cells have no background colour.

@@ -1,0 +1,111 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+  html, body { margin: 0; background: #ffffff; }
+  body { width: 1600px; height: 660px; font-family: "Roboto", "Helvetica Neue", Arial, sans-serif; }
+  svg text { font-family: inherit; }
+</style></head>
+<body>
+<svg width="1600" height="660" viewBox="0 0 1600 660" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1597a6"/>
+    </marker>
+    <style>
+      .box { fill: #ffffff; stroke: #1f3b63; stroke-width: 2.5; }
+      .soft { fill: #f3f8fb; stroke: #9db7cc; stroke-width: 2; }
+      .zone { fill: none; stroke: #9db7cc; stroke-width: 2; stroke-dasharray: 9 7; }
+      .title { font-size: 25px; font-weight: 700; fill: #1f3b63; }
+      .label { font-size: 19px; fill: #3a4a5c; }
+      .tag { font-size: 17px; font-weight: 700; fill: #1597a6; letter-spacing: 1px; }
+      .link { stroke: #1597a6; stroke-width: 2.5; fill: none; }
+      .note { font-size: 16px; fill: #1597a6; }
+      .aux { stroke: #1597a6; stroke-width: 2; fill: none; stroke-dasharray: 7 5; }
+      .llm { fill: #f0fafb; stroke: #1597a6; stroke-width: 3.5; }
+      .step { fill: #1597a6; }
+      .stepnum { font-size: 17px; font-weight: 700; fill: #ffffff; }
+      .llmtag { font-size: 15px; font-weight: 700; fill: #ffffff; letter-spacing: 1px; }
+    </style>
+  </defs>
+
+  <!-- Browser -->
+  <text x="30" y="44" class="tag">USER'S BROWSER</text>
+  <rect x="30" y="62" width="356" height="250" rx="14" class="box"/>
+  <text x="52" y="102" class="title">React app (PWA)</text>
+  <text x="52" y="138" class="label">Generate · Sources · History</text>
+  <text x="52" y="164" class="label">Digest · Settings</text>
+  <text x="52" y="200" class="label">Installable · light and dark</text>
+  <text x="52" y="226" class="label">Targets WCAG 2.1 AA (axe)</text>
+  <rect x="46" y="246" width="324" height="50" rx="10" class="soft"/>
+  <text x="62" y="278" class="label">Service worker: offline page only</text>
+
+  <!-- Container zone -->
+  <text x="450" y="44" class="tag">ONE LOCAL CONTAINER (OR SOURCE CHECKOUT)</text>
+  <rect x="440" y="58" width="760" height="584" rx="18" class="zone"/>
+
+  <!-- FastAPI -->
+  <rect x="470" y="80" width="700" height="132" rx="14" class="box"/>
+  <text x="492" y="118" class="title">FastAPI backend</text>
+  <text x="492" y="152" class="label">JSON API under /api · host allowlist · one error envelope</text>
+  <text x="492" y="180" class="label">Serves the built app, manifest, sw.js and offline.html</text>
+
+  <!-- Runner -->
+  <rect x="470" y="238" width="700" height="204" rx="14" class="box"/>
+  <text x="492" y="276" class="title">Digest runner (background thread, one run at a time)</text>
+  <g>
+    <rect x="492" y="300" width="150" height="54" rx="9" class="soft"/><text x="512" y="334" class="label">Collect</text>
+    <rect x="662" y="300" width="160" height="54" rx="9" class="soft"/><text x="680" y="334" class="label">Summarize</text>
+    <rect x="842" y="300" width="140" height="54" rx="9" class="soft"/><text x="862" y="334" class="label">Group</text>
+    <rect x="1002" y="300" width="148" height="54" rx="9" class="soft"/><text x="1022" y="334" class="label">Save</text>
+    <path d="M642 327 H660" class="link" marker-end="url(#arrow)"/>
+    <path d="M822 327 H840" class="link" marker-end="url(#arrow)"/>
+    <path d="M982 327 H1000" class="link" marker-end="url(#arrow)"/>
+  </g>
+  <text x="492" y="392" class="label">Sources: feeds, pages, podcast transcripts, YouTube captions (opt-in)</text>
+  <text x="492" y="416" class="label">safe_fetch (not captions): public addresses only, limits, Retry-After</text>
+
+  <!-- Storage -->
+  <rect x="470" y="470" width="340" height="150" rx="14" class="box"/>
+  <text x="492" y="508" class="title">SQLite + Alembic</text>
+  <text x="492" y="542" class="label">Sources, items, checks, runs</text>
+  <text x="492" y="568" class="label">Immutable digest snapshots</text>
+  <text x="492" y="594" class="label">Key encrypted (Fernet)</text>
+
+  <!-- Model client -->
+  <rect x="830" y="470" width="340" height="150" rx="14" class="llm"/>
+  <rect x="1096" y="482" width="58" height="26" rx="6" class="step"/><text x="1106" y="501" class="llmtag">LLM</text>
+  <text x="852" y="508" class="title">Model client</text>
+  <text x="852" y="542" class="label">OpenAI-compatible, JSON output</text>
+  <text x="852" y="568" class="label">Budget from context window</text>
+  <text x="852" y="594" class="label">Used by runs, Test connection</text>
+
+  <!-- External -->
+  <text x="1250" y="44" class="tag">INTERNET</text>
+  <rect x="1250" y="238" width="310" height="190" rx="14" class="box"/>
+  <text x="1272" y="276" class="title">Public sources</text>
+  <text x="1272" y="312" class="label">Website and blog feeds</text>
+  <text x="1272" y="340" class="label">Podcasts with transcripts</text>
+  <text x="1272" y="368" class="label">YouTube channels</text>
+  <rect x="1250" y="470" width="310" height="150" rx="14" class="box"/>
+  <text x="1272" y="508" class="title">Model provider</text>
+  <text x="1272" y="542" class="label">User's own API key</text>
+  <text x="1272" y="568" class="label">e.g. DeepSeek</text>
+
+  <!-- Links -->
+  <path d="M388 146 H468" class="link" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+  
+  <path d="M820 212 V236" class="link" marker-end="url(#arrow)"/>
+  <path d="M470 196 H456 V545 H468" class="link" marker-end="url(#arrow)"/>
+  <path d="M640 442 V468" class="link" marker-end="url(#arrow)"/>
+  <path d="M1000 442 V468" class="link" marker-end="url(#arrow)"/>
+  <path d="M1170 333 H1248" class="link" marker-end="url(#arrow)"/>
+  <path d="M1170 545 H1248" class="link" marker-end="url(#arrow)"/>
+  <path d="M1170 120 H1405 V236" class="aux" marker-end="url(#arrow)"/>
+  <text x="1262" y="110" class="note">preview</text>
+
+  <circle cx="428" cy="146" r="14" class="step"/><text x="428" y="152" text-anchor="middle" class="stepnum">1</text>
+  <circle cx="1209" cy="333" r="14" class="step"/><text x="1209" y="339" text-anchor="middle" class="stepnum">2</text>
+  <circle cx="1209" cy="545" r="14" class="step"/><text x="1209" y="551" text-anchor="middle" class="stepnum">3</text>
+  <circle cx="606" cy="456" r="14" class="step"/><text x="606" y="462" text-anchor="middle" class="stepnum">4</text>
+</svg>
+</body></html>

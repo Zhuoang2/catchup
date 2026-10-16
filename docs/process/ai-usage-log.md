@@ -779,3 +779,56 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Lessons:
   - Before a refactor, check that its safety net still covers the code being moved. Here, 6.5 had weakened it.
   - A verification claim counts only if the test fails under a mutation of the fix. The spec subagent now mutation-tests the claims.
+
+## 2026-10-16 — `improve-single-item-topics` (#25): research, proposals, and plan (Claude Code, Opus 5.5, with two Explore subagents)
+
+- Prompts (translated from Chinese):
+  - "Delete the remote branch, then start the research for #25."
+  - "Start the proposals."
+  - "Choose Proposal 1, do G separately, start the plan."
+- Research:
+  - Claude read the reading-layout CSS, `DigestArticle`, the width-class tests, and the specs itself.
+  - Two read-only Explore subagents covered the grouping pipeline, and the redesign's design records, prototypes, and test report. Claude spot-checked their key citations against the files.
+  - Claude also measured the two real Chinese digests in the user's local e2e instance at 1440 px, read-only through the built-in browser.
+  - The measurement changed the problem statement. The empty right third is not limited to single-item topics: every long item that is not followed by a short item leaves it, and nearly every real summary is over the 140-character cut-off. As a result, 14 of 16 rows in one digest ended 302 px short of the edge.
+- Proposals:
+  - (1) the item title beside its summary, one row per item
+  - (2) long items across the full width, with two text columns
+  - Option G: a grouping prompt for fewer, broader topics
+  - Each came with a layout sketch, since both move content. While checking the numbers, Claude corrected the narrow-window widths (190 px just above 900 px).
+- Plan:
+  - `proposal.md`, a `user-interface` delta (the "Digest reading layout" requirement modified, and "Single-item topic" and "Narrow window" scenarios added), the final `design.md` (D1–D6), and a `tasks.md` in three groups with failing-first tests.
+  - The user's choices were recorded as D-018. Option G became issue #32.
+- Problem / adjustment: the first draft of the spec capped summary lines at "about 50 characters of mixed text". Pure English lines at that width hold about 75 characters, so the rule would have failed on English digests. Claude split the rule: at most 40 Chinese or 80 Latin characters per line at 1440 px.
+
+## 2026-10-16 — `improve-single-item-topics` implementation (Factory Droid, GPT-6 Sol; session `92a71026`)
+
+- Prompt (faithful excerpt): "Implement OpenSpec change improve-single-item-topics using the openspec-apply-change skill. Work through ... tasks.md in order, completing each task test-first with the tdd skill: write the task's verification items as failing tests and watch them fail, then implement until they pass. Check off each task only after its verification passes. ... Commit after each task group. Do not push, tag, or open a PR."
+- Outcome: Removed length-based item classes, made every item a full-width subgrid row with its heading beside its summary on wide windows, and documented two archived prototype-only selectors. The first version **did not preserve one-column stacking below 900 px**: its wide child placements overrode the narrow reset, causing overlap at 420 and 900 px; review task 4.1 fixes this. The DOM/CSS tests and style audit failed before their corresponding initial fixes. Three task-group commits; **362 backend tests** at **96% coverage**, **164 frontend tests** with **58 axe scans**, build, style audit, strict OpenSpec validation, and local Docker build passed, but did not catch the overlap. See `test-report-improve-single-item-topics.md` for commands and omitted manual measurements.
+- Problems / adjustment: Installed locked dependencies in this new worktree. The prototype audit rejected the removed classes until they were explicitly allow-listed with reasons. A console-based axe counting probe printed no markers under Vitest output capture, so a temporary test-helper probe counted scans in a temp directory; the helper was restored before committing. Tests used no external feed or provider; the Docker build resolved base-image metadata but did not push an image.
+- Review fixes, round 1: Claude Code's review found the narrow overlap in a browser (420 and 900 px). Droid then wrote a block-aware CSS test that failed against the old rules, moved the side-by-side rules above 1100 px, retained removed-rule guards, simplified the item map, and reran 362 backend tests (96% coverage), 164 frontend tests (58 axe scans), build, audit, validation, and Docker build; an intermediate Docker build failed only while the temporary scan-counting probe remained in its context.
+
+## 2026-10-16 — `improve-single-item-topics` (#25): review and one fix round (Claude Code, Opus 5.5, with one spec-review subagent; Factory Droid session `92a71026`)
+
+- **Process.** The fixed review step (D-016) ran after each Droid run:
+  - `/code-review` on the run's diff.
+  - An independent spec subagent. It rendered the real markup with the app CSS in headless Chrome and mutation-tested the CSS assertions.
+  - Live checks on a read-only review build. A small proxy served the branch build and forwarded only GET requests to the user's local e2e instance, so the real Chinese digests No. 3 and No. 4 could be measured without changing them. The English stub digests came from a local data copy.
+- **Round 1 (groups 1–3).**
+  - The wide layout worked: every summary ended at x = 1312 at 1440 px, 580 px wide, with at most 35 CJK and 75 Latin characters per line.
+  - At 420 and 900 px, however, every item's title was painted over its summary. Both reviewers found this independently.
+    - Cause: the narrow reset `.items > .item > *` had lower specificity than the wide placements, and container queries add none.
+    - The CSS test had only checked that the reset's text existed, so it passed.
+  - The live check also showed that titles wrapped to 4–5 lines in the 191 px heading column just above 900 px.
+  - The user decided: "Move the breakpoint to 1100 px; fix it together with the spec results" (translated).
+  - Claude amended D1 and D4: all side-by-side rules moved into one `@container (width > 1100px)` block, so no reset is needed. Claude also amended the spec delta (a "Medium window" scenario), D-018, and the requirements row, and added task group 4.
+- **Prompt to Droid** (faithful excerpt): "Read those passages and group 4's notes first. Then implement 4.1-4.4 in order: diagnosing-bugs for 4.1, tdd for 4.2, and 4.3 as a refactor step with no red test. … If something is blocked or the plan looks wrong, stop and report."
+- **Round 2 (group 4).**
+  - Live checks at 1440, 1101, 1100, 1000, 900, and 420 px passed: no overlap, and every summary ends at the content edge.
+  - Mutations confirmed that the new block-aware CSS test catches the cascade conflict.
+  - Remaining issues:
+    - Claude fixed three wording errors in the plan: the 900 px boundary in the spec, a broken list in the proposal, and a usage-log line that credited the test, not the review, with finding the overlap.
+    - Two low test gaps (no guard against a heading/summary rule, and a guard that reads only `layout.css`) went to issue #33. The user replied "Approve the merge; record the two test gaps as an issue" (translated).
+- **Lessons:**
+  - A CSS assertion that matches rule text cannot show that a rule wins the cascade. Responsive layouts need a rendered check, or a structure that avoids competing rules.
+  - Service workers on review builds cache old CSS. Claude unregistered them before each live check.

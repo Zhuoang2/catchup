@@ -145,3 +145,72 @@ it('spans and separates the Home run bar with one-row ready controls at all widt
   expect(actions).toMatch(/display:\s*flex/)
   expect(actions).toMatch(/align-items:\s*center/)
 })
+
+type LayoutRule = { selector: string; body: string; container: string | null }
+
+function layoutRules(text: string, container: string | null = null): LayoutRule[] {
+  const css = text.replace(/\/\*[\s\S]*?\*\//g, '')
+  const rules: LayoutRule[] = []
+  let start = 0
+  while (start < css.length) {
+    const open = css.indexOf('{', start)
+    if (open < 0) break
+    const selector = css.slice(start, open).trim()
+    let close = open + 1
+    let depth = 1
+    while (depth && close < css.length) {
+      if (css[close] === '{') depth++
+      if (css[close] === '}') depth--
+      close++
+    }
+    const body = css.slice(open + 1, close - 1)
+    if (selector.startsWith('@container')) rules.push(...layoutRules(body, selector))
+    else rules.push({ selector, body, container })
+    start = close
+  }
+  return rules
+}
+
+it('places digest headings beside summaries only above 1100px', () => {
+  const rules = layoutRules(readFileSync('src/styles/layout.css', 'utf8'))
+  const wide = rules.filter(rule => rule.container === '@container (width > 1100px)')
+  const outside = rules.filter(rule => rule.container !== '@container (width > 1100px)')
+  const wideRule = (selector: string) => wide.find(rule => rule.selector.split(',').map(part => part.trim()).includes(selector))?.body
+
+  const item = wideRule('.items > .item')
+  expect(item).toMatch(/grid-template-columns:\s*subgrid/)
+  expect(item).toMatch(/column-gap:\s*var\(--gutter\)/)
+  expect(item).toMatch(/grid-template-rows:\s*auto\s+auto\s+1fr/)
+  for (const [selector, row] of [
+    ['.items > .item > .item-meta', '1'],
+    ['.items > .item > .item-title', '2'],
+  ]) {
+    expect(wideRule(selector)).toMatch(/grid-column:\s*1\s*\/\s*span\s+3/)
+    expect(wideRule(selector)).toMatch(new RegExp(`grid-row:\\s*${row}\\s*;`))
+  }
+  for (const selector of ['.items > .item > .summary', '.items > .item > .summary-unavailable']) {
+    expect(wideRule(selector)).toMatch(/grid-column:\s*4\s*\/\s*-1/)
+    expect(wideRule(selector)).toMatch(/grid-row:\s*1\s*\/\s*-1/)
+  }
+
+  const outsideItems = outside.filter(rule => rule.selector.startsWith('.items > .item'))
+  expect(outsideItems.map(rule => rule.selector)).toEqual([
+    '.items > .item', '.items > .item + .item',
+  ])
+  expect(outsideItems.every(rule => rule.container === null)).toBe(true)
+  expect(outsideItems[0].body).toMatch(/grid-column:\s*1\s*\/\s*-1/)
+  expect(outsideItems[0].body).not.toMatch(/grid-template-columns|grid-template-rows|column-gap/)
+  expect(outsideItems[1].body).toMatch(/border-top:\s*1px solid var\(--border\)/)
+  expect(outside.map(rule => rule.body).join(' ')).not.toMatch(/grid-template-rows:\s*auto\s+auto\s+1fr/)
+  expect(outside.filter(rule => /\.items\s*>\s*\.item\s*>\s*\*|\.item-meta|\.item-title|\.summary-unavailable|\.summary\b/.test(rule.selector))
+    .every(rule => !/grid-column:|grid-row:/.test(rule.body))).toBe(true)
+})
+
+it('does not size items by length or separate them with a vertical rule', () => {
+  const rules = layoutRules(readFileSync('src/styles/layout.css', 'utf8'))
+  expect(rules.some(rule => /\.item-(?:long|short)\b|\.item:only-child\b/.test(rule.selector))).toBe(false)
+  const separators = rules.filter(rule => rule.selector.split(',').some(selector =>
+    selector.trim() === '.items > .item + .item'))
+  expect(separators).toHaveLength(1)
+  expect(separators[0].body).not.toMatch(/border-left\s*:/)
+})

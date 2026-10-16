@@ -20,6 +20,8 @@ OWNED = [FRONTEND / f"src/styles/{name}.css" for name in ("base", "layout", "com
 PROTOTYPE_ONLY = {
     "code": "Offline command block uses self-contained inline CSS",
     "hero-last": "Prototype Last digest line removed from Home",
+    "item-long": "Archived C7 prototype long-item layout",
+    "item-short": "Archived C7 prototype short-item layout",
     "logo": "Prototype wordmark; standalone offline logo was removed",
     "logo-lg": "Prototype-only large wordmark",
     "offline-brand": "Prototype offline card; standalone page owns its own CSS",

@@ -95,6 +95,17 @@ it('keeps the article beneath named run progress and source checks', async () =>
   await expectAccessible(container)
 })
 
+it.each([['digest', digest], ['no digest', null]])(
+  'omits the source-check label and list while queued with %s', async (_layout, latest) => {
+    const { container } = mockPage({ latest, run: { ...run, status: 'queued', source_checks: [] } })
+    expect(await screen.findByRole('progressbar', { name: 'Sources checked: 0 of 3' })).toBeInTheDocument()
+    const runRegion = screen.getByRole('region', { name: 'Digest run' })
+    expect(within(runRegion).queryByText('Sources', { exact: true })).toBeNull()
+    expect(runRegion.querySelector('.check-list')).toBeNull()
+    expect(container.querySelector('.check-list')).toBeNull()
+  },
+)
+
 it('shows a saved result, held notes and checks without a new primary action', async () => {
   const { container } = mockPage({ latest: digest, run: {
     ...run, status: 'succeeded', digest_id: 4, digest_item_count: 2, digest_update_count: 1,

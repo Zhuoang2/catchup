@@ -31,6 +31,7 @@ const active = (run: Run) => ['queued', 'collecting', 'summarizing', 'grouping']
 const configErrors = ['auth_failed', 'insufficient_balance', 'model_not_configured', 'connection_failed']
 
 function SourceChecks({ checks, compact = false }: { checks: Check[]; compact?: boolean }) {
+  if (!checks.length) return null
   return <>{compact ? <p className="section-label">Sources</p> : <h2 className="section-label">Sources</h2>}<ul className="check-list">{checks.map(check =>
     <li className="check-row" key={check.source_id}>
       <span className="check-title">{check.source_title}</span><span className="check-status">

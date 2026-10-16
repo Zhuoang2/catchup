@@ -251,7 +251,7 @@ Notes for this round:
   - Fix: keep the error with the higher id.
 
   Verify with a failing-first test for that sequence: after both failures, exactly one "Could not load the new digest" alert links to `/digests/9`.
-- [ ] 8.2 No source-check label or list before the first check (design D7). Today a queued run shows a bare "Sources" label: a paragraph in the bar, a heading in the run card. Under the label is an empty list.
+- [x] 8.2 No source-check label or list before the first check (design D7). Today a queued run shows a bare "Sources" label: a paragraph in the bar, a heading in the run card. Under the label is an empty list.
   - `SourceChecks` renders nothing when there are no checks, in both layouts.
   - Then remove the `.run-bar .check-list:empty` rule (`components.css:75`) and its `tokens.test.ts` assertion, because no empty list remains.
 

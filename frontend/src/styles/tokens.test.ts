@@ -140,7 +140,6 @@ it('spans and separates the Home run bar with one-row ready controls at all widt
   const bar = components.match(/\.run-bar\s*\{([^}]+)\}/)?.[1]
   expect(bar).toMatch(/border-bottom:\s*1px solid var\(--border-strong\)/)
   expect(components).toMatch(/\.run-bar\s+\.check-row:last-child\s*\{[^}]*border-bottom:\s*0/)
-  expect(components).toMatch(/\.run-bar\s+\.check-list:empty\s*\{[^}]*border-top:\s*0/)
   expect(components).not.toMatch(/\.hero-last\b/)
   const actions = components.match(/\.run-bar-actions\s*\{([^}]+)\}/)?.[1]
   expect(actions).toMatch(/display:\s*flex/)

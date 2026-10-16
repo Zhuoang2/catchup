@@ -78,7 +78,8 @@ export default function Home() {
       if (savedSources.status === 'fulfilled') setSources(savedSources.value)
       if (history.status === 'fulfilled') setDigest(history.value)
       if (current.status === 'fulfilled') setRun(current.value)
-      const failure = [settings, savedSources, history, current].find(result => result.status === 'rejected')
+      const failure = history.status === 'rejected' ? history
+        : [settings, savedSources, current].find(result => result.status === 'rejected')
       if (failure?.status === 'rejected') {
         setLoadError({ title: history.status === 'rejected'
           ? 'Could not load the latest digest' : 'Could not load some page details',

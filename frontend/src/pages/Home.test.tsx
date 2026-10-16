@@ -292,6 +292,25 @@ it('keeps other startup request errors in the bar when an article is shown', asy
   expect(screen.getByRole('alert')).toHaveTextContent('Could not load some page details')
   expect(screen.getByRole('alert')).toHaveTextContent('Sources unavailable')
 })
+
+it('pairs the latest-digest error title with its own failure message', async () => {
+  fetchMock.mockImplementation(async (path: string) => {
+    if (path === '/api/settings/model') return respond({
+      error: { code: 'request_failed', message: 'Model settings unavailable' },
+    }, 503)
+    if (path === '/api/sources') return respond(sources)
+    if (path === '/api/digests/latest') return respond({
+      error: { code: 'request_failed', message: 'Digest history unavailable' },
+    }, 503)
+    if (path === '/api/digest-runs/active') return respond(null)
+    throw Error(path)
+  })
+  render(<MemoryRouter><Home/></MemoryRouter>)
+  const alert = await screen.findByRole('alert')
+  expect(alert).toHaveTextContent('Could not load the latest digest')
+  expect(alert).toHaveTextContent('Digest history unavailable')
+  expect(alert).not.toHaveTextContent('Model settings unavailable')
+})
 it('requests only the latest digest, never the full history list', async () => {
   mockPage()
   await screen.findByRole('heading', { name: 'Generate digest' })

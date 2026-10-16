@@ -86,7 +86,7 @@ Notes for this round:
   - Outside that block: none of these placements or that row template appears anywhere in `layout.css`. No rule targets `.items > .item > *`, `.item-meta`, `.item-title`, `.summary`, or `.summary-unavailable` for placement.
   - Outside any query: `.items > .item` spans `1 / -1`, and `.items > .item + .item` has the top rule.
   - The test fails on the current `layout.css`. Removing `column-gap: var(--gutter)` from the wide block makes it fail.
-- [ ] 4.2 Keep the earlier assertions that still apply: no `.item-long`, `.item-short`, or `.item:only-child` rules, and no `border-left` between items. Fold them into the 4.1 test or keep them separately.
+- [x] 4.2 Keep the earlier assertions that still apply: no `.item-long`, `.item-short`, or `.item:only-child` rules, and no `border-left` between items. Fold them into the 4.1 test or keep them separately.
 
   Verify: `npm test -- --run`, `npm run build`, and the style audit with its unit test all pass.
 - [ ] 4.3 Refactor step, with no red test: in `frontend/src/components/DigestArticle.tsx:66-67`, turn the `{ return … }` arrow body that has nothing else in it into an expression body.

@@ -205,3 +205,12 @@ it('places digest headings beside summaries only above 1100px', () => {
   expect(outside.filter(rule => /\.items\s*>\s*\.item\s*>\s*\*|\.item-meta|\.item-title|\.summary-unavailable|\.summary\b/.test(rule.selector))
     .every(rule => !/grid-column:|grid-row:/.test(rule.body))).toBe(true)
 })
+
+it('does not size items by length or separate them with a vertical rule', () => {
+  const rules = layoutRules(readFileSync('src/styles/layout.css', 'utf8'))
+  expect(rules.some(rule => /\.item-(?:long|short)\b|\.item:only-child\b/.test(rule.selector))).toBe(false)
+  const separators = rules.filter(rule => rule.selector.split(',').some(selector =>
+    selector.trim() === '.items > .item + .item'))
+  expect(separators).toHaveLength(1)
+  expect(separators[0].body).not.toMatch(/border-left\s*:/)
+})

@@ -27,12 +27,12 @@ Implementer notes:
 
 ## 2. Shared reading component
 
-- [ ] 2.1 Create `frontend/src/components/DigestArticle.test.tsx` with failing tests for an exported `DigestArticle`:
+- [x] 2.1 Create `frontend/src/components/DigestArticle.test.tsx` with failing tests for an exported `DigestArticle`:
   - `before` renders as the section's first child, before the `h1`.
   - `headEnd` renders inside the page head after the meta line.
   - `className` is appended to `page page-digest`.
   - The rendered digest passes `expectAccessible`.
-- [ ] 2.2 Move `DigestBody` and the digest types from `frontend/src/pages/DigestView.tsx` into `frontend/src/components/DigestArticle.tsx` as `DigestArticle`, with the optional `className`, `before`, and `headEnd` props. Its markup stays unchanged. `DigestView` renders it with "← All digests" as `headEnd` and keeps its own loading, error, and title logic.
+- [x] 2.2 Move `DigestBody` and the digest types from `frontend/src/pages/DigestView.tsx` into `frontend/src/components/DigestArticle.tsx` as `DigestArticle`, with the optional `className`, `before`, and `headEnd` props. Its markup stays unchanged. `DigestView` renders it with "← All digests" as `headEnd` and keeps its own loading, error, and title logic.
 
   Verify: the 2.1 tests pass, and every existing test in `frontend/src/pages/DigestView.test.tsx` passes with no change other than imports.
 

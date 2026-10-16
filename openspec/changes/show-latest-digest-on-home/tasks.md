@@ -38,7 +38,7 @@ Implementer notes:
 
 ## 3. Main screen
 
-- [ ] 3.1 Move the page to `Home` and the latest-digest request.
+- [x] 3.1 Move the page to `Home` and the latest-digest request.
   - Run `git mv frontend/src/pages/Generate.tsx frontend/src/pages/Home.tsx` and `git mv frontend/src/pages/Generate.test.tsx frontend/src/pages/Home.test.tsx`.
   - Export `Home`, route `/` to it in `frontend/src/App.tsx`, and make it request `/digests/latest` instead of `/digests`.
   - With `/digests/latest` mocked as `null`, every behavior covered by the current tests must still pass:
@@ -51,7 +51,7 @@ Implementer notes:
     - The page shows "Loading…" until its four requests settle.
 
   Verify: `npm test -- --run` passes; `Home.test.tsx` has at least 21 `it`/`it.each` tests (the count in `Generate.test.tsx` before this task); the commit message names every test that was replaced and why.
-- [ ] 3.2 Add the layout with a shown digest. When `/digests/latest` returns a digest, render `DigestArticle` with `className="page-home"`, the run bar (design D4) as `before`, and no `Rail`.
+- [x] 3.2 Add the layout with a shown digest. When `/digests/latest` returns a digest, render `DigestArticle` with `className="page-home"`, the run bar (design D4) as `before`, and no `Rail`.
 
   Verify with failing-first tests in `frontend/src/pages/Home.test.tsx`:
   - The digest's headline, index, and topics render.
@@ -61,7 +61,7 @@ Implementer notes:
   - No `aside.rail` is rendered.
   - The document title is "Latest · No. {id} · CatchUp", or "Latest · CatchUp" with no digest.
   - `expectAccessible` passes in each case.
-- [ ] 3.3 Add the run states in the bar while a digest is shown (design D4).
+- [x] 3.3 Add the run states in the bar while a digest is shown (design D4).
 
   Verify with failing-first tests:
   - **Running:** the stepper, the progress bar with its accessible name, and the source checks show, and the previous digest is still rendered.
@@ -70,7 +70,7 @@ Implementer notes:
   - **Failed:** the alert has no `role="alert"`. "Try again" is primary, or for configuration errors "Check settings" is primary and "Try again" secondary. The digest is kept.
   - The status region texts are unchanged.
   - `expectAccessible` passes in each state.
-- [ ] 3.4 Replace the digest after a successful run (design D5). With fake timers, add failing-first tests:
+- [x] 3.4 Replace the digest after a successful run (design D5). With fake timers, add failing-first tests:
   - Polling to `succeeded` fetches `/digests/{digest_id}` and shows that digest in place of the previous one.
   - `/api/digests` (the list) is not requested.
   - An element focused before the run ends, such as the bar's "Manage sources" link, is still `document.activeElement` afterwards, and `HTMLElement.prototype.focus` is not called by the page.
@@ -79,7 +79,7 @@ Implementer notes:
   - A failed `/digests/latest` at startup shows "Could not load the latest digest" with a "View History" link, and Generate still starts a run.
 
   Verify: these tests pass, and `npm test -- --run` passes.
-- [ ] 3.5 Style the run bar in `frontend/src/styles/components.css` and `frontend/src/styles/layout.css` (design D7):
+- [x] 3.5 Style the run bar in `frontend/src/styles/components.css` and `frontend/src/styles/layout.css` (design D7):
   - `.page-home > .run-bar` spans the full grid width, also at 900 px and below.
   - A rule separates the bar from the digest head.
   - In the ready state the controls sit on one row.

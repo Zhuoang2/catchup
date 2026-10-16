@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { expectAccessible } from '../test/accessibility'
-import Generate from './Generate'
+import Home from './Home'
 
 const fetchMock = vi.fn()
 const respond = (value: unknown, status = 200) => ({ ok: status < 400, status, json: async () => value })
@@ -15,16 +15,224 @@ const run = {
   ], error_kind: null, error_message: null, digest_id: null,
 }
 const sources = [{ kind: 'feed' }, { kind: 'podcast' }, { kind: 'youtube' }]
-const history = [{ id: 4, created_at: '2026-10-03T10:00:00Z', item_count: 8, source_count: 3 }]
-function mockPage(options: { ready?: boolean; run?: unknown; sources?: unknown[]; history?: unknown[] } = {}) {
+const digest = {
+  id: 4, created_at: '2026-10-03T10:00:00Z', model_id: 'test',
+  item_count: 2, source_count: 2, topics: [
+    { title: 'Technology', overview: 'New topics', items: [{
+      title: 'Saved story', link: 'https://example.test/story', source_name: 'News',
+      published_at: null, summary: 'Summary', summary_unavailable: false,
+    }] },
+  ], creator_updates: [{ source_name: 'Show', source_kind: 'podcast', items: [{
+    title: 'Episode', link: 'https://example.test/episode', published_at: null,
+    reason: 'no_transcript',
+  }] }],
+}
+it('shows the latest article and one compact action above its headline without a rail', async () => {
+  const { container } = mockPage({ latest: digest })
+  expect(await screen.findByRole('heading', { name: 'Technology' })).toBeInTheDocument()
+  expect(screen.getByRole('navigation', { name: 'In this digest' })).toHaveTextContent('Creator updates')
+  expect(screen.getByRole('link', { name: 'Saved story (opens the original)' })).toBeInTheDocument()
+  const bar = screen.getByRole('region', { name: 'Digest run' })
+  expect(bar).toHaveTextContent('3 sources ·')
+  expect(screen.getByRole('link', { name: 'Manage sources' })).toHaveAttribute('href', '/sources')
+  expect(bar.querySelectorAll('.btn-primary')).toHaveLength(1)
+  expect(screen.getByRole('button', { name: 'Generate digest' })).toHaveClass('btn-primary')
+  expect(bar.querySelector('h1,h2,h3')).toBeNull()
+  expect(container.querySelector('h1')).toBe(container.querySelector('.digest-head h1'))
+  expect(container.querySelector('.rail')).toBeNull()
+  expect(document.title).toBe('Latest · No. 4 · CatchUp')
+  await expectAccessible(container)
+})
+
+it.each([
+  [false, sources, 'Set up your model', 'Available once a model is set up and a source is added.'],
+  [true, [], 'Add sources', 'Available once a source is added.'],
+] as const)('offers %s / %s guidance while keeping a saved digest', async (ready, list, primary, reason) => {
+  const { container } = mockPage({ ready, sources: [...list], latest: digest })
+  expect(await screen.findByRole('heading', { name: 'Technology' })).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: primary })).toHaveClass('btn-primary')
+  expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
+  expect(screen.getByRole('button', { name: 'Generate digest' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Generate digest' })).toHaveAccessibleDescription(reason)
+  await expectAccessible(container)
+})
+
+it('titles an empty home without an edition', async () => {
+  const { container } = mockPage()
+  await screen.findByRole('button', { name: 'Generate digest' })
+  expect(document.title).toBe('Latest · CatchUp')
+  await expectAccessible(container)
+})
+it('keeps the article beneath named run progress and source checks', async () => {
+  const { container } = mockPage({ latest: digest, run })
+  expect(await screen.findByRole('progressbar', { name: 'Sources checked: 2 of 3' })).toBeInTheDocument()
+  const bar = screen.getByRole('region', { name: 'Digest run' })
+  expect(bar).toHaveTextContent('Checking sources')
+  expect(bar).toHaveTextContent('News')
+  expect(screen.getByRole('heading', { name: 'Technology' })).toBeInTheDocument()
+  expect(bar.querySelector('h1,h2,h3')).toBeNull()
+  expect(screen.getByRole('status')).toHaveTextContent('Checking sources, 2 of 3')
+  await expectAccessible(container)
+})
+
+it('shows a saved result, held notes and checks without a new primary action', async () => {
+  const { container } = mockPage({ latest: digest, run: {
+    ...run, status: 'succeeded', digest_id: 4, digest_item_count: 2, digest_update_count: 1,
+    waiting_count: 2, deferred_count: 3, prompt_tokens: 10, completion_tokens: 5,
+  } })
+  const bar = await screen.findByRole('region', { name: 'Digest run' })
+  expect(bar).toHaveTextContent('2 items (1 summarized, 1 in Creator updates) · 3 sources · Tokens: 10 in / 5 out')
+  expect(bar).toHaveTextContent('2 items waiting for transcripts or captions')
+  expect(bar).toHaveTextContent('3 videos deferred to the next run')
+  expect(bar).toHaveTextContent('News')
+  expect(bar.querySelectorAll('.btn-primary')).toHaveLength(0)
+  expect(screen.queryByRole('link', { name: 'View digest' })).toBeNull()
+  expect(screen.getByRole('button', { name: 'Generate digest' })).toHaveClass('btn-secondary')
+  expect(screen.getByRole('status')).toHaveTextContent('Digest ready: 2 items (1 summarized, 1 in Creator updates)')
+  expect(screen.getByRole('heading', { name: 'Technology' })).toBeInTheDocument()
+  await expectAccessible(container)
+})
+
+it('keeps the digest after a run finds nothing new', async () => {
+  const { container } = mockPage({ latest: digest, run: { ...run, status: 'no_new_content' } })
+  const bar = await screen.findByRole('region', { name: 'Digest run' })
+  expect(bar).toHaveTextContent('Nothing new since your last digest')
+  expect(bar).toHaveTextContent('News')
+  expect(bar.querySelectorAll('.btn-primary')).toHaveLength(0)
+  expect(screen.getByRole('heading', { name: 'Technology' })).toBeInTheDocument()
+  expect(screen.getByRole('status')).toHaveTextContent('No new content')
+  await expectAccessible(container)
+})
+
+it.each([
+  ['auth_failed', 'Check settings'],
+  ['provider_error', 'Try again'],
+])('keeps the article and a single %s failure action', async (error_kind, primary) => {
+  const { container } = mockPage({ latest: digest, run: {
+    ...run, status: 'failed', error_kind, items_total: 5, items_done: 2, error_message: 'Run failed.',
+  } })
+  const bar = await screen.findByRole('region', { name: 'Digest run' })
+  expect(bar).toHaveTextContent('2 of 5 items were summarized before the error.')
+  expect(bar).toHaveTextContent('News')
+  expect(bar.querySelectorAll('.btn-primary')).toHaveLength(1)
+  expect(bar.querySelector('.btn-primary')).toHaveTextContent(primary)
+  if (error_kind === 'auth_failed') expect(screen.getByRole('button', { name: 'Try again' })).toHaveClass('btn-secondary')
+  expect(screen.queryByRole('alert')).toBeNull()
+  expect(screen.getByRole('heading', { name: 'Technology' })).toBeInTheDocument()
+  expect(screen.getByRole('status')).toHaveTextContent('Digest generation failed: Run failed.')
+  await expectAccessible(container)
+})
+
+it.each([
+  ['existing', digest],
+  ['first', null],
+])('swaps the %s article after a run, retaining status and focus', async (_case, latest) => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  const next = { ...digest, id: 9, topics: [{ ...digest.topics[0], title: 'New edition' }] }
+  fetchMock.mockImplementation(async (path: string) => {
+    if (path === '/api/settings/model') return respond({ key_set: true })
+    if (path === '/api/sources') return respond(sources)
+    if (path === '/api/digests/latest') return respond(latest)
+    if (path === '/api/digest-runs/active') return respond(run)
+    if (path === '/api/digest-runs/1') return respond({
+      ...run, status: 'succeeded', digest_id: 9, digest_item_count: 2, digest_update_count: 1,
+    })
+    if (path === '/api/digests/9') return respond(next)
+    throw Error(`Unexpected request ${path}`)
+  })
+  const focus = vi.spyOn(HTMLElement.prototype, 'focus')
+  render(<MemoryRouter><Home/></MemoryRouter>)
+  await screen.findByRole('progressbar')
+  const status = screen.getByRole('status')
+  if (latest) {
+    const link = screen.getByRole('link', { name: 'Manage sources' })
+    link.focus()
+    focus.mockClear()
+  }
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  expect(await screen.findByRole('heading', { name: 'New edition' })).toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Technology' })).toBeNull()
+  expect(document.title).toBe('Latest · No. 9 · CatchUp')
+  expect(fetchMock).toHaveBeenCalledWith('/api/digests/9', undefined)
+  expect(fetchMock.mock.calls.some(([path]) => path === '/api/digests')).toBe(false)
+  expect(screen.getByRole('status')).toBe(status)
+  expect(status.textContent).toBe('Digest ready: 2 items (1 summarized, 1 in Creator updates)')
+  if (latest) expect(document.activeElement).toBe(screen.getByRole('link', { name: 'Manage sources' }))
+  expect(focus).not.toHaveBeenCalled()
+  focus.mockRestore()
+})
+
+it('keeps the previous article and links to the new edition when detail loading fails', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  fetchMock.mockImplementation(async (path: string) => {
+    if (path === '/api/settings/model') return respond({ key_set: true })
+    if (path === '/api/sources') return respond(sources)
+    if (path === '/api/digests/latest') return respond(digest)
+    if (path === '/api/digest-runs/active') return respond(run)
+    if (path === '/api/digest-runs/1') return respond({ ...run, status: 'succeeded', digest_id: 9 })
+    if (path === '/api/digests/9') return respond({
+      error: { code: 'not_found', message: 'Not ready' },
+    }, 404)
+    throw Error(path)
+  })
+  render(<MemoryRouter><Home/></MemoryRouter>)
+  await screen.findByRole('progressbar')
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  expect(await screen.findByText('Could not load the new digest')).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'View digest' })).toHaveAttribute('href', '/digests/9')
+  expect(screen.getByRole('heading', { name: 'Technology' })).toBeInTheDocument()
+  expect(document.title).toBe('Latest · No. 4 · CatchUp')
+})
+
+it('keeps Generate available when the latest digest fails to load', async () => {
+  fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+    if (path === '/api/settings/model') return respond({ key_set: true })
+    if (path === '/api/sources') return respond(sources)
+    if (path === '/api/digests/latest') return respond({
+      error: { code: 'request_failed', message: 'Offline' },
+    }, 503)
+    if (path === '/api/digest-runs/active') return respond(null)
+    if (path === '/api/digest-runs' && options?.method === 'POST') return respond(run)
+    throw Error(path)
+  })
+  render(<MemoryRouter><Home/></MemoryRouter>)
+  expect(await screen.findByText('Could not load the latest digest')).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'View History' })).toHaveAttribute('href', '/digests')
+  fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
+  expect(await screen.findByRole('progressbar')).toBeInTheDocument()
+})
+it('requests only the latest digest, never the full history list', async () => {
+  mockPage()
+  await screen.findByRole('heading', { name: 'Generate digest' })
+  expect(fetchMock).toHaveBeenCalledWith('/api/digests/latest', undefined)
+  expect(fetchMock.mock.calls.some(([path]) => path === '/api/digests')).toBe(false)
+})
+
+it('waits for all four startup requests before showing the no-digest page', async () => {
+  let release!: () => void
+  const pending = new Promise<void>(resolve => { release = resolve })
+  fetchMock.mockImplementation(async (path: string) => {
+    if (path === '/api/settings/model') return respond({ key_set: true })
+    if (path === '/api/sources') return respond(sources)
+    if (path === '/api/digests/latest') return respond(null)
+    if (path === '/api/digest-runs/active') { await pending; return respond(null) }
+    throw Error(path)
+  })
+  render(<MemoryRouter><Home/></MemoryRouter>)
+  expect(screen.getByRole('heading', { name: 'Loading…' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Generate digest' })).toBeNull()
+  release()
+  expect(await screen.findByRole('button', { name: 'Generate digest' })).toBeInTheDocument()
+})
+function mockPage(options: { ready?: boolean; run?: unknown; sources?: unknown[]; latest?: unknown } = {}) {
   fetchMock.mockImplementation(async (path: string) => {
     if (path === '/api/settings/model') return respond({ key_set: options.ready ?? true })
     if (path === '/api/sources') return respond(options.sources ?? sources)
-    if (path === '/api/digests') return respond(options.history ?? history)
+    if (path === '/api/digests/latest') return respond(options.latest ?? null)
     if (path === '/api/digest-runs/active') return respond(options.run ?? null)
     throw Error(`Unexpected request ${path}`)
   })
-  return render(<MemoryRouter><Generate/></MemoryRouter>)
+  return render(<MemoryRouter><Home/></MemoryRouter>)
 }
 
 beforeEach(() => { vi.stubGlobal('fetch', fetchMock) })
@@ -32,7 +240,7 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); fetchMock.mockReset
 
 it.each([['existing sources', sources], ['no sources (fresh install)', []]])(
   'puts model setup first with a visible disabled Generate and a state-aware rail: %s', async (_case, list) => {
-  const { container } = mockPage({ ready: false, sources: list, history })
+  const { container } = mockPage({ ready: false, sources: list })
   expect((await screen.findAllByRole('link', { name: 'Set up your model' }))[0]).toHaveClass('btn-primary')
   expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
   expect(screen.getByRole('button', { name: 'Generate digest' })).toBeDisabled()
@@ -46,7 +254,7 @@ it.each([['existing sources', sources], ['no sources (fresh install)', []]])(
 })
 
 it('offers Generate as the only primary action while idle', async () => {
-  const { container } = mockPage({ history: [], sources: [{ kind: 'feed' }] })
+  const { container } = mockPage({ sources: [{ kind: 'feed' }] })
   await screen.findByText(/Check your 1 source and summarize/)
   expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
   expect(screen.getByRole('button', { name: 'Generate digest' })).toHaveClass('btn-primary')
@@ -55,7 +263,7 @@ it('offers Generate as the only primary action while idle', async () => {
 })
 
 it('offers Add sources as the only primary action when the configured model has no sources', async () => {
-  const { container } = mockPage({ ready: true, sources: [], history: [] })
+  const { container } = mockPage({ ready: true, sources: [] })
   expect(await screen.findByRole('link', { name: 'Add sources' })).toHaveAttribute('href', '/sources')
   expect(screen.getByRole('link', { name: 'Add sources' })).toHaveClass('btn-primary')
   expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
@@ -65,10 +273,11 @@ it('offers Add sources as the only primary action when the configured model has 
   expect(generate).toHaveAccessibleDescription('Available once a source is added.')
 })
 
-it('keeps the hero last-digest link when the configured model has no sources', async () => {
-  const { container } = mockPage({ ready: true, sources: [], history })
+it('does not show last-digest links in the no-digest guidance', async () => {
+  const { container } = mockPage({ ready: true, sources: [] })
   await screen.findByRole('link', { name: 'Add sources' })
-  expect(container.querySelector('.hero-last')).toHaveTextContent('Last digest: No. 4')
+  expect(container.querySelector('.hero-last')).toBeNull()
+  expect(screen.queryByRole('heading', { name: 'Last digest' })).toBeNull()
 })
 
 it('shows a running run, not the no-sources state, when sources are empty', async () => {
@@ -155,13 +364,13 @@ it('polls from summarizing to success with a persistent status region using fake
   fetchMock.mockImplementation(async (path: string) => {
     if (path === '/api/settings/model') return respond({ key_set: true })
     if (path === '/api/sources') return respond(sources)
-    if (path === '/api/digests') return respond(history)
+    if (path === '/api/digests/latest') return respond(null)
     if (path === '/api/digest-runs/active') return respond({ ...run, status: 'summarizing', items_total: 12, items_done: 5 })
     if (path === '/api/digest-runs/1') return respond({ ...run, status: 'succeeded',
       items_total: 12, items_done: 12, digest_id: 8 })
     throw Error(path)
   })
-  render(<MemoryRouter><Generate/></MemoryRouter>)
+  render(<MemoryRouter><Home/></MemoryRouter>)
   expect(await screen.findByRole('status')).toHaveTextContent('Summarizing, 5 of 12')
   const statusRegion = screen.getByRole('status')
   await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
@@ -174,13 +383,13 @@ it('announces a polled run failure only through the persistent status region', a
   fetchMock.mockImplementation(async (path: string) => {
     if (path === '/api/settings/model') return respond({ key_set: true })
     if (path === '/api/sources') return respond(sources)
-    if (path === '/api/digests') return respond(history)
+    if (path === '/api/digests/latest') return respond(null)
     if (path === '/api/digest-runs/active') return respond(run)
     if (path === '/api/digest-runs/1') return respond({ ...run, status: 'failed',
       error_kind: 'provider_error', error_message: 'Provider is unavailable.' })
     throw Error(path)
   })
-  render(<MemoryRouter><Generate/></MemoryRouter>)
+  render(<MemoryRouter><Home/></MemoryRouter>)
   await screen.findByRole('progressbar')
   await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
   expect(screen.getByText('Provider is unavailable.')).toBeInTheDocument()
@@ -197,7 +406,7 @@ it.each([
   fetchMock.mockImplementation(async (path: string) => {
     if (path === '/api/settings/model') return respond({ key_set: true })
     if (path === '/api/sources') return respond(sources)
-    if (path === '/api/digests') return respond(history)
+    if (path === '/api/digests/latest') return respond(null)
     if (path === '/api/digest-runs/active') return respond({ ...run, status: 'summarizing',
       items_total: summarized, items_done: summarized })
     if (path === '/api/digest-runs/1') return respond({ ...run, status: 'succeeded',
@@ -205,49 +414,49 @@ it.each([
       digest_update_count: updates })
     throw Error(path)
   })
-  const { container } = render(<MemoryRouter><Generate/></MemoryRouter>)
+  const { container } = render(<MemoryRouter><Home/></MemoryRouter>)
   await screen.findByRole('progressbar')
   await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
   expect(screen.getByRole('status').textContent).toBe(`Digest ready: ${text}`)
   expect(container.querySelector('.result-ok .result-meta')?.textContent).toMatch(new RegExp(`^${text.replace(/[()]/g, '\\$&')} · `))
 })
 
-it('keeps an active run visible when the digest list fails', async () => {
+it('keeps an active run visible when the latest digest fails to load', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
   fetchMock.mockImplementation(async (path: string) => {
     if (path === '/api/settings/model') return respond({ key_set: true })
     if (path === '/api/sources') return respond(sources)
-    if (path === '/api/digests') return respond({ error: { code: 'request_failed', message: 'History unavailable' } }, 503)
+    if (path === '/api/digests/latest') return respond({ error: { code: 'request_failed', message: 'Latest unavailable' } }, 503)
     if (path === '/api/digest-runs/active') return respond({ ...run, status: 'summarizing',
       items_total: 12, items_done: 5 })
     if (path === '/api/digest-runs/1') return respond(run)
     throw Error(path)
   })
-  const { container } = render(<MemoryRouter><Generate/></MemoryRouter>)
+  const { container } = render(<MemoryRouter><Home/></MemoryRouter>)
   expect(await screen.findByRole('progressbar', { name: 'Items summarized: 5 of 12' })).toBeInTheDocument()
-  expect(screen.getByRole('alert')).toHaveTextContent('History unavailable')
+  expect(screen.getByRole('alert')).toHaveTextContent('Latest unavailable')
   expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
   expect(screen.getByRole('button', { name: 'Generating…' })).toBeDisabled()
 })
 
-it('keeps a startup load error visible through successful progress polls', async () => {
+it('keeps a startup latest-digest error visible through successful progress polls', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
   fetchMock.mockImplementation(async (path: string) => {
     if (path === '/api/settings/model') return respond({ key_set: true })
     if (path === '/api/sources') return respond(sources)
-    if (path === '/api/digests') return respond({
-      error: { code: 'request_failed', message: 'History unavailable' },
+    if (path === '/api/digests/latest') return respond({
+      error: { code: 'request_failed', message: 'Latest unavailable' },
     }, 503)
     if (path === '/api/digest-runs/active' || path === '/api/digest-runs/1') {
       return respond({ ...run, status: 'summarizing', items_total: 12, items_done: 5 })
     }
     throw Error(path)
   })
-  render(<MemoryRouter><Generate/></MemoryRouter>)
-  expect(await screen.findByRole('alert')).toHaveTextContent('Could not load some page details')
+  render(<MemoryRouter><Home/></MemoryRouter>)
+  expect(await screen.findByRole('alert')).toHaveTextContent('Could not load the latest digest')
   await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
   expect(fetchMock.mock.calls.filter(([path]) => path === '/api/digest-runs/1')).toHaveLength(2)
-  expect(screen.getByRole('alert')).toHaveTextContent('Could not load some page details')
+  expect(screen.getByRole('alert')).toHaveTextContent('Could not load the latest digest')
 })
 
 it('does not invent source counts when the source list cannot be read', async () => {
@@ -256,11 +465,11 @@ it('does not invent source counts when the source list cannot be read', async ()
     if (path === '/api/sources') return respond({
       error: { code: 'request_failed', message: 'Sources unavailable' },
     }, 503)
-    if (path === '/api/digests') return respond(history)
+    if (path === '/api/digests/latest') return respond(null)
     if (path === '/api/digest-runs/active') return respond(null)
     throw Error(path)
   })
-  const { container } = render(<MemoryRouter><Generate/></MemoryRouter>)
+  const { container } = render(<MemoryRouter><Home/></MemoryRouter>)
   expect(await screen.findByRole('alert')).toHaveTextContent('Sources unavailable')
   expect(screen.getByText('Check your sources and summarize everything new since your last digest.'))
     .toBeInTheDocument()
@@ -273,55 +482,45 @@ it('does not invent source counts when the source list cannot be read', async ()
   await expectAccessible(container)
 })
 
-it('shows a short hero date but keeps the rail last-digest date long', async () => {
-  const { container } = mockPage({ history: [{
-    id: 3, created_at: '2026-10-05T09:00:00', item_count: 4, source_count: 2,
-  }] })
-  await screen.findByRole('heading', { name: 'Last digest' })
-  expect(container.querySelector('.hero-last')).toHaveTextContent('Last digest: No. 3 · 5 Oct 2026, 09:00')
-  expect(screen.getByRole('heading', { name: 'Last digest' }).closest('section'))
-    .toHaveTextContent('No. 3 · Monday, 5 October 2026, 09:00')
-})
-
-it('starts one run, polls to success and refreshes the last digest', async () => {
+it('starts one run and shows its saved article without requesting the list', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
-  let historyReads = 0
   fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
     if (path === '/api/settings/model') return respond({ key_set: true })
     if (path === '/api/sources') return respond(sources)
-    if (path === '/api/digests') return respond(++historyReads === 1 ? history
-      : [{ id: 9, created_at: '2026-10-04T10:00:00Z', item_count: 12, source_count: 3 }])
+    if (path === '/api/digests/latest') return respond(null)
     if (path === '/api/digest-runs/active') return respond(null)
     if (path === '/api/digest-runs' && options?.method === 'POST') return respond(run)
     if (path === '/api/digest-runs/1') return respond({ ...run, status: 'succeeded',
       items_total: 12, items_done: 12, digest_id: 9 })
+    if (path === '/api/digests/9') return respond({ ...digest, id: 9 })
     throw Error(path)
   })
-  render(<MemoryRouter><Generate/></MemoryRouter>)
+  render(<MemoryRouter><Home/></MemoryRouter>)
   await waitFor(() => expect(screen.getByRole('button', { name: 'Generate digest' })).toBeEnabled())
   fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
   expect(await screen.findByRole('progressbar', { name: 'Sources checked: 2 of 3' })).toBeInTheDocument()
   expect(fetchMock.mock.calls.filter(([path, options]) => path === '/api/digest-runs'
     && options?.method === 'POST')).toHaveLength(1)
   await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
-  expect(await screen.findByRole('link', { name: 'View digest' })).toHaveAttribute('href', '/digests/9')
-  expect((await screen.findAllByRole('link', { name: /No. 9/ })).length).toBeGreaterThan(0)
-  expect(screen.getByRole('heading', { name: 'Last digest' }).closest('section')).toHaveTextContent('No. 9')
-  expect(historyReads).toBe(2)
+  await screen.findByText('New from sources you follow, listed without a summary because no transcript or captions were available.')
+  expect(screen.getByRole('heading', { name: 'Technology' })).toBeInTheDocument()
+  expect(document.title).toBe('Latest · No. 9 · CatchUp')
+  expect(screen.queryByRole('link', { name: 'View digest' })).toBeNull()
+  expect(fetchMock.mock.calls.some(([path]) => path === '/api/digests')).toBe(false)
 })
 
 it('switches to first-run after a model-not-configured POST', async () => {
   fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
     if (path === '/api/settings/model') return respond({ key_set: true })
     if (path === '/api/sources') return respond(sources)
-    if (path === '/api/digests') return respond([])
+    if (path === '/api/digests/latest') return respond(null)
     if (path === '/api/digest-runs/active') return respond(null)
     if (path === '/api/digest-runs' && options?.method === 'POST') {
       return respond({ error: { code: 'model_not_configured', message: 'Set up your model' } }, 400)
     }
     throw Error(path)
   })
-  render(<MemoryRouter><Generate/></MemoryRouter>)
+  render(<MemoryRouter><Home/></MemoryRouter>)
   await waitFor(() => expect(screen.getByRole('button', { name: 'Generate digest' })).toBeEnabled())
   fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
   expect((await screen.findAllByRole('link', { name: 'Set up your model' }))[0]).toHaveClass('btn-primary')
@@ -334,7 +533,7 @@ it('uses action-specific alerts when starting or checking a run fails', async ()
   fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
     if (path === '/api/settings/model') return respond({ key_set: true })
     if (path === '/api/sources') return respond(sources)
-    if (path === '/api/digests') return respond([])
+    if (path === '/api/digests/latest') return respond(null)
     if (path === '/api/digest-runs/active') return respond(null)
     if (path === '/api/digest-runs' && options?.method === 'POST') {
       if (!started) {
@@ -348,7 +547,7 @@ it('uses action-specific alerts when starting or checking a run fails', async ()
     }, 503)
     throw Error(path)
   })
-  render(<MemoryRouter><Generate/></MemoryRouter>)
+  render(<MemoryRouter><Home/></MemoryRouter>)
   await waitFor(() => expect(screen.getByRole('button', { name: 'Generate digest' })).toBeEnabled())
   fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('Could not start digest')
@@ -363,13 +562,13 @@ it('recovers a run-active conflict without a duplicate run', async () => {
   fetchMock.mockImplementation(async (path: string) => {
     if (path === '/api/settings/model') return respond({ key_set: true })
     if (path === '/api/sources') return respond(sources)
-    if (path === '/api/digests') return respond(history)
+    if (path === '/api/digests/latest') return respond(null)
     if (path === '/api/digest-runs/active') return respond(++activeReads === 1 ? null : run)
     if (path === '/api/digest-runs') return respond({ error: { code: 'run_active', message: 'Already active' } }, 409)
     if (path === '/api/digest-runs/1') return respond(run)
     throw Error(path)
   })
-  render(<MemoryRouter><Generate/></MemoryRouter>)
+  render(<MemoryRouter><Home/></MemoryRouter>)
   await waitFor(() => expect(screen.getByRole('button', { name: 'Generate digest' })).toBeEnabled())
   fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
   expect(await screen.findByRole('progressbar', { name: 'Sources checked: 2 of 3' })).toBeInTheDocument()

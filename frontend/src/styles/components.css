@@ -68,6 +68,9 @@
 .examples { display: flex; flex-wrap: wrap; gap: .4rem; justify-content: center; }
 .examples li { background: var(--neutral-soft); padding: .2rem .65rem; border-radius: 999px; font-size: .85em; }
 .hero-actions, .result-head, .save-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 1rem; }
+.run-bar { display: grid; gap: .9rem; border-bottom: 1px solid var(--border-strong); padding-bottom: 1rem; }
+.run-bar-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem 1rem; }
+.run-bar .result-meta { color: var(--fg); }
 .hero { gap: .6rem; }
 .rail-steps { display: grid; gap: .3rem; padding-left: 1.2rem !important; list-style: decimal !important; font-size: .92em; }
 .hero-last { display: none; }

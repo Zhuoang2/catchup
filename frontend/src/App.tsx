@@ -1,6 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
-import Generate from './pages/Generate'
+import Home from './pages/Home'
 import Sources from './pages/Sources'
 import Settings from './pages/Settings'
 import History from './pages/History'
@@ -11,7 +11,7 @@ export default function App() {
     <BrowserRouter>
       <AppShell>
         <Routes>
-          <Route path="/" element={<Generate />} />
+          <Route path="/" element={<Home />} />
           <Route path="/sources" element={<Sources />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/digests" element={<History />} />

@@ -3,18 +3,20 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppShell } from './components/AppShell'
 import { expectAccessible } from './test/accessibility'
-import Generate from './pages/Generate'
+import Home from './pages/Home'
 import Sources from './pages/Sources'
 import Settings from './pages/Settings'
 import History from './pages/History'
 
 it.each([
-  ['/', 'Generate · CatchUp', <Generate/>],
+  ['/', 'Latest · CatchUp', <Home/>],
   ['/sources', 'Sources · CatchUp', <Sources/>],
   ['/digests', 'History · CatchUp', <History/>],
   ['/settings', 'Settings · CatchUp', <Settings/>],
 ])('titles the %s screen', (path, title, page) => {
-  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => [] })))
+  vi.stubGlobal('fetch', vi.fn(async (path: string) => ({
+    ok: true, status: 200, json: async () => path === '/api/digests/latest' ? null : [],
+  })))
   render(<MemoryRouter initialEntries={[path]}><Routes><Route path={path} element={page}/></Routes></MemoryRouter>)
   expect(document.title).toBe(title)
   vi.unstubAllGlobals()

@@ -223,7 +223,7 @@ Notes for this round:
   - `/digests/latest` and `/sources` both fail. The no-digest layout shows both alerts: "Could not load the latest digest" with its own message and "View History", and "Could not load some page details" with the sources message.
   - A run then saves a digest. The run bar shows "Could not load some page details" with the sources message, and no latest-digest alert.
   - The existing 6.1 and 6.3 tests still pass.
-- [ ] 7.6 Refactor step, with no red test:
+- [x] 7.6 Refactor step, with no red test:
   - Rename the component-level `mounted` ref so that it no longer shares its name with the effects' local `mounted` flags (`Home.tsx:124`, `:136`, `:161`).
   - Remove any guard in the digest-fetch effect that 7.2 and 7.5 made redundant.
 

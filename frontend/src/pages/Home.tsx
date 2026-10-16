@@ -125,13 +125,13 @@ export default function Home() {
   const [pageDetailsError, setPageDetailsError] = useState<string | null>(null)
   const [error, setError] = useState<{ title: string; message: string; source?: 'poll' } | null>(null)
   const [newDigestError, setNewDigestError] = useState<{ id: number; message: string } | null>(null)
-  const mounted = useRef(false)
+  const pageMounted = useRef(false)
   const pendingDigests = useRef(new Set<number>())
   useDocumentTitle(digest ? `Latest · No. ${digest.id}` : 'Latest')
 
   useEffect(() => {
-    mounted.current = true
-    return () => { mounted.current = false }
+    pageMounted.current = true
+    return () => { pageMounted.current = false }
   }, [])
 
   useEffect(() => {
@@ -176,12 +176,11 @@ export default function Home() {
     if (!id || (digest && digest.id >= id) || pendingDigests.current.has(id)) return
     pendingDigests.current.add(id)
     request<Digest>(`/digests/${id}`)
-      .then(result => { if (mounted.current) {
+      .then(result => { if (pageMounted.current) {
         setDigest(previous => !previous || result.id > previous.id ? result : previous)
-        setLatestLoadError(null)
         setNewDigestError(previous => previous?.id === id ? null : previous)
       } })
-      .catch((reason: Error) => { if (mounted.current) setNewDigestError({
+      .catch((reason: Error) => { if (pageMounted.current) setNewDigestError({
         id, message: reason.message,
       }) })
       .finally(() => { pendingDigests.current.delete(id) })

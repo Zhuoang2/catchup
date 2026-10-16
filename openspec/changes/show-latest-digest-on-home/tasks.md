@@ -232,7 +232,7 @@ Notes for this round:
   - Either remove that border for an empty list in the bar, or do not render an empty list there.
 
   Verify with a failing-first test, either in `tokens.test.ts` or as a DOM check in `Home.test.tsx` for a queued run with no source checks.
-- [ ] 7.8 Re-run the 5.1 checks and append a "Review fixes, round 2" section to `docs/process/test-report-show-latest-digest-on-home.md`, with real results.
+- [x] 7.8 Re-run the 5.1 checks and append a "Review fixes, round 2" section to `docs/process/test-report-show-latest-digest-on-home.md`, with real results.
   - Include the axe scan count, and add the missing count for round 1 if you can reconstruct it. Otherwise, say that it was not recorded.
   - Correct the round 1 statement that 6.7 preserved behavior: it did not in first run, and 7.1 fixed that.
   - In `docs/process/ai-usage-log.md`, add one short sentence on round 2 to your "Latest digest on Home" entry. Do not change the other entries.

@@ -264,6 +264,6 @@ Notes for this round:
   - Initialize the `pendingDigests` Set lazily, so that a render no longer builds a Set it throws away (`Home.tsx:129`).
 
   Verify: `npm test -- --run` passes with no test changes in this task.
-- [ ] 8.4 Re-run the 5.1 checks and append a "Review fixes, round 3" section to `docs/process/test-report-show-latest-digest-on-home.md`, with real results and the axe scan count. In `docs/process/ai-usage-log.md`, add one short sentence on round 3 to your "Latest digest on Home" entry.
+- [x] 8.4 Re-run the 5.1 checks and append a "Review fixes, round 3" section to `docs/process/test-report-show-latest-digest-on-home.md`, with real results and the axe scan count. In `docs/process/ai-usage-log.md`, add one short sentence on round 3 to your "Latest digest on Home" entry.
 
   Verify: every command passes, and the report has the actual numbers.

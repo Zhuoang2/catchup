@@ -54,7 +54,7 @@ Implementer notes:
 
 ## 3. Integration checks and report
 
-- [ ] 3.1 Run the full checks:
+- [x] 3.1 Run the full checks:
   - `uv run pytest` in `backend/` (unchanged; record the count and coverage)
   - `npm test -- --run` in `frontend/` (record the test count and the axe scans)
   - `npm run build`

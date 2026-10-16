@@ -176,7 +176,7 @@ Notes for this round:
   - `python3 frontend/scripts/check-style-coverage.py` passes.
   - `npm run build` passes.
   - `uv run pytest` passes.
-- [ ] 6.9 Re-run the 5.1 checks and append a "Review fixes, round 1" section to `docs/process/test-report-show-latest-digest-on-home.md`, with the commands and their real results.
+- [x] 6.9 Re-run the 5.1 checks and append a "Review fixes, round 1" section to `docs/process/test-report-show-latest-digest-on-home.md`, with the commands and their real results.
   - In `docs/process/ai-usage-log.md`, move your entry "Latest digest on Home" so that it follows the 2026-10-16 plan entry, which keeps the log in chronological order.
   - Change that entry's date to "2026-10-15 to 2026-10-16", and add a short fix-round paragraph to it.
 

@@ -71,9 +71,9 @@
 .run-bar { display: grid; gap: .9rem; border-bottom: 1px solid var(--border-strong); padding-bottom: 1rem; }
 .run-bar-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem 1rem; }
 .run-bar .result-meta { color: var(--fg); }
+.run-bar .check-row:last-child { border-bottom: 0; }
 .hero { gap: .6rem; }
 .rail-steps { display: grid; gap: .3rem; padding-left: 1.2rem !important; list-style: decimal !important; font-size: .92em; }
-.hero-last { display: none; }
 .stepper { display: flex; gap: .5rem; flex-wrap: wrap; }
 .step { display: flex; align-items: center; gap: .45rem; color: var(--subtle); font-size: .9em; font-weight: 600; }
 .step + .step::before { content: ""; width: 1.5rem; height: 1px; background: var(--border-strong); }
@@ -169,4 +169,3 @@
 .edition { color: var(--accent); }
 .history-topics { color: var(--muted); font-size: .88em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .history-counts { color: var(--subtle); font-size: .85em; white-space: nowrap; }
-@container (max-width: 900px) { .hero-last { display: block; } }

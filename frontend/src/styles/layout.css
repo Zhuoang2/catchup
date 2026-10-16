@@ -58,7 +58,6 @@
   .app .app-nav .nav-link { padding: .35rem .45rem; }
   .page { grid-template-columns: minmax(0, 1fr); }
   .page > *, .page > .page-head, .topic, .creator, .page-digest .toc { grid-column: 1 / -1 !important; }
-  .page-home > .run-bar { grid-column: 1 / -1; }
   .topic, .creator, .settings-form, .settings-section { grid-template-columns: minmax(0, 1fr) !important; }
   .settings-section > *, .save-bar { grid-column: 1 / -1 !important; grid-row: auto !important; }
   .settings-section > .note, .settings-section > .risk { border-left: 0; padding-left: 0; }

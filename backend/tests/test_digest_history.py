@@ -126,6 +126,20 @@ def test_latest_breaks_creation_time_ties_with_higher_id(test_settings):
         assert client.get("/api/digests/2").json()["id"] == 2
 
 
+def test_latest_prefers_newer_creation_time_over_higher_id(test_settings):
+    with TestClient(create_app(test_settings)) as client:
+        seed_history(client)
+        with client.app.state.session_factory() as session:
+            session.get(Digest, 1).created_at = datetime(2026, 10, 3, tzinfo=timezone.utc)
+            session.commit()
+        rows = client.get("/api/digests").json()
+        latest = client.get("/api/digests/latest")
+        assert [row["id"] for row in rows] == [1, 3, 2]
+        assert latest.status_code == 200
+        assert latest.json() == client.get("/api/digests/1").json()
+        assert latest.json()["id"] == rows[0]["id"]
+
+
 def test_history_lists_three_newest_first_with_counts(test_settings):
     with TestClient(create_app(test_settings)) as client:
         assert client.get("/api/digests").json() == []

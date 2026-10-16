@@ -166,7 +166,7 @@ Notes for this round:
   - Every `Home.test.tsx` test passes, with no change other than those made in 6.1–6.6.
   - The run bar still contains no heading elements.
   - `npm test -- --run` passes.
-- [ ] 6.8 Styles and the backend ordering test (design D7, D1):
+- [x] 6.8 Styles and the backend ordering test (design D7, D1):
   - **Double rule.** Remove the second line under the run bar: the bar's last `.check-row` has no bottom border. Add a `tokens.test.ts` assertion for it.
   - **Redundant rule.** Remove the narrow-block `.page-home > .run-bar` rule (`layout.css:61`). The narrow block's `.page > *` rule already spans it. Replace the `tokens.test.ts:138` assertion with one that checks the narrow `.page > *` rule spans `1 / -1`.
   - **Dead rules.** Remove the `.hero-last` rules (`components.css:76`, `:172`).

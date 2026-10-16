@@ -38,11 +38,24 @@ def list_digests(session: Session = Depends(get_session)) -> list[dict]:
     ]
 
 
+@router.get("/latest")
+def latest_digest(session: Session = Depends(get_session)) -> dict | None:
+    digest = session.scalars(
+        select(Digest).order_by(Digest.created_at.desc(), Digest.id.desc()).limit(1)
+    ).first()
+    return _serialize_digest(digest, session) if digest else None
+
+
 @router.get("/{digest_id}")
 def get_digest(digest_id: int, session: Session = Depends(get_session)) -> dict:
     digest = session.get(Digest, digest_id)
     if digest is None:
         raise AppError("not_found", "Digest not found.", 404)
+    return _serialize_digest(digest, session)
+
+
+def _serialize_digest(digest: Digest, session: Session) -> dict:
+    digest_id = digest.id
     topics = session.scalars(
         select(DigestTopic).where(DigestTopic.digest_id == digest_id)
         .order_by(DigestTopic.position, DigestTopic.id)

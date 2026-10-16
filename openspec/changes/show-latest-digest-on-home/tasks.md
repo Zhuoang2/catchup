@@ -11,7 +11,7 @@ Implementer notes:
 
 ## 1. Latest-digest endpoint
 
-- [ ] 1.1 In `backend/tests/test_digest_history.py`, add failing tests for `GET /api/digests/latest`:
+- [x] 1.1 In `backend/tests/test_digest_history.py`, add failing tests for `GET /api/digests/latest`:
   - JSON `null` with status 200 when no digest is saved.
   - With three saved digests, the response equals `GET /api/digests/{id}` for the newest one: topics, items, Creator updates, language, `transcript_wait_days`, and tokens.
   - A Creator-updates-only newest digest is returned in full.
@@ -19,7 +19,7 @@ Implementer notes:
   - `GET /api/digests/{id}` still returns its digest, and `/api/digests/latest` is never parsed as an id (no 422).
 
   Verify: the new tests fail before 1.2.
-- [ ] 1.2 In `backend/src/catchup/api/digests.py`, add the `latest` route, declared before `/{digest_id}`.
+- [x] 1.2 In `backend/src/catchup/api/digests.py`, add the `latest` route, declared before `/{digest_id}`.
   - It uses the list's order (`created_at desc, id desc`).
   - Move `get_digest`'s serialization into one helper shared by both routes.
 

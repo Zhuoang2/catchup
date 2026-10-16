@@ -114,3 +114,70 @@ Implementer notes:
   Write the commands and their real results to `docs/process/test-report-show-latest-digest-on-home.md`. List the manual checks that were not performed: the live checks at 1440, 900, and 420 px, and a real run with the digest swapped in place.
 
   Verify: every command passes, and the report file exists with the actual numbers.
+
+## 6. Review fixes, round 1
+
+Notes for this round:
+- These tasks come from the review of groups 1–5. Each finding was confirmed against the code, and the user decided how to resolve it on 2026-10-16. `design.md` (D3, D5, D7) and the spec scenario "Same digest in both places" were amended to match. Read those passages again first.
+- **Use `diagnosing-bugs`** for 6.1–6.4: reproduce each bug with a failing test first, rank hypotheses, fix, and keep the test as the regression test. Put the confirmed cause in the commit message.
+- **Use `tdd`** for 6.5–6.8.
+- Do not edit `proposal.md`, `design.md`, or the spec deltas.
+
+- [ ] 6.1 Stale errors in the run bar (design D3, D5). Two bugs:
+  - The startup alert "Could not load the latest digest" reappears in the run bar as a new `role="alert"` once a run's digest is shown (`Home.tsx:174`).
+  - `generate()` does not clear "Could not load the new digest" (`newDigestError`).
+
+  Verify with failing-first tests in `frontend/src/pages/Home.test.tsx`:
+  - `/digests/latest` fails at startup, then a run succeeds and its digest is fetched. Afterwards no alert says "Could not load the latest digest", and no `role="alert"` is present.
+  - A failed new-digest fetch shows "Could not load the new digest". Clicking Generate digest removes that alert.
+  - A startup failure of another request (such as `/sources`) while a digest is shown still shows "Could not load some page details" in the run bar.
+- [ ] 6.2 No "View digest" after the first digest is saved (spec "Digest ready"; design D3). In the no-digest layout, the success card shows a primary "View digest" link today (`Home.tsx:264`). When the new-digest fetch fails, the link appears twice: once in the card and once in the alert.
+  - While the new digest is being fetched, the card shows "Loading the new digest…".
+  - The card has no primary action and no "View digest" link.
+  - If the fetch fails, the alert's link to `/digests/{digest_id}` is the only link to the new digest.
+
+  Verify with failing-first tests, using a deferred promise for `/api/digests/8`:
+  - While the fetch is pending: "Loading the new digest…" is shown, there is no `.btn-primary`, and there is no "View digest" link.
+  - After the fetch fails: exactly one link to `/digests/8`.
+  - After the fetch succeeds: the digest article is shown.
+  - `expectAccessible` passes in each case.
+- [ ] 6.3 Load-error title and message mismatch (design D3). When `/digests/latest` and another request both fail, the title says "Could not load the latest digest", but the message comes from whichever request failed first (`Home.tsx:81-86`).
+
+  Verify with a failing-first test: `/settings/model` fails with message A and `/digests/latest` fails with message B. The alert shows the latest-digest title with message B.
+- [ ] 6.4 A fetched digest is discarded if another run starts during the fetch (design D5). The fetch effect's cleanup drops the result when `run` changes (`Home.tsx:108-120`). If the next run then finds no new content, the page keeps showing the older digest.
+
+  Verify with failing-first tests (fake timers, deferred fetch):
+  - Run 1 succeeds with digest 8, and run 2 starts while `/api/digests/8` is pending. Once the fetch resolves, digest 8 is shown.
+  - A fetch for a lower id that resolves after a higher-id digest is shown does not replace it.
+- [ ] 6.5 Make the success-path tests exercise the success path. The tests at `Home.test.tsx:309`, `:362`, and `:400` do not mock `/api/digests/8`, so they pass in the fetch-error state, and `:309` asserts the old "View digest".
+  - Mock the digest in each of these tests.
+  - Replace `:309`'s "View digest" assertion with the 6.2 behavior.
+  - `:362` and `:400` also assert that the digest article is shown and that the status region is the same node.
+
+  Verify: these tests fail if the `/api/digests/{id}` mock is removed. Name each changed test in the commit message.
+- [ ] 6.6 Comparison test for "Same digest in both places" (amended spec scenario). Render Home with digest No. 7 as the latest digest, and render `DigestView` for `/digests/7` with the same digest.
+
+  Verify: the two `section.page-digest` elements match once the run bar, the "← All digests" link, and the `page-home` class are removed. They must have identical markup, or at least identical headings, index, topic rows, items, and Creator updates.
+- [ ] 6.7 Shared run-state component (design D3 "Shared run-state content"). Today the running, succeeded, no-new-content, and failed content is written twice in `Home.tsx`: once in the run bar (`:180-211`) and once in the no-digest cards (`:247-288`).
+  - Extract one component that renders this content for both. Its options cover the differences: headings in the cards, paragraphs in the bar.
+  - Do this after 6.1–6.5, so that every behavior is covered by tests first.
+
+  Verify:
+  - Every `Home.test.tsx` test passes, with no change other than those made in 6.1–6.6.
+  - The run bar still contains no heading elements.
+  - `npm test -- --run` passes.
+- [ ] 6.8 Styles and the backend ordering test (design D7, D1):
+  - **Double rule.** Remove the second line under the run bar: the bar's last `.check-row` has no bottom border. Add a `tokens.test.ts` assertion for it.
+  - **Redundant rule.** Remove the narrow-block `.page-home > .run-bar` rule (`layout.css:61`). The narrow block's `.page > *` rule already spans it. Replace the `tokens.test.ts:138` assertion with one that checks the narrow `.page > *` rule spans `1 / -1`.
+  - **Dead rules.** Remove the `.hero-last` rules (`components.css:76`, `:172`).
+  - **Backend.** In `backend/tests/test_digest_history.py`, add a test where the newest digest by `created_at` has a lower id than an older one. `/api/digests/latest` returns the newest by time, matching the list's first entry.
+
+  Verify:
+  - `python3 frontend/scripts/check-style-coverage.py` passes.
+  - `npm run build` passes.
+  - `uv run pytest` passes.
+- [ ] 6.9 Re-run the 5.1 checks and append a "Review fixes, round 1" section to `docs/process/test-report-show-latest-digest-on-home.md`, with the commands and their real results.
+  - In `docs/process/ai-usage-log.md`, move your entry "Latest digest on Home" so that it follows the 2026-10-16 plan entry, which keeps the log in chronological order.
+  - Change that entry's date to "2026-10-15 to 2026-10-16", and add a short fix-round paragraph to it.
+
+  Verify: every command passes, and the report has the actual numbers.

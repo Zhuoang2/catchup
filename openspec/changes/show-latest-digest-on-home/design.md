@@ -54,8 +54,13 @@ See `proposal.md` for the motivation. The current state that shapes the approach
   - **Loading** (until the four requests settle): a page head "Loading…", the same pattern as `DigestView.tsx:123`.
   - **A digest is shown:** `DigestArticle` with `className="page-home"` and the run bar (D4) as `before`. There is no `Rail`.
   - **No digest saved** (`/digests/latest` returned `null`): today's Generate layout, with its hero, its run and result cards, and its rail (Getting started on first run; otherwise Your sources and How it works). The "Last digest" hero line and rail box are removed, because this layout exists only when no digest is saved.
+    - When a run saves the first digest, the result card offers no "View digest" and no primary action. It says "Loading the new digest…" until the digest replaces this layout (D5).
+    - If that fetch fails, the D5 alert is the only link to the new digest.
   - **The latest digest failed to load:** the no-digest layout with an error `Alert`, "Could not load the latest digest", and a "View History" link. Generate keeps working.
+    - The alert's message is the error of the `/digests/latest` request. When only other requests fail, the title is "Could not load some page details".
+    - The alert belongs to the no-digest layout. Once a run's digest is shown, it is gone, and the run bar does not repeat it.
 - **The status region** is rendered once, at a fixed position outside the layout branches. It is never remounted between layouts, so the announcement survives the switch from the no-digest layout to the first saved digest.
+- **Shared run-state content.** One component renders the content of the running, succeeded, no-new-content, and failed states: the stepper, the progress bar, the result line, held notes, the failure text, and source checks. The run bar and the no-digest layout's cards both use it. Only the wrapper and the labels differ: the cards keep their headings, and the bar uses paragraphs (D4).
 
 ### D4. The run bar
 `<section className="run-bar" aria-label="Digest run">`. It contains no heading elements, so the digest's `<h1>` stays the page's first heading. Labels are paragraphs, and `SourceChecks` gets a non-heading label for this use. Content by state:
@@ -77,7 +82,8 @@ The digest below stays rendered in every state.
 - When the polled run reaches `succeeded` with a `digest_id`, the page fetches `/digests/{digest_id}` and shows it. It does not fetch `/digests/latest`, because the run identifies its own digest.
 - No element is focused programmatically, and the page does not scroll.
 - The status region text is today's "Digest ready: …" (`Generate.tsx:138`).
-- If the fetch fails, an error `Alert`, "Could not load the new digest", links to `/digests/{digest_id}`, and the previous digest stays shown.
+- If the fetch fails, an error `Alert`, "Could not load the new digest", links to `/digests/{digest_id}`, and the previous digest stays shown. Starting another run clears this alert.
+- A fetched digest is shown even if another run has started in the meantime. It never replaces a digest with a higher id.
 - The `/digests` refresh effect (`Generate.tsx:102-111`) is removed.
 
 ### D6. Navigation, masthead, and titles
@@ -86,8 +92,9 @@ The digest below stays rendered in every state.
 - **Titles.** "Latest · No. {id} · CatchUp" when a digest is shown, otherwise "Latest · CatchUp". `/digests/:id` keeps "No. {id} · {date} · CatchUp".
 
 ### D7. Styles
-- `.page-home > .run-bar` spans `1 / -1` in the digest grid, and in the single-column layout at 900 px and below.
-- A rule under the bar separates it from the digest head.
+- `.page-home > .run-bar` spans `1 / -1` in the digest grid. At 900 px and below, the existing `.page > *` rule in the single-column block already spans it, so there is no second rule.
+- A rule under the bar separates it from the digest head. It is the only line there: the bar's last source-check row has no bottom border.
+- The `.hero-last` rules are removed together with the "Last digest" line.
 - In the ready state, the bar's controls sit on one row.
 - The bar reuses the existing hero-action, stepper, progress, and check-list styles. It adds only the classes it needs, each with a rule (`frontend/scripts/check-style-coverage.py` reports any without one).
 

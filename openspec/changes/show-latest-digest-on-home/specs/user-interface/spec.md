@@ -54,7 +54,7 @@ An item with key points or a long summary MUST get a wider column than a short i
 
 #### Scenario: Same digest in both places
 - **WHEN** the main screen shows digest No. 7, and the user then opens No. 7 from History
-- **THEN** both show the same headline, index, topics, items, and Creator updates; only the masthead and the run bar differ
+- **THEN** both show the same headline, index, topics, items, and Creator updates. They differ only in the masthead, the main screen's run bar, and the saved digest's link back to all digests
 
 ### Requirement: One primary action per state
 Each screen state SHALL offer at most one primary action. A state where nothing needs doing next offers none, such as a run that found no new content, or a run that saved a digest that is now shown. The primary action is:

@@ -155,7 +155,7 @@ Notes for this round:
   - `:362` and `:400` also assert that the digest article is shown and that the status region is the same node.
 
   Verify: these tests fail if the `/api/digests/{id}` mock is removed. Name each changed test in the commit message.
-- [ ] 6.6 Comparison test for "Same digest in both places" (amended spec scenario). Render Home with digest No. 7 as the latest digest, and render `DigestView` for `/digests/7` with the same digest.
+- [x] 6.6 Comparison test for "Same digest in both places" (amended spec scenario). Render Home with digest No. 7 as the latest digest, and render `DigestView` for `/digests/7` with the same digest.
 
   Verify: the two `section.page-digest` elements match once the run bar, the "← All digests" link, and the `page-home` class are removed. They must have identical markup, or at least identical headings, index, topic rows, items, and Creator updates.
 - [ ] 6.7 Shared run-state component (design D3 "Shared run-state content"). Today the running, succeeded, no-new-content, and failed content is written twice in `Home.tsx`: once in the run bar (`:180-211`) and once in the no-digest cards (`:247-288`).

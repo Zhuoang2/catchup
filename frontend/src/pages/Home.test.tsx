@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, waitFor, act } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { fireEvent, render, screen, waitFor, act, within } from '@testing-library/react'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { expectAccessible } from '../test/accessibility'
 import Home from './Home'
+import DigestView from './DigestView'
 
 const fetchMock = vi.fn()
 const respond = (value: unknown, status = 200) => ({ ok: status < 400, status, json: async () => value })
@@ -27,6 +28,25 @@ const digest = {
     reason: 'no_transcript',
   }] }],
 }
+it('shows the same digest reading markup on Home and the saved digest page', async () => {
+  const edition = { ...digest, id: 7 }
+  const home = mockPage({ latest: edition })
+  await within(home.container).findByRole('heading', { name: 'Technology' })
+  fetchMock.mockImplementation(async (path: string) => {
+    if (path === '/api/digests/7') return respond(edition)
+    throw Error(path)
+  })
+  const saved = render(<MemoryRouter initialEntries={['/digests/7']}>
+    <Routes><Route path="/digests/:id" element={<DigestView/>}/></Routes>
+  </MemoryRouter>)
+  await within(saved.container).findByRole('heading', { name: 'Technology' })
+  const homeArticle = home.container.querySelector('section.page-digest')!.cloneNode(true) as HTMLElement
+  const savedArticle = saved.container.querySelector('section.page-digest')!.cloneNode(true) as HTMLElement
+  homeArticle.classList.remove('page-home')
+  homeArticle.querySelector('.run-bar')!.remove()
+  savedArticle.querySelector('.back-link')!.remove()
+  expect(homeArticle.outerHTML).toBe(savedArticle.outerHTML)
+})
 it('shows the latest article and one compact action above its headline without a rail', async () => {
   const { container } = mockPage({ latest: digest })
   expect(await screen.findByRole('heading', { name: 'Technology' })).toBeInTheDocument()

@@ -311,6 +311,48 @@ it('pairs the latest-digest error title with its own failure message', async () 
   expect(alert).toHaveTextContent('Digest history unavailable')
   expect(alert).not.toHaveTextContent('Model settings unavailable')
 })
+
+it.each([
+  ['no_new_content', 8],
+  ['succeeded', 9],
+])('keeps a fetched edition when the next run ends %s', async (secondStatus, shownId) => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  let release!: (value: ReturnType<typeof respond>) => void
+  const pending = new Promise<ReturnType<typeof respond>>(resolve => { release = resolve })
+  fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+    if (path === '/api/settings/model') return respond({ key_set: true })
+    if (path === '/api/sources') return respond(sources)
+    if (path === '/api/digests/latest') return respond(digest)
+    if (path === '/api/digest-runs/active') return respond(run)
+    if (path === '/api/digest-runs/1') return respond({ ...run, status: 'succeeded', digest_id: 8 })
+    if (path === '/api/digests/8') return pending
+    if (path === '/api/digest-runs' && options?.method === 'POST') {
+      return respond({ ...run, id: 2, status: 'collecting' })
+    }
+    if (path === '/api/digest-runs/2') return respond({
+      ...run, id: 2, status: secondStatus, digest_id: secondStatus === 'succeeded' ? 9 : null,
+    })
+    if (path === '/api/digests/9') return respond({ ...digest, id: 9,
+      topics: [{ ...digest.topics[0], title: 'Newer edition' }] })
+    throw Error(path)
+  })
+  render(<MemoryRouter><Home/></MemoryRouter>)
+  await screen.findByRole('progressbar')
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/digests/8', undefined))
+  fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
+  await screen.findByRole('progressbar')
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  if (secondStatus === 'succeeded') {
+    expect(await screen.findByRole('heading', { name: 'Newer edition' })).toBeInTheDocument()
+  } else expect(screen.getByRole('status')).toHaveTextContent('No new content')
+  await act(async () => { release(respond({ ...digest, id: 8,
+    topics: [{ ...digest.topics[0], title: 'Fetched edition' }] })); await pending })
+  expect(await screen.findByRole('heading', { name: shownId === 8 ? 'Fetched edition' : 'Newer edition' }))
+    .toBeInTheDocument()
+  expect(document.title).toBe(`Latest · No. ${shownId} · CatchUp`)
+  if (shownId === 9) expect(screen.queryByRole('heading', { name: 'Fetched edition' })).toBeNull()
+})
 it('requests only the latest digest, never the full history list', async () => {
   mockPage()
   await screen.findByRole('heading', { name: 'Generate digest' })

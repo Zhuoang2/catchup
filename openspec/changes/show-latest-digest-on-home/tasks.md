@@ -144,7 +144,7 @@ Notes for this round:
 - [x] 6.3 Load-error title and message mismatch (design D3). When `/digests/latest` and another request both fail, the title says "Could not load the latest digest", but the message comes from whichever request failed first (`Home.tsx:81-86`).
 
   Verify with a failing-first test: `/settings/model` fails with message A and `/digests/latest` fails with message B. The alert shows the latest-digest title with message B.
-- [ ] 6.4 A fetched digest is discarded if another run starts during the fetch (design D5). The fetch effect's cleanup drops the result when `run` changes (`Home.tsx:108-120`). If the next run then finds no new content, the page keeps showing the older digest.
+- [x] 6.4 A fetched digest is discarded if another run starts during the fetch (design D5). The fetch effect's cleanup drops the result when `run` changes (`Home.tsx:108-120`). If the next run then finds no new content, the page keeps showing the older digest.
 
   Verify with failing-first tests (fake timers, deferred fetch):
   - Run 1 succeeds with digest 8, and run 2 starts while `/api/digests/8` is pending. Once the fetch resolves, digest 8 is shown.

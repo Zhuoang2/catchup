@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError, request } from '../api/client'
 import { DigestArticle } from '../components/DigestArticle'
@@ -63,7 +63,16 @@ export default function Home() {
   const [loadError, setLoadError] = useState<{ title: string; message: string } | null>(null)
   const [error, setError] = useState<{ title: string; message: string; source?: 'poll' } | null>(null)
   const [newDigestError, setNewDigestError] = useState<{ id: number; message: string } | null>(null)
+  const mounted = useRef(false)
+  const pendingDigests = useRef(new Set<number>())
+  const shownDigest = useRef(digest)
+  shownDigest.current = digest
   useDocumentTitle(digest ? `Latest · No. ${digest.id}` : 'Latest')
+
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
 
   useEffect(() => {
     let mounted = true
@@ -107,19 +116,20 @@ export default function Home() {
   }, [run?.id, run?.status])
 
   useEffect(() => {
-    if (run?.status !== 'succeeded' || !run.digest_id || digest?.id === run.digest_id) return
-    let mounted = true
-    request<Digest>(`/digests/${run.digest_id}`)
-      .then(result => { if (mounted) {
-        setDigest(result)
+    const id = run?.status === 'succeeded' ? run.digest_id : null
+    if (!id || (digest && digest.id >= id) || pendingDigests.current.has(id)) return
+    pendingDigests.current.add(id)
+    request<Digest>(`/digests/${id}`)
+      .then(result => { if (mounted.current && (!shownDigest.current || result.id > shownDigest.current.id)) {
+        setDigest(previous => !previous || result.id > previous.id ? result : previous)
         setLoadError(previous => previous?.title === 'Could not load the latest digest' ? null : previous)
-        setNewDigestError(null)
+        setNewDigestError(previous => previous?.id === id ? null : previous)
       } })
-      .catch((reason: Error) => { if (mounted) setNewDigestError({
-        id: run.digest_id!, message: reason.message,
+      .catch((reason: Error) => { if (mounted.current && (!shownDigest.current || id > shownDigest.current.id)) setNewDigestError({
+        id, message: reason.message,
       }) })
-    return () => { mounted = false }
-  }, [run?.id, run?.status, run?.digest_id, digest?.id])
+      .finally(() => { pendingDigests.current.delete(id) })
+  }, [run?.status, run?.digest_id, digest?.id])
 
   async function generate() {
     setError(null)

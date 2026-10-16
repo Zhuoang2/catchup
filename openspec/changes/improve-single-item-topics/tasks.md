@@ -92,7 +92,7 @@ Notes for this round:
 - [x] 4.3 Refactor step, with no red test: in `frontend/src/components/DigestArticle.tsx:66-67`, turn the `{ return … }` arrow body that has nothing else in it into an expression body.
 
   Verify: `npm test -- --run` passes with no test changes in this task.
-- [ ] 4.4 Docs:
+- [x] 4.4 Docs:
   - Append a "Review fixes, round 1" section to `docs/process/test-report-improve-single-item-topics.md`, with the re-run commands and their real results, including the axe scan count.
   - In `docs/process/ai-usage-log.md`, correct your entry's false outcome claim "preserved one-column stacking below 900 px". The first version did not; say so, and point to 4.1.
   - Add the Droid session id (`92a71026`) to that entry's heading or prompt line, as the previous Droid entry does, and add one short sentence on this round.

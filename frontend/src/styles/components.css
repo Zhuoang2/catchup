@@ -72,6 +72,7 @@
 .run-bar-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem 1rem; }
 .run-bar .result-meta { color: var(--fg); }
 .run-bar .check-row:last-child { border-bottom: 0; }
+.run-bar .check-list:empty { border-top: 0; }
 .hero { gap: .6rem; }
 .rail-steps { display: grid; gap: .3rem; padding-left: 1.2rem !important; list-style: decimal !important; font-size: .92em; }
 .stepper { display: flex; gap: .5rem; flex-wrap: wrap; }

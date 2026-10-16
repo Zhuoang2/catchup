@@ -228,7 +228,7 @@ Notes for this round:
   - Remove any guard in the digest-fetch effect that 7.2 and 7.5 made redundant.
 
   Verify: `npm test -- --run` passes with no test changes in this task, and `Home.tsx` assigns no `ref.current` during render.
-- [ ] 7.7 No second line during queued or early collecting (design D7). An empty `.check-list` in the run bar keeps its `border-top` (`components.css:88`), 1rem above the bar's `border-bottom`.
+- [x] 7.7 No second line during queued or early collecting (design D7). An empty `.check-list` in the run bar keeps its `border-top` (`components.css:88`), 1rem above the bar's `border-bottom`.
   - Either remove that border for an empty list in the bar, or do not render an empty list there.
 
   Verify with a failing-first test, either in `tokens.test.ts` or as a DOM check in `Home.test.tsx` for a queued run with no source checks.

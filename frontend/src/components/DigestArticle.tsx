@@ -63,8 +63,8 @@ export function DigestArticle({ digest, className = '', before, headEnd }: {
       <div className="digest-body">
         {digest.topics.map((topic, index) =>
           <SectionRow key={index} id={`t${index}`} title={topic.title} overview={topic.overview} lang={lang}>
-            <div className="items">{topic.items.map((item, position) => {
-              return <article key={position} className="item">
+            <div className="items">{topic.items.map((item, position) =>
+              <article key={position} className="item">
                 <p className="item-meta"><KindIcon kind={item.source_kind}/><span>{item.source_name}</span>
                   <SourceTime value={item.published_at}/></p>
                 <h3 className="item-title"><a href={item.link} target="_blank" rel="noopener noreferrer">
@@ -75,7 +75,7 @@ export function DigestArticle({ digest, className = '', before, headEnd }: {
                   ? <p className="summary-unavailable">Summary unavailable</p>
                   : item.summary && <SummaryText text={item.summary} lang={lang}/>}
               </article>
-            })}</div>
+            )}</div>
           </SectionRow>)}
         {groups.length > 0 && <section className={`creator ${!digest.topics.length ? 'creator-only' : ''}`}
           id="creator" tabIndex={-1} aria-labelledby="creator-heading">

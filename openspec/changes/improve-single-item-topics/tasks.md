@@ -89,7 +89,7 @@ Notes for this round:
 - [x] 4.2 Keep the earlier assertions that still apply: no `.item-long`, `.item-short`, or `.item:only-child` rules, and no `border-left` between items. Fold them into the 4.1 test or keep them separately.
 
   Verify: `npm test -- --run`, `npm run build`, and the style audit with its unit test all pass.
-- [ ] 4.3 Refactor step, with no red test: in `frontend/src/components/DigestArticle.tsx:66-67`, turn the `{ return … }` arrow body that has nothing else in it into an expression body.
+- [x] 4.3 Refactor step, with no red test: in `frontend/src/components/DigestArticle.tsx:66-67`, turn the `{ return … }` arrow body that has nothing else in it into an expression body.
 
   Verify: `npm test -- --run` passes with no test changes in this task.
 - [ ] 4.4 Docs:

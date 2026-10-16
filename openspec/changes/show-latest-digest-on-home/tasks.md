@@ -181,3 +181,60 @@ Notes for this round:
   - Change that entry's date to "2026-10-15 to 2026-10-16", and add a short fix-round paragraph to it.
 
   Verify: every command passes, and the report has the actual numbers.
+
+## 7. Review fixes, round 2
+
+Notes for this round:
+- These tasks come from the review of group 6 (`/code-review` and the spec subagent). Each finding was confirmed by a probe test, a mutation, or the code. The user decided on 2026-10-16 how to resolve them. `design.md` D3 (failed load, shared run-state content), D5, and D7 were amended; read those passages first.
+- **Use `diagnosing-bugs`** for 7.1 and 7.2: reproduce each bug with a failing test, then fix, and keep the test.
+- **Use `tdd`** for 7.3–7.5 and 7.7. Task 7.6 is a refactor step: like 6.7, it has no red test, and the existing tests must stay green.
+- Do not edit `proposal.md`, `design.md`, or the spec deltas.
+
+- [ ] 7.1 Restore first-run gating of finished runs (design D3, shared run-state content). Before 6.7, the succeeded, no-new-content, and failed content was gated on `state`, which is `'first-run'` when no model is set. `RunStateContent` now keys on `run.status` alone (`Home.tsx:253`, `:289`).
+  - Reproduction: a run fails, the user clicks "Try again", and the POST returns `model_not_configured`. "Digest generation failed" now stays next to "Set up your model first".
+
+  Verify with failing-first tests, in both layouts:
+  - No-digest layout: a failed run, then that POST. No "Digest generation failed" text or result card remains, and "Set up your model" is the only primary action.
+  - Digest layout: a succeeded run, then that POST. The run bar shows no result line.
+  - A running run's progress still shows in first run, as before 6.7.
+- [ ] 7.2 Hide a new-digest error for an older digest (design D5). The catch handler sets "Could not load the new digest" for digest 8 even when a newer digest is, or is about to be, shown. Two ways this happens:
+  - **Overlapping runs.** Fetch 8 is pending, run 2 starts, fetch 8 fails, and run 2 then saves digest 9. The alert linking to `/digests/8` stays above No. 9.
+  - **Same tick.** Fetch 9 resolves and fetch 8 rejects before the next render, so `shownDigest.current` is stale.
+
+  Fix at render time:
+  - Show the alert only while no digest is shown, or while its id is higher than the shown digest's.
+  - Remove the `shownDigest` ref and its write during render (`Home.tsx:127`). The functional `setDigest` updater keeps the success path ordered.
+
+  Verify with failing-first tests for both cases: after No. 9 is shown, no `role="alert"` and no link to `/digests/8` remain.
+- [ ] 7.3 Make the 6.4 "succeeded" case detect the regression it names. Today it still passes with the lower-id guards removed: digest 8 briefly overwrites 9, and the effect then fetches 9 again.
+
+  Verify:
+  - The test asserts that `/api/digests/9` is requested exactly once.
+  - The test asserts that "Fetched edition" is never rendered after "Newer edition" has been shown.
+  - The test fails when the success-path guard is changed to an unconditional `setDigest(result)`. Name this mutation in the commit message.
+- [ ] 7.4 Cover the no-digest success card. In the pending-fetch test from 6.2, assert the card's content: the "Your digest is ready" heading, the saved items and source count, the token totals, the held notes, and the source checks.
+
+  Verify: the test fails if `HeldNotes` or the token line is removed from the card branch of `RunStateContent`.
+- [ ] 7.5 Record the two kinds of startup load error separately (design D3).
+  - Replace the title-keyed `loadError` with an explicit kind, or with two state values: the latest-digest error and the page-details error.
+  - Remove the three title-string comparisons (`Home.tsx:184`, `:246`, `:281`).
+
+  Verify with failing-first tests:
+  - `/digests/latest` and `/sources` both fail. The no-digest layout shows both alerts: "Could not load the latest digest" with its own message and "View History", and "Could not load some page details" with the sources message.
+  - A run then saves a digest. The run bar shows "Could not load some page details" with the sources message, and no latest-digest alert.
+  - The existing 6.1 and 6.3 tests still pass.
+- [ ] 7.6 Refactor step, with no red test:
+  - Rename the component-level `mounted` ref so that it no longer shares its name with the effects' local `mounted` flags (`Home.tsx:124`, `:136`, `:161`).
+  - Remove any guard in the digest-fetch effect that 7.2 and 7.5 made redundant.
+
+  Verify: `npm test -- --run` passes with no test changes in this task, and `Home.tsx` assigns no `ref.current` during render.
+- [ ] 7.7 No second line during queued or early collecting (design D7). An empty `.check-list` in the run bar keeps its `border-top` (`components.css:88`), 1rem above the bar's `border-bottom`.
+  - Either remove that border for an empty list in the bar, or do not render an empty list there.
+
+  Verify with a failing-first test, either in `tokens.test.ts` or as a DOM check in `Home.test.tsx` for a queued run with no source checks.
+- [ ] 7.8 Re-run the 5.1 checks and append a "Review fixes, round 2" section to `docs/process/test-report-show-latest-digest-on-home.md`, with real results.
+  - Include the axe scan count, and add the missing count for round 1 if you can reconstruct it. Otherwise, say that it was not recorded.
+  - Correct the round 1 statement that 6.7 preserved behavior: it did not in first run, and 7.1 fixed that.
+  - In `docs/process/ai-usage-log.md`, add one short sentence on round 2 to your "Latest digest on Home" entry. Do not change the other entries.
+
+  Verify: every command passes, and the report has the actual numbers.

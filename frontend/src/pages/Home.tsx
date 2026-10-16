@@ -127,7 +127,7 @@ export default function Home() {
   const [error, setError] = useState<{ title: string; message: string; source?: 'poll' } | null>(null)
   const [newDigestError, setNewDigestError] = useState<{ id: number; message: string } | null>(null)
   const pageMounted = useRef(false)
-  const pendingDigests = useRef(new Set<number>())
+  const [pendingDigests] = useState(() => new Set<number>())
   useDocumentTitle(digest ? `Latest · No. ${digest.id}` : 'Latest')
 
   useEffect(() => {
@@ -174,8 +174,8 @@ export default function Home() {
 
   useEffect(() => {
     const id = run?.status === 'succeeded' ? run.digest_id : null
-    if (!id || (digest && digest.id >= id) || pendingDigests.current.has(id)) return
-    pendingDigests.current.add(id)
+    if (!id || (digest && digest.id >= id) || pendingDigests.has(id)) return
+    pendingDigests.add(id)
     request<Digest>(`/digests/${id}`)
       .then(result => { if (pageMounted.current) {
         setDigest(previous => !previous || result.id > previous.id ? result : previous)
@@ -183,7 +183,7 @@ export default function Home() {
       } })
       .catch((reason: Error) => { if (pageMounted.current) setNewDigestError(previous =>
         !previous || id >= previous.id ? { id, message: reason.message } : previous) })
-      .finally(() => { pendingDigests.current.delete(id) })
+      .finally(() => { pendingDigests.delete(id) })
   }, [run?.status, run?.digest_id, digest?.id])
 
   async function generate() {
@@ -285,7 +285,7 @@ export default function Home() {
       CatchUp summarizes with your own AI model. Add a provider and key in Settings, then add a few sources.
     </Alert>}
     {run && <RunStateContent run={run} compact={false} firstRun={firstRun}
-      loadingNewDigest={!!run.digest_id && !newDigestError} configurationError={configurationError}/>}
+      loadingNewDigest={!!run.digest_id && !visibleNewDigestError} configurationError={configurationError}/>}
     <Rail>{firstRun ? <>
       <section className="rail-box"><h2 className="rail-title">Getting started</h2>
         <ol className="rail-steps"><li><Link to="/settings">Set up your model</Link></li>

@@ -259,7 +259,7 @@ Notes for this round:
   - Failing-first tests for a queued run with no source checks, in both layouts: no "Sources" text, and no `.check-list`.
   - The existing source-check tests still pass.
   - `python3 frontend/scripts/check-style-coverage.py` passes.
-- [ ] 8.3 Refactor step, with no red test:
+- [x] 8.3 Refactor step, with no red test:
   - Derive `loadingNewDigest` from `visibleNewDigestError` instead of the raw `newDigestError` (`Home.tsx:288`), so that one rule decides whether the fetch failed.
   - Initialize the `pendingDigests` Set lazily, so that a render no longer builds a Set it throws away (`Home.tsx:129`).
 

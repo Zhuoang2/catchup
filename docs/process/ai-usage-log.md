@@ -749,3 +749,33 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Review fixes (2026-10-16): Claude Code asked Droid to implement review tasks 6.1–6.9 in order, reproduce bugs first, use `tdd` for tests and styling, commit each task, and leave planning artifacts untouched. After Droid stopped because a purely structural refactor could not have a failing behavior test, Claude Code amended 6.7 (commit c5c9fbd) to use the existing Home tests as its safety net and asked Droid to continue. Regression tests reproduced stale alerts, duplicate first-digest actions, mismatched error text, and an overlapping-fetch race before fixes. Stronger success tests required the article to load; a Home/History comparison checked identical reading markup. The shared run-state refactor kept 49 Home tests green. A CSS test failed before the redundant and double rules were removed. The backend timestamp-order test passed immediately because the API already sorted correctly. Removing `.hero-last` made the style audit fail against an archived prototype; Droid documented the prototype-only exception rather than restoring dead app CSS. Final checks: 362 backend tests (96% coverage), 152 frontend tests, build, style audit, strict OpenSpec validation, and local Docker build passed. Live browser and real-run checks remain for review; no push, tag, or PR was made.
 - Review fixes, round 2 (2026-10-16): Claude Code's review found the first-run regression and stale alert races; Droid reproduced and fixed them, strengthened mutation-sensitive tests, separated startup errors, and passed 362 backend tests, 159 frontend tests (58 axe scans), build, style audit, strict validation, and local Docker build.
 - Review fixes, round 3 (2026-10-16): Claude Code asked Droid to fix the higher-id error race and empty queued-source labels, then refactor and recheck; failing-first tests reproduced both bugs, and 362 backend tests, 162 frontend tests (58 axe scans), build, style audit, strict validation, and Docker build passed.
+
+## 2026-10-16 — `show-latest-digest-on-home` (#27): review of the Droid run and three fix rounds (Claude Code, Opus 5.5, with one spec-review subagent; Factory Droid session `21b6d3aa`)
+
+- Process: the fixed review step (D-016) ran after every Droid run.
+  - `/code-review` on the run's diff.
+  - An independent spec subagent that had not seen the design discussion. The same agent was resumed each round, so it could check earlier findings.
+  - Claude verified every finding with a probe test, a mutation, or the code before anything changed.
+  - Live checks ran on a local review instance with a stub model and public feeds.
+- Round 1 (groups 1–5):
+  - 9 findings were confirmed and none rejected. Examples: a stale startup error re-announced after the swap, a leftover "View digest" in the first-digest card, three success tests that passed in the fetch-error state, an in-flight swap dropped by a new run, and a spec scenario that ignored the back link.
+  - Live checks passed: the in-place swap kept focus, made no `focus()` calls and no scroll, and announced once; the 1440/900/420 px layouts were fine.
+  - Claude asked four questions. The user replied "As you recommend" (translated). Claude amended design D3/D5/D7 and the "Same digest in both places" scenario, and added task group 6.
+- Prompt to Droid (faithful excerpt): "Implement 6.1-6.9 in order with the openspec-apply-change skill: diagnosing-bugs for 6.1-6.4 and tdd for 6.5-6.8, always writing the failing test first. Check off each task only after its verification passes. … If a task is blocked or the plan looks wrong, stop and report instead of improvising."
+- Problem: Droid stopped at 6.7, a pure refactor that the plan had put under `tdd`'s red-first rule. Droid was right, and the plan was Claude's error.
+  - Adjustment: Claude marked 6.7 as `tdd`'s refactor step, with the existing tests as its safety net (commit c5c9fbd), and resumed Droid.
+  - Later plans label refactor tasks explicitly (7.6, 8.3).
+- Round 2 (group 6):
+  - The 6.7 refactor had changed first-run behavior while all 49 Home tests passed; a probe test showed it.
+  - The spec subagent's mutations showed that one 6.4 test could not detect the regression it named.
+  - Also found: a stale-alert race, the no-digest success card left without coverage, and a lost second startup error.
+  - Droid's log entry attributed Claude's prompts to the user. Claude corrected it.
+  - The user replied "As you recommend" (translated) → group 7.
+- Round 3 (group 7): mutations confirmed each fix, and four low items remained. The user chose "As you recommend, one more small round" (translated) → group 8.
+- Round 4 (group 8):
+  - Mutations and failing-first runs confirmed both fixes. A probe of zero-check runs in both layouts found no regression.
+  - One optional item remains: a mutable Set held in `useState`. Both reviewers rated it low, and it was left as is.
+  - Live checks passed: no empty "Sources" label while checking, and a real run swapped No. 2 for No. 3 in place.
+- Lessons:
+  - Before a refactor, check that its safety net still covers the code being moved. Here, 6.5 had weakened it.
+  - A verification claim counts only if the test fails under a mutation of the fix. The spec subagent now mutation-tests the claims.

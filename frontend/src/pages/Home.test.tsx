@@ -337,10 +337,48 @@ it('pairs the latest-digest error title with its own failure message', async () 
     throw Error(path)
   })
   render(<MemoryRouter><Home/></MemoryRouter>)
-  const alert = await screen.findByRole('alert')
+  const alerts = await screen.findAllByRole('alert')
+  const alert = alerts[0]
   expect(alert).toHaveTextContent('Could not load the latest digest')
   expect(alert).toHaveTextContent('Digest history unavailable')
   expect(alert).not.toHaveTextContent('Model settings unavailable')
+  expect(alerts[1]).toHaveTextContent('Could not load some page details')
+  expect(alerts[1]).toHaveTextContent('Model settings unavailable')
+})
+
+it('retains page-details failure separately when a failed latest load is replaced', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+    if (path === '/api/settings/model') return respond({ key_set: true })
+    if (path === '/api/sources') return respond({
+      error: { code: 'request_failed', message: 'Sources unavailable' },
+    }, 503)
+    if (path === '/api/digests/latest') return respond({
+      error: { code: 'request_failed', message: 'Digest history unavailable' },
+    }, 503)
+    if (path === '/api/digest-runs/active') return respond(null)
+    if (path === '/api/digest-runs' && options?.method === 'POST') return respond(run)
+    if (path === '/api/digest-runs/1') return respond({ ...run, status: 'succeeded', digest_id: 8 })
+    if (path === '/api/digests/8') return respond({ ...digest, id: 8 })
+    throw Error(path)
+  })
+  render(<MemoryRouter><Home/></MemoryRouter>)
+  const alerts = await screen.findAllByRole('alert')
+  expect(alerts).toHaveLength(2)
+  expect(alerts[0]).toHaveTextContent('Could not load the latest digest')
+  expect(alerts[0]).toHaveTextContent('Digest history unavailable')
+  expect(within(alerts[0]).getByRole('link', { name: 'View History' })).toHaveAttribute('href', '/digests')
+  expect(alerts[1]).toHaveTextContent('Could not load some page details')
+  expect(alerts[1]).toHaveTextContent('Sources unavailable')
+  fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
+  await screen.findByRole('progressbar')
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  expect(await screen.findByRole('heading', { name: 'Technology' })).toBeInTheDocument()
+  const bar = screen.getByRole('region', { name: 'Digest run' })
+  expect(within(bar).getByRole('alert')).toHaveTextContent('Could not load some page details')
+  expect(within(bar).getByRole('alert')).toHaveTextContent('Sources unavailable')
+  expect(screen.getAllByRole('alert')).toHaveLength(1)
+  expect(screen.queryByText('Could not load the latest digest')).toBeNull()
 })
 
 it.each([

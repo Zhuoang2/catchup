@@ -121,7 +121,8 @@ export default function Home() {
   const [sources, setSources] = useState<Source[] | null>(null)
   const [digest, setDigest] = useState<Digest | null>(null)
   const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState<{ title: string; message: string } | null>(null)
+  const [latestLoadError, setLatestLoadError] = useState<string | null>(null)
+  const [pageDetailsError, setPageDetailsError] = useState<string | null>(null)
   const [error, setError] = useState<{ title: string; message: string; source?: 'poll' } | null>(null)
   const [newDigestError, setNewDigestError] = useState<{ id: number; message: string } | null>(null)
   const mounted = useRef(false)
@@ -146,13 +147,9 @@ export default function Home() {
       if (savedSources.status === 'fulfilled') setSources(savedSources.value)
       if (history.status === 'fulfilled') setDigest(history.value)
       if (current.status === 'fulfilled') setRun(current.value)
-      const failure = history.status === 'rejected' ? history
-        : [settings, savedSources, current].find(result => result.status === 'rejected')
-      if (failure?.status === 'rejected') {
-        setLoadError({ title: history.status === 'rejected'
-          ? 'Could not load the latest digest' : 'Could not load some page details',
-        message: (failure.reason as Error).message })
-      }
+      if (history.status === 'rejected') setLatestLoadError((history.reason as Error).message)
+      const detailsFailure = [settings, savedSources, current].find(result => result.status === 'rejected')
+      if (detailsFailure?.status === 'rejected') setPageDetailsError((detailsFailure.reason as Error).message)
       setLoading(false)
     })
     return () => { mounted = false }
@@ -181,7 +178,7 @@ export default function Home() {
     request<Digest>(`/digests/${id}`)
       .then(result => { if (mounted.current) {
         setDigest(previous => !previous || result.id > previous.id ? result : previous)
-        setLoadError(previous => previous?.title === 'Could not load the latest digest' ? null : previous)
+        setLatestLoadError(null)
         setNewDigestError(previous => previous?.id === id ? null : previous)
       } })
       .catch((reason: Error) => { if (mounted.current) setNewDigestError({
@@ -244,8 +241,8 @@ export default function Home() {
           {sources !== null && <p className="hero-meta">{plural(sources.length, 'source')} ·{' '}
             <Link to="/sources">Manage sources</Link></p>}
         </div>
-        {loadError && loadError.title !== 'Could not load the latest digest' &&
-          <Alert tone="error" title={loadError.title}>{loadError.message}</Alert>}
+        {pageDetailsError && <Alert tone="error" title="Could not load some page details">
+          {pageDetailsError}</Alert>}
         {error && <Alert tone="error" title={error.title}>{error.message}</Alert>}
         {visibleNewDigestError && <Alert tone="error" title="Could not load the new digest"
           actions={<Link to={`/digests/${visibleNewDigestError.id}`}>View digest</Link>}>
@@ -277,9 +274,10 @@ export default function Home() {
         </>}
       </div>
     </PageHead>
-    {loadError && <Alert tone="error" title={loadError.title}
-      actions={loadError.title === 'Could not load the latest digest' && <Link to="/digests">View History</Link>}>
-      {loadError.message}</Alert>}
+    {latestLoadError && <Alert tone="error" title="Could not load the latest digest"
+      actions={<Link to="/digests">View History</Link>}>{latestLoadError}</Alert>}
+    {pageDetailsError && <Alert tone="error" title="Could not load some page details">
+      {pageDetailsError}</Alert>}
     {error && <Alert tone="error" title={error.title}>{error.message}</Alert>}
     {visibleNewDigestError && <Alert tone="error" title="Could not load the new digest"
       actions={<Link to={`/digests/${visibleNewDigestError.id}`}>View digest</Link>}>

@@ -215,7 +215,7 @@ Notes for this round:
 - [x] 7.4 Cover the no-digest success card. In the pending-fetch test from 6.2, assert the card's content: the "Your digest is ready" heading, the saved items and source count, the token totals, the held notes, and the source checks.
 
   Verify: the test fails if `HeldNotes` or the token line is removed from the card branch of `RunStateContent`.
-- [ ] 7.5 Record the two kinds of startup load error separately (design D3).
+- [x] 7.5 Record the two kinds of startup load error separately (design D3).
   - Replace the title-keyed `loadError` with an explicit kind, or with two state values: the latest-digest error and the page-details error.
   - Remove the three title-string comparisons (`Home.tsx:184`, `:246`, `:281`).
 

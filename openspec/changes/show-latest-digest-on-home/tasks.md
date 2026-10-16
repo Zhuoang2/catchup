@@ -123,7 +123,7 @@ Notes for this round:
 - **Use `tdd`** for 6.5–6.8.
 - Do not edit `proposal.md`, `design.md`, or the spec deltas.
 
-- [ ] 6.1 Stale errors in the run bar (design D3, D5). Two bugs:
+- [x] 6.1 Stale errors in the run bar (design D3, D5). Two bugs:
   - The startup alert "Could not load the latest digest" reappears in the run bar as a new `role="alert"` once a run's digest is shown (`Home.tsx:174`).
   - `generate()` does not clear "Could not load the new digest" (`newDigestError`).
 

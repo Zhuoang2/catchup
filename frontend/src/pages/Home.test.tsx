@@ -201,6 +201,65 @@ it('keeps Generate available when the latest digest fails to load', async () => 
   fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
   expect(await screen.findByRole('progressbar')).toBeInTheDocument()
 })
+
+it('drops the startup latest-digest error when a run delivers a digest', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+    if (path === '/api/settings/model') return respond({ key_set: true })
+    if (path === '/api/sources') return respond(sources)
+    if (path === '/api/digests/latest') return respond({
+      error: { code: 'request_failed', message: 'Latest unavailable' },
+    }, 503)
+    if (path === '/api/digest-runs/active') return respond(null)
+    if (path === '/api/digest-runs' && options?.method === 'POST') return respond(run)
+    if (path === '/api/digest-runs/1') return respond({ ...run, status: 'succeeded', digest_id: 8 })
+    if (path === '/api/digests/8') return respond({ ...digest, id: 8 })
+    throw Error(path)
+  })
+  render(<MemoryRouter><Home/></MemoryRouter>)
+  expect(await screen.findByRole('alert')).toHaveTextContent('Could not load the latest digest')
+  fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
+  await screen.findByRole('progressbar')
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  expect(await screen.findByRole('heading', { name: 'Technology' })).toBeInTheDocument()
+  expect(screen.queryByText('Could not load the latest digest')).toBeNull()
+  expect(screen.queryByRole('alert')).toBeNull()
+})
+
+it('clears a failed new-digest fetch when another run is started', async () => {
+  fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+    if (path === '/api/settings/model') return respond({ key_set: true })
+    if (path === '/api/sources') return respond(sources)
+    if (path === '/api/digests/latest') return respond(digest)
+    if (path === '/api/digest-runs/active') return respond({ ...run, status: 'succeeded', digest_id: 8 })
+    if (path === '/api/digests/8') return respond({
+      error: { code: 'not_found', message: 'Missing edition' },
+    }, 404)
+    if (path === '/api/digest-runs' && options?.method === 'POST') return respond({ ...run, id: 2 })
+    throw Error(path)
+  })
+  render(<MemoryRouter><Home/></MemoryRouter>)
+  expect(await screen.findByText('Could not load the new digest')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
+  expect(await screen.findByRole('progressbar')).toBeInTheDocument()
+  expect(screen.queryByText('Could not load the new digest')).toBeNull()
+})
+
+it('keeps other startup request errors in the bar when an article is shown', async () => {
+  fetchMock.mockImplementation(async (path: string) => {
+    if (path === '/api/settings/model') return respond({ key_set: true })
+    if (path === '/api/sources') return respond({
+      error: { code: 'request_failed', message: 'Sources unavailable' },
+    }, 503)
+    if (path === '/api/digests/latest') return respond(digest)
+    if (path === '/api/digest-runs/active') return respond(null)
+    throw Error(path)
+  })
+  render(<MemoryRouter><Home/></MemoryRouter>)
+  expect(await screen.findByRole('heading', { name: 'Technology' })).toBeInTheDocument()
+  expect(screen.getByRole('alert')).toHaveTextContent('Could not load some page details')
+  expect(screen.getByRole('alert')).toHaveTextContent('Sources unavailable')
+})
 it('requests only the latest digest, never the full history list', async () => {
   mockPage()
   await screen.findByRole('heading', { name: 'Generate digest' })

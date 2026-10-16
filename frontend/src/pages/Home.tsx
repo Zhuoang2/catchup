@@ -111,6 +111,7 @@ export default function Home() {
     request<Digest>(`/digests/${run.digest_id}`)
       .then(result => { if (mounted) {
         setDigest(result)
+        setLoadError(previous => previous?.title === 'Could not load the latest digest' ? null : previous)
         setNewDigestError(null)
       } })
       .catch((reason: Error) => { if (mounted) setNewDigestError({
@@ -121,6 +122,7 @@ export default function Home() {
 
   async function generate() {
     setError(null)
+    setNewDigestError(null)
     try {
       setRun(await request<Run>('/digest-runs', { method: 'POST' }))
     } catch (reason) {
@@ -171,7 +173,8 @@ export default function Home() {
           {sources !== null && <p className="hero-meta">{plural(sources.length, 'source')} ·{' '}
             <Link to="/sources">Manage sources</Link></p>}
         </div>
-        {loadError && <Alert tone="error" title={loadError.title}>{loadError.message}</Alert>}
+        {loadError && loadError.title !== 'Could not load the latest digest' &&
+          <Alert tone="error" title={loadError.title}>{loadError.message}</Alert>}
         {error && <Alert tone="error" title={error.title}>{error.message}</Alert>}
         {newDigestError && <Alert tone="error" title="Could not load the new digest"
           actions={<Link to={`/digests/${newDigestError.id}`}>View digest</Link>}>

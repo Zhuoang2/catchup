@@ -275,12 +275,23 @@ it.each([
     if (path === '/api/settings/model') return respond({ key_set: true })
     if (path === '/api/sources') return respond(sources)
     if (path === '/api/digests/latest') return respond(null)
-    if (path === '/api/digest-runs/active') return respond({ ...run, status: 'succeeded', digest_id: 8 })
+    if (path === '/api/digest-runs/active') return respond({
+      ...run, status: 'succeeded', digest_id: 8, digest_item_count: 16, digest_update_count: 2,
+      waiting_count: 2, deferred_count: 1, prompt_tokens: 15, completion_tokens: 4,
+    })
     if (path === '/api/digests/8') return pending
     throw Error(path)
   })
   const { container } = render(<MemoryRouter><Home/></MemoryRouter>)
   expect(await screen.findByText('Loading the new digest…')).toBeInTheDocument()
+  const card = screen.getByRole('region', { name: 'Digest run' })
+  expect(within(card).getByRole('heading', { name: 'Your digest is ready' })).toBeInTheDocument()
+  expect(card).toHaveTextContent('16 items (14 summarized, 2 in Creator updates) · 3 sources')
+  expect(card).toHaveTextContent('Tokens: 15 in / 4 out')
+  expect(card).toHaveTextContent('2 items waiting for transcripts or captions')
+  expect(card).toHaveTextContent('1 video deferred to the next run')
+  expect(card).toHaveTextContent('News')
+  expect(card).toHaveTextContent('Blog')
   expect(container.querySelectorAll('.btn-primary')).toHaveLength(0)
   expect(screen.queryByRole('link', { name: 'View digest' })).toBeNull()
   await expectAccessible(container)

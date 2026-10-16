@@ -212,7 +212,7 @@ Notes for this round:
   - The test asserts that `/api/digests/9` is requested exactly once.
   - The test asserts that "Fetched edition" is never rendered after "Newer edition" has been shown.
   - The test fails when the success-path guard is changed to an unconditional `setDigest(result)`. Name this mutation in the commit message.
-- [ ] 7.4 Cover the no-digest success card. In the pending-fetch test from 6.2, assert the card's content: the "Your digest is ready" heading, the saved items and source count, the token totals, the held notes, and the source checks.
+- [x] 7.4 Cover the no-digest success card. In the pending-fetch test from 6.2, assert the card's content: the "Your digest is ready" heading, the saved items and source count, the token totals, the held notes, and the source checks.
 
   Verify: the test fails if `HeldNotes` or the token line is removed from the card branch of `RunStateContent`.
 - [ ] 7.5 Record the two kinds of startup load error separately (design D3).

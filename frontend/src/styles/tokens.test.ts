@@ -164,17 +164,33 @@ function layoutRules(text: string, container: string | null = null): LayoutRule[
       close++
     }
     const body = css.slice(open + 1, close - 1)
-    if (selector.startsWith('@container')) rules.push(...layoutRules(body, selector))
+    if (selector.startsWith('@')) rules.push(...layoutRules(body,
+      selector.startsWith('@container') ? selector : container))
     else rules.push({ selector, body, container })
     start = close
   }
   return rules
 }
 
+function ownedLayoutRules(): (LayoutRule & { file: string })[] {
+  return ['base', 'layout', 'components'].flatMap(name => {
+    const file = `src/styles/${name}.css`
+    return layoutRules(readFileSync(file, 'utf8')).map(rule => ({ ...rule, file }))
+  })
+}
+
+function targetsItemChild(selector: string): boolean {
+  return selector.split(',').some(part =>
+    /(?:^|[\s>+~])\.(?:item-meta|item-title|summary|summary-unavailable)(?=$|[.:[#])/.test(part.trim())
+    || /\.items\s*>\s*\.item\s*>\s*\*(?=$|[.:[#])/.test(part.trim()))
+}
+
 it('places digest headings beside summaries only above 1100px', () => {
-  const rules = layoutRules(readFileSync('src/styles/layout.css', 'utf8'))
-  const wide = rules.filter(rule => rule.container === '@container (width > 1100px)')
-  const outside = rules.filter(rule => rule.container !== '@container (width > 1100px)')
+  const rules = ownedLayoutRules()
+  const wide = rules.filter(rule =>
+    rule.file === 'src/styles/layout.css' && rule.container === '@container (width > 1100px)')
+  const outside = rules.filter(rule =>
+    rule.file === 'src/styles/layout.css' && rule.container !== '@container (width > 1100px)')
   const wideRule = (selector: string) => wide.find(rule => rule.selector.split(',').map(part => part.trim()).includes(selector))?.body
 
   const item = wideRule('.items > .item')
@@ -202,8 +218,21 @@ it('places digest headings beside summaries only above 1100px', () => {
   expect(outsideItems[0].body).not.toMatch(/grid-template-columns|grid-template-rows|column-gap/)
   expect(outsideItems[1].body).toMatch(/border-top:\s*1px solid var\(--border\)/)
   expect(outside.map(rule => rule.body).join(' ')).not.toMatch(/grid-template-rows:\s*auto\s+auto\s+1fr/)
-  expect(outside.filter(rule => /\.items\s*>\s*\.item\s*>\s*\*|\.item-meta|\.item-title|\.summary-unavailable|\.summary\b/.test(rule.selector))
-    .every(rule => !/grid-column:|grid-row:/.test(rule.body))).toBe(true)
+
+  const misplaced = rules.filter(rule => rule.container !== '@container (width > 1100px)' && (
+    (targetsItemChild(rule.selector) && /(?:^|;)\s*grid-(?:column|row)\s*:/i.test(rule.body))
+    || (rule.selector.split(',').some(part => ['.item', '.items > .item'].includes(part.trim()))
+      && /(?:^|;)\s*grid-template-(?:columns|rows)\s*:/i.test(rule.body))
+  ))
+  expect(misplaced.map(rule => `${rule.file}: ${rule.selector}`)).toEqual([])
+})
+
+it('keeps digest items and their headings and summaries free of vertical rules', () => {
+  const rulesWithVerticalBorders = ownedLayoutRules().filter(rule =>
+    (targetsItemChild(rule.selector) || rule.selector.split(',').some(part =>
+      /(?:^|[\s>+~])\.item(?=$|[.:[#])/.test(part.trim())))
+    && /(?:^|;)\s*border(?:-(?:left|right|inline(?:-start|-end)?))?\s*:/i.test(rule.body))
+  expect(rulesWithVerticalBorders.map(rule => `${rule.file}: ${rule.selector}`)).toEqual([])
 })
 
 it('does not size items by length or separate them with a vertical rule', () => {

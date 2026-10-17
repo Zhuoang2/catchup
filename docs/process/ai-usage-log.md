@@ -900,3 +900,9 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - **Plan.**
   - The placement guard and a new vertical-rule guard now read `base.css`, `layout.css`, and `components.css`, the style-audit `OWNED` list.
   - Each guard's red step is a named, temporary CSS mutation. These include the two mutations that the #25 spec subagent found passing every test.
+
+## 2026-10-16 — `guard-digest-item-layout-css` implementation (Factory Droid, GPT-6 Sol; session `49b78a6b-b70b-44e4-af4e-d30d52602065`)
+
+- Prompt (faithful excerpt): "Implement OpenSpec change guard-digest-item-layout-css using the openspec-apply-change skill. Work through ... tasks.md in order with the tdd skill. These guards must pass on today's CSS, so each red step is the named temporary CSS mutation in the task: apply it, watch the test fail, revert it, watch it pass, and never commit a mutation. Name each mutation and its result in the commit message. Check off each task only after its verification passes. Do not edit proposal.md. Commit after the task group. Do not push, tag, or open a PR."
+- Outcome: Extended the placement guard to all three owned CSS files with file-and-selector diagnostics and added a vertical-border guard. All six named CSS mutations failed their guard and passed again after reversal. Full frontend checks passed: 165 tests in 13 files, TypeScript/Vite build (41 modules), and style coverage (0 uncovered prototype selectors). The red/green table and check results are in `test-report-guard-digest-item-layout-css.md`.
+- Problems / adjustment: The fresh worktree lacked frontend dependencies, so installed them from the lockfile with `npm ci` (0 reported vulnerabilities). Kept all mutations temporary; no CSS or runtime files changed in the final diff. No browser geometry check was performed.

@@ -12,7 +12,7 @@ Implementer notes:
 
 ## 1. Guards over all owned style files
 
-- [ ] 1.1 In `frontend/src/styles/tokens.test.ts`, reuse `layoutRules` to parse `src/styles/base.css`, `src/styles/layout.css`, and `src/styles/components.css`. These are the `OWNED` files in `frontend/scripts/check-style-coverage.py`. Keep track of which file each rule came from.
+- [x] 1.1 In `frontend/src/styles/tokens.test.ts`, reuse `layoutRules` to parse `src/styles/base.css`, `src/styles/layout.css`, and `src/styles/components.css`. These are the `OWNED` files in `frontend/scripts/check-style-coverage.py`. Keep track of which file each rule came from.
   - In the placement guard, check every file instead of only `layout.css`, using this rule: outside `@container (width > 1100px)`, no rule whose selector targets `.item-meta`, `.item-title`, `.summary`, `.summary-unavailable`, or `.items > .item > *` may set `grid-column` or `grid-row`.
   - Outside that query, no rule whose selector is `.item` or `.items > .item` may set `grid-template-columns` or `grid-template-rows`.
   - On a failure, name the file and the selector.
@@ -23,7 +23,7 @@ Implementer notes:
     - `components.css` `.summary` gets `grid-column: 2`
     - `components.css` `.item` gets `grid-template-columns: 1fr 1fr`
     - `base.css` gets a new rule `.item-title { grid-row: 3; }`
-- [ ] 1.2 Add a vertical-rule guard in `frontend/src/styles/tokens.test.ts`. Across the three files, no rule whose selector targets `.item`, `.items > .item`, `.item-meta`, `.item-title`, `.summary`, or `.summary-unavailable` may set:
+- [x] 1.2 Add a vertical-rule guard in `frontend/src/styles/tokens.test.ts`. Across the three files, no rule whose selector targets `.item`, `.items > .item`, `.item-meta`, `.item-title`, `.summary`, or `.summary-unavailable` may set:
   - `border-left` or `border-right`
   - `border-inline`, `border-inline-start`, or `border-inline-end`
   - the `border` shorthand
@@ -36,7 +36,7 @@ Implementer notes:
     - `border-left: 1px solid var(--border)` on the wide `.items > .item > .summary, …` rule in `layout.css`
     - `border-right: 1px solid` on the wide `.items > .item` rule in `layout.css`
     - `border: 1px solid` on `.item-title` in `components.css`
-- [ ] 1.3 Run `npm test -- --run` and `npm run build` in `frontend/`, and `python3 frontend/scripts/check-style-coverage.py`.
+- [x] 1.3 Run `npm test -- --run` and `npm run build` in `frontend/`, and `python3 frontend/scripts/check-style-coverage.py`.
   - Append the results and the mutation table to `docs/process/test-report-guard-digest-item-layout-css.md`, a new file.
   - Add your entry, with the Droid session id and a faithful prompt excerpt, to `docs/process/ai-usage-log.md` after the latest entry.
 

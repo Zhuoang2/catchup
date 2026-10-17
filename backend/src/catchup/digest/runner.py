@@ -8,7 +8,7 @@ from datetime import timedelta
 
 from cryptography.fernet import InvalidToken
 from fastapi import FastAPI
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from catchup.collection import check_source
 from catchup.crypto import decrypt_key
@@ -236,9 +236,18 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                 select(SourceCheck).where(SourceCheck.run_id == run_id, SourceCheck.status != "failed")
             ):
                 count = included_by_source[check.source_id]
-                check.status = "new_items" if count else "no_new_items"
-                check.new_count = count
-                session.get(Source, check.source_id).last_check_status = check.status
+                status = "new_items" if count else "no_new_items"
+                changed = session.execute(
+                    update(SourceCheck).where(SourceCheck.id == check.id, SourceCheck.status != "failed")
+                    .values(status=status, new_count=count)
+                    .execution_options(synchronize_session=False)
+                )
+                if changed.rowcount:
+                    session.execute(
+                        update(Source).where(Source.id == check.source_id)
+                        .values(last_check_status=status)
+                        .execution_options(synchronize_session=False)
+                    )
             session.commit()
         if not inputs:
             # No item reaches the model, so the run used no tokens (not "not reported").

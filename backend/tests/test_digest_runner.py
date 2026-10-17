@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import event, select
+from sqlalchemy import event, select, text
 
 from catchup.crypto import encrypt_key
 from catchup.digest.runner import run_digest, start_run
@@ -278,6 +278,62 @@ def test_final_outcomes_are_committed_before_first_summary_call(environment, mon
     result = execute(environment)
     assert result["status"] == "succeeded"
     assert observed == [([("new_items", 1), ("new_items", 1)], ["new_items", "new_items"])]
+
+
+def delete_during_outcome_selection(client, source_id):
+    engine = client.app.state.engine
+    deleted = []
+
+    def on_select(_connection, _cursor, statement, _parameters, _context, _executemany):
+        if "FROM source_checks" not in statement or "source_checks.status !=" not in statement:
+            return
+        deleted.append(source_id)
+        with engine.begin() as connection:
+            connection.execute(text("DELETE FROM sources WHERE id = :id"), {"id": source_id})
+
+    event.listen(engine, "after_cursor_execute", on_select)
+    try:
+        result = execute(client)
+    finally:
+        event.remove(engine, "after_cursor_execute", on_select)
+    assert deleted == [source_id]
+    return result
+
+
+def test_deleted_source_with_pending_item_does_not_fail_outcome_selection(environment, monkeypatch):
+    seed(environment, count=2, sources=2)
+    stub_collection(monkeypatch)
+    result = delete_during_outcome_selection(environment, source_id=1)
+
+    assert result["status"] == "succeeded"
+    assert [(check["source_id"], check["status"]) for check in result["source_checks"]] == [
+        (2, "new_items"),
+    ]
+    assert [(check.source_id, check.new_count) for check in run_checks(environment, result["id"])] == [
+        (2, 1),
+    ]
+    assert [(source["title"], source["last_check_status"]) for source in environment.get("/api/sources").json()] == [
+        ("Source 1", "new_items"),
+    ]
+    assert [row.title for row in all_rows(environment, DigestItem)] == ["Item 1"]
+
+
+def test_deleted_source_without_pending_item_does_not_fail_outcome_selection(environment, monkeypatch):
+    seed(environment, count=1, sources=2)
+    stub_collection(monkeypatch)
+    result = delete_during_outcome_selection(environment, source_id=2)
+
+    assert result["status"] == "succeeded"
+    assert [(check["source_id"], check["status"]) for check in result["source_checks"]] == [
+        (1, "new_items"),
+    ]
+    assert [(check.source_id, check.new_count) for check in run_checks(environment, result["id"])] == [
+        (1, 1),
+    ]
+    assert [(source["title"], source["last_check_status"]) for source in environment.get("/api/sources").json()] == [
+        ("Source 0", "new_items"),
+    ]
+    assert [row.title for row in all_rows(environment, DigestItem)] == ["Item 0"]
 
 
 def test_save_failure_rolls_back_snapshot_and_delivery(environment, monkeypatch):

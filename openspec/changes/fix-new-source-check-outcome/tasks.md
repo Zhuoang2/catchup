@@ -60,7 +60,7 @@ Notes for this round:
 - **Use `diagnosing-bugs`** for 3.1 and **`tdd`** for 3.2.
 - Do not edit `proposal.md`, `design.md`, or the spec deltas.
 
-- [ ] 3.1 A source deleted during the run fails the whole run (design D1).
+- [x] 3.1 A source deleted during the run fails the whole run (design D1).
   - **Cause.** The finalizing loop (`backend/src/catchup/digest/runner.py:235-241`) loads the run's checks and then changes them and their sources through the ORM. If the source is deleted after that SELECT, two things go wrong:
     - `session.get(Source, …)` returns `None`, which raises `AttributeError` when the source had no pending item.
     - The UPDATE of the cascade-deleted check matches 0 rows, which raises `StaleDataError` when the source had a pending item.

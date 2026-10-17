@@ -52,3 +52,15 @@ Each edit was tested alone with `cd frontend && npm test -- --run src/styles/tok
 | `components.css` `.item`: `border-radius: 2px` | Green, allowed radius. | Green. |
 
 No browser geometry check was performed in this round.
+
+## Known limits (accepted at review, 2026-10-16)
+
+The spec subagent found these with temporary mutations after round 1. None appears in today's CSS. The user accepted them rather than running another round.
+
+| Kind | Example | Result |
+| --- | --- | --- |
+| False positive: logical or reset borders on item rules | `border-block-start: 1px solid`, `border-start-start-radius`, `border-left: 0`, `border-collapse` | The vertical-rule guard fails. Only `border-top*`, `border-bottom*`, and `border-radius` are allowed. |
+| False positive: nested functional pseudo-classes | `.badge:not(:is(.summary))`, `.badge:has(:is(.item))` | Counted as targeting the item, so both guards apply. |
+| False positive: `;` inside a string value | `.summary::after { content: "a; border-left: 1px" }` | `properties()` reads the text after the `;` as a property. |
+| Not caught | `.item > *`, `.items > .item > :not(.summary)`, `.items > .item > *:first-child`, `[class~="summary"]` | Not recognized as the item or an item child. |
+| Not checked | Elements inside the summary, such as `.summary li { border-left }` | A documented limit in `proposal.md`. |

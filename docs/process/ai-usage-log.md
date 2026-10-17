@@ -907,3 +907,18 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - Outcome: Extended the placement guard to all three owned CSS files with file-and-selector diagnostics and added a vertical-border guard. All six named CSS mutations failed their guard and passed again after reversal. Full frontend checks passed: 165 tests in 13 files, TypeScript/Vite build (41 modules), and style coverage (0 uncovered prototype selectors). The red/green table and check results are in `test-report-guard-digest-item-layout-css.md`.
 - Problems / adjustment: The fresh worktree lacked frontend dependencies, so installed them from the lockfile with `npm ci` (0 reported vulnerabilities). Kept all mutations temporary; no CSS or runtime files changed in the final diff. No browser geometry check was performed.
 - Review fixes, round 1: After review exposed selector and shorthand gaps, broadened both guards, rechecked all six original and six new red/green mutations plus three green-only edits, and reran the full frontend and style checks.
+
+## 2026-10-16 — `guard-digest-item-layout-css` (#33): review and one fix round (Claude Code, Opus 5.5, with one spec-review subagent; Factory Droid session `2ca2b998`)
+
+- **Process.** After each Droid run, Claude ran `/code-review` and an independent spec subagent. The subagent verified every named mutation in a scratch copy and tried its own. No browser check was needed, because the change only adds tests.
+- **Round 1 (group 1).**
+  - The guards matched the plan's exact list and caught all six named mutations.
+  - Both reviewers found that they matched exact selector strings, a few property names, and only classes at the start of a selector. As a result, `p.summary`, `grid-area`, `border-left-style`, `.items>.item`, and `.topic .item` slipped through, and `.item:hover .badge` caused a false positive.
+  - Droid's log entry again named the Claude Code session id instead of its own (as in #31).
+  - The user replied "As you recommend, one more small round" (translated). Claude amended the proposal: match the rightmost compound of each selector, including `:is()` and `:where()`, and whole property families. Claude also added task group 2.
+- **Prompt to Droid** (faithful excerpt): "Each red step is a named temporary CSS mutation: apply it, watch the test fail, revert it, watch it pass. Also check the listed false-positive edits stay green, and never commit a mutation. Record every mutation and its result in the commit message."
+- **Round 2 (group 2).**
+  - All 12 violation mutations failed, and the 3 false-positive edits stayed green. The subagent reproduced the 15-row table.
+  - The remaining low cases (logical border properties, nested pseudo-classes, and a few universal or attribute selectors) were recorded as known limits in the test report.
+  - The user replied "As you recommend; approve auto-merge, and delete the remote branch after merging" (translated).
+- **Lesson.** Droid reads Claude Code's session id from its environment when it writes its log entry. Future prompts should give Droid its own session id, or Claude should correct the entry at review.

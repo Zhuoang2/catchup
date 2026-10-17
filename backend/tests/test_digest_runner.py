@@ -189,9 +189,8 @@ def test_held_podcast_episode_is_waiting_not_new(environment, monkeypatch):
         item = session.scalar(select(Item))
         item.transcript_status = "waiting"
         item.discovered_at = now - timedelta(days=1)
-        source.last_check_status = "new_items"
         session.commit()
-    stub_collection(monkeypatch)
+    stub_outcomes(monkeypatch, {"Source 0": "new_items"})
     result = execute(environment)
     assert result["status"] == "no_new_content" and result["waiting_count"] == 1
     assert result["source_checks"][0]["status"] == "no_new_items"

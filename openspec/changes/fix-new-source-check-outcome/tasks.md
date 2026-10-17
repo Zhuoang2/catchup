@@ -73,7 +73,7 @@ Notes for this round:
   - The remaining sources get their final outcomes.
   - The deleted source's items are not saved, as in `test_deleted_source_during_grouping_saves_only_surviving_items`.
   - The new tests fail before the fix.
-- [ ] 3.2 Make `test_held_podcast_episode_is_waiting_not_new` detect the bug it names. Today it uses `stub_collection`, which already writes `no_new_items`, so it passes without the fix.
+- [x] 3.2 Make `test_held_podcast_episode_is_waiting_not_new` detect the bug it names. Today it uses `stub_collection`, which already writes `no_new_items`, so it passes without the fix.
   - Switch it to `stub_outcomes({"Source 0": "new_items"})`, as a real check would report for a newly seen episode.
   - Keep its assertions: `no_new_items`, `new_count == 0`, `waiting_count == 1`, and the Sources list.
 

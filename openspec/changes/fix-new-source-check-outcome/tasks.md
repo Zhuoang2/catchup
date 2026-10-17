@@ -51,3 +51,35 @@ Implementer notes:
   Add your entry to `docs/process/ai-usage-log.md`, after the latest entry, with the Droid session id, a faithful prompt excerpt, the outcome, and the problems.
 
   Verify: every command passes, and the report has the actual numbers.
+
+## 3. Review fixes, round 1
+
+Notes for this round:
+- These tasks come from the review of groups 1–2 (`/code-review`, the spec subagent with mutation tests, and a live check on a local instance). Each finding was confirmed.
+- Design D1 has a new "A source deleted during the run" bullet; read it first.
+- **Use `diagnosing-bugs`** for 3.1 and **`tdd`** for 3.2.
+- Do not edit `proposal.md`, `design.md`, or the spec deltas.
+
+- [ ] 3.1 A source deleted during the run fails the whole run (design D1).
+  - **Cause.** The finalizing loop (`backend/src/catchup/digest/runner.py:235-241`) loads the run's checks and then changes them and their sources through the ORM. If the source is deleted after that SELECT, two things go wrong:
+    - `session.get(Source, …)` returns `None`, which raises `AttributeError` when the source had no pending item.
+    - The UPDATE of the cascade-deleted check matches 0 rows, which raises `StaleDataError` when the source had a pending item.
+    - Either way the run ends "Digest generation failed".
+  - **Reproduction.** Use a failing-first test in `backend/tests/test_digest_runner.py`. A SQLAlchemy `after_cursor_execute` hook, or an equivalent seam, deletes a source right after the finalizing SELECT. Write one case for a source with a pending item and one for a source without.
+  - **Fix.** Make the finalizing step skip checks and sources that no longer exist, and write the updates so that a missing row cannot raise.
+
+  Verify:
+  - Both cases end `succeeded` or `no_new_content`, not `failed`.
+  - The remaining sources get their final outcomes.
+  - The deleted source's items are not saved, as in `test_deleted_source_during_grouping_saves_only_surviving_items`.
+  - The new tests fail before the fix.
+- [ ] 3.2 Make `test_held_podcast_episode_is_waiting_not_new` detect the bug it names. Today it uses `stub_collection`, which already writes `no_new_items`, so it passes without the fix.
+  - Switch it to `stub_outcomes({"Source 0": "new_items"})`, as a real check would report for a newly seen episode.
+  - Keep its assertions: `no_new_items`, `new_count == 0`, `waiting_count == 1`, and the Sources list.
+
+  Verify: the test fails when the finalizing block (`runner.py:230-241`) is removed, and passes with it.
+- [ ] 3.3 Docs:
+  - In `docs/process/ai-usage-log.md`, your entry's heading names session `49b78a6b-…`, which is the Claude Code session. Correct it to your Droid session `ec0f2c13`, and add one short sentence on this round.
+  - In `docs/process/test-report-fix-new-source-check-outcome.md`, re-run the backend coverage and record the real counts; the review measured 77 missed statements, not 78. Append a "Review fixes, round 1" section with the re-run results.
+
+  Verify: the log heading names `ec0f2c13`, and the report numbers match a fresh run.

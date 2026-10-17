@@ -32,6 +32,7 @@ See `proposal.md` for the motivation and `research.md` for the code facts.
   - set `status` to `new_items` when the count is above 0, otherwise to `no_new_items`
   - set `new_count` to the count
   - set the source's `last_check_status` to the same value
+- **A source deleted during the run.** It must not fail the run (review, 2026-10-16). Deleting a source cascades to its checks, so checks and sources that no longer exist are skipped. The update must not raise when its row is already gone; for example, use a bulk `UPDATE` by id, not ORM attribute changes on loaded rows. This matches how the save step already tolerates deleted items.
 - **Commit.** All of this commits together with the waiting and deferred counts. It therefore happens before the `no_new_content` return (`runner.py:233-240`), and before the stage moves to summarizing.
 - **Alternative:** compute the final outcome inside `check_source`. Rejected: caption results are known only after `caption_pass`, and the waiting and deferred rules live in `select_pending`. Repeating them in the collector would split one rule across two places.
 

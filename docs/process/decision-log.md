@@ -201,3 +201,19 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - The topic column stays 3 columns wide.
   - Short items take a full row of their own.
   - At 900 px and below, the layout is unchanged. Items stack (source line, title, summary) at 1100 px and below. This was decided after review, when titles wrapped to 4–5 lines in a 191 px heading column at 901 px.
+
+## D-019 A run's per-source outcome means "this run includes something from this source" — accepted (2026-10-16)
+
+- **Decision.** A run reports `new_items` for a source when it includes at least one of that source's items, either summarized or under Creator updates. Where the item came from does not matter:
+  - an entry first seen in this check
+  - an entry recorded when the source was added
+  - an item carried over from an earlier run
+- **Not counted:** items waiting for a transcript or captions, deferred items, and skipped Shorts. The outcome is set in the runner once the run has chosen its items, before summarizing. The labels "New items" and "No new items" stay. Planned as OpenSpec change `fix-new-source-check-outcome` (issue #31), on the lean path (`/opsx:propose`).
+- **Why.** The outcome described only what the feed check discovered, while the run digests every pending item. A newly added source therefore said "No new items" next to its own items in the digest, found on a local instance during the #27 review. Carried-over items, late transcripts, and skipped Shorts showed the same mismatch.
+- **Alternatives:**
+  - "The source still has pending items." Rejected: a podcast waiting for its transcript would show "New items" on every run while nothing from it appears.
+  - Fix only the first run after adding a source. Rejected: the other mismatches would remain.
+  - Show counts such as "3 new items". Rejected for now: a larger change to the API, the UI, and the tests.
+- **Consequences:**
+  - During collecting, a source with only carried-over items can briefly show "No new items" before its final outcome.
+  - A run that fails after choosing its items keeps `new_items` for those sources.

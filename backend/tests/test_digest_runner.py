@@ -1,11 +1,11 @@
 import threading
 import socket
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import event, select
+from sqlalchemy import event, select, text
 
 from catchup.crypto import encrypt_key
 from catchup.digest.runner import run_digest, start_run
@@ -87,6 +87,29 @@ def stub_collection(monkeypatch, on_check=None):
     monkeypatch.setattr("catchup.digest.runner.check_source", check)
 
 
+def stub_outcomes(monkeypatch, statuses):
+    def check(session, source, run_id, _settings, *, spacer=None, transcripts=None):
+        status = statuses[source.title]
+        row = SourceCheck(
+            run_id=run_id, source_id=source.id, status=status,
+            entries_seen=1 if status == "new_items" else 0,
+            new_count=1 if status == "new_items" else 0,
+            error="feed unavailable" if status == "failed" else None,
+        )
+        source.last_check_status = status
+        session.add(row)
+        session.commit()
+        return row
+    monkeypatch.setattr("catchup.digest.runner.check_source", check)
+
+
+def run_checks(client, run_id):
+    with client.app.state.session_factory() as session:
+        return session.scalars(
+            select(SourceCheck).where(SourceCheck.run_id == run_id).order_by(SourceCheck.source_id)
+        ).all()
+
+
 def all_rows(client, model):
     with client.app.state.session_factory() as session:
         return session.scalars(select(model)).all()
@@ -128,8 +151,188 @@ def test_group_failure_preserves_pending_and_retry_uses_cached_summary(environme
     environment.app.state.model_client_factory = lambda *_: retry
     succeeded = execute(environment)
     assert succeeded["status"] == "succeeded"
+    assert succeeded["source_checks"][0]["status"] == "new_items"
+    assert run_checks(environment, succeeded["id"])[0].new_count == 1
     assert len(retry.calls) == 1
     assert all_rows(environment, DigestItem)[0].summary == "Cached"
+
+
+def test_carried_over_item_sets_final_outcome_in_run_and_sources(environment, monkeypatch):
+    seed(environment)
+    stub_outcomes(monkeypatch, {"Source 0": "no_new_items"})
+    result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert result["source_checks"][0]["status"] == "new_items"
+    assert run_checks(environment, result["id"])[0].new_count == 1
+    assert environment.get("/api/sources").json()[0]["last_check_status"] == "new_items"
+
+
+def test_only_source_with_included_item_reports_new_items(environment, monkeypatch):
+    seed(environment, count=1, sources=2)
+    stub_outcomes(monkeypatch, {"Source 0": "no_new_items", "Source 1": "no_new_items"})
+    result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert [check["status"] for check in result["source_checks"]] == ["new_items", "no_new_items"]
+    assert [check.new_count for check in run_checks(environment, result["id"])] == [1, 0]
+    assert [source["last_check_status"] for source in environment.get("/api/sources").json()] == [
+        "new_items", "no_new_items",
+    ]
+
+
+def test_held_podcast_episode_is_waiting_not_new(environment, monkeypatch):
+    seed(environment)
+    now = datetime(2026, 10, 10, tzinfo=timezone.utc)
+    monkeypatch.setattr("catchup.digest.runner.utc_now", lambda: now)
+    with environment.app.state.session_factory() as session:
+        source = session.scalar(select(Source))
+        source.kind = "podcast"
+        item = session.scalar(select(Item))
+        item.transcript_status = "waiting"
+        item.discovered_at = now - timedelta(days=1)
+        session.commit()
+    stub_outcomes(monkeypatch, {"Source 0": "new_items"})
+    result = execute(environment)
+    assert result["status"] == "no_new_content" and result["waiting_count"] == 1
+    assert result["source_checks"][0]["status"] == "no_new_items"
+    assert run_checks(environment, result["id"])[0].new_count == 0
+    assert environment.get("/api/sources").json()[0]["last_check_status"] == "no_new_items"
+
+
+def test_skipped_short_recorded_as_new_is_not_included(environment, monkeypatch):
+    seed(environment)
+    with environment.app.state.session_factory() as session:
+        session.scalar(select(Source)).kind = "youtube"
+        item = session.scalar(select(Item))
+        item.link = "https://www.youtube.com/shorts/short-id"
+        item.state = "baseline"
+        session.commit()
+    stub_outcomes(monkeypatch, {"Source 0": "new_items"})
+    result = execute(environment)
+    assert result["status"] == "no_new_content"
+    assert result["source_checks"][0]["status"] == "no_new_items"
+    assert run_checks(environment, result["id"])[0].new_count == 0
+    assert environment.get("/api/sources").json()[0]["last_check_status"] == "no_new_items"
+
+
+def test_failed_check_keeps_error_even_when_item_is_included(environment, monkeypatch):
+    seed(environment, count=1, sources=2)
+    stub_outcomes(monkeypatch, {"Source 0": "failed", "Source 1": "new_items"})
+    result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert [(check["status"], check["error"]) for check in result["source_checks"]] == [
+        ("failed", "feed unavailable"), ("no_new_items", None),
+    ]
+    assert [check.new_count for check in run_checks(environment, result["id"])] == [0, 0]
+    assert [source["last_check_status"] for source in environment.get("/api/sources").json()] == [
+        "failed", "no_new_items",
+    ]
+
+
+def test_check_that_saw_item_but_has_nothing_pending_reports_no_new_content(environment, monkeypatch):
+    seed(environment, count=0)
+    stub_outcomes(monkeypatch, {"Source 0": "new_items"})
+    result = execute(environment)
+    assert result["status"] == "no_new_content"
+    assert result["source_checks"][0]["status"] == "no_new_items"
+    assert run_checks(environment, result["id"])[0].new_count == 0
+    assert environment.get("/api/sources").json()[0]["last_check_status"] == "no_new_items"
+
+
+def test_creator_updates_count_toward_their_source_outcome(environment, monkeypatch):
+    seed(environment, count=3, sources=2)
+    with environment.app.state.session_factory() as session:
+        episode = session.scalar(select(Item).where(Item.source_id == 2))
+        episode.transcript_status = "no_transcript"
+        session.commit()
+    stub_collection(monkeypatch)
+    result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert [(check.status, check.new_count) for check in run_checks(environment, result["id"])] == [
+        ("new_items", 2), ("new_items", 1),
+    ]
+    assert [check["status"] for check in result["source_checks"]] == ["new_items", "new_items"]
+    assert result["digest_update_count"] == 1
+
+
+def test_final_outcomes_are_committed_before_first_summary_call(environment, monkeypatch):
+    seed(environment, count=2, sources=2)
+    stub_collection(monkeypatch)
+    observed = []
+    first_call = threading.Lock()
+
+    class InspectingModel(FakeModel):
+        def chat_json(self, messages, max_tokens):
+            with first_call:
+                if not observed:
+                    with environment.app.state.session_factory() as session:
+                        checks = session.scalars(select(SourceCheck).order_by(SourceCheck.source_id)).all()
+                        sources = session.scalars(select(Source).order_by(Source.id)).all()
+                        observed.append((
+                            [(check.status, check.new_count) for check in checks],
+                            [source.last_check_status for source in sources],
+                        ))
+            return super().chat_json(messages, max_tokens)
+
+    environment.app.state.model_client_factory = lambda *_: InspectingModel()
+    result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert observed == [([("new_items", 1), ("new_items", 1)], ["new_items", "new_items"])]
+
+
+def delete_during_outcome_selection(client, source_id):
+    engine = client.app.state.engine
+    deleted = []
+
+    def on_select(_connection, _cursor, statement, _parameters, _context, _executemany):
+        if "FROM source_checks" not in statement or "source_checks.status !=" not in statement:
+            return
+        deleted.append(source_id)
+        with engine.begin() as connection:
+            connection.execute(text("DELETE FROM sources WHERE id = :id"), {"id": source_id})
+
+    event.listen(engine, "after_cursor_execute", on_select)
+    try:
+        result = execute(client)
+    finally:
+        event.remove(engine, "after_cursor_execute", on_select)
+    assert deleted == [source_id]
+    return result
+
+
+def test_deleted_source_with_pending_item_does_not_fail_outcome_selection(environment, monkeypatch):
+    seed(environment, count=2, sources=2)
+    stub_collection(monkeypatch)
+    result = delete_during_outcome_selection(environment, source_id=1)
+
+    assert result["status"] == "succeeded"
+    assert [(check["source_id"], check["status"]) for check in result["source_checks"]] == [
+        (2, "new_items"),
+    ]
+    assert [(check.source_id, check.new_count) for check in run_checks(environment, result["id"])] == [
+        (2, 1),
+    ]
+    assert [(source["title"], source["last_check_status"]) for source in environment.get("/api/sources").json()] == [
+        ("Source 1", "new_items"),
+    ]
+    assert [row.title for row in all_rows(environment, DigestItem)] == ["Item 1"]
+
+
+def test_deleted_source_without_pending_item_does_not_fail_outcome_selection(environment, monkeypatch):
+    seed(environment, count=1, sources=2)
+    stub_collection(monkeypatch)
+    result = delete_during_outcome_selection(environment, source_id=2)
+
+    assert result["status"] == "succeeded"
+    assert [(check["source_id"], check["status"]) for check in result["source_checks"]] == [
+        (1, "new_items"),
+    ]
+    assert [(check.source_id, check.new_count) for check in run_checks(environment, result["id"])] == [
+        (1, 1),
+    ]
+    assert [(source["title"], source["last_check_status"]) for source in environment.get("/api/sources").json()] == [
+        ("Source 0", "new_items"),
+    ]
+    assert [row.title for row in all_rows(environment, DigestItem)] == ["Item 0"]
 
 
 def test_save_failure_rolls_back_snapshot_and_delivery(environment, monkeypatch):

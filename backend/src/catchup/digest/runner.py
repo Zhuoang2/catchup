@@ -2,12 +2,13 @@
 
 import logging
 import threading
+from collections import Counter
 from contextlib import closing
 from datetime import timedelta
 
 from cryptography.fernet import InvalidToken
 from fastapi import FastAPI
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from catchup.collection import check_source
 from catchup.crypto import decrypt_key
@@ -226,6 +227,27 @@ def run_digest(app: FastAPI, run_id: int) -> None:
             run = session.get(DigestRun, run_id)
             run.waiting_count = waiting
             run.deferred_count = deferred
+            source_ids_by_item = {item.id: item.source_id for item, _ in rows}
+            included_by_source = Counter(
+                [item.source_id for item, _ in ready]
+                + [source_ids_by_item[item_id] for item_id, _ in creator_updates]
+            )
+            for check in session.scalars(
+                select(SourceCheck).where(SourceCheck.run_id == run_id, SourceCheck.status != "failed")
+            ):
+                count = included_by_source[check.source_id]
+                status = "new_items" if count else "no_new_items"
+                changed = session.execute(
+                    update(SourceCheck).where(SourceCheck.id == check.id, SourceCheck.status != "failed")
+                    .values(status=status, new_count=count)
+                    .execution_options(synchronize_session=False)
+                )
+                if changed.rowcount:
+                    session.execute(
+                        update(Source).where(Source.id == check.source_id)
+                        .values(last_check_status=status)
+                        .execution_options(synchronize_session=False)
+                    )
             session.commit()
         if not inputs:
             # No item reaches the model, so the run used no tokens (not "not reported").

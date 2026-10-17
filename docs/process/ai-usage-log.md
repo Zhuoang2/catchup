@@ -832,3 +832,61 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - **Lessons:**
   - A CSS assertion that matches rule text cannot show that a rule wins the cascade. Responsive layouts need a rendered check, or a structure that avoids competing rules.
   - Service workers on review builds cache old CSS. Claude unregistered them before each live check.
+
+## 2026-10-16 — `fix-new-source-check-outcome` (#31): research and lean plan (Claude Code, Opus 5.5, with one Explore subagent)
+
+- Prompts (translated from Chinese):
+  - "Start the research for #31."
+  - After the research: "Use opsx."
+- **Research.**
+  - Claude read the confirm, collection, and runner code itself.
+  - A read-only Explore subagent covered the UI labels, the API shapes, the specs, the tests, and the docs. Claude spot-checked its key citations.
+  - The research found three things:
+    - the run's check counts only entries it sees for the first time, while the run digests every pending item
+    - the run JSON carries only the status
+    - an existing end-to-end test, `test_core_flow.py:77-84`, asserts the contradictory pair: 2 items, and "no new items"
+- **Lean plan.** The user chose the `/opsx:propose` path (the `openspec-propose` skill). Before writing, Claude asked two questions, because the answer changes what users see. The user chose:
+  - "New items" means the run includes something from that source.
+  - The labels stay as they are, with no count.
+- **Artifacts.**
+  - `proposal.md`.
+  - A `content-collection` delta: the redefined outcomes, and four new scenarios.
+  - A short `design.md`: the outcome is finalized in the runner after item selection.
+  - A two-group `tasks.md` with failing-first runner tests.
+  - D-019 and a requirements row record the decision.
+- **Problem / adjustment.** The `/opsx:propose` command maps to the `openspec-propose` skill; the first attempt to invoke it under the command's name failed.
+
+## 2026-10-16 — `fix-new-source-check-outcome` implementation (Factory Droid, GPT-6 Sol; session `ec0f2c13`)
+
+- Prompt (faithful excerpt): "Implement OpenSpec change fix-new-source-check-outcome using the openspec-apply-change skill. Work through ... tasks.md in order, completing each task test-first with the tdd skill: write the task's verification items as failing tests and watch them fail, then implement until they pass. Check off each task only after its verification passes. Do not edit proposal.md, design.md, or the spec deltas. Commit after each task group. Do not push, tag, or open a PR."
+- Outcome: Reproduced nine outcome mismatches with failing tests, then finalized each successful source's status and item count after selection and before summarizing; failed checks stay failed. First-run, carry-over, waiting, skipped Short, Creator-update, empty-run, multi-source, and timing cases are covered. Group 1 committed separately. Full backend coverage, frontend tests/build, strict validation, and a local Docker build passed; actual numbers and the unperformed manual check are in `test-report-fix-new-source-check-outcome.md`.
+- Problems / adjustment: The first red run revealed a test indexing typo; corrected it before implementation. Parallel summary calls initially made the before-summary observation test record twice; guarded the observation with a lock. Installed locked dependencies in the new worktree (`uv run` and `npm ci`). Tests did not use a live feed or provider; no remote publication was performed.
+- Review fixes, round 1: Reproduced both deleted-source races before replacing ORM row mutations with missing-row-tolerant updates; strengthened the held-episode test and proved it fails without finalization.
+
+## 2026-10-16 — `fix-new-source-check-outcome` (#31): review and one fix round (Claude Code, Opus 5.5, with one spec-review subagent; Factory Droid session `ec0f2c13`)
+
+- **Process.** The fixed review step (D-016) ran after each Droid run:
+  - `/code-review` on the run's diff.
+  - An independent spec subagent, which mutation-tested the runner change in a scratch copy and probed a source deletion with an SQLAlchemy hook.
+  - Live checks on a fresh local instance from the branch: a stub model and public feeds added through the API.
+- **Round 1 (groups 1–2).**
+  - Live checks passed:
+    - A newly added Python Insider reported "New items" on its first run, with its item in that digest, and "No new items" on the next.
+    - Adding Rust Blog showed "Rust Blog · New items" in the run bar next to its item.
+  - Spec subagent findings:
+    - Deleting a source between item selection and the outcome update failed the whole run, with `AttributeError` or `StaleDataError`.
+    - The held-podcast test passed even without the fix.
+    - Droid's log entry named the Claude Code session id instead of its own.
+    - A coverage count was off by one.
+  - Claude's own finding (a source added mid-run gets items but no outcome) was judged consistent with the new meaning and needed no change.
+  - The user replied "As you recommend, one more small round" (translated). Claude added a D1 bullet on deleted sources and task group 3.
+- **Prompt to Droid** (faithful excerpt): "Read those first. Then implement 3.1-3.3 in order: diagnosing-bugs for 3.1, tdd for 3.2. Write the failing test first where a task asks for one. … If something is blocked or the plan looks wrong, stop and report."
+- **Round 2 (group 3).**
+  - The fix uses bulk `UPDATE` by id, so a deleted row is skipped.
+  - The subagent's deletion probe passes, and the two new tests failed against the previous runner.
+  - Two defensive guards survive mutation, but they are equivalent mutants.
+  - On the restarted instance:
+    - adding Ruby News gave "New items" with its item in the digest
+    - deleting a source during a run no longer failed the run
+  - The user approved the merge: "Approve auto-merge, and delete the remote branch after merging" (translated).
+- **Lesson.** A stub that already produces the expected outcome makes a regression test vacuous. The test should set up the opposite of what the fix produces, as task 3.2 did.

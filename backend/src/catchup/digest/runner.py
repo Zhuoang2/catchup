@@ -2,6 +2,7 @@
 
 import logging
 import threading
+from collections import Counter
 from contextlib import closing
 from datetime import timedelta
 
@@ -226,6 +227,18 @@ def run_digest(app: FastAPI, run_id: int) -> None:
             run = session.get(DigestRun, run_id)
             run.waiting_count = waiting
             run.deferred_count = deferred
+            source_ids_by_item = {item.id: item.source_id for item, _ in rows}
+            included_by_source = Counter(
+                [item.source_id for item, _ in ready]
+                + [source_ids_by_item[item_id] for item_id, _ in creator_updates]
+            )
+            for check in session.scalars(
+                select(SourceCheck).where(SourceCheck.run_id == run_id, SourceCheck.status != "failed")
+            ):
+                count = included_by_source[check.source_id]
+                check.status = "new_items" if count else "no_new_items"
+                check.new_count = count
+                session.get(Source, check.source_id).last_check_status = check.status
             session.commit()
         if not inputs:
             # No item reaches the model, so the run used no tokens (not "not reported").

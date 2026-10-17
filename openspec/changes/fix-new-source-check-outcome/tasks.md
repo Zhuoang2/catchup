@@ -14,7 +14,7 @@ Implementer notes:
 
 ## 1. Final per-source outcomes after the run chooses its items
 
-- [ ] 1.1 Write the failing tests first.
+- [x] 1.1 Write the failing tests first.
   - In `backend/tests/test_core_flow.py:84`, change the first run's expected check from `no_new_items` to `new_items`, because that run includes the 2 entries recorded when the source was added. Keep the second run (`:95`, `no_new_items`) and the third (`:108`, `new_items`) as they are.
   - In `backend/tests/test_digest_runner.py`, add tests. They use `seed`, `execute`, and either `stub_collection` or a variant that writes a chosen status. The seams are:
     - the run JSON's `source_checks[*].status`
@@ -31,7 +31,7 @@ Implementer notes:
     8. **Final before summarizing.** The outcomes are already final when the first summary call is made: a fake model that reads the run's `SourceCheck` rows inside its first summary call sees the final statuses.
 
   Verify: the new and changed tests fail before 1.2.
-- [ ] 1.2 In `backend/src/catchup/digest/runner.py`, implement design D1.
+- [x] 1.2 In `backend/src/catchup/digest/runner.py`, implement design D1.
   - Inside the session that runs `select_pending` (`:211-229`), count each source's included items: the ready items plus the Creator updates, mapping Creator-update item ids to sources through the loaded rows.
   - Update every `SourceCheck` of this run that is not `failed`: set `status` and `new_count`, and set the source's `last_check_status` to the same status.
   - Commit this together with the waiting and deferred counts, before the `no_new_content` return.

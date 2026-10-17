@@ -81,7 +81,7 @@ def test_incremental_api_flow_with_stored_citations(test_settings, monkeypatch):
         first = generate(client)
         assert first["status"] == "succeeded"
         assert (first["items_total"], first["items_done"]) == (2, 2)
-        assert first["source_checks"][0]["status"] == "no_new_items"
+        assert first["source_checks"][0]["status"] == "new_items"
         first_digest = client.get(f"/api/digests/{first['digest_id']}").json()
         first_items = [item for topic in first_digest["topics"] for item in topic["items"]]
         assert {item["link"] for item in first_items} == {

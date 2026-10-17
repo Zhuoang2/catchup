@@ -832,3 +832,26 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - **Lessons:**
   - A CSS assertion that matches rule text cannot show that a rule wins the cascade. Responsive layouts need a rendered check, or a structure that avoids competing rules.
   - Service workers on review builds cache old CSS. Claude unregistered them before each live check.
+
+## 2026-10-16 — `fix-new-source-check-outcome` (#31): research and lean plan (Claude Code, Opus 5.5, with one Explore subagent)
+
+- Prompts (translated from Chinese):
+  - "Start the research for #31."
+  - After the research: "Use opsx."
+- **Research.**
+  - Claude read the confirm, collection, and runner code itself.
+  - A read-only Explore subagent covered the UI labels, the API shapes, the specs, the tests, and the docs. Claude spot-checked its key citations.
+  - The research found three things:
+    - the run's check counts only entries it sees for the first time, while the run digests every pending item
+    - the run JSON carries only the status
+    - an existing end-to-end test, `test_core_flow.py:77-84`, asserts the contradictory pair: 2 items, and "no new items"
+- **Lean plan.** The user chose the `/opsx:propose` path (the `openspec-propose` skill). Before writing, Claude asked two questions, because the answer changes what users see. The user chose:
+  - "New items" means the run includes something from that source.
+  - The labels stay as they are, with no count.
+- **Artifacts.**
+  - `proposal.md`.
+  - A `content-collection` delta: the redefined outcomes, and four new scenarios.
+  - A short `design.md`: the outcome is finalized in the runner after item selection.
+  - A two-group `tasks.md` with failing-first runner tests.
+  - D-019 and a requirements row record the decision.
+- **Problem / adjustment.** The `/opsx:propose` command maps to the `openspec-propose` skill; the first attempt to invoke it under the command's name failed.

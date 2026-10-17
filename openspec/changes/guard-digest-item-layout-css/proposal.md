@@ -10,10 +10,11 @@ Two parts of the digest item layout from `improve-single-item-topics` (#25) have
 ## What Changes
 
 - **Extend the CSS structure guards in `frontend/src/styles/tokens.test.ts`** so they read every owned style file: `base.css`, `layout.css`, and `components.css`, the `OWNED` list in `frontend/scripts/check-style-coverage.py`.
-- **Placement guard.** Outside `@container (width > 1100px)`, no rule in any owned file may:
-  - set `grid-column` or `grid-row` on `.item-meta`, `.item-title`, `.summary`, `.summary-unavailable`, or `.items > .item > *`
-  - set `grid-template-columns` or `grid-template-rows` on `.item` or `.items > .item`
-- **Vertical-rule guard.** In any owned file, no rule for `.item`, `.items > .item`, or the item children may set a border other than `border-top` or `border-bottom`. This covers `border-left`, `border-right`, the `border-inline` family, and the `border` shorthand.
+- **Which rules count.** A rule counts when the rightmost compound of one of its selectors is the item or an item child: it has the class `.item`, `.item-meta`, `.item-title`, `.summary`, or `.summary-unavailable`, including inside `:is()` or `:where()`, or it is the `*` in `.items > .item > *`. Whitespace is normalized first. A rule that only mentions these classes earlier in the selector, such as `.item:hover .badge` or `.summary li`, styles another element and does not count. Elements inside the summary are a known limit. (Amended after review, 2026-10-16.)
+- **Placement guard.** Outside `@container (width > 1100px)`, a counted rule in any owned file must not:
+  - set a placement property on an item child: `grid-area`, `grid-column`, `grid-row`, or their `-start` / `-end` longhands
+  - set a grid template on the item: `grid`, `grid-template`, `grid-template-columns`, `grid-template-rows`, or `grid-template-areas`
+- **Vertical-rule guard.** In any owned file, a counted rule must not set any `border*` property except the `border-top*` and `border-bottom*` families and `border-radius`. This covers `border-left`, `border-right`, the `border-inline` family, their width, style, and color longhands, and the shorthands `border`, `border-width`, `border-style`, and `border-color`.
 - **No change** to CSS, components, behavior, or specs.
 
 ## Capabilities

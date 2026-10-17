@@ -40,7 +40,7 @@ Implementer notes:
 
 ## 2. Integration checks and report
 
-- [ ] 2.1 Run the full checks:
+- [x] 2.1 Run the full checks:
   - `uv run pytest --cov=catchup --cov-report=term` in `backend/` (count and coverage)
   - `npm test -- --run` and `npm run build` in `frontend/` (unchanged, a regression check)
   - `openspec validate fix-new-source-check-outcome --strict`

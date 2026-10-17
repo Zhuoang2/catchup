@@ -179,10 +179,55 @@ function ownedLayoutRules(): (LayoutRule & { file: string })[] {
   })
 }
 
+function splitSelectors(selector: string): string[] {
+  const parts: string[] = []
+  let depth = 0
+  let start = 0
+  for (let i = 0; i < selector.length; i++) {
+    if (selector[i] === '(' || selector[i] === '[') depth++
+    else if (selector[i] === ')' || selector[i] === ']') depth--
+    else if (selector[i] === ',' && depth === 0) {
+      parts.push(selector.slice(start, i).trim())
+      start = i + 1
+    }
+  }
+  parts.push(selector.slice(start).trim())
+  return parts
+}
+
+function rightmostCompound(selector: string): string {
+  let compound = ''
+  let depth = 0
+  for (const char of selector.trim()) {
+    if (char === '(' || char === '[') depth++
+    else if (char === ')' || char === ']') depth--
+    if (depth === 0 && /[\s>+~]/.test(char)) compound = ''
+    else compound += char
+  }
+  return compound
+}
+
+function hasTargetClass(compound: string, classes: string[]): boolean {
+  const direct = compound.replace(/\[[^\]]*\]|:[\w-]+\([^()]*\)/g, '')
+  if ([...direct.matchAll(/\.([\w-]+)/g)].some(([, name]) => classes.includes(name))) return true
+  return [...compound.matchAll(/:(?:is|where)\(([^()]*)\)/g)].some(([, options]) =>
+    splitSelectors(options).some(option => hasTargetClass(rightmostCompound(option), classes)))
+}
+
 function targetsItemChild(selector: string): boolean {
-  return selector.split(',').some(part =>
-    /(?:^|[\s>+~])\.(?:item-meta|item-title|summary|summary-unavailable)(?=$|[.:[#])/.test(part.trim())
-    || /\.items\s*>\s*\.item\s*>\s*\*(?=$|[.:[#])/.test(part.trim()))
+  return splitSelectors(selector).some(part => {
+    const compound = rightmostCompound(part)
+    return hasTargetClass(compound, ['item-meta', 'item-title', 'summary', 'summary-unavailable'])
+      || (compound === '*' && /\.items\s*>\s*\.item\s*>\s*\*$/.test(part))
+  })
+}
+
+function targetsItem(selector: string): boolean {
+  return splitSelectors(selector).some(part => hasTargetClass(rightmostCompound(part), ['item']))
+}
+
+function properties(body: string): string[] {
+  return [...body.matchAll(/(?:^|;)\s*([\w-]+)\s*:/g)].map(([, name]) => name.toLowerCase())
 }
 
 it('places digest headings beside summaries only above 1100px', () => {
@@ -192,6 +237,12 @@ it('places digest headings beside summaries only above 1100px', () => {
   const outside = rules.filter(rule =>
     rule.file === 'src/styles/layout.css' && rule.container !== '@container (width > 1100px)')
   const wideRule = (selector: string) => wide.find(rule => rule.selector.split(',').map(part => part.trim()).includes(selector))?.body
+
+  const misplaced = rules.filter(rule => rule.container !== '@container (width > 1100px)' &&
+    properties(rule.body).some(property =>
+      (targetsItemChild(rule.selector) && /^grid-(?:area|column(?:-(?:start|end))?|row(?:-(?:start|end))?)$/.test(property))
+      || (targetsItem(rule.selector) && /^grid(?:-template(?:-(?:columns|rows|areas))?)?$/.test(property))))
+  expect(misplaced.map(rule => `${rule.file}: ${rule.selector}`)).toEqual([])
 
   const item = wideRule('.items > .item')
   expect(item).toMatch(/grid-template-columns:\s*subgrid/)
@@ -218,20 +269,14 @@ it('places digest headings beside summaries only above 1100px', () => {
   expect(outsideItems[0].body).not.toMatch(/grid-template-columns|grid-template-rows|column-gap/)
   expect(outsideItems[1].body).toMatch(/border-top:\s*1px solid var\(--border\)/)
   expect(outside.map(rule => rule.body).join(' ')).not.toMatch(/grid-template-rows:\s*auto\s+auto\s+1fr/)
-
-  const misplaced = rules.filter(rule => rule.container !== '@container (width > 1100px)' && (
-    (targetsItemChild(rule.selector) && /(?:^|;)\s*grid-(?:column|row)\s*:/i.test(rule.body))
-    || (rule.selector.split(',').some(part => ['.item', '.items > .item'].includes(part.trim()))
-      && /(?:^|;)\s*grid-template-(?:columns|rows)\s*:/i.test(rule.body))
-  ))
-  expect(misplaced.map(rule => `${rule.file}: ${rule.selector}`)).toEqual([])
 })
 
 it('keeps digest items and their headings and summaries free of vertical rules', () => {
   const rulesWithVerticalBorders = ownedLayoutRules().filter(rule =>
-    (targetsItemChild(rule.selector) || rule.selector.split(',').some(part =>
-      /(?:^|[\s>+~])\.item(?=$|[.:[#])/.test(part.trim())))
-    && /(?:^|;)\s*border(?:-(?:left|right|inline(?:-start|-end)?))?\s*:/i.test(rule.body))
+    (targetsItemChild(rule.selector) || targetsItem(rule.selector))
+    && properties(rule.body).some(property =>
+      property.startsWith('border') && !/^border-(?:top|bottom)(?:-|$)/.test(property)
+      && property !== 'border-radius'))
   expect(rulesWithVerticalBorders.map(rule => `${rule.file}: ${rule.selector}`)).toEqual([])
 })
 

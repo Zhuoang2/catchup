@@ -49,7 +49,7 @@ Notes for this round:
 - The `tdd` notes above still apply. Each red step is a named temporary CSS mutation that is never committed.
 - Do not edit `proposal.md`.
 
-- [ ] 2.1 In `frontend/src/styles/tokens.test.ts`, change how both guards decide that a rule targets the item. Use the rightmost compound of each comma-separated selector, after normalizing whitespace, as the amended proposal describes. Widen the matched properties to the full families in the amended proposal. Failure messages still name the file and the selector.
+- [x] 2.1 In `frontend/src/styles/tokens.test.ts`, change how both guards decide that a rule targets the item. Use the rightmost compound of each comma-separated selector, after normalizing whitespace, as the amended proposal describes. Widen the matched properties to the full families in the amended proposal. Failure messages still name the file and the selector.
 
   Verify:
   - Every group-1 mutation still fails the test, and passes again after reverting.

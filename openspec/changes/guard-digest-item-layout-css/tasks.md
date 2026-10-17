@@ -65,7 +65,7 @@ Notes for this round:
     - `components.css`: a new `.summary li { border-left: 1px solid; }`, the documented limit
     - `components.css` `.item`: `border-radius: 2px`
   - Record every mutation and its result in the commit message.
-- [ ] 2.2 Docs:
+- [x] 2.2 Docs:
   - In `docs/process/ai-usage-log.md`, your entry's heading names session `49b78a6b-…`, which is the Claude Code session id. Correct it to your Droid session `2ca2b998`, and add one short sentence on this round.
   - Append a "Review fixes, round 1" section to `docs/process/test-report-guard-digest-item-layout-css.md` with the re-run results (`npm test -- --run`, `npm run build`, the style audit) and the full mutation table, including the green false-positive checks.
 

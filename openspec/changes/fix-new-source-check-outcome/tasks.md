@@ -78,7 +78,7 @@ Notes for this round:
   - Keep its assertions: `no_new_items`, `new_count == 0`, `waiting_count == 1`, and the Sources list.
 
   Verify: the test fails when the finalizing block (`runner.py:230-241`) is removed, and passes with it.
-- [ ] 3.3 Docs:
+- [x] 3.3 Docs:
   - In `docs/process/ai-usage-log.md`, your entry's heading names session `49b78a6b-…`, which is the Claude Code session. Correct it to your Droid session `ec0f2c13`, and add one short sentence on this round.
   - In `docs/process/test-report-fix-new-source-check-outcome.md`, re-run the backend coverage and record the real counts; the review measured 77 missed statements, not 78. Append a "Review fixes, round 1" section with the re-run results.
 

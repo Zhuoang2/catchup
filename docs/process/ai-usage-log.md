@@ -890,3 +890,35 @@ Real usage records for the technical spec, alpha reflection, and final report. E
     - deleting a source during a run no longer failed the run
   - The user approved the merge: "Approve auto-merge, and delete the remote branch after merging" (translated).
 - **Lesson.** A stub that already produces the expected outcome makes a regression test vacuous. The test should set up the opposite of what the fix produces, as task 3.2 did.
+
+## 2026-10-16 — `guard-digest-item-layout-css` (#33): lean plan (Claude Code, Opus 5.5)
+
+- Prompt (translated from Chinese): "Move #16 to Done and close it, then start #33."
+- **Housekeeping.** Claude closed #16 (the technical spec, submitted on 2026-10-15) with a note pointing to the final text and the PDF, and moved it to Done.
+- **Path.** #33 only adds tests, so Claude used the lean path (`/opsx:propose`, the `openspec-propose` skill) with `skip_specs: true` and no design document.
+- **Before writing,** Claude checked every owned style file for item-child rules and vertical borders, so that the guards would pass on today's CSS.
+- **Plan.**
+  - The placement guard and a new vertical-rule guard now read `base.css`, `layout.css`, and `components.css`, the style-audit `OWNED` list.
+  - Each guard's red step is a named, temporary CSS mutation. These include the two mutations that the #25 spec subagent found passing every test.
+
+## 2026-10-16 — `guard-digest-item-layout-css` implementation (Factory Droid, GPT-6 Sol; session `2ca2b998`)
+
+- Prompt (faithful excerpt): "Implement OpenSpec change guard-digest-item-layout-css using the openspec-apply-change skill. Work through ... tasks.md in order with the tdd skill. These guards must pass on today's CSS, so each red step is the named temporary CSS mutation in the task: apply it, watch the test fail, revert it, watch it pass, and never commit a mutation. Name each mutation and its result in the commit message. Check off each task only after its verification passes. Do not edit proposal.md. Commit after the task group. Do not push, tag, or open a PR."
+- Outcome: Extended the placement guard to all three owned CSS files with file-and-selector diagnostics and added a vertical-border guard. All six named CSS mutations failed their guard and passed again after reversal. Full frontend checks passed: 165 tests in 13 files, TypeScript/Vite build (41 modules), and style coverage (0 uncovered prototype selectors). The red/green table and check results are in `test-report-guard-digest-item-layout-css.md`.
+- Problems / adjustment: The fresh worktree lacked frontend dependencies, so installed them from the lockfile with `npm ci` (0 reported vulnerabilities). Kept all mutations temporary; no CSS or runtime files changed in the final diff. No browser geometry check was performed.
+- Review fixes, round 1: After review exposed selector and shorthand gaps, broadened both guards, rechecked all six original and six new red/green mutations plus three green-only edits, and reran the full frontend and style checks.
+
+## 2026-10-16 — `guard-digest-item-layout-css` (#33): review and one fix round (Claude Code, Opus 5.5, with one spec-review subagent; Factory Droid session `2ca2b998`)
+
+- **Process.** After each Droid run, Claude ran `/code-review` and an independent spec subagent. The subagent verified every named mutation in a scratch copy and tried its own. No browser check was needed, because the change only adds tests.
+- **Round 1 (group 1).**
+  - The guards matched the plan's exact list and caught all six named mutations.
+  - Both reviewers found that they matched exact selector strings, a few property names, and only classes at the start of a selector. As a result, `p.summary`, `grid-area`, `border-left-style`, `.items>.item`, and `.topic .item` slipped through, and `.item:hover .badge` caused a false positive.
+  - Droid's log entry again named the Claude Code session id instead of its own (as in #31).
+  - The user replied "As you recommend, one more small round" (translated). Claude amended the proposal: match the rightmost compound of each selector, including `:is()` and `:where()`, and whole property families. Claude also added task group 2.
+- **Prompt to Droid** (faithful excerpt): "Each red step is a named temporary CSS mutation: apply it, watch the test fail, revert it, watch it pass. Also check the listed false-positive edits stay green, and never commit a mutation. Record every mutation and its result in the commit message."
+- **Round 2 (group 2).**
+  - All 12 violation mutations failed, and the 3 false-positive edits stayed green. The subagent reproduced the 15-row table.
+  - The remaining low cases (logical border properties, nested pseudo-classes, and a few universal or attribute selectors) were recorded as known limits in the test report.
+  - The user replied "As you recommend; approve auto-merge, and delete the remote branch after merging" (translated).
+- **Lesson.** Droid reads Claude Code's session id from its environment when it writes its log entry. Future prompts should give Droid its own session id, or Claude should correct the entry at review.

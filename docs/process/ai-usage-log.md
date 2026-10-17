@@ -890,3 +890,13 @@ Real usage records for the technical spec, alpha reflection, and final report. E
     - deleting a source during a run no longer failed the run
   - The user approved the merge: "Approve auto-merge, and delete the remote branch after merging" (translated).
 - **Lesson.** A stub that already produces the expected outcome makes a regression test vacuous. The test should set up the opposite of what the fix produces, as task 3.2 did.
+
+## 2026-10-16 — `guard-digest-item-layout-css` (#33): lean plan (Claude Code, Opus 5.5)
+
+- Prompt (translated from Chinese): "Move #16 to Done and close it, then start #33."
+- **Housekeeping.** Claude closed #16 (the technical spec, submitted on 2026-10-15) with a note pointing to the final text and the PDF, and moved it to Done.
+- **Path.** #33 only adds tests, so Claude used the lean path (`/opsx:propose`, the `openspec-propose` skill) with `skip_specs: true` and no design document.
+- **Before writing,** Claude checked every owned style file for item-child rules and vertical borders, so that the guards would pass on today's CSS.
+- **Plan.**
+  - The placement guard and a new vertical-rule guard now read `base.css`, `layout.css`, and `components.css`, the style-audit `OWNED` list.
+  - Each guard's red step is a named, temporary CSS mutation. These include the two mutations that the #25 spec subagent found passing every test.

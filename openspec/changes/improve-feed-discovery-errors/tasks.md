@@ -70,3 +70,53 @@ Implementer notes:
   Add your entry to `docs/process/ai-usage-log.md` after the latest entry, with a faithful prompt excerpt. Leave out the session id; Claude Code adds it at review.
 
   Verify: every command passes, and the report has the actual numbers.
+
+## 5. Fix round 1 (review findings)
+
+Read the amended `design.md` (D1 "Not for the Apple lookup's feed URL", D2 "What counts as an HTTP error" and the precedence list, D3, the D4 bounds, and the two known limits under Risks) and the two new scenarios in `specs/source-management/spec.md` ("Declared feed cannot be fetched" and "Apple Podcasts feed unavailable"). These are confirmed bugs and test gaps from review, so use the `diagnosing-bugs` skill for 5.1–5.2 and `tdd` for the rest: write each check first and watch it fail, unless the task says it may already pass.
+
+- [ ] 5.1 In `backend/tests/test_discovery.py`, add failing tests, using `respx` and the `public_dns` fixture:
+  1. **Declared feed times out.** The page declares one feed, and fetching it raises `httpx.ConnectTimeout`. `discover` raises `feed_unavailable` with `status_code` `None`.
+  2. **Declared feed over the size limit.** With a small `max_feed_bytes`, the declared feed answers 200 with a larger body. `feed_unavailable`, with no status.
+  3. **Declared feed redirect without `Location`.** The declared feed answers 302 with no `Location`. `feed_unavailable`, with no status.
+  4. **Declared feed at a blocked address.** The page declares `https://internal.example/feed.xml`, and a test DNS stub resolves `internal.example` to `10.0.0.1` and every other host to a public address. (The `public_dns` fixture resolves every host, including `127.0.0.1`, to a public address, so it cannot be used here.) `blocked_address` is raised.
+  5. **Precedence.** Each case declares two feeds: 404 and a timeout → `feed_unavailable` 404; a timeout and unparsable content → `not_a_feed`; a blocked address and a timeout → `blocked_address`; a blocked address and 404 → `feed_unavailable` 404.
+  6. **Last status wins.** Two declared feeds answer 404, then 410. `feed_unavailable` with 410.
+  7. **Page status bounds.** The page answers 400, and `/feed` works: the feed is found. The page answers 200 with a body over `max_feed_bytes`: `fetch_failed` with `status_code` 200 is raised, and no probe request is made. The page answers 302 without `Location`: no probe request is made.
+  8. **Apple feed URL unavailable.** Apple's lookup returns `https://host.example/show.xml`, which answers 404, while `https://host.example/feed` would answer a valid feed. `discover` raises `feed_unavailable` with 404, and the `/feed` route is not called.
+  9. **Apple feed URL times out.** The same lookup, and the feed URL times out. `feed_unavailable`, with no status.
+
+  Verify: the new tests fail before 5.2, except any that the report marks as already passing, with the reason.
+- [ ] 5.2 Implement the amended D1 and D2 in `backend/src/catchup/sources/discovery.py`. For the Apple branch, add a keyword-only parameter to `discover` that only the Apple branch passes. Keep `safe_fetch` unchanged.
+
+  Verify: the 5.1 tests pass, and the existing discovery tests still pass.
+- [ ] 5.3 In `backend/tests/test_sources_api.py`, add failing tests:
+  - A preview whose page body exceeds the size limit returns 422 `fetch_failed`, and the JSON has no `http_status` key.
+  - A preview whose declared feed times out returns 422 `feed_unavailable`, with no `http_status` key.
+  - A confirm whose feed re-fetch answers 400 returns 422 `feed_unavailable` with `http_status` 400.
+  - A confirm whose feed re-fetch exceeds the size limit returns 422 `fetch_failed`, with no `http_status` key.
+
+  Verify: the tests for the payload bound fail before 5.4. The report names any test that already passed, with the reason.
+- [ ] 5.4 Implement the amended D3 in `backend/src/catchup/api/sources.py`.
+
+  Verify: the 5.3 tests pass, and `uv run pytest` passes.
+- [ ] 5.5 In `frontend/src/pages/Sources.test.tsx`, add failing tests for the D4 bounds:
+  - `fetch_failed` with 401 gives the refused message, with 410 the not-found message, and with 500 and with 599 the not-responding message.
+  - `fetch_failed` with 499 and with 600 gives the other-status message.
+  - `fetch_failed` with 200 and with 302 gives the unchanged no-status message.
+  - `feed_unavailable` with 200 gives the message without a parenthesis.
+
+  Each case asserts the exact text, including the status number.
+
+  Verify: the cases that today's code gets wrong fail before 5.6. The report names the cases that already passed.
+- [ ] 5.6 Implement the D4 bounds in `frontend/src/pages/Sources.tsx`.
+
+  Verify: the 5.5 tests pass, and `npm test -- --run` and `npm run build` pass.
+- [ ] 5.7 Rerun the full checks from 4.1, and update the documents:
+  - In `docs/process/test-report-improve-feed-discovery-errors.md`, add a "Fix round 1" section with the commands and their real results, and the red-first results of 5.1, 5.3, and 5.5.
+  - Correct the final coverage line of the first run: 1,838 of 1,913 statements, 75 missed.
+  - List the two known limits from design.md Risks.
+  - Update this change's line in `docs/process/coverage-summary.md` with the new numbers.
+  - Add a fix-round entry to `docs/process/ai-usage-log.md` after the latest entry, with a faithful prompt excerpt. Leave out the session id; Claude Code adds it at review.
+
+  Verify: every command passes, and the report has the actual numbers.

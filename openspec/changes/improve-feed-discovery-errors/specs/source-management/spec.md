@@ -69,7 +69,9 @@ When a fetch fails with an HTTP error, the message MUST name the HTTP status:
 - For a missing page (404 or 410), it MUST suggest checking the URL or pasting the feed URL.
 - For a server error (5xx), it MUST suggest trying again later.
 
-A feed that answered an HTTP error MUST be reported as temporarily unavailable, not as a feed that could not be parsed. "Not a parsable feed" MUST be reserved for content that was fetched but could not be parsed.
+Only HTTP error statuses (400 or higher) are named; a fetch that fails for another reason MUST NOT be described with an HTTP status.
+
+A feed that answered an HTTP error, or could not be fetched for another reason, MUST be reported as temporarily unavailable, not as a feed that could not be parsed. This applies to a feed the pasted page declares and to the feed found through Apple's lookup service. "Not a parsable feed" MUST be reserved for content that was fetched but could not be parsed.
 
 #### Scenario: No feed found
 - **WHEN** the pasted page declares no feed, is not a feed itself, and none of the common feed locations returns a feed
@@ -82,6 +84,14 @@ A feed that answered an HTTP error MUST be reported as temporarily unavailable, 
 #### Scenario: Declared feed unavailable
 - **WHEN** the pasted page declares a feed, and fetching that feed answers HTTP 404
 - **THEN** the system reports that the site's feed is temporarily unavailable (HTTP 404), and does not say that the feed could not be parsed
+
+#### Scenario: Declared feed cannot be fetched
+- **WHEN** the pasted page declares a feed, and fetching that feed times out
+- **THEN** the system reports that the site's feed is temporarily unavailable without naming an HTTP status, and does not say that the feed could not be parsed
+
+#### Scenario: Apple Podcasts feed unavailable
+- **WHEN** Apple's lookup service returns a feed URL for the pasted Apple Podcasts URL, and fetching that feed answers HTTP 404
+- **THEN** the system reports that the feed is temporarily unavailable (HTTP 404), and does not preview another feed found elsewhere on that site
 
 #### Scenario: Duplicate source
 - **WHEN** the identified feed URL matches an already saved source

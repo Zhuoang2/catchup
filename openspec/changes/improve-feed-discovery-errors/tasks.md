@@ -90,14 +90,14 @@ Read the amended `design.md` (D1 "Not for the Apple lookup's feed URL", D2 "What
 - [x] 5.2 Implement the amended D1 and D2 in `backend/src/catchup/sources/discovery.py`. For the Apple branch, add a keyword-only parameter to `discover` that only the Apple branch passes. Keep `safe_fetch` unchanged.
 
   Verify: the 5.1 tests pass, and the existing discovery tests still pass.
-- [ ] 5.3 In `backend/tests/test_sources_api.py`, add failing tests:
+- [x] 5.3 In `backend/tests/test_sources_api.py`, add failing tests:
   - A preview whose page body exceeds the size limit returns 422 `fetch_failed`, and the JSON has no `http_status` key.
   - A preview whose declared feed times out returns 422 `feed_unavailable`, with no `http_status` key.
   - A confirm whose feed re-fetch answers 400 returns 422 `feed_unavailable` with `http_status` 400.
   - A confirm whose feed re-fetch exceeds the size limit returns 422 `fetch_failed`, with no `http_status` key.
 
   Verify: the tests for the payload bound fail before 5.4. The report names any test that already passed, with the reason.
-- [ ] 5.4 Implement the amended D3 in `backend/src/catchup/api/sources.py`.
+- [x] 5.4 Implement the amended D3 in `backend/src/catchup/api/sources.py`.
 
   Verify: the 5.3 tests pass, and `uv run pytest` passes.
 - [ ] 5.5 In `frontend/src/pages/Sources.test.tsx`, add failing tests for the D4 bounds:

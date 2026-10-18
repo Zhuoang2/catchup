@@ -467,6 +467,51 @@ def test_confirm_uncached_feed_http_failure_is_unavailable(client):
     assert response.json()["error"]["http_status"] == 404
 
 
+def test_preview_oversized_page_omits_non_error_http_status(client):
+    client.app.state.settings = replace(client.app.state.settings, max_feed_bytes=64)
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/").mock(return_value=httpx.Response(
+            200, content=b"x" * 128, headers={"content-type": "text/html"},
+        ))
+        response = client.post("/api/sources/preview", json={"url": "https://site.example/"})
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "fetch_failed"
+    assert "http_status" not in response.json()["error"]
+
+
+def test_preview_declared_feed_timeout_omits_http_status(client):
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/").mock(return_value=httpx.Response(
+            200, content=(FIXTURES / "declared.html").read_bytes(), headers={"content-type": "text/html"},
+        ))
+        router.get(FEED_URL).mock(side_effect=httpx.ConnectTimeout("timed out"))
+        response = client.post("/api/sources/preview", json={"url": "https://site.example/"})
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "feed_unavailable"
+    assert "http_status" not in response.json()["error"]
+
+
+def test_confirm_uncached_feed_http_400_is_unavailable(client):
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(FEED_URL).mock(return_value=httpx.Response(400))
+        response = client.post("/api/sources", json={"feed_url": FEED_URL})
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "feed_unavailable"
+    assert response.json()["error"]["http_status"] == 400
+
+
+def test_confirm_oversized_feed_omits_non_error_http_status(client):
+    client.app.state.settings = replace(client.app.state.settings, max_feed_bytes=64)
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(FEED_URL).mock(return_value=httpx.Response(
+            200, content=b"x" * 128, headers={"content-type": "application/rss+xml"},
+        ))
+        response = client.post("/api/sources", json={"feed_url": FEED_URL})
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "fetch_failed"
+    assert "http_status" not in response.json()["error"]
+
+
 def test_rate_limited_preview_keeps_retry_after(client):
     with respx.mock(assert_all_mocked=True) as router:
         router.get(FEED_URL).mock(return_value=httpx.Response(429, headers={"retry-after": "120"}))

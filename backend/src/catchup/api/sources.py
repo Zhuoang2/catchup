@@ -33,7 +33,7 @@ def _fetch_error(exc: FetchError) -> AppError:
     details = {}
     if exc.code == "rate_limited":
         details["retry_after"] = exc.retry_after
-    if exc.code in ("fetch_failed", "feed_unavailable") and exc.status_code is not None:
+    if exc.code in ("fetch_failed", "feed_unavailable") and exc.status_code is not None and exc.status_code >= 400:
         details["http_status"] = exc.status_code
     return AppError(exc.code, str(exc), 422, **details)
 

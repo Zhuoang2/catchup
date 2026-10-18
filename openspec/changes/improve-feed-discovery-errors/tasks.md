@@ -100,7 +100,7 @@ Read the amended `design.md` (D1 "Not for the Apple lookup's feed URL", D2 "What
 - [x] 5.4 Implement the amended D3 in `backend/src/catchup/api/sources.py`.
 
   Verify: the 5.3 tests pass, and `uv run pytest` passes.
-- [ ] 5.5 In `frontend/src/pages/Sources.test.tsx`, add failing tests for the D4 bounds:
+- [x] 5.5 In `frontend/src/pages/Sources.test.tsx`, add failing tests for the D4 bounds:
   - `fetch_failed` with 401 gives the refused message, with 410 the not-found message, and with 500 and with 599 the not-responding message.
   - `fetch_failed` with 499 and with 600 gives the other-status message.
   - `fetch_failed` with 200 and with 302 gives the unchanged no-status message.
@@ -109,7 +109,7 @@ Read the amended `design.md` (D1 "Not for the Apple lookup's feed URL", D2 "What
   Each case asserts the exact text, including the status number.
 
   Verify: the cases that today's code gets wrong fail before 5.6. The report names the cases that already passed.
-- [ ] 5.6 Implement the D4 bounds in `frontend/src/pages/Sources.tsx`.
+- [x] 5.6 Implement the D4 bounds in `frontend/src/pages/Sources.tsx`.
 
   Verify: the 5.5 tests pass, and `npm test -- --run` and `npm run build` pass.
 - [ ] 5.7 Rerun the full checks from 4.1, and update the documents:

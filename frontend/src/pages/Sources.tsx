@@ -31,8 +31,9 @@ function describeError(error: unknown) {
     if (error.code === 'rate_limited') {
       return `Rate limited — try again later${error.retryAfter !== null ? ` (about ${error.retryAfter} seconds)` : ''}.`
     }
-    if (error.code === 'fetch_failed' && error.httpStatus !== null) {
-      const status = error.httpStatus
+    const httpStatus = error.httpStatus !== null && error.httpStatus >= 400 ? error.httpStatus : null
+    if (error.code === 'fetch_failed' && httpStatus !== null) {
+      const status = httpStatus
       if (status === 401 || status === 403) {
         return `The site refused the request (HTTP ${status}). If you know its feed URL, paste that instead.`
       }
@@ -45,7 +46,7 @@ function describeError(error: unknown) {
       return `The site answered HTTP ${status}. Check the URL, or paste the site's feed URL.`
     }
     if (error.code === 'feed_unavailable') {
-      return `The site's feed is temporarily unavailable${error.httpStatus !== null ? ` (HTTP ${error.httpStatus})` : ''}. Try again later.`
+      return `The site's feed is temporarily unavailable${httpStatus !== null ? ` (HTTP ${httpStatus})` : ''}. Try again later.`
     }
     return messages[error.code] ?? error.message
   }

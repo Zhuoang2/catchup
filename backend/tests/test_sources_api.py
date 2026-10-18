@@ -436,6 +436,46 @@ def test_fetch_failure(client):
     assert response.json()["error"]["code"] == "fetch_failed"
 
 
+def test_preview_refused_page_without_feed_includes_http_status(client):
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/").mock(return_value=httpx.Response(403))
+        router.get(url__regex=r"https://site\.example/.*").mock(return_value=httpx.Response(404))
+        response = client.post("/api/sources/preview", json={"url": "https://site.example/"})
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "fetch_failed"
+    assert response.json()["error"]["http_status"] == 403
+
+
+def test_preview_declared_feed_failure_includes_http_status(client):
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/").mock(return_value=httpx.Response(
+            200, content=(FIXTURES / "declared.html").read_bytes(), headers={"content-type": "text/html"},
+        ))
+        router.get(FEED_URL).mock(return_value=httpx.Response(404))
+        response = client.post("/api/sources/preview", json={"url": "https://site.example/"})
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "feed_unavailable"
+    assert response.json()["error"]["http_status"] == 404
+
+
+def test_confirm_uncached_feed_http_failure_is_unavailable(client):
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(FEED_URL).mock(return_value=httpx.Response(404))
+        response = client.post("/api/sources", json={"feed_url": FEED_URL})
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "feed_unavailable"
+    assert response.json()["error"]["http_status"] == 404
+
+
+def test_rate_limited_preview_keeps_retry_after(client):
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(FEED_URL).mock(return_value=httpx.Response(429, headers={"retry-after": "120"}))
+        response = client.post("/api/sources/preview", json={"url": FEED_URL})
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "rate_limited"
+    assert response.json()["error"]["retry_after"] == 120
+
+
 @pytest.mark.parametrize("endpoint", ["/api/sources/preview", "/api/sources"])
 def test_rate_limited_preview_or_confirm_has_retry_after(client, endpoint):
     payload = {"url": FEED_URL} if endpoint.endswith("preview") else {"feed_url": FEED_URL}

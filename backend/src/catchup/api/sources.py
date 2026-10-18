@@ -30,7 +30,12 @@ class ConfirmInput(BaseModel):
 
 
 def _fetch_error(exc: FetchError) -> AppError:
-    return AppError(exc.code, str(exc), 422, **({"retry_after": exc.retry_after} if exc.code == "rate_limited" else {}))
+    details = {}
+    if exc.code == "rate_limited":
+        details["retry_after"] = exc.retry_after
+    if exc.code in ("fetch_failed", "feed_unavailable") and exc.status_code is not None:
+        details["http_status"] = exc.status_code
+    return AppError(exc.code, str(exc), 422, **details)
 
 
 def _existing(feed_url: str, session: Session) -> Source | None:
@@ -95,6 +100,10 @@ def confirm(data: ConfirmInput, request: Request, session: Session = Depends(get
             feed_url, max_bytes=request.app.state.settings.max_feed_bytes,
         ))
     except FetchError as exc:
+        if exc.code == "fetch_failed" and exc.status_code is not None and exc.status_code >= 400:
+            raise _fetch_error(FetchError(
+                "feed_unavailable", "The site's feed is temporarily unavailable.", exc.status_code,
+            )) from exc
         raise _fetch_error(exc) from exc
     except FeedParseError as exc:
         raise AppError("not_a_feed", str(exc), 422) from exc

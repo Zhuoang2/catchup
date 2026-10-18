@@ -31,14 +31,14 @@ Implementer notes:
 
 ## 2. API payload (backend)
 
-- [ ] 2.1 In `backend/tests/test_sources_api.py`, add failing tests:
+- [x] 2.1 In `backend/tests/test_sources_api.py`, add failing tests:
   - A preview of a refused page with no feed returns 422 with `{"code": "fetch_failed", "http_status": 403}`.
   - A preview whose declared feed answers 404 returns 422 with `{"code": "feed_unavailable", "http_status": 404}`.
   - A confirm whose feed re-fetch answers 404 (no preview cache) returns 422 with `{"code": "feed_unavailable", "http_status": 404}`.
   - A rate-limited preview still returns `retry_after`, and no `http_status` is required.
 
   Verify: these fail before 2.2.
-- [ ] 2.2 Implement design D3 in `backend/src/catchup/api/sources.py`, in `_fetch_error` and in the confirm error path.
+- [x] 2.2 Implement design D3 in `backend/src/catchup/api/sources.py`, in `_fetch_error` and in the confirm error path.
 
   Verify: the 2.1 tests pass, `uv run pytest` passes, and coverage for `api/sources.py` and `sources/discovery.py` does not drop.
 

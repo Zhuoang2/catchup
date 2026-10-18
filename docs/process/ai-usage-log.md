@@ -1038,3 +1038,19 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - Added session `b045bd00` to Droid's three entries, from the `droid exec` output.
   - Replaced the fix-round-2 prompt excerpt, a paraphrase that was never sent, with an excerpt of the prompt actually sent, and added the model.
 - The user replied "As you recommend; approve auto-merge, and delete the remote branch after merging" (translated).
+
+## 2026-10-18 — `show-attention-sources-after-run` (#38): lean plan (Claude Code, Opus 5.5)
+
+- Prompt (translated from Chinese): "Start, write the lean plan for #38 first."
+- **Investigation.**
+  - `RunStateContent` in `frontend/src/pages/Home.tsx` passes every source check to `SourceChecks` in all run states.
+  - Two spec requirements ask for "each source's check outcome" after a run: `user-interface`, "Main screen shows the latest digest", and `digest-generation`, "No digest when nothing is new".
+  - The Sources page already shows each source's last outcome, including "Rate limited" and "Possible gap".
+- **Plan** (the `openspec-propose` skill):
+  - a proposal;
+  - deltas for both requirements, with three new scenarios (every source fine, some need attention, every checked source shown during a run);
+  - no design document;
+  - one test-first task group on the rendered main screen, and a checks-and-report group.
+- **Choices made during planning,** for the user to confirm:
+  - the shortened list is labeled "Needs attention";
+  - the rule also applies to the result card shown when no digest has been saved yet.

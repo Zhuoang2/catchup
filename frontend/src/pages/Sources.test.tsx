@@ -89,6 +89,31 @@ describe('sources', () => {
     await expectAccessible(container)
   })
 
+  it.each([
+    ['fetch_failed', 403, 'The site refused the request (HTTP 403). If you know its feed URL, paste that instead.'],
+    ['fetch_failed', 404, "The page was not found (HTTP 404). Check the URL, or paste the site's feed URL."],
+    ['fetch_failed', 503, 'The site is not responding (HTTP 503). Try again later.'],
+    ['fetch_failed', 418, "The site answered HTTP 418. Check the URL, or paste the site's feed URL."],
+    ['fetch_failed', null, 'Could not fetch the source. Check the URL and try again.'],
+    ['feed_unavailable', 404, "The site's feed is temporarily unavailable (HTTP 404). Try again later."],
+    ['feed_unavailable', null, "The site's feed is temporarily unavailable. Try again later."],
+  ])('shows the preview error for %s with HTTP status %s', async (code, httpStatus, expected) => {
+    fetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/sources') return respond([])
+      if (path === '/api/sources/preview') return respond({ error: {
+        code, message: 'Backend error',
+        ...(httpStatus === null ? {} : { http_status: httpStatus }),
+      } }, 422)
+      throw new Error(`Unexpected request: ${path}`)
+    })
+    page()
+    fireEvent.change(screen.getByLabelText('Website or feed URL'), {
+      target: { value: saved.feed_url },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    expect((await screen.findByRole('alert')).textContent).toBe(expected)
+  })
+
   it('shows a rate-limited preview with suggested wait', async () => {
     fetchMock.mockImplementation(async (path: string) => path === '/api/sources'
       ? respond([])

@@ -44,14 +44,14 @@ Implementer notes:
 
 ## 3. Messages (frontend)
 
-- [ ] 3.1 In `frontend/src/pages/Sources.test.tsx`, add failing tests for the preview error message. Each case mocks the preview response.
+- [x] 3.1 In `frontend/src/pages/Sources.test.tsx`, add failing tests for the preview error message. Each case mocks the preview response.
   - `fetch_failed` with 403, with 404, with 503, with 418, and without `http_status` (the message is unchanged).
   - `feed_unavailable` with 404, and without a status.
 
   Each case asserts the exact text in design D4, including the status number.
 
   Verify: these fail before 3.2.
-- [ ] 3.2 Implement design D4:
+- [x] 3.2 Implement design D4:
   - `frontend/src/api/client.ts`: `ApiError` reads `http_status` into `httpStatus`.
   - `frontend/src/pages/Sources.tsx`: `describeError` uses it.
 

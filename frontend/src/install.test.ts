@@ -16,6 +16,20 @@ function sizeAt(bytes: Uint8Array, offset: number): number {
 }
 
 describe('install assets', () => {
+  it('declares real SVG and PNG icons for the browser tab', () => {
+    const html = new DOMParser().parseFromString(readFileSync('index.html', 'utf8'), 'text/html')
+    const links = [...html.querySelectorAll('link[rel="icon"]')]
+    const svg = links.find(link => link.getAttribute('href') === '/icon.svg')
+    const png = links.find(link => link.getAttribute('href') === '/icon-192.png')
+
+    expect(svg?.getAttribute('type')).toBe('image/svg+xml')
+    expect(readFileSync('public/icon.svg', 'utf8')).toContain('<svg')
+    expect(png?.getAttribute('type')).toBe('image/png')
+    expect(png?.getAttribute('sizes')).toBe('192x192')
+    expect([...readFileSync('public/icon-192.png').subarray(0, 8)])
+      .toEqual([137, 80, 78, 71, 13, 10, 26, 10])
+  })
+
   it('declares CatchUp and four real PNG icons with correct dimensions', () => {
     const manifest = JSON.parse(readFileSync('public/manifest.webmanifest', 'utf8'))
     expect(manifest).toMatchObject({

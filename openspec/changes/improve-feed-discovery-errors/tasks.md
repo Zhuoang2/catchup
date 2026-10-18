@@ -112,7 +112,7 @@ Read the amended `design.md` (D1 "Not for the Apple lookup's feed URL", D2 "What
 - [x] 5.6 Implement the D4 bounds in `frontend/src/pages/Sources.tsx`.
 
   Verify: the 5.5 tests pass, and `npm test -- --run` and `npm run build` pass.
-- [ ] 5.7 Rerun the full checks from 4.1, and update the documents:
+- [x] 5.7 Rerun the full checks from 4.1, and update the documents:
   - In `docs/process/test-report-improve-feed-discovery-errors.md`, add a "Fix round 1" section with the commands and their real results, and the red-first results of 5.1, 5.3, and 5.5.
   - Correct the final coverage line of the first run: 1,838 of 1,913 statements, 75 missed.
   - List the two known limits from design.md Risks.

@@ -14,7 +14,7 @@ Implementer notes:
 
 ## 1. Discovery (backend)
 
-- [ ] 1.1 In `backend/tests/test_discovery.py`, add failing tests for `discover`, using `respx` and the existing `public_dns` fixture:
+- [x] 1.1 In `backend/tests/test_discovery.py`, add failing tests for `discover`, using `respx` and the existing `public_dns` fixture:
   1. **Refused page, working feed.** The home page answers 403, and `/feed` answers a valid RSS document. `discover` returns that feed.
   2. **Notice from a deeper page.** A deeper path such as `/blog/post` answers 403, and `/feed` works. The returned discovery has the "follows the whole site" notice set.
   3. **Refused page, no feed.** The page answers 403, and every probe answers 404. `discover` raises `FetchError` with code `fetch_failed` and `status_code` 403, not `no_feed`.
@@ -25,7 +25,7 @@ Implementer notes:
   8. **Mixed declared failures.** The page declares two feeds: one answers 404, and one answers 200 with content that is not a feed. `not_a_feed` is raised.
 
   Verify: the new tests fail before 1.2, and existing discovery tests still pass.
-- [ ] 1.2 Implement design D1 and D2 in `backend/src/catchup/sources/discovery.py`.
+- [x] 1.2 Implement design D1 and D2 in `backend/src/catchup/sources/discovery.py`.
 
   Verify: the 1.1 tests pass, and `uv run pytest tests/test_discovery.py` passes.
 

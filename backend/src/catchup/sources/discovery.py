@@ -72,46 +72,67 @@ def discover(url: str, *, cache: FeedCache | None = None, max_feed_bytes: int = 
             cache.put(response)
         return Discovery(feed, notice)
 
-    response = safe_fetch(url, max_bytes=max_feed_bytes)
-    is_feed_type = response.content_type.lower().split(";")[0].strip() in FEED_TYPES
+    page_error = None
     try:
-        feed = parse_feed(response)
-        if feed.entries or is_feed_type:
-            return found_feed(response, False)
-    except FeedParseError:
-        if is_feed_type:
-            raise FetchError("not_a_feed", "The URL did not return a parsable feed.") from None
-    if is_feed_type:
-        raise FetchError("not_a_feed", "The URL did not return a parsable feed.")
-    if "html" not in response.content_type.lower() and not response.content.lstrip().lower().startswith(b"<!doctype html"):
-        raise FetchError("not_a_feed", "The URL did not return a parsable feed.")
+        response = safe_fetch(url, max_bytes=max_feed_bytes)
+    except FetchError as exc:
+        if exc.code != "fetch_failed" or exc.status_code is None or exc.status_code < 400:
+            raise
+        page_error = exc
 
-    links = _Links()
-    links.feed(response.content.decode("utf-8", errors="replace"))
-    deeper_page = urlsplit(response.url).path not in ("", "/")
-    notice = links.is_article
-    if links.feeds:
-        for href in links.feeds:
-            candidate = urljoin(response.url, href)
-            try:
-                return found_feed(safe_fetch(candidate, max_bytes=max_feed_bytes), notice)
-            except FetchError as exc:
-                if exc.code == "rate_limited":
-                    raise
-                continue
-            except FeedParseError:
-                continue
-        raise FetchError("not_a_feed", "The declared feed could not be parsed.")
+    if page_error is None:
+        is_feed_type = response.content_type.lower().split(";")[0].strip() in FEED_TYPES
+        try:
+            feed = parse_feed(response)
+            if feed.entries or is_feed_type:
+                return found_feed(response, False)
+        except FeedParseError:
+            if is_feed_type:
+                raise FetchError("not_a_feed", "The URL did not return a parsable feed.") from None
+        if is_feed_type:
+            raise FetchError("not_a_feed", "The URL did not return a parsable feed.")
+        if "html" not in response.content_type.lower() and not response.content.lstrip().lower().startswith(b"<!doctype html"):
+            raise FetchError("not_a_feed", "The URL did not return a parsable feed.")
+
+        links = _Links()
+        links.feed(response.content.decode("utf-8", errors="replace"))
+        notice = links.is_article
+        if links.feeds:
+            last_http_error = None
+            unparseable = False
+            for href in links.feeds:
+                candidate = urljoin(response.url, href)
+                try:
+                    return found_feed(safe_fetch(candidate, max_bytes=max_feed_bytes), notice)
+                except FetchError as exc:
+                    if exc.code == "rate_limited":
+                        raise
+                    if exc.code == "fetch_failed" and exc.status_code is not None and exc.status_code >= 400:
+                        last_http_error = exc
+                    else:
+                        unparseable = True
+                except FeedParseError:
+                    unparseable = True
+            if last_http_error is not None and not unparseable:
+                raise FetchError("feed_unavailable", "The site's feed is temporarily unavailable.",
+                                 last_http_error.status_code) from last_http_error
+            raise FetchError("not_a_feed", "The declared feed could not be parsed.")
+        probe_url = response.url
+    else:
+        notice = False
+        probe_url = url
+
+    deeper_page = urlsplit(probe_url).path not in ("", "/")
 
     budget = [8]
-    for candidate in _probes(response.url):
-        if _origin(candidate) != _origin(response.url):
+    for candidate in _probes(probe_url):
+        if _origin(candidate) != _origin(probe_url):
             continue
         if not budget[0]:
             break
         try:
             feed_response = safe_fetch(
-                candidate, same_origin=_origin(response.url), budget=budget, max_bytes=max_feed_bytes,
+                candidate, same_origin=_origin(probe_url), budget=budget, max_bytes=max_feed_bytes,
             )
             found = parse_feed(feed_response)
             if found.entries:
@@ -123,4 +144,6 @@ def discover(url: str, *, cache: FeedCache | None = None, max_feed_bytes: int = 
             continue
         except FeedParseError:
             continue
+    if page_error is not None:
+        raise page_error
     raise FetchError("no_feed", "No supported feed was found at this URL.")

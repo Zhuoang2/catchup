@@ -157,7 +157,7 @@ Record each test, its mutation, and the failing result in the report. Read the a
   - `uv run pytest` passes with no test changes.
   - `grep -n ">= 400" backend/src/catchup` shows exactly one match.
   - `grep -n "temporarily unavailable" backend/src/catchup` shows exactly one match.
-- [ ] 6.3 Correct and complete the documents:
+- [x] 6.3 Correct and complete the documents:
   - **Probe count.** In `docs/process/test-report-improve-feed-discovery-errors.md`, the first-run row says "root-path deduplication gives seven", and your first-run entry in `docs/process/ai-usage-log.md` says the same. Both are wrong. `_probes("https://site.example/")` returns eight URLs, and the origin check skips `https://site.example.rss`. Fix the reason in both places.
   - **Coverage depends on the frontend build.** Backend coverage changes by one statement depending on whether `frontend/dist` exists: `main.py` mounts `/assets` only then. State this in the report and in `docs/process/coverage-summary.md`, and compare the runs under the same condition:
     - first run: 1,839/1,913 with `frontend/dist`, and 1,838 without it;
@@ -168,7 +168,7 @@ Record each test, its mutation, and the failing result in the report. Read the a
   - **Known limits.** Add the two new ones from design.md Risks.
 
   Verify: `rg` checks for the corrected sentences, run first as an expected red, then green.
-- [ ] 6.4 Run `npm run build` in `frontend/` first, so that `frontend/dist` exists. Then run:
+- [x] 6.4 Run `npm run build` in `frontend/` first, so that `frontend/dist` exists. Then run:
   - `uv run pytest --cov=catchup --cov-report=term` in `backend/`
   - `npm test -- --run` in `frontend/`
   - `openspec validate improve-feed-discovery-errors --strict`

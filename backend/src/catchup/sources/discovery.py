@@ -13,6 +13,11 @@ from catchup.sources.feeds import Feed, FeedParseError, parse_feed
 FEED_TYPES = ("application/rss+xml", "application/atom+xml")
 COMMON_PATHS = ("/feed", "/rss", "/rss.xml", "/feed.xml", "/atom.xml", "/index.xml")
 APPLE_SHOW = re.compile(r"^https://podcasts\.apple\.com/[a-z]{2}/podcast/[^/]+/id(\d+)$")
+FEED_UNAVAILABLE_MESSAGE = "The site's feed is temporarily unavailable."
+
+
+def http_error_status(exc: FetchError) -> int | None:
+    return exc.status_code if exc.status_code is not None and exc.status_code >= 400 else None
 
 
 class _Links(HTMLParser):
@@ -81,11 +86,10 @@ def discover(url: str, *, cache: FeedCache | None = None, max_feed_bytes: int = 
             if exc.code in ("rate_limited", "blocked_address"):
                 raise
             raise FetchError(
-                "feed_unavailable", "The site's feed is temporarily unavailable.",
-                exc.status_code if exc.code == "fetch_failed" and exc.status_code is not None
-                and exc.status_code >= 400 else None,
+                "feed_unavailable", FEED_UNAVAILABLE_MESSAGE,
+                http_error_status(exc) if exc.code == "fetch_failed" else None,
             ) from exc
-        if exc.code != "fetch_failed" or exc.status_code is None or exc.status_code < 400:
+        if exc.code != "fetch_failed" or http_error_status(exc) is None:
             raise
         page_error = exc
 
@@ -117,7 +121,7 @@ def discover(url: str, *, cache: FeedCache | None = None, max_feed_bytes: int = 
                 except FetchError as exc:
                     if exc.code == "rate_limited":
                         raise
-                    if exc.code == "fetch_failed" and exc.status_code is not None and exc.status_code >= 400:
+                    if exc.code == "fetch_failed" and http_error_status(exc) is not None:
                         last_http_error = exc
                     elif exc.code == "blocked_address":
                         blocked_error = exc
@@ -126,11 +130,11 @@ def discover(url: str, *, cache: FeedCache | None = None, max_feed_bytes: int = 
             if unparseable:
                 raise FetchError("not_a_feed", "The declared feed could not be parsed.")
             if last_http_error is not None:
-                raise FetchError("feed_unavailable", "The site's feed is temporarily unavailable.",
-                                 last_http_error.status_code) from last_http_error
+                raise FetchError("feed_unavailable", FEED_UNAVAILABLE_MESSAGE,
+                                 http_error_status(last_http_error)) from last_http_error
             if blocked_error is not None:
                 raise blocked_error
-            raise FetchError("feed_unavailable", "The site's feed is temporarily unavailable.")
+            raise FetchError("feed_unavailable", FEED_UNAVAILABLE_MESSAGE)
         probe_url = response.url
     else:
         notice = False

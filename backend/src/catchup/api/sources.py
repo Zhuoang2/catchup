@@ -15,7 +15,7 @@ from catchup.models import AppSettings, Item, Source, SourceCheck, utc_now
 from catchup.net.host_spacing import HostSpacer
 from catchup.net.rate_limit import is_rate_limited
 from catchup.net.safe_fetch import FetchError, safe_fetch
-from catchup.sources.discovery import discover
+from catchup.sources.discovery import FEED_UNAVAILABLE_MESSAGE, discover, http_error_status
 from catchup.sources.feeds import FeedParseError, is_short, parse_feed
 
 router = APIRouter(prefix="/api/sources")
@@ -33,8 +33,8 @@ def _fetch_error(exc: FetchError) -> AppError:
     details = {}
     if exc.code == "rate_limited":
         details["retry_after"] = exc.retry_after
-    if exc.code in ("fetch_failed", "feed_unavailable") and exc.status_code is not None and exc.status_code >= 400:
-        details["http_status"] = exc.status_code
+    if exc.code in ("fetch_failed", "feed_unavailable") and (status := http_error_status(exc)) is not None:
+        details["http_status"] = status
     return AppError(exc.code, str(exc), 422, **details)
 
 
@@ -100,9 +100,9 @@ def confirm(data: ConfirmInput, request: Request, session: Session = Depends(get
             feed_url, max_bytes=request.app.state.settings.max_feed_bytes,
         ))
     except FetchError as exc:
-        if exc.code == "fetch_failed" and exc.status_code is not None and exc.status_code >= 400:
+        if exc.code == "fetch_failed" and (status := http_error_status(exc)) is not None:
             raise _fetch_error(FetchError(
-                "feed_unavailable", "The site's feed is temporarily unavailable.", exc.status_code,
+                "feed_unavailable", FEED_UNAVAILABLE_MESSAGE, status,
             )) from exc
         raise _fetch_error(exc) from exc
     except FeedParseError as exc:

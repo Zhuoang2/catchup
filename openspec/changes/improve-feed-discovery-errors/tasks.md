@@ -145,7 +145,7 @@ Record each test, its mutation, and the failing result in the report. Read the a
     9. `fetch_failed` with 400 gives "The site answered HTTP 400. Check the URL, or paste the site's feed URL." Mutation: the D4 bound becomes `> 400`.
 
   Verify: all tests pass on the current code, and each named mutation makes its test fail. Every mutation is reverted (`git diff` shows only test files before 6.2).
-- [ ] 6.2 This is a refactor with the `tdd` skill's refactor step, so it has no red test. Implement design D2 "One bound":
+- [x] 6.2 This is a refactor with the `tdd` skill's refactor step, so it has no red test. Implement design D2 "One bound":
   - one helper in `backend/src/catchup/sources/discovery.py` for the 400-or-higher status;
   - one constant for the `feed_unavailable` message.
 

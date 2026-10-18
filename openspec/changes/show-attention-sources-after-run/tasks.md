@@ -15,7 +15,7 @@ Implementer notes:
 
 ## 1. Main screen: only sources that need attention after a run
 
-- [ ] 1.1 In `frontend/src/pages/Home.test.tsx`, add failing tests. Each uses three checks: `News`, failed with error `offline`; `Blog`, `new_items` with `possible_gap: true`; and `Docs`, `no_new_items` with no gap. Each case also has a variant where all three are fine: `News` and `Blog` change to `new_items` without a gap.
+- [x] 1.1 In `frontend/src/pages/Home.test.tsx`, add failing tests. Each uses three checks: `News`, failed with error `offline`; `Blog`, `new_items` with `possible_gap: true`; and `Docs`, `no_new_items` with no gap. Each case also has a variant where all three are fine: `News` and `Blog` change to `new_items` without a gap.
   1. **Saved digest, run bar.**
      - The latest digest is shown, and the run has `succeeded`.
      - The `Digest run` region lists `News` with "Failed" and "offline", and `Blog` with "Possible gap", under the label "Needs attention". It does not contain `Docs`.
@@ -28,7 +28,7 @@ Implementer notes:
   Keep the existing after-run tests passing. Where one asserts a source that no longer needs attention, change its fixture rather than its intent, and name each change in the report.
 
   Verify: cases 1–4 fail before 1.2. Case 5 passes before 1.2, as a guard; the report says so.
-- [ ] 1.2 Implement this in `frontend/src/pages/Home.tsx`:
+- [x] 1.2 Implement this in `frontend/src/pages/Home.tsx`:
   - For ended runs (`succeeded`, `no_new_content`, `failed`), `RunStateContent` passes only the checks that need attention to `SourceChecks`.
   - `SourceChecks` takes a label: "Needs attention" for ended runs, and "Sources" while a run is active. Keep its heading level (an `h2` in the card, a `p.section-label` in the compact bar), its chips, its error text, and its "render nothing for an empty list" behavior.
 

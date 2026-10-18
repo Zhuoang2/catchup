@@ -15,6 +15,17 @@ const run = {
     { source_id: 2, source_title: 'Blog', status: 'new_items', possible_gap: true, error: null },
   ], error_kind: null, error_message: null, digest_id: null,
 }
+const attentionChecks = [
+  { source_id: 1, source_title: 'News', status: 'failed', possible_gap: false,
+    error: 'offline', rate_limited: false, http_status: null },
+  { source_id: 2, source_title: 'Blog', status: 'new_items', possible_gap: true,
+    error: null, rate_limited: false, http_status: null },
+  { source_id: 3, source_title: 'Docs', status: 'no_new_items', possible_gap: false,
+    error: null, rate_limited: false, http_status: null },
+]
+const fineChecks = attentionChecks.map(check => check.source_title === 'Docs' ? check : {
+  ...check, status: 'new_items', possible_gap: false, error: null,
+})
 const sources = [{ kind: 'feed' }, { kind: 'podcast' }, { kind: 'youtube' }]
 const digest = {
   id: 4, created_at: '2026-10-03T10:00:00Z', model_id: 'test',
@@ -92,6 +103,128 @@ it('keeps the article beneath named run progress and source checks', async () =>
   expect(screen.getByRole('heading', { name: 'Technology' })).toBeInTheDocument()
   expect(bar.querySelector('h1,h2,h3')).toBeNull()
   expect(screen.getByRole('status')).toHaveTextContent('Checking sources, 2 of 3')
+  await expectAccessible(container)
+})
+
+it.each([
+  ['needs attention', attentionChecks],
+  ['all fine', fineChecks],
+])('shows only %s after a saved digest succeeds in the compact run bar', async (variant, checks) => {
+  const { container } = mockPage({ latest: digest, run: {
+    ...run, status: 'succeeded', digest_id: digest.id, source_checks: checks,
+  } })
+  await screen.findByRole('heading', { name: 'Technology' })
+  const bar = screen.getByRole('region', { name: 'Digest run' })
+  expect(bar).toHaveTextContent('Your digest is ready')
+  expect(bar).toHaveTextContent('3 sources')
+  if (variant === 'all fine') {
+    expect(bar.querySelector('.check-list')).toBeNull()
+    expect(within(bar).queryByText('Needs attention', { exact: true })).toBeNull()
+    expect(within(bar).queryByText('Sources', { exact: true })).toBeNull()
+  } else {
+    expect(within(bar).getByText('Needs attention')).toHaveClass('section-label')
+    const rows = bar.querySelectorAll('.check-list li')
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toHaveTextContent('News')
+    expect(rows[0]).toHaveTextContent('Failed')
+    expect(rows[0]).toHaveTextContent('offline')
+    expect(rows[1]).toHaveTextContent('Blog')
+    expect(rows[1]).toHaveTextContent('Possible gap')
+    expect(bar.querySelector('.check-list')).not.toHaveTextContent('Docs')
+  }
+  await expectAccessible(container)
+})
+
+it.each([
+  ['needs attention', attentionChecks],
+  ['all fine', fineChecks],
+])('shows only %s after no new content in the compact run bar', async (variant, checks) => {
+  const { container } = mockPage({ latest: digest, run: {
+    ...run, status: 'no_new_content', source_checks: variant === 'all fine' ? checks
+      : checks.map(check => check.source_title === 'News'
+        ? { ...check, rate_limited: true, http_status: 429 } : check),
+  } })
+  await screen.findByRole('heading', { name: 'Technology' })
+  const bar = screen.getByRole('region', { name: 'Digest run' })
+  expect(bar).toHaveTextContent('No new content')
+  if (variant === 'all fine') {
+    expect(bar.querySelector('.check-list')).toBeNull()
+    expect(within(bar).queryByText('Needs attention', { exact: true })).toBeNull()
+    expect(within(bar).queryByText('Sources', { exact: true })).toBeNull()
+  } else {
+    expect(within(bar).getByText('Needs attention')).toHaveClass('section-label')
+    expect(bar.querySelectorAll('.check-list li')).toHaveLength(2)
+    expect(within(bar).getByText('News').closest('li')).toHaveTextContent('Rate limited · try later')
+    expect(within(bar).getByText('Blog').closest('li')).toHaveTextContent('Possible gap')
+    expect(bar.querySelector('.check-list')).not.toHaveTextContent('Docs')
+  }
+  await expectAccessible(container)
+})
+
+it.each([
+  ['needs attention', attentionChecks],
+  ['all fine', fineChecks],
+])('shows only %s after a failed run in the compact run bar', async (variant, checks) => {
+  const { container } = mockPage({ latest: digest, run: {
+    ...run, status: 'failed', error_kind: 'run_failed', error_message: 'Run failed.',
+    source_checks: checks,
+  } })
+  await screen.findByRole('heading', { name: 'Technology' })
+  const bar = screen.getByRole('region', { name: 'Digest run' })
+  expect(bar).toHaveTextContent('Digest generation failed')
+  if (variant === 'all fine') {
+    expect(bar.querySelector('.check-list')).toBeNull()
+    expect(within(bar).queryByText('Needs attention', { exact: true })).toBeNull()
+    expect(within(bar).queryByText('Sources', { exact: true })).toBeNull()
+  } else {
+    expect(within(bar).getByText('Needs attention')).toHaveClass('section-label')
+    expect(bar.querySelectorAll('.check-list li')).toHaveLength(2)
+    expect(within(bar).getByText('News').closest('li')).toHaveTextContent('Failed')
+    expect(within(bar).getByText('News').closest('li')).toHaveTextContent('offline')
+    expect(within(bar).getByText('Blog').closest('li')).toHaveTextContent('Possible gap')
+    expect(bar.querySelector('.check-list')).not.toHaveTextContent('Docs')
+  }
+  await expectAccessible(container)
+})
+
+it.each([
+  ['needs attention', attentionChecks],
+  ['all fine', fineChecks],
+])('shows only %s in the no-digest result card after success', async (variant, checks) => {
+  const { container } = mockPage({ run: {
+    ...run, status: 'succeeded', digest_id: null, source_checks: checks,
+  } })
+  const card = await screen.findByRole('region', { name: 'Digest run' })
+  expect(within(card).getByRole('heading', { name: 'Your digest is ready' })).toBeInTheDocument()
+  expect(card).toHaveTextContent('3 sources')
+  if (variant === 'all fine') {
+    expect(card.querySelector('.check-list')).toBeNull()
+    expect(within(card).queryByText('Needs attention', { exact: true })).toBeNull()
+    expect(within(card).queryByText('Sources', { exact: true })).toBeNull()
+  } else {
+    expect(within(card).getByRole('heading', { name: 'Needs attention', level: 2 })).toBeInTheDocument()
+    expect(card.querySelectorAll('.check-list li')).toHaveLength(2)
+    expect(within(card).getByText('News').closest('li')).toHaveTextContent('Failed')
+    expect(within(card).getByText('News').closest('li')).toHaveTextContent('offline')
+    expect(within(card).getByText('Blog').closest('li')).toHaveTextContent('Possible gap')
+    expect(card.querySelector('.check-list')).not.toHaveTextContent('Docs')
+  }
+  await expectAccessible(container)
+})
+
+it.each([
+  ['needs attention', attentionChecks],
+  ['all fine', fineChecks],
+])('keeps all three checks under Sources during a %s collecting run', async (_variant, checks) => {
+  const { container } = mockPage({ run: { ...run, status: 'collecting', source_checks: checks } })
+  await screen.findByRole('progressbar', { name: 'Sources checked: 3 of 3' })
+  const card = screen.getByRole('region', { name: 'Digest run' })
+  expect(within(card).getByRole('heading', { name: 'Sources', level: 2 })).toBeInTheDocument()
+  expect(card.querySelectorAll('.check-list li')).toHaveLength(3)
+  expect(within(card).getByText('News')).toBeInTheDocument()
+  expect(within(card).getByText('Blog')).toBeInTheDocument()
+  expect(within(card).getByText('Docs')).toBeInTheDocument()
+  expect(within(card).queryByText('Needs attention', { exact: true })).toBeNull()
   await expectAccessible(container)
 })
 

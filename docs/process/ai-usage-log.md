@@ -922,3 +922,29 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - The remaining low cases (logical border properties, nested pseudo-classes, and a few universal or attribute selectors) were recorded as known limits in the test report.
   - The user replied "As you recommend; approve auto-merge, and delete the remote branch after merging" (translated).
 - **Lesson.** Droid reads Claude Code's session id from its environment when it writes its log entry. Future prompts should give Droid its own session id, or Claude should correct the entry at review.
+
+## 2026-10-17 to 2026-10-18 — User testing feedback, issues, and the `add-browser-tab-icon` (#37) lean plan (Claude Code, Opus 5.5)
+
+- **Context.** Claude rebuilt the local e2e container from `main` (e2e8aa4) so the user could try the merged changes. The data volume and the instance secret were reused, and the secret was never printed or written.
+- **Feedback** (prompts translated from Chinese, with screenshots):
+  - "The part in the red box doesn't feel necessary; record it for now" (the run bar's per-source list)
+  - "We need an icon, record it too" (the tab showed a globe)
+  - "Is Bilibili supported now?"
+  - "This site isn't supported either, I don't know why" (`spaces.ac.cn`)
+  - "Twitter accounts don't work"
+  - "Oh, that's the second version's extension work, right?"
+- **Investigation.** Claude answered each from the code or by reproduction:
+  - The tab icon: `index.html` declares no `<link rel="icon">`, and `/favicon.ico` falls back to HTML.
+  - `spaces.ac.cn`: the home page answers HTTP 403, while `/feed` works; discovery never probes `/feed` after a failed page fetch.
+  - X: deliberately unsupported since 2026-10-02, and tied to the future browser extension.
+  - Bilibili: no support, and RSSHub is the only workaround.
+  - The items were kept in a local list until the user finished testing.
+- **Decisions** (the user's choices to three questions):
+  - The run bar lists only sources that need attention.
+  - The tab reuses the existing icon.
+  - The fixes are three lean changes done in turn.
+- **Issues opened:** #37 (tab icon), #38 (run bar), #39 (page refused, together with #23), #40 (Bilibili), #41 (X).
+- **#37 lean plan.**
+  - The `openspec-propose` skill was not loaded in this session, so Claude followed the project's `.claude/skills/openspec-propose/SKILL.md` by hand.
+  - It wrote a `local-deployment` delta (a browser-tab icon in "Installable as an app"), a proposal, and three test-first tasks.
+  - Task 1.3 tells Droid to log its own `session_id`, not `CLAUDE_CODE_*`. This answers the wrong session id found in #31 and #33.

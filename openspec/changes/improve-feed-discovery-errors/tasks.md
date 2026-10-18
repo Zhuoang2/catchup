@@ -75,7 +75,7 @@ Implementer notes:
 
 Read the amended `design.md` (D1 "Not for the Apple lookup's feed URL", D2 "What counts as an HTTP error" and the precedence list, D3, the D4 bounds, and the two known limits under Risks) and the two new scenarios in `specs/source-management/spec.md` ("Declared feed cannot be fetched" and "Apple Podcasts feed unavailable"). These are confirmed bugs and test gaps from review, so use the `diagnosing-bugs` skill for 5.1–5.2 and `tdd` for the rest: write each check first and watch it fail, unless the task says it may already pass.
 
-- [ ] 5.1 In `backend/tests/test_discovery.py`, add failing tests, using `respx` and the `public_dns` fixture:
+- [x] 5.1 In `backend/tests/test_discovery.py`, add failing tests, using `respx` and the `public_dns` fixture:
   1. **Declared feed times out.** The page declares one feed, and fetching it raises `httpx.ConnectTimeout`. `discover` raises `feed_unavailable` with `status_code` `None`.
   2. **Declared feed over the size limit.** With a small `max_feed_bytes`, the declared feed answers 200 with a larger body. `feed_unavailable`, with no status.
   3. **Declared feed redirect without `Location`.** The declared feed answers 302 with no `Location`. `feed_unavailable`, with no status.
@@ -87,7 +87,7 @@ Read the amended `design.md` (D1 "Not for the Apple lookup's feed URL", D2 "What
   9. **Apple feed URL times out.** The same lookup, and the feed URL times out. `feed_unavailable`, with no status.
 
   Verify: the new tests fail before 5.2, except any that the report marks as already passing, with the reason.
-- [ ] 5.2 Implement the amended D1 and D2 in `backend/src/catchup/sources/discovery.py`. For the Apple branch, add a keyword-only parameter to `discover` that only the Apple branch passes. Keep `safe_fetch` unchanged.
+- [x] 5.2 Implement the amended D1 and D2 in `backend/src/catchup/sources/discovery.py`. For the Apple branch, add a keyword-only parameter to `discover` that only the Apple branch passes. Keep `safe_fetch` unchanged.
 
   Verify: the 5.1 tests pass, and the existing discovery tests still pass.
 - [ ] 5.3 In `backend/tests/test_sources_api.py`, add failing tests:

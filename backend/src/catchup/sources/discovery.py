@@ -50,7 +50,8 @@ def _probes(url: str) -> list[str]:
     return list(dict.fromkeys(origin + path for path in paths))[:8]
 
 
-def discover(url: str, *, cache: FeedCache | None = None, max_feed_bytes: int = 33_554_432) -> Discovery:
+def discover(url: str, *, cache: FeedCache | None = None, max_feed_bytes: int = 33_554_432,
+             _apple_feed: bool = False) -> Discovery:
     apple_id = APPLE_SHOW.match(url.split("?", 1)[0])
     if apple_id:
         response = safe_fetch(f"https://itunes.apple.com/lookup?id={apple_id[1]}&entity=podcast")
@@ -63,7 +64,7 @@ def discover(url: str, *, cache: FeedCache | None = None, max_feed_bytes: int = 
                 raise ValueError("Lookup returned a page URL instead of a feed")
         except (ValueError, KeyError, TypeError, IndexError):
             raise FetchError("no_feed", "No supported feed was found at this URL.") from None
-        result = discover(feed_url, cache=cache, max_feed_bytes=max_feed_bytes)
+        result = discover(feed_url, cache=cache, max_feed_bytes=max_feed_bytes, _apple_feed=True)
         return Discovery(result.feed, "i" in parse_qs(urlsplit(url).query))
 
     def found_feed(response: FetchResponse, notice: bool) -> Discovery:
@@ -76,6 +77,14 @@ def discover(url: str, *, cache: FeedCache | None = None, max_feed_bytes: int = 
     try:
         response = safe_fetch(url, max_bytes=max_feed_bytes)
     except FetchError as exc:
+        if _apple_feed:
+            if exc.code in ("rate_limited", "blocked_address"):
+                raise
+            raise FetchError(
+                "feed_unavailable", "The site's feed is temporarily unavailable.",
+                exc.status_code if exc.code == "fetch_failed" and exc.status_code is not None
+                and exc.status_code >= 400 else None,
+            ) from exc
         if exc.code != "fetch_failed" or exc.status_code is None or exc.status_code < 400:
             raise
         page_error = exc
@@ -99,6 +108,7 @@ def discover(url: str, *, cache: FeedCache | None = None, max_feed_bytes: int = 
         notice = links.is_article
         if links.feeds:
             last_http_error = None
+            blocked_error = None
             unparseable = False
             for href in links.feeds:
                 candidate = urljoin(response.url, href)
@@ -109,14 +119,18 @@ def discover(url: str, *, cache: FeedCache | None = None, max_feed_bytes: int = 
                         raise
                     if exc.code == "fetch_failed" and exc.status_code is not None and exc.status_code >= 400:
                         last_http_error = exc
-                    else:
-                        unparseable = True
+                    elif exc.code == "blocked_address":
+                        blocked_error = exc
                 except FeedParseError:
                     unparseable = True
-            if last_http_error is not None and not unparseable:
+            if unparseable:
+                raise FetchError("not_a_feed", "The declared feed could not be parsed.")
+            if last_http_error is not None:
                 raise FetchError("feed_unavailable", "The site's feed is temporarily unavailable.",
                                  last_http_error.status_code) from last_http_error
-            raise FetchError("not_a_feed", "The declared feed could not be parsed.")
+            if blocked_error is not None:
+                raise blocked_error
+            raise FetchError("feed_unavailable", "The site's feed is temporarily unavailable.")
         probe_url = response.url
     else:
         notice = False

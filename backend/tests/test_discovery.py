@@ -26,6 +26,21 @@ def public_dns(monkeypatch):
     monkeypatch.setattr(socket, "getaddrinfo", lookup)
 
 
+@pytest.fixture
+def blocked_candidate_dns(public_dns, monkeypatch):
+    def lookup(host, port, *_args, **_kwargs):
+        address = "10.0.0.1" if host == "internal.example" else "8.8.8.8"
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (address, port))]
+    monkeypatch.setattr(socket, "getaddrinfo", lookup)
+
+
+def declared_html(*urls: str) -> bytes:
+    links = "".join(
+        f"<link rel='alternate' type='application/rss+xml' href='{url}'>" for url in urls
+    )
+    return f"<html><head>{links}</head></html>".encode()
+
+
 @pytest.mark.parametrize("name,expected", [
     ("rss.xml", "rss20"), ("atom.xml", "atom10"), ("malformed.xml", "rss20"),
     ("no-ids.xml", "rss20"), ("no-dates.xml", "rss20"),
@@ -265,6 +280,156 @@ def test_declared_feed_http_error_is_unavailable(public_dns):
             discover("https://site.example/")
     assert error.value.code == "feed_unavailable"
     assert error.value.status_code == 404
+
+
+def test_declared_feed_timeout_is_unavailable_without_http_status(public_dns):
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/").mock(return_value=httpx.Response(
+            200, content=fixture("declared.html"), headers={"content-type": "text/html"},
+        ))
+        router.get("https://site.example/feed.xml").mock(side_effect=httpx.ConnectTimeout("timed out"))
+        with pytest.raises(FetchError) as error:
+            discover("https://site.example/")
+    assert error.value.code == "feed_unavailable"
+    assert error.value.status_code is None
+
+
+def test_declared_feed_over_size_limit_is_unavailable_without_http_status(public_dns):
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/").mock(return_value=httpx.Response(
+            200, content=declared_html("/feed.xml"), headers={"content-type": "text/html"},
+        ))
+        router.get("https://site.example/feed.xml").mock(return_value=httpx.Response(
+            200, content=b"x" * 128, headers={"content-type": "application/rss+xml"},
+        ))
+        with pytest.raises(FetchError) as error:
+            discover("https://site.example/", max_feed_bytes=100)
+    assert error.value.code == "feed_unavailable"
+    assert error.value.status_code is None
+
+
+def test_declared_feed_redirect_without_location_is_unavailable_without_status(public_dns):
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/").mock(return_value=httpx.Response(
+            200, content=declared_html("/feed.xml"), headers={"content-type": "text/html"},
+        ))
+        router.get("https://site.example/feed.xml").mock(return_value=httpx.Response(302))
+        with pytest.raises(FetchError) as error:
+            discover("https://site.example/")
+    assert error.value.code == "feed_unavailable"
+    assert error.value.status_code is None
+
+
+def test_declared_feed_at_blocked_address_is_rejected(blocked_candidate_dns):
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/").mock(return_value=httpx.Response(
+            200, content=declared_html("https://internal.example/feed.xml"),
+            headers={"content-type": "text/html"},
+        ))
+        with pytest.raises(FetchError) as error:
+            discover("https://site.example/")
+        assert len(router.calls) == 1
+    assert error.value.code == "blocked_address"
+    assert error.value.status_code is None
+
+
+@pytest.mark.parametrize("first,second,code,status", [
+    ("http_404", "timeout", "feed_unavailable", 404),
+    ("timeout", "invalid", "not_a_feed", None),
+    ("blocked", "timeout", "blocked_address", None),
+    ("blocked", "http_404", "feed_unavailable", 404),
+])
+def test_declared_feed_failure_precedence(blocked_candidate_dns, first, second, code, status):
+    outcomes = (first, second)
+    urls = [
+        "https://internal.example/one.xml" if first == "blocked" else "https://site.example/one.xml",
+        "https://internal.example/two.xml" if second == "blocked" else "https://site.example/two.xml",
+    ]
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/").mock(return_value=httpx.Response(
+            200, content=declared_html(*urls), headers={"content-type": "text/html"},
+        ))
+        for url, outcome in zip(urls, outcomes):
+            if outcome == "http_404":
+                router.get(url).mock(return_value=httpx.Response(404))
+            elif outcome == "timeout":
+                router.get(url).mock(side_effect=httpx.ConnectTimeout("timed out"))
+            elif outcome == "invalid":
+                router.get(url).mock(return_value=httpx.Response(200, content=b"not a feed"))
+        with pytest.raises(FetchError) as error:
+            discover("https://site.example/")
+    assert error.value.code == code
+    assert error.value.status_code == status
+
+
+def test_last_declared_http_status_wins(public_dns):
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/").mock(return_value=httpx.Response(
+            200, content=declared_html("/first.xml", "/second.xml"), headers={"content-type": "text/html"},
+        ))
+        router.get("https://site.example/first.xml").mock(return_value=httpx.Response(404))
+        router.get("https://site.example/second.xml").mock(return_value=httpx.Response(410))
+        with pytest.raises(FetchError) as error:
+            discover("https://site.example/")
+    assert error.value.code == "feed_unavailable"
+    assert error.value.status_code == 410
+
+
+def test_page_http_400_still_probes(public_dns):
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/").mock(return_value=httpx.Response(400))
+        router.get("https://site.example/feed").mock(return_value=httpx.Response(
+            200, content=fixture("rss.xml"), headers={"content-type": "application/rss+xml"},
+        ))
+        router.get(re.compile(r"https://site\.example/.*")).mock(return_value=httpx.Response(404))
+        found = discover("https://site.example/")
+    assert found.feed.feed_url == "https://site.example/feed"
+
+
+def test_page_oversize_200_does_not_probe(public_dns):
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/").mock(return_value=httpx.Response(
+            200, content=b"x" * 128, headers={"content-type": "text/html"},
+        ))
+        with pytest.raises(FetchError) as error:
+            discover("https://site.example/", max_feed_bytes=64)
+        assert len(router.calls) == 1
+    assert error.value.code == "fetch_failed"
+    assert error.value.status_code == 200
+
+
+def test_page_redirect_without_location_does_not_probe(public_dns):
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/").mock(return_value=httpx.Response(302))
+        with pytest.raises(FetchError) as error:
+            discover("https://site.example/")
+        assert len(router.calls) == 1
+    assert error.value.code == "fetch_failed"
+    assert error.value.status_code == 302
+
+
+@pytest.mark.parametrize("feed_result,status", [
+    (httpx.Response(404), 404),
+    (httpx.ConnectTimeout("timed out"), None),
+])
+def test_apple_lookup_feed_failure_does_not_probe_another_feed(public_dns, feed_result, status):
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://itunes.apple.com/lookup?id=12345&entity=podcast").mock(return_value=httpx.Response(
+            200, json={"resultCount": 1, "results": [{"feedUrl": "https://host.example/show.xml"}]},
+        ))
+        if isinstance(feed_result, httpx.Response):
+            router.get("https://host.example/show.xml").mock(return_value=feed_result)
+        else:
+            router.get("https://host.example/show.xml").mock(side_effect=feed_result)
+        router.get("https://host.example/feed").mock(return_value=httpx.Response(
+            200, content=fixture("rss.xml"), headers={"content-type": "application/rss+xml"},
+        ))
+        router.get(re.compile(r"https://host\.example/.*")).mock(return_value=httpx.Response(404))
+        with pytest.raises(FetchError) as error:
+            discover("https://podcasts.apple.com/us/podcast/example/id12345")
+        assert all(str(call.request.url) != "https://host.example/feed" for call in router.calls)
+    assert error.value.code == "feed_unavailable"
+    assert error.value.status_code == status
 
 
 def test_unparseable_declared_feed_takes_precedence_over_http_error(public_dns):

@@ -67,7 +67,7 @@ Building the image MUST NOT include local environment files, data directories, d
 - **THEN** neither the `.env` file nor the `data/` contents are present in the image
 
 ### Requirement: Installable as an app
-The web interface SHALL provide a web app manifest with the name CatchUp, a start URL of `/`, a standalone display mode, theme colors, and icons at 192 px, 512 px, and 512 px maskable. It SHALL also provide a 1024 px icon for Safari. A supporting browser MUST be able to install CatchUp from `http://localhost:8000` or `http://127.0.0.1:8000` into its own window. The manifest MUST be served with the `application/manifest+json` media type.
+The web interface SHALL provide a web app manifest with the name CatchUp, a start URL of `/`, a standalone display mode, theme colors, and icons at 192 px, 512 px, and 512 px maskable. It SHALL also provide a 1024 px icon for Safari. The page SHALL declare the app icon for the browser tab, as an SVG with a 192 px PNG fallback, so the tab does not show a default icon. A supporting browser MUST be able to install CatchUp from `http://localhost:8000` or `http://127.0.0.1:8000` into its own window. The manifest MUST be served with the `application/manifest+json` media type.
 
 #### Scenario: Install from Chrome
 - **WHEN** the user opens CatchUp at `http://localhost:8000` in Chrome
@@ -76,6 +76,10 @@ The web interface SHALL provide a web app manifest with the name CatchUp, a star
 #### Scenario: Manifest served correctly
 - **WHEN** a client requests `/manifest.webmanifest` from a running container
 - **THEN** the response is 200 with the media type `application/manifest+json`
+
+#### Scenario: Icon in the browser tab
+- **WHEN** the user opens CatchUp in a browser tab
+- **THEN** the tab shows the CatchUp icon instead of the browser's default icon
 
 ### Requirement: Offline page when the server is not running
 After the app has been opened once, opening it while the CatchUp server cannot be reached SHALL show an offline page. The page explains that CatchUp is not running, shows how to start it (`docker compose up -d`, or `uv run catchup serve` from a source checkout), and offers a reload. The service worker MUST NOT cache application code or API responses, so a running server always serves the current version.

@@ -37,6 +37,7 @@ Lean change for issues #39 and #23. See `proposal.md` for the motivation, and th
   3. otherwise `blocked_address`, if any candidate targets a blocked address;
   4. otherwise `feed_unavailable` without a status.
 - **The Apple lookup's feed URL** (fix round 1). If fetching it fails, `discover` raises `feed_unavailable`, with or without the status as above. `rate_limited` and `blocked_address` keep their codes.
+- **One bound** (fix round 2). The 400-or-higher test lives in one helper in `discovery.py`, for example `http_error_status(exc)`, which returns the status when it is 400 or higher and `None` otherwise. `discovery.py` and `api/sources.py` both use it, so the `>= 400` comparison appears once in the backend. The `feed_unavailable` message is one constant there too.
 - **`not_a_feed`.** Content was fetched but is not a parsable feed, as today.
 - **`no_feed`.** The page loaded, declared no feed, and no probe found one.
 - **`rate_limited`.** Unchanged, and still raised immediately.
@@ -71,6 +72,8 @@ Fix round 1 makes the bounds explicit:
 - **[A 404 on a mistyped article URL finds the site's feed]** → The preview shows the feed it found, and the existing notice says that CatchUp will follow the whole site, so the user can cancel.
 - **[Mixed failures]** For example, one declared candidate answers 404 and another is not a feed. → `not_a_feed` wins (D2): something was fetched and was the wrong format.
 - **[Known limit: redirect to another origin]** The pasted URL redirects to another origin (for example http to https, or a bare domain to `www`), and the page there refuses the request. `safe_fetch` raises without the final URL, so probing uses the pasted origin. Every probe there redirects off-origin and is skipped, and the user sees the page error. → Fixing this needs `safe_fetch` to report the final URL, which is out of scope. The workaround is to paste the final URL or the feed URL.
+- **[Known limit: failures that will not recover]** A feed over the size limit, a redirect without a usable `Location`, and an invalid candidate URL are also reported as "temporarily unavailable … Try again later.", although retrying gives the same result. → These cases are rare, and the message still tells the user that the feed, not the page, is the problem.
+- **[Known limit: an HTTP error from Apple's lookup service]** When `itunes.apple.com` itself answers an HTTP error, the message names that status as the pasted page's, for example "The site refused the request (HTTP 403). If you know its feed URL, paste that instead." → The suggested action, pasting the show's feed URL or trying later, still fits.
 - **[Known limit: a pasted feed URL that answers an HTTP error]** It is reported as a page error, for example "The page was not found (HTTP 404)", because nothing tells a feed from a page before a successful fetch. → The #23 case, a feed declared by a page, is reported as temporarily unavailable.
 
 ## Migration Plan

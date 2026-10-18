@@ -120,3 +120,66 @@ Read the amended `design.md` (D1 "Not for the Apple lookup's feed URL", D2 "What
   - Add a fix-round entry to `docs/process/ai-usage-log.md` after the latest entry, with a faithful prompt excerpt. Leave out the session id; Claude Code adds it at review.
 
   Verify: every command passes, and the report has the actual numbers.
+
+## 6. Fix round 2 (test gaps, one bound, docs)
+
+The second review found no wrong behavior, but 11 of 45 mutations survived. Nothing in this group changes behavior. The code is already correct, so the red step for each new test is a named temporary mutation, applied by hand:
+1. Write the test and see it pass.
+2. Apply the mutation, and see the test fail.
+3. Revert the mutation, and see the test pass again.
+
+Record each test, its mutation, and the failing result in the report. Read the amended `design.md`: D2 "One bound", and the two new known limits under Risks.
+
+- [ ] 6.1 Add these tests. Each one names its mutation.
+  - **In `backend/tests/test_discovery.py`,** each Apple case uses the lookup from the existing Apple tests (`feedUrl` `https://host.example/show.xml`):
+    1. The Apple feed URL answers 429 with `Retry-After: 120`. `rate_limited` is raised, with `retry_after` 120. Mutation: remove `"rate_limited"` from the Apple pass-through tuple.
+    2. The Apple feed URL is on a host that a DNS stub resolves to `10.0.0.1` (reuse `blocked_candidate_dns` with a host such as `internal.example`). `blocked_address` is raised. Mutation: remove `"blocked_address"` from the tuple.
+    3. The Apple feed URL answers 400. `feed_unavailable` is raised with 400. Mutation: change the Apple status bound to `> 400`.
+    4. The Apple feed URL answers 302 without `Location`. `feed_unavailable` is raised, with status `None`. Mutation: drop the Apple status bound, so any status is kept.
+    5. The lookup returns `ftp://host.example/show.xml`. `feed_unavailable` is raised, with status `None`. Mutation: add `"invalid_url"` to the pass-through tuple.
+    6. One declared feed answers 400. `feed_unavailable` is raised with 400. Mutation: change the declared-candidate guard to `> 400`.
+    7. Two declared feeds: one at a blocked address and one with content that is not a feed, in both orders. `not_a_feed` is raised. Mutation: `if unparseable and blocked_error is None:`.
+  - **In `backend/tests/test_sources_api.py`:**
+    8. A preview of a page that answers 302 without `Location` returns 422 `fetch_failed`, and the JSON has no `http_status` key. Mutations: the `_fetch_error` bound becomes `>= 300`, and then `>= 201`.
+  - **In `frontend/src/pages/Sources.test.tsx`:**
+    9. `fetch_failed` with 400 gives "The site answered HTTP 400. Check the URL, or paste the site's feed URL." Mutation: the D4 bound becomes `> 400`.
+
+  Verify: all tests pass on the current code, and each named mutation makes its test fail. Every mutation is reverted (`git diff` shows only test files before 6.2).
+- [ ] 6.2 This is a refactor with the `tdd` skill's refactor step, so it has no red test. Implement design D2 "One bound":
+  - one helper in `backend/src/catchup/sources/discovery.py` for the 400-or-higher status;
+  - one constant for the `feed_unavailable` message.
+
+  Use them at every place that tests the bound or raises `feed_unavailable`:
+  - in `discovery.py`: the page guard, the Apple branch, the declared loop, and the declared fallbacks;
+  - in `backend/src/catchup/api/sources.py`: `_fetch_error` and the confirm path.
+
+  Verify:
+  - `uv run pytest` passes with no test changes.
+  - `grep -n ">= 400" backend/src/catchup` shows exactly one match.
+  - `grep -n "temporarily unavailable" backend/src/catchup` shows exactly one match.
+- [ ] 6.3 Correct and complete the documents:
+  - **Probe count.** In `docs/process/test-report-improve-feed-discovery-errors.md`, the first-run row says "root-path deduplication gives seven", and your first-run entry in `docs/process/ai-usage-log.md` says the same. Both are wrong. `_probes("https://site.example/")` returns eight URLs, and the origin check skips `https://site.example.rss`. Fix the reason in both places.
+  - **Coverage depends on the frontend build.** Backend coverage changes by one statement depending on whether `frontend/dist` exists: `main.py` mounts `/assets` only then. State this in the report and in `docs/process/coverage-summary.md`, and compare the runs under the same condition:
+    - first run: 1,839/1,913 with `frontend/dist`, and 1,838 without it;
+    - fix round 1: 1,850/1,923 with it, and 1,849 without it.
+
+    Remove the claims that 1,839 was a mistake, in `coverage-summary.md` and in your fix-round-1 entry in `ai-usage-log.md`.
+  - **Already-passing tests.** In the fix-round-1 section, add the reason the five tests already passed: the first-run code already handled those cases.
+  - **Known limits.** Add the two new ones from design.md Risks.
+
+  Verify: `rg` checks for the corrected sentences, run first as an expected red, then green.
+- [ ] 6.4 Run `npm run build` in `frontend/` first, so that `frontend/dist` exists. Then run:
+  - `uv run pytest --cov=catchup --cov-report=term` in `backend/`
+  - `npm test -- --run` in `frontend/`
+  - `openspec validate improve-feed-discovery-errors --strict`
+
+  A Docker build is not needed, because nothing in the packaging changes.
+
+  Add a "Fix round 2" section to the report with:
+  - the real results;
+  - the mutation table from 6.1;
+  - the coverage figure with `frontend/dist`.
+
+  Update this change's line in `coverage-summary.md`. Add a fix-round-2 entry to `ai-usage-log.md` after the latest entry, with a faithful prompt excerpt. Leave out the session id.
+
+  Verify: every command passes, and the report has the actual numbers.

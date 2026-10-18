@@ -71,7 +71,7 @@ When a fetch fails with an HTTP error, the message MUST name the HTTP status:
 
 Only HTTP error statuses (400 or higher) are named; a fetch that fails for another reason MUST NOT be described with an HTTP status.
 
-A feed that answered an HTTP error, or could not be fetched for another reason, MUST be reported as temporarily unavailable, not as a feed that could not be parsed. This applies to a feed the pasted page declares and to the feed found through Apple's lookup service. "Not a parsable feed" MUST be reserved for content that was fetched but could not be parsed.
+A feed that answered an HTTP error, or could not be fetched for another reason, MUST be reported as temporarily unavailable, not as a feed that could not be parsed. A rate limit and a blocked address are the exceptions: they are reported as such. This applies to a feed the pasted page declares and to the feed found through Apple's lookup service. "Not a parsable feed" MUST be reserved for content that was fetched but could not be parsed.
 
 #### Scenario: No feed found
 - **WHEN** the pasted page declares no feed, is not a feed itself, and none of the common feed locations returns a feed

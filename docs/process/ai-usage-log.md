@@ -966,3 +966,16 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - Two low items are left for a follow-up issue on icon polish: the offline page (`public/offline.html`) has no icon, and the service worker does not cache the icon files; and the icon's bars are about 0.6 px wide at 16 px.
   - Droid left out its session id, as the plan allowed when unknown. Claude added `09928c2f` from the `droid exec` output: Droid cannot read the id it is about to report, so Claude fills it in at review from now on.
 - The user replied "As you recommend; approve auto-merge, and delete the remote branch after merging" (translated).
+
+## 2026-10-18 — `improve-feed-discovery-errors` (#39, #23): lean plan (Claude Code, Opus 5.5)
+
+- Prompts (translated from Chinese): "What are #39 and #23?", then "Start, write the lean plan first."
+- **Investigation.** Claude traced both issues to `discover`:
+  - A failed page fetch propagates before any probing (#39).
+  - The declared-feed loop turns HTTP failures into `not_a_feed` (#23).
+  - It also traced why no status reaches the user: `_fetch_error` passes only `retry_after`, and the Sources page maps each code to one fixed message.
+- **Plan** (the `openspec-propose` skill, now loaded):
+  - A `source-management` delta that modifies "Preview a source from a pasted URL" and "Explain unsupported and duplicate sources", with three new scenarios.
+  - A short design. D1: probing after an HTTP page failure. D2: a new `feed_unavailable` code, and the precedence rules for mixed failures. D3: `http_status` in the error payload. D4: a table of messages.
+  - Four test-first task groups.
+- **Adjustment.** The Droid task now says to leave the session id out of its log entry; Claude adds it at review, because Droid cannot read the id it is about to report (seen in #37).

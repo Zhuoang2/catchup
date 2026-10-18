@@ -948,3 +948,9 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - The `openspec-propose` skill was not loaded in this session, so Claude followed the project's `.claude/skills/openspec-propose/SKILL.md` by hand.
   - It wrote a `local-deployment` delta (a browser-tab icon in "Installable as an app"), a proposal, and three test-first tasks.
   - Task 1.3 tells Droid to log its own `session_id`, not `CLAUDE_CODE_*`. This answers the wrong session id found in #31 and #33.
+
+## 2026-10-18 — `add-browser-tab-icon` implementation (Factory Droid, GPT-6 Sol)
+
+- Prompt (faithful excerpt): "Implement OpenSpec change add-browser-tab-icon using the openspec-apply-change skill. Work through ... tasks.md in order, completing each task test-first with the tdd skill: write the task's verification items as failing tests and watch them fail, then implement until they pass. Check off each task only after its verification passes. Do not edit proposal.md or the spec deltas. Commit after the task group. Do not push, tag, or open a PR."
+- Outcome: Added a failing HTML/asset test, then declared the existing SVG and 192 × 192 PNG as browser-tab icons. The focused test first failed with 1 failure and 3 passes; afterward the full frontend suite passed (166 tests in 13 files), as did the TypeScript/Vite build (41 modules), built-HTML link assertions, and strict OpenSpec validation. See `test-report-add-browser-tab-icon.md` for commands and the unperformed browser check.
+- Problems / adjustment: This fresh worktree lacked frontend dependencies; `npm ci` installed the locked packages. A supplemental exact-string built-HTML assertion expected `>` instead of Vite's preserved `/>`; the attribute-aware assertion passed on rerun. No app-in-browser visual check was performed. No icon artwork, manifest, service worker, or backend fallback was changed.

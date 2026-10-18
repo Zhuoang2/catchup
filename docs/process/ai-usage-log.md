@@ -949,8 +949,20 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - It wrote a `local-deployment` delta (a browser-tab icon in "Installable as an app"), a proposal, and three test-first tasks.
   - Task 1.3 tells Droid to log its own `session_id`, not `CLAUDE_CODE_*`. This answers the wrong session id found in #31 and #33.
 
-## 2026-10-18 — `add-browser-tab-icon` implementation (Factory Droid, GPT-6 Sol)
+## 2026-10-18 — `add-browser-tab-icon` implementation (Factory Droid, GPT-6 Sol; session `09928c2f`)
 
 - Prompt (faithful excerpt): "Implement OpenSpec change add-browser-tab-icon using the openspec-apply-change skill. Work through ... tasks.md in order, completing each task test-first with the tdd skill: write the task's verification items as failing tests and watch them fail, then implement until they pass. Check off each task only after its verification passes. Do not edit proposal.md or the spec deltas. Commit after the task group. Do not push, tag, or open a PR."
 - Outcome: Added a failing HTML/asset test, then declared the existing SVG and 192 × 192 PNG as browser-tab icons. The focused test first failed with 1 failure and 3 passes; afterward the full frontend suite passed (166 tests in 13 files), as did the TypeScript/Vite build (41 modules), built-HTML link assertions, and strict OpenSpec validation. See `test-report-add-browser-tab-icon.md` for commands and the unperformed browser check.
 - Problems / adjustment: This fresh worktree lacked frontend dependencies; `npm ci` installed the locked packages. A supplemental exact-string built-HTML assertion expected `>` instead of Vite's preserved `/>`; the attribute-aware assertion passed on rerun. No app-in-browser visual check was performed. No icon artwork, manifest, service worker, or backend fallback was changed.
+
+## 2026-10-18 — `add-browser-tab-icon` (#37): review (Claude Code, Opus 5.5, with one spec-review subagent; Factory Droid session `09928c2f`)
+
+- **Process.**
+  - `/code-review` of the diff.
+  - An independent spec subagent, which ran 16 mutations of the new test in a scratch copy: 14 failed, and the 2 harmless edits passed.
+  - A live check of the branch build, served read-only against the local instance: both `<link rel="icon">` tags are present, and `/icon.svg` and `/icon-192.png` come back as `image/svg+xml` and `image/png`.
+- **Findings.**
+  - Nothing blocks the merge.
+  - Two low items are left for a follow-up issue on icon polish: the offline page (`public/offline.html`) has no icon, and the service worker does not cache the icon files; and the icon's bars are about 0.6 px wide at 16 px.
+  - Droid left out its session id, as the plan allowed when unknown. Claude added `09928c2f` from the `droid exec` output: Droid cannot read the id it is about to report, so Claude fills it in at review from now on.
+- The user replied "As you recommend; approve auto-merge, and delete the remote branch after merging" (translated).

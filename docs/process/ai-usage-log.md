@@ -1054,3 +1054,9 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - **Choices made during planning,** for the user to confirm:
   - the shortened list is labeled "Needs attention";
   - the rule also applies to the result card shown when no digest has been saved yet.
+
+## 2026-10-18 — `show-attention-sources-after-run` implementation (Factory Droid, GPT-6 Sol)
+
+- Prompt (faithful excerpt): "Implement OpenSpec change show-attention-sources-after-run using the openspec-apply-change skill. Work through openspec/changes/show-attention-sources-after-run/tasks.md in order, completing each task test-first with the tdd skill: write the task's verification items as failing tests and watch them fail, then implement until they pass. Check off each task only after its verification passes. Do not edit proposal.md or the spec deltas. Commit after each task group. Do not push, tag, or open a PR. If a task is blocked or the plan looks wrong, stop and report instead of improvising."
+- Outcome: The main screen now lists only failed or possible-gap checks after succeeded, no-new-content, and failed runs, in both layouts. Active runs still list every check. Eight ended-run test variants failed before implementation and passed afterward; two active-run guards passed before and after. Final checks passed: **193 frontend tests**, TypeScript/Vite build, **411 backend tests**, and strict OpenSpec validation. See `test-report-show-attention-sources-after-run.md`.
+- Problems / adjustment: Vitest was missing in this worktree, so `npm ci` installed locked dependencies before the red run. The backend run installed its worktree environment. No existing after-run fixture needed changing. A real run on a local instance was not performed; nothing was pushed.

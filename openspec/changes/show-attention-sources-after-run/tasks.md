@@ -39,7 +39,7 @@ Implementer notes:
 
 ## 2. Checks and report
 
-- [ ] 2.1 Run the full checks:
+- [x] 2.1 Run the full checks:
   - `npm run build`, then `npm test -- --run`, in `frontend/`
   - `uv run pytest` in `backend/`, to confirm that nothing outside the frontend changed
   - `openspec validate show-attention-sources-after-run --strict`

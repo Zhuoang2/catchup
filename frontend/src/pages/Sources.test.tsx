@@ -140,6 +140,23 @@ describe('sources', () => {
     expect((await screen.findByRole('alert')).textContent).toBe(expected)
   })
 
+  it('shows HTTP 400 as an other-status preview error (mutation: D4 bound > 400)', async () => {
+    fetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/sources') return respond([])
+      if (path === '/api/sources/preview') return respond({ error: {
+        code: 'fetch_failed', message: 'Backend error', http_status: 400,
+      } }, 422)
+      throw new Error(`Unexpected request: ${path}`)
+    })
+    page()
+    fireEvent.change(screen.getByLabelText('Website or feed URL'), {
+      target: { value: saved.feed_url },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    expect((await screen.findByRole('alert')).textContent)
+      .toBe("The site answered HTTP 400. Check the URL, or paste the site's feed URL.")
+  })
+
   it('shows a rate-limited preview with suggested wait', async () => {
     fetchMock.mockImplementation(async (path: string) => path === '/api/sources'
       ? respond([])

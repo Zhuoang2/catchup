@@ -130,7 +130,7 @@ The second review found no wrong behavior, but 11 of 45 mutations survived. Noth
 
 Record each test, its mutation, and the failing result in the report. Read the amended `design.md`: D2 "One bound", and the two new known limits under Risks.
 
-- [ ] 6.1 Add these tests. Each one names its mutation.
+- [x] 6.1 Add these tests. Each one names its mutation.
   - **In `backend/tests/test_discovery.py`,** each Apple case uses the lookup from the existing Apple tests (`feedUrl` `https://host.example/show.xml`):
     1. The Apple feed URL answers 429 with `Retry-After: 120`. `rate_limited` is raised, with `retry_after` 120. Mutation: remove `"rate_limited"` from the Apple pass-through tuple.
     2. The Apple feed URL is on a host that a DNS stub resolves to `10.0.0.1` (reuse `blocked_candidate_dns` with a host such as `internal.example`). `blocked_address` is raised. Mutation: remove `"blocked_address"` from the tuple.

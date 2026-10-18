@@ -432,6 +432,103 @@ def test_apple_lookup_feed_failure_does_not_probe_another_feed(public_dns, feed_
     assert error.value.status_code == status
 
 
+def test_apple_rate_limited_feed_keeps_retry_after(public_dns):
+    """Mutation: remove rate_limited from the Apple pass-through tuple."""
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://itunes.apple.com/lookup?id=12345&entity=podcast").mock(return_value=httpx.Response(
+            200, json={"resultCount": 1, "results": [{"feedUrl": "https://host.example/show.xml"}]},
+        ))
+        router.get("https://host.example/show.xml").mock(return_value=httpx.Response(
+            429, headers={"Retry-After": "120"},
+        ))
+        with pytest.raises(FetchError) as error:
+            discover("https://podcasts.apple.com/us/podcast/example/id12345")
+    assert error.value.code == "rate_limited"
+    assert error.value.retry_after == 120
+
+
+def test_apple_blocked_feed_keeps_blocked_address(blocked_candidate_dns):
+    """Mutation: remove blocked_address from the Apple pass-through tuple."""
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://itunes.apple.com/lookup?id=12345&entity=podcast").mock(return_value=httpx.Response(
+            200, json={"resultCount": 1, "results": [{"feedUrl": "https://internal.example/show.xml"}]},
+        ))
+        with pytest.raises(FetchError) as error:
+            discover("https://podcasts.apple.com/us/podcast/example/id12345")
+        assert len(router.calls) == 1
+    assert error.value.code == "blocked_address"
+
+
+def test_apple_feed_http_400_is_unavailable_with_status(public_dns):
+    """Mutation: change the Apple HTTP status bound to > 400."""
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://itunes.apple.com/lookup?id=12345&entity=podcast").mock(return_value=httpx.Response(
+            200, json={"resultCount": 1, "results": [{"feedUrl": "https://host.example/show.xml"}]},
+        ))
+        router.get("https://host.example/show.xml").mock(return_value=httpx.Response(400))
+        with pytest.raises(FetchError) as error:
+            discover("https://podcasts.apple.com/us/podcast/example/id12345")
+    assert error.value.code == "feed_unavailable"
+    assert error.value.status_code == 400
+
+
+def test_apple_feed_redirect_without_location_has_no_http_status(public_dns):
+    """Mutation: drop the Apple status bound so 302 is kept."""
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://itunes.apple.com/lookup?id=12345&entity=podcast").mock(return_value=httpx.Response(
+            200, json={"resultCount": 1, "results": [{"feedUrl": "https://host.example/show.xml"}]},
+        ))
+        router.get("https://host.example/show.xml").mock(return_value=httpx.Response(302))
+        with pytest.raises(FetchError) as error:
+            discover("https://podcasts.apple.com/us/podcast/example/id12345")
+    assert error.value.code == "feed_unavailable"
+    assert error.value.status_code is None
+
+
+def test_apple_invalid_feed_scheme_is_unavailable(public_dns):
+    """Mutation: add invalid_url to the Apple pass-through tuple."""
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://itunes.apple.com/lookup?id=12345&entity=podcast").mock(return_value=httpx.Response(
+            200, json={"resultCount": 1, "results": [{"feedUrl": "ftp://host.example/show.xml"}]},
+        ))
+        with pytest.raises(FetchError) as error:
+            discover("https://podcasts.apple.com/us/podcast/example/id12345")
+        assert len(router.calls) == 1
+    assert error.value.code == "feed_unavailable"
+    assert error.value.status_code is None
+
+
+def test_declared_feed_http_400_is_unavailable(public_dns):
+    """Mutation: change the declared-candidate HTTP status guard to > 400."""
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/").mock(return_value=httpx.Response(
+            200, content=declared_html("/feed.xml"), headers={"content-type": "text/html"},
+        ))
+        router.get("https://site.example/feed.xml").mock(return_value=httpx.Response(400))
+        with pytest.raises(FetchError) as error:
+            discover("https://site.example/")
+    assert error.value.code == "feed_unavailable"
+    assert error.value.status_code == 400
+
+
+@pytest.mark.parametrize("first", ["blocked", "unparseable"])
+def test_unparseable_declared_feed_precedes_blocked_in_both_orders(blocked_candidate_dns, first):
+    """Mutation: guard unparseable with `and blocked_error is None`."""
+    urls = {
+        "blocked": "https://internal.example/feed.xml",
+        "unparseable": "https://site.example/invalid.xml",
+    }
+    second = "unparseable" if first == "blocked" else "blocked"
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/").mock(return_value=httpx.Response(
+            200, content=declared_html(urls[first], urls[second]), headers={"content-type": "text/html"},
+        ))
+        router.get(urls["unparseable"]).mock(return_value=httpx.Response(200, content=b"not a feed"))
+        with pytest.raises(FetchError) as error:
+            discover("https://site.example/")
+    assert error.value.code == "not_a_feed"
+
+
 def test_unparseable_declared_feed_takes_precedence_over_http_error(public_dns):
     html = (b"<html><head>"
             b"<link rel='alternate' type='application/rss+xml' href='/missing.xml'>"

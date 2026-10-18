@@ -479,6 +479,17 @@ def test_preview_oversized_page_omits_non_error_http_status(client):
     assert "http_status" not in response.json()["error"]
 
 
+def test_preview_redirect_without_location_omits_http_status(client):
+    """Mutations: change the API status bound to >= 300, then >= 201."""
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/").mock(return_value=httpx.Response(302))
+        response = client.post("/api/sources/preview", json={"url": "https://site.example/"})
+        assert len(router.calls) == 1
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "fetch_failed"
+    assert "http_status" not in response.json()["error"]
+
+
 def test_preview_declared_feed_timeout_omits_http_status(client):
     with respx.mock(assert_all_mocked=True) as router:
         router.get("https://site.example/").mock(return_value=httpx.Response(

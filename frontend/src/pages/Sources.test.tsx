@@ -89,6 +89,74 @@ describe('sources', () => {
     await expectAccessible(container)
   })
 
+  it.each([
+    ['fetch_failed', 403, 'The site refused the request (HTTP 403). If you know its feed URL, paste that instead.'],
+    ['fetch_failed', 404, "The page was not found (HTTP 404). Check the URL, or paste the site's feed URL."],
+    ['fetch_failed', 503, 'The site is not responding (HTTP 503). Try again later.'],
+    ['fetch_failed', 418, "The site answered HTTP 418. Check the URL, or paste the site's feed URL."],
+    ['fetch_failed', null, 'Could not fetch the source. Check the URL and try again.'],
+    ['feed_unavailable', 404, "The site's feed is temporarily unavailable (HTTP 404). Try again later."],
+    ['feed_unavailable', null, "The site's feed is temporarily unavailable. Try again later."],
+  ])('shows the preview error for %s with HTTP status %s', async (code, httpStatus, expected) => {
+    fetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/sources') return respond([])
+      if (path === '/api/sources/preview') return respond({ error: {
+        code, message: 'Backend error',
+        ...(httpStatus === null ? {} : { http_status: httpStatus }),
+      } }, 422)
+      throw new Error(`Unexpected request: ${path}`)
+    })
+    page()
+    fireEvent.change(screen.getByLabelText('Website or feed URL'), {
+      target: { value: saved.feed_url },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    expect((await screen.findByRole('alert')).textContent).toBe(expected)
+  })
+
+  it.each([
+    ['fetch_failed', 401, 'The site refused the request (HTTP 401). If you know its feed URL, paste that instead.'],
+    ['fetch_failed', 410, "The page was not found (HTTP 410). Check the URL, or paste the site's feed URL."],
+    ['fetch_failed', 500, 'The site is not responding (HTTP 500). Try again later.'],
+    ['fetch_failed', 599, 'The site is not responding (HTTP 599). Try again later.'],
+    ['fetch_failed', 499, "The site answered HTTP 499. Check the URL, or paste the site's feed URL."],
+    ['fetch_failed', 600, "The site answered HTTP 600. Check the URL, or paste the site's feed URL."],
+    ['fetch_failed', 200, 'Could not fetch the source. Check the URL and try again.'],
+    ['fetch_failed', 302, 'Could not fetch the source. Check the URL and try again.'],
+    ['feed_unavailable', 200, "The site's feed is temporarily unavailable. Try again later."],
+  ])('bounds the preview message for %s with status %s', async (code, httpStatus, expected) => {
+    fetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/sources') return respond([])
+      if (path === '/api/sources/preview') return respond({ error: {
+        code, message: 'Backend error', http_status: httpStatus,
+      } }, 422)
+      throw new Error(`Unexpected request: ${path}`)
+    })
+    page()
+    fireEvent.change(screen.getByLabelText('Website or feed URL'), {
+      target: { value: saved.feed_url },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    expect((await screen.findByRole('alert')).textContent).toBe(expected)
+  })
+
+  it('shows HTTP 400 as an other-status preview error (mutation: D4 bound > 400)', async () => {
+    fetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/sources') return respond([])
+      if (path === '/api/sources/preview') return respond({ error: {
+        code: 'fetch_failed', message: 'Backend error', http_status: 400,
+      } }, 422)
+      throw new Error(`Unexpected request: ${path}`)
+    })
+    page()
+    fireEvent.change(screen.getByLabelText('Website or feed URL'), {
+      target: { value: saved.feed_url },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    expect((await screen.findByRole('alert')).textContent)
+      .toBe("The site answered HTTP 400. Check the URL, or paste the site's feed URL.")
+  })
+
   it('shows a rate-limited preview with suggested wait', async () => {
     fetchMock.mockImplementation(async (path: string) => path === '/api/sources'
       ? respond([])

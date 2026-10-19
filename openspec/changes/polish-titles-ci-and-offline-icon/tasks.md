@@ -89,3 +89,18 @@ Use `tdd`. Behavior changes get a failing test first. Checks of behavior that is
   Add a fix-round entry to `docs/process/ai-usage-log.md` after the latest entry, with a faithful excerpt of the prompt you actually received, and the tool and model. Leave out the session id.
 
   Verify: every command passes, and the report has the actual numbers.
+
+## 6. Fix round 2 (tests only)
+
+The re-review found four surviving mutations in `_entry_title`. This group changes only `backend/tests/test_discovery.py` and the docs. Do not change `feeds.py`. Each red step is a named temporary mutation, applied by hand: see the test pass, apply the mutation and see it fail, then revert it.
+
+- [ ] 6.1 Add these tests:
+  1. **Word-boundary cut.** `"word " * 15 + "supercalifragilistic tail"` gives `("word " * 15).rstrip()` + "…", which is 74 characters and "…". Mutation: replace `if not trimmed:` with `if True:`, so that the 80-character cut always runs.
+  2. **Text of exactly 81 characters ending in dots.** `"A" * 78 + "..."` gives `"A" * 78 + "…"`. Mutation: add `content_text = content_text.rstrip(" .…。．⋯") or content_text` before the cut.
+  3. **The fallback strips CJK full stops.** `"。" * 100` gives "…". Mutation: the fallback strip set becomes `" .…"`.
+  4. **The fallback strips spaces.** `". " * 50` gives "…". Mutation: the fallback strip set drops the space.
+
+  Verify: all new tests pass on the current code, each mutation fails its test, and every mutation is reverted. `git diff` shows only test files and docs. `uv run pytest` passes.
+- [ ] 6.2 Add a "Fix round 2" section to `docs/process/test-report-polish-titles-ci-and-offline-icon.md`, with the commands, the real results, and the mutation table. Add a fix-round-2 entry to `docs/process/ai-usage-log.md` after the latest entry, with a faithful excerpt of the prompt you actually received, and the tool and model. Leave out the session id.
+
+  Verify: every command passes, and the report has the actual numbers.

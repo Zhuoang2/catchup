@@ -10,7 +10,7 @@ import respx
 
 from catchup.net.safe_fetch import FetchError, FetchResponse
 from catchup.sources.discovery import discover
-from catchup.sources.feeds import FeedParseError, parse_feed
+from catchup.sources.feeds import FeedParseError, _entry_title, parse_feed
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -82,6 +82,57 @@ def test_untitled_social_post_uses_plain_text_at_word_boundary():
     assert entry.title == "Happy opening day, hockey fans! Follow all 1,344 games and enjoy every moment of…"
     assert entry.identity_key == "at://did:plc:example/app.bsky.feed.post/1"
     assert entry.link == "https://bsky.app/profile/example.bsky.social/post/1"
+
+
+@pytest.mark.parametrize("prefix,expected", [
+    ("A" * 77 + "...", "A" * 77 + "…"),
+    ("A" * 79 + "…", "A" * 79 + "…"),
+])
+def test_untitled_cut_text_ending_in_ellipsis_gets_only_one(prefix, expected):
+    assert _entry_title("", prefix + " more text") == expected
+
+
+@pytest.mark.parametrize("dots", ["。。。", "．．．", "⋯⋯"])
+def test_untitled_cut_cjk_dots_gets_only_one_ellipsis(dots):
+    prefix = "今" * (80 - len(dots)) + dots
+    assert _entry_title("", prefix + "后续") == "今" * (80 - len(dots)) + "…"
+
+
+def test_untitled_cut_keeps_part_of_long_word_if_word_boundary_is_only_dots():
+    assert _entry_title("", "... " + "A" * 100) == "... " + "A" * 76 + "…"
+
+
+def test_untitled_cut_preserves_word_boundary_before_long_word():
+    assert _entry_title("", "word " * 15 + "supercalifragilistic tail") == "word " * 14 + "word…"
+
+
+def test_untitled_cut_of_all_dots_is_a_single_ellipsis():
+    assert _entry_title("", "." * 100) == "…"
+
+
+def test_untitled_cut_of_cjk_full_stops_is_a_single_ellipsis():
+    assert _entry_title("", "。" * 100) == "…"
+
+
+def test_untitled_cut_of_dots_and_spaces_is_a_single_ellipsis():
+    assert _entry_title("", ". " * 50) == "…"
+
+
+def test_untitled_cut_with_space_before_dots_has_one_ellipsis():
+    assert _entry_title("", "B" * 75 + " ... more text follows here") == "B" * 75 + "…"
+
+
+def test_untitled_cut_just_over_80_characters_strips_dots_after_cut():
+    assert _entry_title("", "A" * 78 + "..." + " more") == "A" * 78 + "…"
+
+
+def test_untitled_cut_at_81_characters_strips_dots_after_cut():
+    assert _entry_title("", "A" * 78 + "...") == "A" * 78 + "…"
+
+
+def test_untitled_short_text_ending_in_dots_is_unchanged():
+    text = "A" * 70 + "..."
+    assert _entry_title("", text) == text
 
 
 def test_untitled_long_cjk_text_cuts_at_80_characters():

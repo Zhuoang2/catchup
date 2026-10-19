@@ -113,7 +113,10 @@ def _entry_title(title: str, content_text: str) -> str:
     prefix = content_text[:80]
     if not prefix[-1].isspace() and not content_text[80].isspace():
         prefix = prefix.rsplit(" ", 1)[0] if " " in prefix else prefix
-    return prefix.rstrip() + "…"
+    trimmed = prefix.rstrip(" .…。．⋯")
+    if not trimmed:
+        trimmed = content_text[:80].rstrip(" .…。．⋯")
+    return trimmed + "…"
 
 
 @dataclass(frozen=True)

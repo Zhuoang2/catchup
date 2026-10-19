@@ -102,8 +102,20 @@ def test_untitled_cut_keeps_part_of_long_word_if_word_boundary_is_only_dots():
     assert _entry_title("", "... " + "A" * 100) == "... " + "A" * 76 + "…"
 
 
+def test_untitled_cut_preserves_word_boundary_before_long_word():
+    assert _entry_title("", "word " * 15 + "supercalifragilistic tail") == "word " * 14 + "word…"
+
+
 def test_untitled_cut_of_all_dots_is_a_single_ellipsis():
     assert _entry_title("", "." * 100) == "…"
+
+
+def test_untitled_cut_of_cjk_full_stops_is_a_single_ellipsis():
+    assert _entry_title("", "。" * 100) == "…"
+
+
+def test_untitled_cut_of_dots_and_spaces_is_a_single_ellipsis():
+    assert _entry_title("", ". " * 50) == "…"
 
 
 def test_untitled_cut_with_space_before_dots_has_one_ellipsis():
@@ -112,6 +124,10 @@ def test_untitled_cut_with_space_before_dots_has_one_ellipsis():
 
 def test_untitled_cut_just_over_80_characters_strips_dots_after_cut():
     assert _entry_title("", "A" * 78 + "..." + " more") == "A" * 78 + "…"
+
+
+def test_untitled_cut_at_81_characters_strips_dots_after_cut():
+    assert _entry_title("", "A" * 78 + "...") == "A" * 78 + "…"
 
 
 def test_untitled_short_text_ending_in_dots_is_unchanged():

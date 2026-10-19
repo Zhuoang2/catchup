@@ -94,7 +94,7 @@ Use `tdd`. Behavior changes get a failing test first. Checks of behavior that is
 
 The re-review found four surviving mutations in `_entry_title`. This group changes only `backend/tests/test_discovery.py` and the docs. Do not change `feeds.py`. Each red step is a named temporary mutation, applied by hand: see the test pass, apply the mutation and see it fail, then revert it.
 
-- [ ] 6.1 Add these tests:
+- [x] 6.1 Add these tests:
   1. **Word-boundary cut.** `"word " * 15 + "supercalifragilistic tail"` gives `("word " * 15).rstrip()` + "…", which is 74 characters and "…". Mutation: replace `if not trimmed:` with `if True:`, so that the 80-character cut always runs.
   2. **Text of exactly 81 characters ending in dots.** `"A" * 78 + "..."` gives `"A" * 78 + "…"`. Mutation: add `content_text = content_text.rstrip(" .…。．⋯") or content_text` before the cut.
   3. **The fallback strips CJK full stops.** `"。" * 100` gives "…". Mutation: the fallback strip set becomes `" .…"`.

@@ -38,9 +38,9 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
                 settings.links_per_item,
             )
             comments = bool(settings.author_replies and item.comment_count and item.comment_count > 0)
-            plan.append((item.id, links, comments))
+            plan.append((item.id, source.site_url, links, comments))
         run = session.get(DigestRun, run_id)
-        run.context_total = sum(len(links) + int(comments) for _, links, comments in plan)
+        run.context_total = sum(len(links) + int(comments) for _, _, links, comments in plan)
         session.commit()
 
     def fetch(url):
@@ -59,7 +59,7 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
             logger.warning("Context fetch skipped (%s)", type(exc).__name__)
             return None
 
-    for item_id, links, comments in plan:
+    for item_id, site_url, links, comments in plan:
         if budget[0] <= 0:
             break
         with factory() as session:
@@ -79,6 +79,8 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
                 attempted = True
                 session.get(DigestRun, run_id).context_done += 1
                 if response is None:
+                    continue
+                if not related_links(item.link, site_url, [EntryLink(response.url, link.text)], 1):
                     continue
                 try:
                     text = extract(response.content, url=response.url)

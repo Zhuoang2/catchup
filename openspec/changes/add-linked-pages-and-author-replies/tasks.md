@@ -188,7 +188,7 @@ Read the amended `design.md` (D2, D4, D5, D7, each marked "fix round 1") and the
 
 **Test rule for this group.** `gather.fetch()` swallows every exception, including respx's unmocked-request error. A test that claims "X is not requested" MUST therefore mock X's route and assert `route.call_count == 0` (or `not route.called`). It must not rely on `assert_all_mocked`.
 
-- [ ] 8.1 **Link rules** (`context/links.py`, design D2). Tests first, in `backend/tests/test_context_links.py`:
+- [x] 8.1 **Link rules** (`context/links.py`, design D2). Tests first, in `backend/tests/test_context_links.py`:
   - `https://spaces.ac.cn/archives/10000` and `/search-engines-explained` are kept;
   - `/archive/2026`, `/search?q=x`, `/tag/x`, and `/page/2` are dropped;
   - `www.example.com/tags/x` is dropped for site `example.com`, and the reverse;

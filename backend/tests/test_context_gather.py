@@ -188,3 +188,20 @@ def test_budget_spent_on_robots_keeps_item_eligible_for_next_run(environment, mo
         assert page.call_count == 0
     with environment.app.state.session_factory() as session:
         assert session.scalar(select(Item)).context_status is None
+
+
+def test_link_redirecting_to_login_does_not_store_the_final_page(environment, monkeypatch, public_dns):
+    setup(environment, [("https://docs.example/article", "Article")])
+    stub_collection(monkeypatch)
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        router.get("https://docs.example/article").mock(return_value=httpx.Response(
+            302, headers={"location": "/login/"},
+        ))
+        login = router.get("https://docs.example/login/").mock(return_value=httpx.Response(
+            200, text=html("Sign in", "Account required " * 50),
+        ))
+        assert execute(environment)["status"] == "succeeded"
+        assert login.call_count == 1
+    with environment.app.state.session_factory() as session:
+        assert session.scalars(select(ItemContext)).all() == []

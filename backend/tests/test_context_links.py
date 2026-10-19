@@ -34,3 +34,29 @@ def test_keeps_body_order_and_applies_limit_after_filtering():
     ]
     assert related_links(ITEM, SITE, links, 8) == links[1:4]
     assert related_links(ITEM, SITE, links, 2) == links[1:3]
+
+
+def test_taxonomy_is_a_whole_first_segment_and_www_is_same_site():
+    links = [EntryLink(url, url) for url in (
+        "https://spaces.ac.cn/archives/10000",
+        "https://spaces.ac.cn/search-engines-explained",
+        "https://spaces.ac.cn/archive/2026",
+        "https://spaces.ac.cn/search?q=x",
+        "https://spaces.ac.cn/tag/x",
+        "https://spaces.ac.cn/page/2",
+    )]
+    assert related_links("https://spaces.ac.cn/post", "https://spaces.ac.cn", links, 8) == links[:2]
+    for site, linked in (
+        ("https://example.com", "https://www.example.com/tags/x"),
+        ("https://www.example.com", "https://example.com/tags/x"),
+    ):
+        assert related_links(f"{site}/post", site, [EntryLink(linked, "Tag")], 8) == []
+
+
+def test_rejects_social_video_watch_and_ftp_links():
+    links = [EntryLink(url, "Outside page") for url in (
+        "https://www.x.com/user", "https://www.twitter.com/user",
+        "https://youtube.com/watch?v=video", "https://youtu.be/video",
+        "https://vimeo.com/123", "ftp://files.example/article",
+    )]
+    assert related_links(ITEM, SITE, links, 8) == []

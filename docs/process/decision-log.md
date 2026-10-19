@@ -233,6 +233,7 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Runs fetch more and cost more tokens.
   - Only server-rendered, WordPress-style comments and comment feeds are read.
   - Existing items get no context.
+  - **Amended after review (2026-10-19).** When context arrives for an item that already has a summary, the summary is cleared and redone with the context (user: "As you recommend, one more fix round", translated). Link rules match whole path segments, and are applied to the final URL after redirects.
 
 ## D-021 The summary call chooses up to three important images, shown from their source sites — accepted (2026-10-19)
 

@@ -57,3 +57,35 @@ Implementer notes:
   Add your entry to `docs/process/ai-usage-log.md` after the latest entry, with a faithful excerpt of the prompt you actually received, and the tool and model. Leave out the session id.
 
   Verify: every command passes, and the report has the actual numbers.
+
+## 5. Fix round 1 (review findings)
+
+Review found no wrong behavior against the plan, but two edge cases of the title rule and some test gaps. The delta in `specs/content-collection/spec.md` now names the CJK dots and the fallback cut, and adds one scenario.
+
+Use `tdd`. Behavior changes get a failing test first. Checks of behavior that is already correct get a named temporary mutation as their red step, applied by hand: see the test pass, apply the mutation and see it fail, then revert it. Record every check and its red result in the report.
+
+- [ ] 5.1 In `backend/tests/test_discovery.py`, add tests for `_entry_title`:
+  1. **CJK full stops at the cut** (behavior change, red first). A Chinese text longer than 80 characters with "。。。" right at the cut gives a title that ends with exactly one "…", with no "。" before it. Add the same for "．．．" and "⋯⋯".
+  2. **Nothing left after stripping** (behavior change, red first):
+     - "... " followed by one 100-character word gives the first 80 characters, with trailing dots and spaces stripped, plus "…". The title begins with "... " and contains part of the word.
+     - A text of 100 dots gives "…".
+  3. **Space before the dots** (pin). "B" × 75 + " ... more text follows here" gives "B" × 75 + "…". Mutation: `rstrip(".…")` without the space.
+  4. **A text just over 80 characters** (pin). "A" × 78 + "..." + " more" gives "A" × 78 + "…". Mutation: strip trailing dots from the whole text before cutting.
+
+  Verify: cases 1 and 2 fail before 5.2, and each pin fails under its mutation, which is then reverted.
+- [ ] 5.2 In `backend/src/catchup/sources/feeds.py`, `_entry_title`:
+  - strip trailing spaces, ".", "…", "。", "．", and "⋯" from the cut text;
+  - if nothing is left, cut the text at 80 characters, without the word-boundary rule, and strip again;
+  - then append "…".
+
+  Verify: the 5.1 tests and all existing title tests pass, and `uv run pytest` passes in `backend/`.
+- [ ] 5.3 In `frontend/src/install.test.ts`, extend the offline-page test: no element in `offline.html` other than the inline icon link refers to an icon file. That is, no `img`, `link`, or `source` with a `src` or `href` containing "icon". Mutation: add `<img src="/icon.svg">` to the body.
+
+  Verify: the test passes on the current page, and fails under the mutation, which is then reverted. `npm test -- --run` passes in `frontend/`.
+- [ ] 5.4 Add a "Fix round 1" section to `docs/process/test-report-polish-titles-ci-and-offline-icon.md`, with the commands, the real results, and the red results. Also add these two known limits:
+  - An entry with no guid, no unique link, and no title gets its identity key from its derived title and date. When such an entry's title changes under the new rule, it is collected once more after the upgrade.
+  - `release.yml` has no committed test; the trigger was checked with `actionlint` and a one-off parse.
+
+  Add a fix-round entry to `docs/process/ai-usage-log.md` after the latest entry, with a faithful excerpt of the prompt you actually received, and the tool and model. Leave out the session id.
+
+  Verify: every command passes, and the report has the actual numbers.

@@ -1156,20 +1156,45 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - no design document;
   - four task groups: titles, `release.yml`, the offline icon, and checks.
 
-## 2026-10-19 — `polish-titles-ci-and-offline-icon` implementation (Factory Droid, GPT-6 Sol)
+## 2026-10-19 — `polish-titles-ci-and-offline-icon` implementation (Factory Droid, GPT-6 Sol; session `ce72fabf`)
 
 - Prompt (faithful excerpt): "Implement OpenSpec change polish-titles-ci-and-offline-icon using the openspec-apply-change skill. Work through openspec/changes/polish-titles-ci-and-offline-icon/tasks.md in order, completing each task test-first with the tdd skill: write the task's verification items as failing tests and watch them fail, then implement until they pass. Check off each task only after its verification passes. Do not edit proposal.md or the spec deltas. Commit after each task group. Do not push, tag, or open a PR. If a task is blocked or the plan looks wrong, stop and report instead of improvising."
 - Outcome: Removed existing dots and ellipsis characters before appending the one truncation ellipsis; kept short text and existing hockey titles unchanged. Added release `paths-ignore` without changing tags or other workflows. Embedded the exact SVG artwork in the offline page as a data URI. Three implementation group commits; final checks passed: **414 backend tests at 96% statement coverage**, **200 frontend tests**, frontend build, actionlint, and strict OpenSpec validation. See `test-report-polish-titles-ci-and-offline-icon.md`.
 - Problems / adjustment: The title red run had two expected failures and two passing guards; the offline icon red run had one expected failure and four passing guards. The release trigger check failed first on missing filters, then passed with all four patterns and unchanged branch/tag selectors. Installed locked frontend dependencies with `npm ci`. The first icon build found `Buffer` unavailable to TypeScript in tests; used `TextDecoder`/`atob` instead and reran the checks successfully. No live GitHub push or browser-offline rendering check was attempted; nothing was published.
 
-## 2026-10-19 — `polish-titles-ci-and-offline-icon` fix round 1 (Factory Droid, GPT-6 Sol)
+## 2026-10-19 — `polish-titles-ci-and-offline-icon` fix round 1 (Factory Droid, GPT-6 Sol; session `ce72fabf`)
 
 - Prompt (faithful excerpts from the two user requests): "Fix round 1 for OpenSpec change polish-titles-ci-and-offline-icon ... work through tasks 5.1-5.4 in order. Use tdd: behavior changes get a failing test first; checks of already-correct behavior use the named temporary mutation as their red step ... Commit after 5.2, after 5.3, and after 5.4. Do not push. If a task is blocked or the plan looks wrong, stop and report instead of improvising." Follow-up: "the 100-dots case is now an already-passing guard, checked after 5.2 with the named mutation 'skip the strip after the fallback 80-character cut'. Your uncommitted tests ... are still in the worktree. Continue tasks 5.1-5.4 ... Record the plan amendment and your stop in the fix-round log entry."
 - Outcome: Cut titles now strip CJK full stops, fullwidth dots, and midline ellipses alongside ASCII dots. A punctuation-only word-boundary cut falls back to an 80-character cut. A frontend test guards against extra icon-file references in offline HTML. New tests and the temporary mutations confirmed the edge cases and pins. Final checks: **421 backend tests**, **96% statement coverage**, **200 frontend tests**, frontend build, `actionlint`, and strict OpenSpec validation. See `test-report-polish-titles-ci-and-offline-icon.md`.
 - Problems / adjustment: The initial plan called the already-passing 100-dots case a red-first failure. Droid stopped with the new tests uncommitted rather than inventing a mutation. The user amended task 5.1 in `6b317a8` to make it a guard with a named mutation; after resuming, that mutation failed as expected and was reverted. Locked frontend dependencies needed `npm ci` because Vitest was missing. A temporary `<img src="/icon.svg">` was also reverted after the offline test detected it. No real feed or model was called; no push, tag, or PR.
 
-## 2026-10-19 — `polish-titles-ci-and-offline-icon` fix round 2 (Factory Droid, GPT-6 Sol)
+## 2026-10-19 — `polish-titles-ci-and-offline-icon` fix round 2 (Factory Droid, GPT-6 Sol; session `ce72fabf`)
 
 - Prompt (faithful excerpt): "Fix round 2 (tests only) for OpenSpec change polish-titles-ci-and-offline-icon, in this worktree. The re-review found four surviving mutations in _entry_title. Commit 2fdb4d2 adds task group 6 to tasks.md. Work through tasks 6.1-6.2 in order: change only backend/tests/test_discovery.py and the docs, do not change feeds.py; for each new test the red step is the named temporary mutation (see it pass, apply the mutation and see it fail, then revert it). Check off each task only after its verification passes. Commit after 6.1 and after 6.2. Do not push."
 - Outcome: Added four title tests for the word boundary, an 81-character cut, and fallback stripping of CJK full stops and spaces. Each passed before its named temporary mutation, failed under it, and passed again after all mutations were reverted. **425 backend tests** passed at **96%** statement coverage; strict OpenSpec validation passed. No runtime or frontend file was changed. See `test-report-polish-titles-ci-and-offline-icon.md`.
 - Problems / adjustment: One mutation (trimming the full 81-character text before cutting) caused `IndexError` rather than an incorrect title, confirming that the new test detects that mutation. The previous resume prompt called the amendment commit "1c…", but the actual amendment commit was **`6b317a8`**; the fix-round-1 report and log used the correct id. No push, tag, or PR.
+
+## 2026-10-19 — `polish-titles-ci-and-offline-icon` (#15, #21, #43 part 1): review and two fix rounds (Claude Code, Opus 5.5, with one spec-review subagent; Factory Droid session `ce72fabf`)
+
+- **Authorization:** part of the overnight queue the user authorized (see the #47 review entry): merge once the review passes.
+- **Process, after each Droid run:**
+  - `/code-review`.
+  - The spec subagent, with mutation tests in its own worktree.
+  - Claude reran the checks: `actionlint`, backend, and frontend.
+  - After fix round 2, Claude applied the four named mutations itself, in memory, and all four were killed.
+- **Run 1.** All three parts matched the plan. The review found:
+  - CJK full stops ("。。。") still gave a double ellipsis;
+  - a derived title could collapse to a bare "…" when the cut text was only dots;
+  - the identity keys of id-less entries change with their derived titles;
+  - the "space before the dots" case and the "no other icon request" check on the offline page were untested.
+- **Fix round 1.** Claude amended the delta and added task group 5 (`f1ae089`): the CJK dots, and a fallback cut at 80 characters when nothing is left.
+  - Droid stopped at 5.1 and reported that the 100-dots case already passed, so it could not be red first. That was Claude's plan error, amended in `6b317a8`.
+  - Claude's resume prompt named that commit wrongly, as "1c…", and Droid's fix-round-2 entry corrects it.
+- **Fix round 2** (tests only, `2fdb4d2`) pinned four survivors: the normal word-boundary cut, which was never tested before; a text of exactly 81 characters ending in dots; and the fallback's strip of CJK full stops and of spaces.
+- **Known limits,** in the test report:
+  - id-less entries may be collected once more after the upgrade;
+  - `release.yml` has no committed test;
+  - a text whose first 80 characters are only dots and spaces still gives a bare "…";
+  - the 16 px icon legibility, #43 part 2, stays open.
+- **Merging.** `origin/main` (with #47) was merged into the branch. Conflicts in the AI usage log and the requirements log were resolved by putting the main entries first. After the merge, 440 backend and 200 frontend tests passed.
+- **Log corrections by Claude:** session `ce72fabf` was added to Droid's three entries.

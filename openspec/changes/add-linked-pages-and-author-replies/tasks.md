@@ -205,7 +205,7 @@ Read the amended `design.md` (D2, D4, D5, D7, each marked "fix round 1") and the
   4. `context_done` is committed after each fetch: a second session sees it go up within one item.
 
   Verify: 1–3 fail before the fix. Item 4 also fails, or, if it already passes, the report gives its mutation.
-- [ ] 8.3 **Author replies** (`context/comments.py`, design D5). Tests first, in `backend/tests/test_context_comments.py`, with a fixture shaped like the real thread (built from the structure, not copied text):
+- [x] 8.3 **Author replies** (`context/comments.py`, design D5). Tests first, in `backend/tests/test_context_comments.py`, with a fixture shaped like the real thread (built from the structure, not copied text):
   - `div.comment#comment-1` (a reader), then `ul.children` > `div.comment.bypostauthor#comment-2` (the author). The reply's text begins "In reply to: <reader text>".
   - A top-level author comment containing `<a href="#comment-2">`, its own id, gets no "In reply to" prefix.
   - The entry author "Terence  Tao", with a double space, matches a comment whose `.fn` is "Terence Tao".

@@ -10,6 +10,10 @@ def _text(element) -> str:
     return " ".join(" ".join(element.itertext()).split())[:600]
 
 
+def _name(value: str) -> str:
+    return " ".join(value.split()).casefold()
+
+
 def _bounded(replies: list[str]) -> list[str]:
     result = []
     for reply in replies[:10]:
@@ -42,9 +46,9 @@ def author_replies(page: bytes, author: str | None, feed: bytes | None = None) -
         ]
         selected = marked or [
             node for node in comments if author and (
-                any(cls.startswith("comment-author-") and cls[len("comment-author-"):].casefold() == author.casefold()
+                any(cls.startswith("comment-author-") and _name(cls[len("comment-author-"):]) == _name(author)
                     for cls in (node.get("class") or "").split())
-                or any(_text(name).casefold() == author.casefold() for name in within(node,
+                or any(_name(_text(name)) == _name(author) for name in within(node,
                     ".//*[contains(concat(' ', normalize-space(@class), ' '), ' fn ')]"
                 ))
             )
@@ -59,9 +63,19 @@ def author_replies(page: bytes, author: str | None, feed: bytes | None = None) -
                 if ancestor in comments
             ), None)
             if parent is None:
+                for ancestor in node.iterancestors():
+                    if ancestor.tag not in ("ol", "ul") or "children" not in (ancestor.get("class") or "").split():
+                        continue
+                    sibling = ancestor.getprevious()
+                    while sibling is not None and sibling not in comments:
+                        sibling = sibling.getprevious()
+                    if sibling is not None:
+                        parent = sibling
+                        break
+            if parent is None:
                 for anchor in node.xpath(".//a[starts-with(@href, '#')]"):
                     target = tree.xpath("//*[@id=$ident]", ident=anchor.get("href", "")[1:])
-                    if target and target[0] in comments:
+                    if target and target[0] in comments and target[0] is not node:
                         parent = target[0]
                         break
             previous = within(parent, content_selector) if parent is not None else []
@@ -74,7 +88,7 @@ def author_replies(page: bytes, author: str | None, feed: bytes | None = None) -
     return _bounded([
         _text(html.fromstring(entry.get("summary", "")))
         for entry in parsed.entries[:10]
-        if (entry.get("author") or "").casefold() == author.casefold()
+        if _name(entry.get("author") or "") == _name(author)
         and "pingback" not in (entry.get("title", "") + " " + entry.get("summary", "")).casefold()
         and entry.get("summary")
     ])

@@ -198,7 +198,7 @@ Read the amended `design.md` (D2, D4, D5, D7, each marked "fix round 1") and the
   - a link whose final URL after a redirect is `/login/` is not stored (a gather test with a respx redirect).
 
   Verify: the new cases fail before the fix, and pass after.
-- [ ] 8.2 **Budget exhaustion and deleted items** (`context/gather.py`, design D4). Tests first, in `backend/tests/test_context_gather.py`:
+- [x] 8.2 **Budget exhaustion and deleted items** (`context/gather.py`, design D4). Tests first, in `backend/tests/test_context_gather.py`:
   1. With a budget of 1, robots.txt takes the only unit, so the comment page is never fetched. The item keeps `context_status` null, and no rows are stored.
   2. A redirect that needs a second budget unit when only one is left leaves the item null.
   3. Deleting the item's source during the pass (patch `related_links` or a fetch to delete it) does not fail the run.

@@ -53,31 +53,44 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
                 return EXHAUSTED
             return safe_fetch(url, budget=budget, spacer=spacer)
         except FetchError as exc:
+            if exc.code == "fetch_failed" and str(exc) == "Feed probing request limit reached.":
+                return EXHAUSTED
             logger.info("Context fetch skipped (%s)", exc.code)
             return None
         except Exception as exc:
             logger.warning("Context fetch skipped (%s)", type(exc).__name__)
             return None
 
+    def progress(*, done: int = 0, total: int = 0):
+        with factory() as session:
+            run = session.get(DigestRun, run_id)
+            run.context_done += done
+            run.context_total += total
+            session.commit()
+
     for item_id, site_url, links, comments in plan:
         if budget[0] <= 0:
             break
         with factory() as session:
             item = session.get(Item, item_id)
+            if item is None:
+                continue
             linked_length = 0
             position = 0
             attempted = False
             exhausted = False
             for link in links:
-                if linked_length >= 16_000 or budget[0] <= 0:
-                    exhausted = budget[0] <= 0
+                if linked_length >= 16_000:
+                    break
+                if budget[0] <= 0:
+                    exhausted = True
                     break
                 response = fetch(link.url)
                 if response is EXHAUSTED:
                     exhausted = True
                     break
                 attempted = True
-                session.get(DigestRun, run_id).context_done += 1
+                progress(done=1)
                 if response is None:
                     continue
                 if not related_links(item.link, site_url, [EntryLink(response.url, link.text)], 1):
@@ -98,22 +111,28 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
                     ))
                 except Exception as exc:
                     logger.warning("Context extraction skipped (%s)", type(exc).__name__)
-            if comments and budget[0] > 0:
-                attempted = True
+            if comments:
                 page = fetch(item.link)
-                session.get(DigestRun, run_id).context_done += 1
-                if page is not None:
+                if page is EXHAUSTED:
+                    exhausted = True
+                else:
+                    attempted = True
+                    progress(done=1)
+                if page is not None and page is not EXHAUSTED:
                     try:
                         reply_texts = author_replies(page.content, item.entry_author)
                         document = html.fromstring(page.content)
                         markup = document.xpath(
                             "//*[self::li or self::div][contains(concat(' ', normalize-space(@class), ' '), ' comment ')]"
                         )
-                        if not markup and item.comment_feed_url and budget[0] > 0:
-                            session.get(DigestRun, run_id).context_total += 1
+                        if not markup and item.comment_feed_url:
+                            progress(total=1)
                             feed = fetch(item.comment_feed_url)
-                            session.get(DigestRun, run_id).context_done += 1
-                            if feed is not None:
+                            if feed is EXHAUSTED:
+                                exhausted = True
+                            else:
+                                progress(done=1)
+                            if feed is not None and feed is not EXHAUSTED:
                                 reply_texts = author_replies(page.content, item.entry_author, feed.content)
                         if reply_texts:
                             session.add(ItemContext(
@@ -123,9 +142,14 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
                             ))
                     except Exception as exc:
                         logger.warning("Comment extraction skipped (%s)", type(exc).__name__)
-            if exhausted and not item.contexts:
-                item.context_status = None
-            elif attempted:
+            if exhausted:
+                session.rollback()
+                continue
+            with factory() as check_session:
+                if check_session.get(Item, item_id) is None:
+                    session.rollback()
+                    continue
+            if attempted:
                 session.flush()
                 item.context_status = "gathered" if item.contexts else "none"
             elif not links and not comments:

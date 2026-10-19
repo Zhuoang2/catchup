@@ -205,3 +205,119 @@ def test_link_redirecting_to_login_does_not_store_the_final_page(environment, mo
         assert login.call_count == 1
     with environment.app.state.session_factory() as session:
         assert session.scalars(select(ItemContext)).all() == []
+
+
+def test_robots_exhaustion_does_not_mark_comment_item_done(environment, monkeypatch, public_dns):
+    setup(environment, [], comments=1)
+    stub_collection(monkeypatch)
+    environment.app.state.settings = replace(environment.app.state.settings, context_fetches_per_run=1)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        robots = router.get("https://s0.example/robots.txt").mock(return_value=httpx.Response(404))
+        post = router.get("https://s0.example/0").mock(return_value=httpx.Response(
+            200, text="<div class='comment bypostauthor'><div class='comment-content'>Reply.</div></div>",
+        ))
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert robots.call_count == 1 and post.call_count == 0
+    with environment.app.state.session_factory() as session:
+        assert session.scalar(select(Item)).context_status is None
+        assert session.scalars(select(ItemContext)).all() == []
+
+
+def test_redirect_exhaustion_discards_partial_context_and_retries_whole_item(
+    environment, monkeypatch, public_dns,
+):
+    setup(environment, [("https://docs.example/redirect", "Redirect")])
+    stub_collection(monkeypatch)
+    environment.app.state.settings = replace(environment.app.state.settings, context_fetches_per_run=2)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        first = router.get("https://docs.example/redirect").mock(return_value=httpx.Response(
+            302, headers={"location": "/destination"},
+        ))
+        destination = router.get("https://docs.example/destination").mock(return_value=httpx.Response(
+            200, text=html("Destination", "Substantive content " * 50),
+        ))
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert first.call_count == 1 and destination.call_count == 0
+    with environment.app.state.session_factory() as session:
+        assert session.scalar(select(Item)).context_status is None
+        assert session.scalars(select(ItemContext)).all() == []
+
+
+def test_budget_exhaustion_rolls_back_first_link_in_partial_item(
+    environment, monkeypatch, public_dns,
+):
+    setup(environment, [("https://docs.example/one", "One"), ("https://docs.example/two", "Two")])
+    stub_collection(monkeypatch)
+    environment.app.state.settings = replace(environment.app.state.settings, context_fetches_per_run=2)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        first = router.get("https://docs.example/one").mock(return_value=httpx.Response(
+            200, text=html("One", "First linked document " * 40),
+        ))
+        second = router.get("https://docs.example/two").mock(return_value=httpx.Response(
+            200, text=html("Two", "Second linked document " * 40),
+        ))
+        assert execute(environment)["status"] == "succeeded"
+    assert first.call_count == 1 and second.call_count == 0
+    with environment.app.state.session_factory() as session:
+        assert session.scalar(select(Item)).context_status is None
+        assert session.scalars(select(ItemContext)).all() == []
+
+
+def test_deleted_item_during_context_plan_does_not_fail_run(environment, monkeypatch):
+    setup(environment, [("https://docs.example/page", "Page")])
+    stub_collection(monkeypatch)
+    from catchup.context import gather
+
+    original = gather.related_links
+
+    def remove_source(*args, **kwargs):
+        links = original(*args, **kwargs)
+        with environment.app.state.session_factory() as session:
+            session.delete(session.scalar(select(Source)))
+            session.commit()
+        return links
+
+    monkeypatch.setattr(gather, "related_links", remove_source)
+    assert execute(environment)["status"] == "no_new_content"
+
+
+def test_deleted_item_during_context_fetch_does_not_fail_run(environment, monkeypatch, public_dns):
+    setup(environment, [("https://docs.example/page", "Page")])
+    stub_collection(monkeypatch)
+
+    def remove_source(_request):
+        with environment.app.state.session_factory() as session:
+            session.delete(session.scalar(select(Source)))
+            session.commit()
+        return httpx.Response(200, text=html("Page", "Substantial text " * 30))
+
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        router.get("https://docs.example/page").mock(side_effect=remove_source)
+        assert execute(environment)["status"] == "no_new_content"
+
+
+def test_context_progress_is_committed_between_fetches_for_one_item(
+    environment, monkeypatch, public_dns,
+):
+    setup(environment, [("https://docs.example/one", "One"), ("https://docs.example/two", "Two")])
+    stub_collection(monkeypatch)
+    visible = []
+
+    def second(_request):
+        with environment.app.state.session_factory() as session:
+            visible.append(session.scalar(select(DigestRun).order_by(DigestRun.id.desc())).context_done)
+        return httpx.Response(200, text=html("Two", "Second linked document " * 40))
+
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        router.get("https://docs.example/one").mock(return_value=httpx.Response(
+            200, text=html("One", "First linked document " * 40),
+        ))
+        router.get("https://docs.example/two").mock(side_effect=second)
+        assert execute(environment)["status"] == "succeeded"
+    assert visible == [1]

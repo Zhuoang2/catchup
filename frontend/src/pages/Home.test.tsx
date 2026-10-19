@@ -130,7 +130,15 @@ it.each([
   const region = await screen.findByRole('region', { name: 'Digest run' })
   if (latest) expect(screen.getByRole('heading', { name: 'Technology' })).toBeInTheDocument()
   if (status === 'succeeded') {
+    expect(region).toHaveTextContent('Your digest is ready')
     expect(region.querySelector('.result-meta')).toHaveTextContent('3 sources')
+  }
+  if (status === 'no_new_content') expect(region).toHaveTextContent('No new content')
+  if (status === 'failed') {
+    expect(screen.getByText('Digest generation failed')).toBeInTheDocument()
+    if (layout === 'compact') {
+      expect(within(region).getByText('Digest generation failed')).toBeInTheDocument()
+    }
   }
   if (variant === 'all fine') {
     expect(region.querySelector('.check-list')).toBeNull()

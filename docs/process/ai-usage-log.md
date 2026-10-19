@@ -1092,3 +1092,22 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - **Left open (low).** The restructured table dropped three assertions that the old blocks had: the "Your digest is ready" title in the compact bar, the "Digest generation failed" title, and the row order (which the spec does not require). Four mutations of these survive. The plan's "one shared set of assertions" left them out, not Droid.
 - **Log corrections by Claude.** Added session `892a201e` to Droid's two entries, from the `droid exec` output.
 - The user replied "As you recommend; approve auto-merge, and delete the remote branch after merging" (translated).
+
+## 2026-10-19 — Round-2 user feedback, issues #47–#49, and the `keep-feed-text-when-extraction-misses` (#47) lean plan (Claude Code, Opus 5.5)
+
+- **Prompts (translated from Chinese).**
+  - The user sent a screenshot of a digest item: "This summary makes no sense. If the entry has other links, we should open them and check whether they relate to the entry and need to be summarized together. For a Twitter post, we should look at whether the author said something in the comments and interacted with followers. And if an entry has a very important image, we should show it in our digest."
+  - Then: "For F7, let you decide for now; later we could let users choose how deep the link exploration goes. F8 we can start now, because many blogs have comment sections where the author interacts. For F9, let the model decide, and let's first try loading images directly from the source site."
+  - Then two answers to AskUserQuestion: fix F6 on its own first, and split F7–F9 into two changes.
+- **Investigation.** Claude read the item from the user's local instance read-only, and reproduced the extraction locally from the saved page:
+  - The 250-character feed text was replaced by trafilatura's extraction of the sidebar (310 characters).
+  - trafilatura's default, `favor_recall`, and `favor_precision` settings all gave the same result.
+- **Issues.**
+  - #47: the bug, which is this change.
+  - #48: linked pages and the author's replies in comments.
+  - #49: important images.
+  - A comment on #41 for X replies.
+- **Plan** (the `openspec-propose` skill):
+  - a `content-collection` delta, with two new scenarios;
+  - a short design: D1 is the coverage rule, at least 60% of the feed's distinct words of 3 or more characters found in the extracted text, which was checked against the real case (1 of 27 words, 4%); D2 is what is stored; D3 lists the alternatives;
+  - one test-first task group, and a checks-and-report group.

@@ -68,11 +68,11 @@ Use `tdd`. Behavior changes get a failing test first. Checks of behavior that is
   1. **CJK full stops at the cut** (behavior change, red first). A Chinese text longer than 80 characters with "。。。" right at the cut gives a title that ends with exactly one "…", with no "。" before it. Add the same for "．．．" and "⋯⋯".
   2. **Nothing left after stripping** (behavior change, red first):
      - "... " followed by one 100-character word gives the first 80 characters, with trailing dots and spaces stripped, plus "…". The title begins with "... " and contains part of the word.
-     - A text of 100 dots gives "…".
+     - A text of 100 dots gives "…". (Amended: this already passes today, so it is a guard, not a red-first case. After 5.2, check it with a named mutation: skip the strip after the fallback 80-character cut. The title then ends in dots before "…".)
   3. **Space before the dots** (pin). "B" × 75 + " ... more text follows here" gives "B" × 75 + "…". Mutation: `rstrip(".…")` without the space.
   4. **A text just over 80 characters** (pin). "A" × 78 + "..." + " more" gives "A" × 78 + "…". Mutation: strip trailing dots from the whole text before cutting.
 
-  Verify: cases 1 and 2 fail before 5.2, and each pin fails under its mutation, which is then reverted.
+  Verify: case 1 and the first case of 2 fail before 5.2. The 100-dots guard and each pin fail under their mutations, which are then reverted.
 - [ ] 5.2 In `backend/src/catchup/sources/feeds.py`, `_entry_title`:
   - strip trailing spaces, ".", "…", "。", "．", and "⋯" from the cut text;
   - if nothing is left, cut the text at 80 characters, without the word-boundary rule, and strip again;

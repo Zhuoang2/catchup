@@ -1,6 +1,7 @@
 import socket
 from datetime import datetime, timedelta, timezone
 from html import escape
+from pathlib import Path
 
 import httpx
 import pytest
@@ -252,7 +253,7 @@ def test_fetch_or_parse_failure_never_reports_no_new_items(session, app, failure
 
 def test_short_feed_excerpt_is_replaced_with_extracted_article(session, app):
     article = b"""<html><head><title>A story</title></head><body><article>
-    <h1>A story</h1><p>This is the complete article content with enough context
+    <h1>A story</h1><p>Short excerpt: This is the complete article content with enough context
     to replace the small feed excerpt for the digest.</p></article></body></html>"""
     with respx.mock(assert_all_mocked=True) as router:
         serve(router, item("one", text="Short excerpt"))
@@ -265,6 +266,174 @@ def test_short_feed_excerpt_is_replaced_with_extracted_article(session, app):
     assert check.status == "new_items" and article_route.call_count == 1
     assert saved.content_origin == "article"
     assert "complete article content" in saved.content_text
+    assert saved.content_text.count("Short excerpt") == 1
+
+
+def stored_article_from_short_feed(session, settings, monkeypatch, feed_text, extracted):
+    monkeypatch.setattr("catchup.collection.extract", lambda *_args, **_kwargs: extracted)
+    with respx.mock(assert_all_mocked=True) as router:
+        serve(router, item("one", text=feed_text))
+        router.get(ARTICLE_URL).mock(return_value=httpx.Response(
+            200, content=b"<html><body><article>Page text</article></body></html>",
+            headers={"content-type": "text/html"},
+        ))
+        check = run_check(session, settings)
+    assert check.status == "new_items"
+    return session.scalar(select(Item))
+
+
+def test_short_feed_release_note_survives_sidebar_extraction(session, app, monkeypatch):
+    feed_text = (
+        "Version 4.2 fixes the plugin startup regression introduced when the client switched "
+        "to a new HTTP transport. Extensions that used the old transport without declaring "
+        "it as a dependency failed to load. This patch restores compatibility; users can "
+        "upgrade without changing their configuration."
+    )
+    sidebar = "19 October 2026\nRecent articles\nGarden notes\nMorning routes\nWinter lanterns"
+    assert 200 < len(feed_text) < 300
+    saved = stored_article_from_short_feed(
+        session, app.state.settings, monkeypatch, feed_text, sidebar,
+    )
+    assert saved.content_text == feed_text + "\n\n" + sidebar
+    assert saved.content_origin == "article"
+
+
+def test_short_feed_excerpt_covered_by_article_is_not_duplicated(session, app, monkeypatch):
+    feed_text = "A small probe found an unexpected signal."
+    extracted = feed_text + "\nThe team repeated the experiment with a second instrument."
+    saved = stored_article_from_short_feed(
+        session, app.state.settings, monkeypatch, feed_text, extracted,
+    )
+    assert saved.content_text == extracted
+    assert saved.content_origin == "article"
+
+
+@pytest.mark.parametrize("extracted,expected", [
+    ("amber birch cedar delta ember fir\nMore details from the report.",
+     "amber birch cedar delta ember fir\nMore details from the report."),
+    ("amber birch cedar delta ember\nMore details from the report.",
+     "amber birch cedar delta ember fir grove harbor ivory juniper\n\n"
+     "amber birch cedar delta ember\nMore details from the report."),
+])
+def test_short_feed_sixty_percent_word_boundary(session, app, monkeypatch, extracted, expected):
+    feed_text = "amber birch cedar delta ember fir grove harbor ivory juniper"
+    saved = stored_article_from_short_feed(
+        session, app.state.settings, monkeypatch, feed_text, extracted,
+    )
+    assert saved.content_text == expected
+    assert saved.content_origin == "article"
+
+
+def test_repeated_feed_words_count_only_once(session, app, monkeypatch):
+    feed_text = "Update update update update update alpha beta"
+    extracted = "Weekly update digest"
+    saved = stored_article_from_short_feed(
+        session, app.state.settings, monkeypatch, feed_text, extracted,
+    )
+    assert saved.content_text == feed_text + "\n\n" + extracted
+    assert saved.content_origin == "article"
+
+
+@pytest.mark.parametrize("feed_text,extracted,expected", [
+    ("oak elm ash", "A walk through the meadow.",
+     "oak elm ash\n\nA walk through the meadow."),
+    ("a to by", "A walk through the meadow.", "A walk through the meadow."),
+])
+def test_short_feed_three_character_word_boundary(session, app, monkeypatch,
+                                                   feed_text, extracted, expected):
+    saved = stored_article_from_short_feed(
+        session, app.state.settings, monkeypatch, feed_text, extracted,
+    )
+    assert saved.content_text == expected
+    assert saved.content_origin == "article"
+
+
+def test_short_feed_words_cover_case_insensitively(session, app, monkeypatch):
+    saved = stored_article_from_short_feed(
+        session, app.state.settings, monkeypatch,
+        "Rust Release Notes For October",
+        "rust release notes for october\nThe update is now available.",
+    )
+    assert saved.content_text == "rust release notes for october\nThe update is now available."
+    assert saved.content_origin == "article"
+
+
+def test_uppercase_article_words_cover_lowercase_feed_text(session, app, monkeypatch):
+    extracted = "RUST RELEASE NOTES FOR OCTOBER\nThe update is now available."
+    saved = stored_article_from_short_feed(
+        session, app.state.settings, monkeypatch,
+        "rust release notes for october", extracted,
+    )
+    assert saved.content_text == extracted
+    assert saved.content_origin == "article"
+
+
+def test_short_feed_cjk_sentence_inside_article_is_covered(session, app, monkeypatch):
+    extracted = "前言：这是一段摘要，介绍新版本的变化以及后续安排。"
+    saved = stored_article_from_short_feed(
+        session, app.state.settings, monkeypatch,
+        "这是一段摘要，介绍新版本的变化。", extracted,
+    )
+    assert saved.content_text == extracted
+    assert saved.content_origin == "article"
+
+
+def test_unrelated_cjk_sidebar_does_not_cover_feed_text(session, app, monkeypatch):
+    feed_text = "这是一段摘要，介绍新版本的变化。"
+    sidebar = "最近文章\n花园笔记\n晨间路线"
+    saved = stored_article_from_short_feed(
+        session, app.state.settings, monkeypatch, feed_text, sidebar,
+    )
+    assert saved.content_text == feed_text + "\n\n" + sidebar
+    assert saved.content_origin == "article"
+
+
+def test_empty_feed_text_keeps_only_extracted_article(session, app, monkeypatch):
+    extracted = "A complete report about the new instrument."
+    saved = stored_article_from_short_feed(
+        session, app.state.settings, monkeypatch, "", extracted,
+    )
+    assert saved.content_text == extracted
+    assert saved.content_origin == "article"
+
+
+def test_extracted_article_strips_surrounding_whitespace(session, app, monkeypatch):
+    saved = stored_article_from_short_feed(
+        session, app.state.settings, monkeypatch, "",
+        "\n  A complete report about the new instrument.  \n",
+    )
+    assert saved.content_text == "A complete report about the new instrument."
+    assert saved.content_origin == "article"
+
+
+def test_pending_podcast_text_post_keeps_feed_text_on_recheck(session, app, monkeypatch):
+    feed_text = "Text content for readers."
+    extracted = "Recent articles\nGarden notes\nWinter lanterns"
+    source = session.scalar(select(Source))
+    source.kind = "podcast"
+    prior = Item(
+        source_id=source.id, identity_key="post", link="https://site.example/post",
+        title="Text post", content_text="Old description", content_origin="feed",
+        state="pending", transcript_status="waiting",
+    )
+    session.add(prior)
+    session.commit()
+    monkeypatch.setattr("catchup.collection.extract", lambda *_args, **_kwargs: extracted)
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(FEED_URL).mock(return_value=httpx.Response(
+            200, content=(Path(__file__).parent / "fixtures/podcast-kind.xml").read_bytes(),
+            headers={"content-type": "application/rss+xml"},
+        ))
+        article_route = router.get(prior.link).mock(return_value=httpx.Response(
+            200, content=b"<html><body><article>Other posts</article></body></html>",
+            headers={"content-type": "text/html"},
+        ))
+        run_check(session, app.state.settings, source)
+    assert article_route.call_count == 1
+    assert prior.state == "pending"
+    assert prior.transcript_status == "text"
+    assert prior.content_text == feed_text + "\n\n" + extracted
+    assert prior.content_origin == "article"
 
 
 @pytest.mark.parametrize("article_response", [

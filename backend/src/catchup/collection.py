@@ -1,6 +1,7 @@
 """Collect unseen feed entries for one source and record the check outcome."""
 
 import logging
+import re
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -15,6 +16,20 @@ from catchup.transcripts.context import TranscriptContext
 from catchup.transcripts.convert import convert_transcript
 
 logger = logging.getLogger(__name__)
+
+COVERAGE_SHARE = 0.6
+MIN_COVERAGE_WORD_CHARS = 3
+
+
+def _covers(feed_text: str, extracted: str) -> bool:
+    words = {
+        word.casefold() for word in re.findall(r"\w+", feed_text)
+        if len(word) >= MIN_COVERAGE_WORD_CHARS
+    }
+    if not words:
+        return True
+    article = extracted.casefold()
+    return sum(word in article for word in words) / len(words) >= COVERAGE_SHARE
 
 
 def _resolve_episode(item: Item, entry: FeedEntry, spacer: HostSpacer | None) -> None:
@@ -47,7 +62,10 @@ def article_text(entry: FeedEntry, fallback_links: set[str], threshold: int,
     try:
         text = extract(response.content, url=response.url)
         if text and text.strip():
-            return text.strip(), "article"
+            article = text.strip()
+            if _covers(entry.content_text, article):
+                return article, "article"
+            return entry.content_text + "\n\n" + article, "article"
     except Exception:
         # Extraction failures must not turn a successful feed check into a failure.
         pass

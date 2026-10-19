@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from sqlalchemy import func, select, update
 
 from catchup.collection import check_source
+from catchup.context.gather import gather_context
 from catchup.crypto import decrypt_key
 from catchup.digest.group import GroupItem, group_items
 from catchup.digest.summarize import SummaryInput, SummaryResult, summarize_items
@@ -208,6 +209,7 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                     check_source(session, source, run_id, app.state.settings,
                                  spacer=spacer, transcripts=transcripts)
         caption_pass(factory, transcripts)
+        gather_context(factory, run_id, app.state.settings, spacer)
 
         with factory() as session:
             rows = session.execute(
@@ -403,7 +405,8 @@ def run_detail(session, run: DigestRun) -> dict:
     ) if digest is not None else None
     return {
         "id": run.id, "status": run.status, "items_total": run.items_total,
-        "items_done": run.items_done, "error_kind": run.error_kind,
+        "items_done": run.items_done, "context_total": run.context_total,
+        "context_done": run.context_done, "error_kind": run.error_kind,
         "waiting_count": run.waiting_count, "deferred_count": run.deferred_count,
         "prompt_tokens": run.prompt_tokens, "completion_tokens": run.completion_tokens,
         "error_message": run.error_message, "digest_id": run.digest_id,

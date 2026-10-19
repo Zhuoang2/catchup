@@ -80,12 +80,12 @@ Implementer notes:
 
 ## 4. The context pass in the run
 
-- [ ] 4.1 Add the settings to `backend/src/catchup/config.py`: `links_per_item` (`CATCHUP_LINKS_PER_ITEM`, default 8), `context_fetches_per_run` (`CATCHUP_CONTEXT_FETCHES_PER_RUN`, default 60), and `author_replies` (`CATCHUP_AUTHOR_REPLIES`, default on; `0`, `false`, and `no` turn it off). The first two use `positive_env`.
+- [x] 4.1 Add the settings to `backend/src/catchup/config.py`: `links_per_item` (`CATCHUP_LINKS_PER_ITEM`, default 8), `context_fetches_per_run` (`CATCHUP_CONTEXT_FETCHES_PER_RUN`, default 60), and `author_replies` (`CATCHUP_AUTHOR_REPLIES`, default on; `0`, `false`, and `no` turn it off). The first two use `positive_env`.
 
   Tests first in `backend/tests/test_config.py`: the defaults, overrides, and rejection of values ≤ 0.
 
   Verify: the tests pass.
-- [ ] 4.2 Create `context/gather.py`, and call it from `backend/src/catchup/digest/runner.py` after the caption pass and before `select_pending` (design D4). Also update `run_detail` to return `context_total` and `context_done`.
+- [x] 4.2 Create `context/gather.py`, and call it from `backend/src/catchup/digest/runner.py` after the caption pass and before `select_pending` (design D4). Also update `run_detail` to return `context_total` and `context_done`.
 
   Write the tests first, in a new `backend/tests/test_context_gather.py`, and through the runner in `test_digest_runner.py`, with `respx`:
   1. A pending website item with 3 related links and 2 tag links: 3 `link` contexts are stored (`L1`–`L3`), each cut to 3,000 characters with its page title, and the tag pages are not requested.

@@ -40,3 +40,24 @@ def test_removed_cap_warns_once(monkeypatch, caplog) -> None:
     assert len(caplog.records) == 1
     assert "CATCHUP_MAX_ITEM_CHARS" in caplog.text
     assert "CATCHUP_SINGLE_CALL_CHARS" in caplog.text
+
+
+def test_context_settings_defaults_and_overrides(monkeypatch):
+    settings = Settings.from_env()
+    assert (settings.links_per_item, settings.context_fetches_per_run, settings.author_replies) == (8, 60, True)
+    monkeypatch.setenv("CATCHUP_LINKS_PER_ITEM", "4")
+    monkeypatch.setenv("CATCHUP_CONTEXT_FETCHES_PER_RUN", "12")
+    monkeypatch.setenv("CATCHUP_AUTHOR_REPLIES", "0")
+    settings = Settings.from_env()
+    assert (settings.links_per_item, settings.context_fetches_per_run, settings.author_replies) == (4, 12, False)
+    for value in ("false", "no"):
+        monkeypatch.setenv("CATCHUP_AUTHOR_REPLIES", value)
+        assert not Settings.from_env().author_replies
+
+
+@pytest.mark.parametrize("name", ["CATCHUP_LINKS_PER_ITEM", "CATCHUP_CONTEXT_FETCHES_PER_RUN"])
+@pytest.mark.parametrize("value", ["0", "-1", "bad"])
+def test_context_limits_must_be_positive(monkeypatch, name, value):
+    monkeypatch.setenv(name, value)
+    with pytest.raises(ValueError, match=name):
+        Settings.from_env()

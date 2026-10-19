@@ -694,6 +694,75 @@ def test_runner_spaces_same_host_checks_without_delaying_other_hosts(environment
     assert sleeps == ([1.0] if same_host else [])
 
 
+def test_failed_run_reuses_gathered_context_without_fetching_again(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        session.scalar(select(Item)).entry_links = [
+            {"url": "https://docs.example/notes", "text": "Notes"},
+        ]
+        session.commit()
+    monkeypatch.setattr(socket, "getaddrinfo", lambda _host, port, **_kwargs: [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", port)),
+    ])
+    first = FakeModel([{"summary": "Cached"}, ProviderError("group failed")])
+    environment.app.state.model_client_factory = lambda *_: first
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        router.get("https://docs.example/notes").mock(return_value=httpx.Response(
+            200, text="<html><title>Notes</title><article>Useful notes about the release.</article></html>",
+        ))
+        failed = execute(environment)
+    assert failed["status"] == "failed"
+    assert (failed["context_total"], failed["context_done"]) == (1, 1)
+    environment.app.state.model_client_factory = lambda *_: FakeModel([
+        {"topics": [{"title": "Topic", "overview": "Overview", "item_refs": ["i1"]}]},
+    ])
+    with respx.mock(assert_all_mocked=True) as router:
+        retry = execute(environment)
+        assert not router.calls
+    assert retry["status"] == "succeeded"
+    assert (retry["context_total"], retry["context_done"]) == (0, 0)
+
+
+def test_runner_context_requests_share_host_spacer(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        session.scalar(select(Item)).entry_links = [
+            {"url": f"https://docs.example/{i}", "text": str(i)} for i in (1, 2)
+        ]
+        session.commit()
+    monkeypatch.setattr(socket, "getaddrinfo", lambda _host, port, **_kwargs: [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", port)),
+    ])
+    now = [10.0]
+    calls = []
+    sleeps = []
+
+    def advance(seconds):
+        sleeps.append(seconds)
+        now[0] += seconds
+
+    monkeypatch.setattr(
+        "catchup.digest.runner.HostSpacer",
+        lambda: HostSpacer(clock=lambda: now[0], sleep=advance),
+    )
+
+    def reply(request):
+        calls.append((str(request.url), now[0]))
+        return httpx.Response(200, text="<html><title>Notes</title><article>Useful content.</article></html>")
+
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://docs.example/robots.txt").mock(side_effect=reply)
+        router.get("https://docs.example/1").mock(side_effect=reply)
+        router.get("https://docs.example/2").mock(side_effect=reply)
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert [stamp for _, stamp in calls] == [10.0, 11.0, 12.0]
+    assert sleeps == [1.0, 1.0]
+
+
 @pytest.mark.parametrize("status,error,expected", [
     (429, f"{RATE_LIMIT_PREFIX} Try again in about 120 seconds.", True),
     (503, f"{RATE_LIMIT_PREFIX} Try again in about 120 seconds.", True),

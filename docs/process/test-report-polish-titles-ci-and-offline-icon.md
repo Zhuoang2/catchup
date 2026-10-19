@@ -58,3 +58,26 @@ Commands below ran in this worktree; `uv run pytest` ran in `backend/`, `npm` co
 **Plan amendment and pause:** The first version of task 5.1 called 100 dots a red-first behavior change. Its test already passed before implementation, so work stopped with the tests left uncommitted rather than inventing a mutation. The follow-up amendment (`6b317a8`) recast it as a passing guard and named the post-fallback-strip mutation. The guard then failed under that mutation, which was reverted.
 
 **Known limits:** An entry with no guid, no unique link, and no title derives its identity key from its title and date. If this change alters that title, it can be collected once more after upgrade. `release.yml` has no committed trigger test; its configuration was checked with `actionlint` and a one-off YAML parse, not a real documentation-only push to `main`. The real-browser offline-tab check also remains unperformed.
+
+## Fix round 2 (2026-10-19)
+
+This round changed only `backend/tests/test_discovery.py` and these process documents. Commands with `uv run pytest` ran in `backend/`; validation and Git checks ran from the repository root. Every named mutation was applied temporarily to `feeds.py` by hand, run against its new test, then reverted. `git diff -- backend/src/catchup/sources/feeds.py` was empty afterward.
+
+| New test and focused command (`uv run pytest -q tests/test_discovery.py -k <name>`) | Before mutation | Temporary mutation and red result |
+| --- | --- | --- |
+| `untitled_cut_preserves_word_boundary_before_long_word` | **1 passed, 60 deselected** | `if not trimmed:` → `if True:`: **1 failed, 60 deselected**; 80-character cut included `super` instead of stopping after the last whole `word`. |
+| `untitled_cut_at_81_characters_strips_dots_after_cut` | **1 passed, 61 deselected** | Insert `content_text = content_text.rstrip(" .…。．⋯") or content_text` before the cut: **1 failed, 61 deselected**; premature trimming left 78 characters and caused an `IndexError` at `content_text[80]`. |
+| `untitled_cut_of_cjk_full_stops_is_a_single_ellipsis` | **1 passed, 62 deselected** | Fallback strip set → `" .…"`: **1 failed, 62 deselected**; 80 `。` remained before `…`. |
+| `untitled_cut_of_dots_and_spaces_is_a_single_ellipsis` | **1 passed, 63 deselected** | Remove the space from the fallback strip set: **1 failed, 63 deselected**; spaced dots remained before `…`. |
+
+After the four reversions:
+
+| Command | Actual result |
+| --- | --- |
+| `uv run pytest -q tests/test_discovery.py -k 'untitled_cut_preserves_word_boundary_before_long_word or untitled_cut_at_81_characters_strips_dots_after_cut or untitled_cut_of_cjk_full_stops_is_a_single_ellipsis or untitled_cut_of_dots_and_spaces_is_a_single_ellipsis'` | **4 passed, 60 deselected**. |
+| `uv run pytest -q` | **425 passed**. |
+| `git diff --name-only` (before the 6.1 commit) | Only `backend/tests/test_discovery.py`; no `feeds.py` diff. |
+| `uv run pytest --cov=catchup --cov-report=term -q` | **425 passed**, **96% statement coverage** (1,858/1,929; 71 missed). `sources/feeds.py`: 97% (144 statements, 4 missed). |
+| `openspec validate polish-titles-ci-and-offline-icon --strict` | `Change 'polish-titles-ci-and-offline-icon' is valid`. |
+
+The frontend suite and build were not repeated in this test-only round; neither frontend nor runtime files changed.

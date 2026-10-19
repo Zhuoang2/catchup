@@ -101,6 +101,6 @@ The re-review found four surviving mutations in `_entry_title`. This group chang
   4. **The fallback strips spaces.** `". " * 50` gives "…". Mutation: the fallback strip set drops the space.
 
   Verify: all new tests pass on the current code, each mutation fails its test, and every mutation is reverted. `git diff` shows only test files and docs. `uv run pytest` passes.
-- [ ] 6.2 Add a "Fix round 2" section to `docs/process/test-report-polish-titles-ci-and-offline-icon.md`, with the commands, the real results, and the mutation table. Add a fix-round-2 entry to `docs/process/ai-usage-log.md` after the latest entry, with a faithful excerpt of the prompt you actually received, and the tool and model. Leave out the session id.
+- [x] 6.2 Add a "Fix round 2" section to `docs/process/test-report-polish-titles-ci-and-offline-icon.md`, with the commands, the real results, and the mutation table. Add a fix-round-2 entry to `docs/process/ai-usage-log.md` after the latest entry, with a faithful excerpt of the prompt you actually received, and the tool and model. Leave out the session id.
 
   Verify: every command passes, and the report has the actual numbers.

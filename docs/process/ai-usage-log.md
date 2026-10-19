@@ -1092,3 +1092,16 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - **Left open (low).** The restructured table dropped three assertions that the old blocks had: the "Your digest is ready" title in the compact bar, the "Digest generation failed" title, and the row order (which the spec does not require). Four mutations of these survive. The plan's "one shared set of assertions" left them out, not Droid.
 - **Log corrections by Claude.** Added session `892a201e` to Droid's two entries, from the `droid exec` output.
 - The user replied "As you recommend; approve auto-merge, and delete the remote branch after merging" (translated).
+
+## 2026-10-19 — `polish-titles-ci-and-offline-icon` (#15, #21, #43 part 1): lean plan (Claude Code, Opus 5.5)
+
+- Prompt: part of the overnight queue the user authorized (see the #47 review entry). The queue's third task was "three small fixes: #15 double ellipsis, #21 no release build for docs-only pushes, #43 part 1 icon on the offline page; not the 16 px redesign".
+- **Investigation.**
+  - `_entry_title` appends "…" after a cut, without trimming dots (`sources/feeds.py:106-117`).
+  - The `Dockerfile` copies only `frontend/` and `backend/`.
+  - GitHub's workflow syntax reference says path filters are not evaluated for tag pushes, so a `paths-ignore` on `push` keeps `v*.*.*` releases building (checked on 2026-10-19).
+  - The service worker precaches only `/offline.html`, so its icon must be inline.
+- **Plan** (the `openspec-propose` skill):
+  - deltas for `content-collection`, "Readable titles for untitled entries" (one ellipsis), and `local-deployment`, "Offline page when the server is not running" (an inline tab icon);
+  - no design document;
+  - four task groups: titles, `release.yml`, the offline icon, and checks.

@@ -76,6 +76,26 @@ def test_summary_prompt_focuses_on_substance_and_retains_json_language():
     assert 'Example output: {"summary":' in system
 
 
+def test_context_prompt_and_used_refs_are_limited_to_provided_parts():
+    context = [{"ref": "L1", "kind": "link", "title": "Release", "host": "github.com",
+                "text": "Relevant fixes."}]
+    messages = summary_messages("Post", "An announcement.", "en", context)
+    assert "Context L1 — linked page: Release (github.com)" in messages[1]["content"]
+    assert "Relevant fixes." in messages[1]["content"]
+    system = messages[0]["content"]
+    for rule in ("only where it relates", "never summarize a context part on its own",
+                 "list the refs"):
+        assert rule in system.lower()
+    assert summary_messages("Post", "An announcement.", "en")[1]["content"] == (
+        "Title: Post\nContent:\nAn announcement."
+    )
+    client = FakeModel([{"summary": "About the release.", "used": ["L1", "unknown"]}])
+    results = []
+    summarize_items(client, [SummaryInput(1, "Post", "An announcement.", None, None,
+                                          context=context)], "en", 5000, results.append)
+    assert results[0].used == ("L1",)
+
+
 def test_auth_failure_does_not_wait_for_another_model_worker():
     entered, release = threading.Event(), threading.Event()
 

@@ -13,7 +13,7 @@ from catchup.llm.client import AuthFailed, InsufficientBalance, ProviderError
 from catchup.llm.client import ModelInfo
 from catchup.main import create_app
 from catchup.models import (
-    AppSettings, Digest, DigestItem, DigestRun, DigestTopic, Item, ModelConfig, Source, SourceCheck,
+    AppSettings, Digest, DigestItem, DigestRun, DigestTopic, Item, ItemContext, ModelConfig, Source, SourceCheck,
 )
 from catchup.net.host_spacing import HostSpacer
 from catchup.net.safe_fetch import RATE_LIMIT_PREFIX
@@ -155,6 +155,35 @@ def test_group_failure_preserves_pending_and_retry_uses_cached_summary(environme
     assert run_checks(environment, succeeded["id"])[0].new_count == 1
     assert len(retry.calls) == 1
     assert all_rows(environment, DigestItem)[0].summary == "Cached"
+
+
+def test_record_marks_only_valid_context_refs_and_cache_preserves_flags(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        item = session.scalar(select(Item))
+        item.context_status = "gathered"
+        session.add_all([
+            ItemContext(item_id=item.id, ref=ref, kind="link", url=f"https://docs.example/{ref}",
+                        title=ref, text=f"Text {ref}", position=position)
+            for position, ref in enumerate(("L1", "L2"), 1)
+        ])
+        session.commit()
+    first = FakeModel([
+        {"summary": "From L1.", "used": ["L1", "invented"]},
+        ProviderError("group failed"),
+    ])
+    environment.app.state.model_client_factory = lambda *_: first
+    assert execute(environment)["status"] == "failed"
+    assert [(row.ref, row.used) for row in all_rows(environment, ItemContext)] == [
+        ("L1", True), ("L2", False),
+    ]
+    retry = FakeModel([{"topics": [{"title": "Topic", "overview": "Overview", "item_refs": ["i1"]}]}])
+    environment.app.state.model_client_factory = lambda *_: retry
+    assert execute(environment)["status"] == "succeeded"
+    assert [(row.ref, row.used) for row in all_rows(environment, ItemContext)] == [
+        ("L1", True), ("L2", False),
+    ]
 
 
 def test_carried_over_item_sets_final_outcome_in_run_and_sources(environment, monkeypatch):

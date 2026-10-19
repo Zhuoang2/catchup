@@ -2,6 +2,7 @@
 
 import logging
 import threading
+from urllib.parse import urlsplit
 from collections import Counter
 from contextlib import closing
 from datetime import timedelta
@@ -222,7 +223,11 @@ def run_digest(app: FastAPI, run_id: int) -> None:
             )
             inputs = [
                 SummaryInput(item.id, item.title, item.content_text, item.summary,
-                             item.summary_language, item.content_origin)
+                             item.summary_language, item.content_origin, [
+                                 {"ref": part.ref, "kind": part.kind, "title": part.title,
+                                  "host": urlsplit(part.url).hostname or "", "text": part.text}
+                                 for part in sorted(item.contexts, key=lambda row: row.position)
+                             ])
                 for item, _ in ready
             ]
             names = {item.id: name for item, name in ready}
@@ -274,6 +279,9 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                     if item is not None:
                         item.summary = result.summary
                         item.summary_language = language
+                        if not result.cached:
+                            for part in item.contexts:
+                                part.used = part.ref in result.used
                 run = session.get(DigestRun, run_id)
                 run.items_done += 1
                 session.commit()

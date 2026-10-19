@@ -104,7 +104,7 @@ Implementer notes:
 
 ## 5. Summaries use the context
 
-- [ ] 5.1 In `backend/src/catchup/llm/prompts.py` and `backend/src/catchup/digest/summarize.py`, implement design D7:
+- [x] 5.1 In `backend/src/catchup/llm/prompts.py` and `backend/src/catchup/digest/summarize.py`, implement design D7:
   - `SummaryInput` gains `context` (a list of `{ref, kind, title, host, text}`);
   - the runner fills it from `ItemContext` rows;
   - `summary_messages` adds the labeled blocks and the rules;
@@ -122,7 +122,7 @@ Implementer notes:
   - the budget includes the context.
 
   Verify: the tests fail first, then pass.
-- [ ] 5.2 In `record()` (`digest/runner.py`), set `ItemContext.used` from the validated refs, and clear the others. A cached summary keeps its flags.
+- [x] 5.2 In `record()` (`digest/runner.py`), set `ItemContext.used` from the validated refs, and clear the others. A cached summary keeps its flags.
 
   Tests first, in `test_digest_runner.py`: after a run, the used rows are flagged; a second run that reuses the cached summary keeps the flags.
 

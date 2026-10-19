@@ -49,7 +49,7 @@ Implementer notes:
 
 ## 2. Link rules and robots.txt
 
-- [ ] 2.1 Create `backend/src/catchup/context/__init__.py` and `context/links.py` with `related_links` (design D2). The tests in a new `backend/tests/test_context_links.py` come first, and cover:
+- [x] 2.1 Create `backend/src/catchup/context/__init__.py` and `context/links.py` with `related_links` (design D2). The tests in a new `backend/tests/test_context_links.py` come first, and cover:
   - each dropped kind: the item itself, `/tags/` and the other taxonomy paths, share and login pages, x.com, image and PDF URLs, and non-http schemes;
   - Hacker News kept;
   - body order kept;
@@ -57,7 +57,7 @@ Implementer notes:
   - the research example: of the 5 `llm-tools-datasette`-shaped links, the release, project, and changelog are kept, and the 2 tag links are dropped.
 
   Verify: the tests fail first, then pass.
-- [ ] 2.2 Create `context/robots.py` with `RobotsCache` (design D3). The tests in a new `backend/tests/test_context_robots.py` come first, with `respx`:
+- [x] 2.2 Create `context/robots.py` with `RobotsCache` (design D3). The tests in a new `backend/tests/test_context_robots.py` come first, with `respx`:
   - `Disallow` for `CatchUp` on a path refuses that URL and allows others;
   - a 404 robots.txt allows;
   - 401 and 403 disallow;

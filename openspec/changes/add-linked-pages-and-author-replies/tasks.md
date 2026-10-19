@@ -164,13 +164,13 @@ Implementer notes:
 
 ## 7. Docs and checks
 
-- [ ] 7.1 In `README.md`, next to the other run settings (near `CATCHUP_CAPTIONS_PER_RUN`), document:
+- [x] 7.1 In `README.md`, next to the other run settings (near `CATCHUP_CAPTIONS_PER_RUN`), document:
   - the three settings;
   - that context fetches honor robots.txt;
   - that they read only public pages.
 
   Verify: the README states the defaults from 4.1.
-- [ ] 7.2 Run `npm run build` in `frontend/` first. Then run:
+- [x] 7.2 Run `npm run build` in `frontend/` first. Then run:
   - `uv run pytest --cov=catchup --cov-report=term` in `backend/`
   - `npm test -- --run` in `frontend/`
   - `openspec validate add-linked-pages-and-author-replies --strict`

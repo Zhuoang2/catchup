@@ -1257,3 +1257,9 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - Decision log entries D-020 and D-021.
   - The follow-up issue #54 for the depth setting.
 
+## 2026-10-19 — `add-linked-pages-and-author-replies` implementation (Factory Droid, GPT-6 Sol)
+
+- Prompt (faithful excerpt): "Implement OpenSpec change add-linked-pages-and-author-replies using the openspec-apply-change skill. Work through openspec/changes/add-linked-pages-and-author-replies/tasks.md in order, completing each task test-first with the tdd skill: write the task's verification items as failing tests and watch them fail, then implement until they pass. Check off each task only after its verification passes. Do not edit proposal.md, design.md, or the spec deltas, and do not touch openspec/changes/add-item-images (a later change). Commit after each task group. Do not push, tag, or open a PR."
+- Outcome: Parsed and stored entry links/comments, migrated item and digest context, added bounded robots-aware context gathering and author replies, summarized and validated used refs, snapshotted "Also read" links, rendered progress and citations, and documented settings. Seven groups were verified with red-first checks and group commits. The final build, 485 backend tests (96% coverage), 205 frontend tests, strict OpenSpec validation, and local Docker build passed; see `test-report-add-linked-pages-and-author-replies.md`.
+- Problems / adjustment: The worktree lacked frontend packages; `npm ci` installed them. A zero-budget regression caught an item marked `none` after robots.txt exhausted its fetch allowance; the implementation now leaves it eligible for a later run. A nested-comment fixture needed valid HTML, an unused robots route needed `assert_all_called=False`, and a UI test needed native `<progress>` `value`/`max` rather than ARIA attributes. No live feeds, real model, or manual token comparison was performed.
+

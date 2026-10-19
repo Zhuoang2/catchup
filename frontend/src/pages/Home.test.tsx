@@ -15,6 +15,17 @@ const run = {
     { source_id: 2, source_title: 'Blog', status: 'new_items', possible_gap: true, error: null },
   ], error_kind: null, error_message: null, digest_id: null,
 }
+const attentionChecks = [
+  { source_id: 1, source_title: 'News', status: 'failed', possible_gap: false,
+    error: 'offline', rate_limited: false, http_status: null },
+  { source_id: 2, source_title: 'Blog', status: 'new_items', possible_gap: true,
+    error: null, rate_limited: false, http_status: null },
+  { source_id: 3, source_title: 'Docs', status: 'no_new_items', possible_gap: false,
+    error: null, rate_limited: false, http_status: null },
+]
+const fineChecks = attentionChecks.map(check => check.source_title === 'Docs' ? check : {
+  ...check, status: 'new_items', possible_gap: false, error: null,
+})
 const sources = [{ kind: 'feed' }, { kind: 'podcast' }, { kind: 'youtube' }]
 const digest = {
   id: 4, created_at: '2026-10-03T10:00:00Z', model_id: 'test',
@@ -92,6 +103,103 @@ it('keeps the article beneath named run progress and source checks', async () =>
   expect(screen.getByRole('heading', { name: 'Technology' })).toBeInTheDocument()
   expect(bar.querySelector('h1,h2,h3')).toBeNull()
   expect(screen.getByRole('status')).toHaveTextContent('Checking sources, 2 of 3')
+  await expectAccessible(container)
+})
+
+it.each([
+  ['succeeded', 'compact', 'needs attention'],
+  ['succeeded', 'compact', 'all fine'],
+  ['succeeded', 'card', 'needs attention'],
+  ['succeeded', 'card', 'all fine'],
+  ['no_new_content', 'compact', 'needs attention'],
+  ['no_new_content', 'compact', 'all fine'],
+  ['no_new_content', 'card', 'needs attention'],
+  ['no_new_content', 'card', 'all fine'],
+  ['failed', 'compact', 'needs attention'],
+  ['failed', 'compact', 'all fine'],
+  ['failed', 'card', 'needs attention'],
+  ['failed', 'card', 'all fine'],
+] as const)('shows %s in the %s layout with %s', async (status, layout, variant) => {
+  const latest = layout === 'compact' ? digest : null
+  const { container } = mockPage({ latest, run: {
+    ...run, status, error_kind: status === 'failed' ? 'run_failed' : null,
+    error_message: status === 'failed' ? 'Run failed.' : null,
+    digest_id: status === 'succeeded' && latest ? digest.id : null,
+    source_checks: variant === 'all fine' ? fineChecks : attentionChecks,
+  } })
+  const region = await screen.findByRole('region', { name: 'Digest run' })
+  if (latest) expect(screen.getByRole('heading', { name: 'Technology' })).toBeInTheDocument()
+  if (status === 'succeeded') {
+    expect(region.querySelector('.result-meta')).toHaveTextContent('3 sources')
+  }
+  if (variant === 'all fine') {
+    expect(region.querySelector('.check-list')).toBeNull()
+    expect(within(region).queryByText('Needs attention', { exact: true })).toBeNull()
+    expect(within(region).queryByText('Sources', { exact: true })).toBeNull()
+  } else {
+    if (layout === 'compact') {
+      expect(within(region).getByText('Needs attention').tagName).toBe('P')
+      expect(within(region).getByText('Needs attention')).toHaveClass('section-label')
+    } else {
+      expect(within(region).getByRole('heading', { name: 'Needs attention', level: 2 }))
+        .toHaveClass('section-label')
+    }
+    expect(region.querySelectorAll('.check-list li')).toHaveLength(2)
+    expect(within(region).getByText('News').closest('li')).toHaveTextContent('Failed')
+    expect(within(region).getByText('News').closest('li')).toHaveTextContent('offline')
+    expect(within(region).getByText('Blog').closest('li')).toHaveTextContent('Possible gap')
+    expect(region).not.toHaveTextContent('Docs')
+  }
+  await expectAccessible(container)
+})
+
+it.each([
+  ['needs attention', attentionChecks],
+  ['all fine', fineChecks],
+])('keeps all three checks under Sources during a %s collecting run', async (_variant, checks) => {
+  const { container } = mockPage({ run: { ...run, status: 'collecting', source_checks: checks } })
+  await screen.findByRole('progressbar', { name: 'Sources checked: 3 of 3' })
+  const card = screen.getByRole('region', { name: 'Digest run' })
+  expect(within(card).getByRole('heading', { name: 'Sources', level: 2 })).toBeInTheDocument()
+  expect(card.querySelectorAll('.check-list li')).toHaveLength(3)
+  expect(within(card).getByText('News')).toBeInTheDocument()
+  expect(within(card).getByText('Blog')).toBeInTheDocument()
+  expect(within(card).getByText('Docs')).toBeInTheDocument()
+  expect(within(card).queryByText('Needs attention', { exact: true })).toBeNull()
+  await expectAccessible(container)
+})
+
+it('keeps every checked source under a compact Sources label while collecting', async () => {
+  const { container } = mockPage({ latest: digest, run: {
+    ...run, status: 'collecting', source_checks: attentionChecks,
+  } })
+  await screen.findByRole('progressbar', { name: 'Sources checked: 3 of 3' })
+  const bar = screen.getByRole('region', { name: 'Digest run' })
+  const label = within(bar).getByText('Sources', { exact: true })
+  expect(label.tagName).toBe('P')
+  expect(label).toHaveClass('section-label')
+  expect(bar.querySelectorAll('.check-list li')).toHaveLength(3)
+  expect(within(bar).getByText('News')).toBeInTheDocument()
+  expect(within(bar).getByText('Blog')).toBeInTheDocument()
+  expect(within(bar).getByText('Docs')).toBeInTheDocument()
+  expect(within(bar).queryByText('Needs attention', { exact: true })).toBeNull()
+  await expectAccessible(container)
+})
+
+it('shows a rate-limited check without repeating its error in the compact run bar', async () => {
+  const rateLimitError = 'The source is rate limiting requests. Try again in about 120 seconds.'
+  const { container } = mockPage({ latest: digest, run: {
+    ...run, status: 'no_new_content', source_checks: attentionChecks.map(check =>
+      check.source_title === 'News'
+        ? { ...check, rate_limited: true, http_status: 429, error: rateLimitError } : check),
+  } })
+  await screen.findByRole('heading', { name: 'Technology' })
+  const bar = screen.getByRole('region', { name: 'Digest run' })
+  expect(bar).toHaveTextContent('No new content')
+  const row = within(bar).getByText('News').closest('li')
+  expect(row).toHaveTextContent('Rate limited · try later')
+  expect(row).not.toHaveTextContent(rateLimitError)
+  expect(bar).not.toHaveTextContent(rateLimitError)
   await expectAccessible(container)
 })
 

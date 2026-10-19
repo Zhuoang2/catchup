@@ -1038,3 +1038,57 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - Added session `b045bd00` to Droid's three entries, from the `droid exec` output.
   - Replaced the fix-round-2 prompt excerpt, a paraphrase that was never sent, with an excerpt of the prompt actually sent, and added the model.
 - The user replied "As you recommend; approve auto-merge, and delete the remote branch after merging" (translated).
+
+## 2026-10-18 — `show-attention-sources-after-run` (#38): lean plan (Claude Code, Opus 5.5)
+
+- Prompt (translated from Chinese): "Start, write the lean plan for #38 first."
+- **Investigation.**
+  - `RunStateContent` in `frontend/src/pages/Home.tsx` passes every source check to `SourceChecks` in all run states.
+  - Two spec requirements ask for "each source's check outcome" after a run: `user-interface`, "Main screen shows the latest digest", and `digest-generation`, "No digest when nothing is new".
+  - The Sources page already shows each source's last outcome, including "Rate limited" and "Possible gap".
+- **Plan** (the `openspec-propose` skill):
+  - a proposal;
+  - deltas for both requirements, with three new scenarios (every source fine, some need attention, every checked source shown during a run);
+  - no design document;
+  - one test-first task group on the rendered main screen, and a checks-and-report group.
+- **Choices made during planning,** for the user to confirm:
+  - the shortened list is labeled "Needs attention";
+  - the rule also applies to the result card shown when no digest has been saved yet.
+
+## 2026-10-18 — `show-attention-sources-after-run` implementation (Factory Droid, GPT-6 Sol; session `892a201e`)
+
+- Prompt (faithful excerpt): "Implement OpenSpec change show-attention-sources-after-run using the openspec-apply-change skill. Work through openspec/changes/show-attention-sources-after-run/tasks.md in order, completing each task test-first with the tdd skill: write the task's verification items as failing tests and watch them fail, then implement until they pass. Check off each task only after its verification passes. Do not edit proposal.md or the spec deltas. Commit after each task group. Do not push, tag, or open a PR. If a task is blocked or the plan looks wrong, stop and report instead of improvising."
+- Outcome: The main screen now lists only failed or possible-gap checks after succeeded, no-new-content, and failed runs, in both layouts. Active runs still list every check. Eight ended-run test variants failed before implementation and passed afterward; two active-run guards passed before and after. Final checks passed: **193 frontend tests**, TypeScript/Vite build, **411 backend tests**, and strict OpenSpec validation. See `test-report-show-attention-sources-after-run.md`.
+- Problems / adjustment: Vitest was missing in this worktree, so `npm ci` installed locked dependencies before the red run. The backend run installed its worktree environment. No existing after-run fixture needed changing. A real run on a local instance was not performed; nothing was pushed.
+
+## 2026-10-18 — `show-attention-sources-after-run` fix round 1 (Factory Droid, GPT-6 Sol; session `892a201e`)
+
+- Prompt (faithful excerpt): "Fix round 1 for OpenSpec change show-attention-sources-after-run, in this worktree on branch show-attention-sources-after-run. Review found no wrong behavior, but ten surviving mutations, four near-identical test blocks, and a spec line that rate-limited rows did not meet. The plan was amended in commit 8720357: one sentence in specs/user-interface/spec.md and task group 3 in tasks.md. Use the openspec-apply-change skill and work through tasks 3.1-3.3 in order. Change only frontend/src/pages/Home.test.tsx and the docs; do not change Home.tsx. For each new check, the red step is the named temporary mutation: see the check pass, apply the mutation and see it fail, then revert it. Check off each task only after its verification passes. Do not edit proposal.md or the spec deltas. Commit after 3.2 and after 3.3. Do not push. If a task is blocked or the plan looks wrong, stop and report instead of improvising."
+- Outcome: Replaced four duplicated test blocks with a 12-row ended-run table, then added compact active-run and rate-limit error checks. Nine temporary mutations of `Home.tsx` each caused a focused failure and were reverted. **199 frontend tests**, TypeScript/Vite build, and strict OpenSpec validation passed. The fix-round table and real command results are in `test-report-show-attention-sources-after-run.md`.
+- Problems / adjustment: No behavior fix was needed; temporary mutations exercised missing test sensitivity without committing changes to `Home.tsx`. The full backend suite and a live local run were not repeated because this round only changed frontend tests and docs. No push, tag, or PR.
+
+## 2026-10-18 — `show-attention-sources-after-run` (#38): review and one fix round (Claude Code, Opus 5.5, with one spec-review subagent; Factory Droid session `892a201e`)
+
+- **Process, after each Droid run:**
+  - `/code-review` of the run's diff.
+  - The spec subagent, with mutation tests in its own worktree.
+  - Claude reran the checks.
+  - After run 1, a live check on a local instance built from the branch, with a stub model and three public feeds:
+    - Claude pointed Rust Blog at an address that answers 404, and replaced Ruby News's recorded items so that its next check flags a possible gap.
+    - First run: digest No. 1 was saved, and the run bar listed only Rust Blog ("Failed") and Ruby News ("Possible gap") under "Needs attention".
+    - Second run: no new content, and only Rust Blog was listed.
+    - Third run: Rust Blog's feed URL was restored. No source list was shown, and No. 1 stayed visible.
+    - The Sources page still showed every source's last outcome.
+- **Run 1.** The behavior was correct in every ended state and both layouts. The spec subagent reproduced Droid's red-first result (8 failed, 61 passed).
+  - **Spec wording.** Both reviews found that the new spec line "with its error when it has one" does not fit rate-limited rows: they show "Rate limited · try later" in place of the error text, as before.
+  - **Test gaps.** 10 of 37 mutations survived. The main gap: the no-digest result card was tested only for a succeeded run, not for no new content or a failed run.
+  - **Duplication.** Four test blocks were near-identical.
+- **Fix round 1.** The user replied "OK" (translated) to a test-only round. Claude:
+  - reworded the spec line, so that a rate-limited source is shown as rate limited in place of its error;
+  - added task group 3 (`8720357`): one 12-row table (status × layout × variant), plus two more tests, each red step a named temporary mutation.
+
+  Droid's two commits left `Home.tsx` unchanged, and 199 frontend tests passed. All earlier survivors are now killed, except one mutation that is equivalent in practice.
+- **Not taken.** The suggestion to add `|| check.rate_limited` to the filter. Rate-limited checks are always recorded as `failed`.
+- **Left open (low).** The restructured table dropped three assertions that the old blocks had: the "Your digest is ready" title in the compact bar, the "Digest generation failed" title, and the row order (which the spec does not require). Four mutations of these survive. The plan's "one shared set of assertions" left them out, not Droid.
+- **Log corrections by Claude.** Added session `892a201e` to Droid's two entries, from the `droid exec` output.
+- The user replied "As you recommend; approve auto-merge, and delete the remote branch after merging" (translated).

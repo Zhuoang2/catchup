@@ -30,9 +30,9 @@ function savedItems(run: Run) {
 const active = (run: Run) => ['queued', 'collecting', 'summarizing', 'grouping'].includes(run.status)
 const configErrors = ['auth_failed', 'insufficient_balance', 'model_not_configured', 'connection_failed']
 
-function SourceChecks({ checks, compact = false }: { checks: Check[]; compact?: boolean }) {
+function SourceChecks({ checks, label, compact = false }: { checks: Check[]; label: string; compact?: boolean }) {
   if (!checks.length) return null
-  return <>{compact ? <p className="section-label">Sources</p> : <h2 className="section-label">Sources</h2>}<ul className="check-list">{checks.map(check =>
+  return <>{compact ? <p className="section-label">{label}</p> : <h2 className="section-label">{label}</h2>}<ul className="check-list">{checks.map(check =>
     <li className="check-row" key={check.source_id}>
       <span className="check-title">{check.source_title}</span><span className="check-status">
         <Chip tone={check.rate_limited ? 'warn' : check.status === 'failed' ? 'error'
@@ -68,13 +68,14 @@ function RunStateContent({ run, compact, firstRun, loadingNewDigest, configurati
       <Progress label={checking ? `Sources checked: ${progress} of ${total}`
         : `Items summarized: ${progress} of ${total}`}
         value={progress} max={total}/>
-      <SourceChecks checks={run.source_checks} compact={compact}/>
+      <SourceChecks checks={run.source_checks} label="Sources" compact={compact}/>
     </>
     return compact ? content : <section className="card run-card" aria-label="Digest run">{content}</section>
   }
 
   if (firstRun) return null
 
+  const attentionChecks = run.source_checks.filter(check => check.status === 'failed' || check.possible_gap)
   if (run.status === 'succeeded' || run.status === 'no_new_content') {
     const succeeded = run.status === 'succeeded'
     const title = succeeded ? 'Your digest is ready' : 'No new content'
@@ -89,7 +90,7 @@ function RunStateContent({ run, compact, firstRun, loadingNewDigest, configurati
           <div><h2 className="result-title">{title}</h2><p className="result-meta">{details}</p></div>
         </div>}
       {!compact && succeeded && loadingNewDigest && <p>Loading the new digest…</p>}
-      <HeldNotes run={run}/><SourceChecks checks={run.source_checks} compact={compact}/>
+      <HeldNotes run={run}/><SourceChecks checks={attentionChecks} label="Needs attention" compact={compact}/>
     </>
     return compact ? content : <section className={`card result-card ${succeeded ? 'result-ok' : 'result-none'}`}
       aria-label="Digest run">{content}</section>
@@ -102,7 +103,7 @@ function RunStateContent({ run, compact, firstRun, loadingNewDigest, configurati
       : 'No digest was saved.'
     const result = <>
       <p className="result-meta">{details}{' · '}{tokenTotals(run.prompt_tokens, run.completion_tokens)}</p>
-      <SourceChecks checks={run.source_checks} compact={compact}/>
+      <SourceChecks checks={attentionChecks} label="Needs attention" compact={compact}/>
     </>
     return <>
       <Alert tone="error" announce={false} title="Digest generation failed"

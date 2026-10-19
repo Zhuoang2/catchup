@@ -15,7 +15,7 @@ Implementer notes:
 
 ## 1. Keep the feed text when the extraction misses it
 
-- [ ] 1.1 Add failing tests.
+- [x] 1.1 Add failing tests.
 
   **In `backend/tests/test_collection.py`,** each test runs a check through `run_check` on a website feed whose entry has a short feed text (below the threshold), and inspects the stored `Item`:
   1. **Extraction misses the post.**
@@ -38,7 +38,7 @@ Implementer notes:
   9. Call `article_text` directly, next to `test_large_article_keeps_feed_text`. Use an entry with a short excerpt, and an article route whose page extracts to text that does not contain the excerpt's words. Monkeypatch `extract`, or use a page whose body is only a list of other titles. The result is `(excerpt + "\n\n" + extracted, "article")`.
 
   Verify: the report lists which tests fail before 1.2 and which already pass as guards. Cases 1, 3 (5 of 10), the first case of 4, and 9 must fail before 1.2.
-- [ ] 1.2 Implement design D1 and D2 in `backend/src/catchup/collection.py`:
+- [x] 1.2 Implement design D1 and D2 in `backend/src/catchup/collection.py`:
   - one helper, for example `_covers(feed_text, extracted)`;
   - module constants for the 60% share and the 3-character minimum;
   - `article_text` stores the extracted text alone when it covers the feed text, and `feed text + "\n\n" + extracted text` otherwise.

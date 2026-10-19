@@ -490,6 +490,16 @@ def test_preview_redirect_without_location_omits_http_status(client):
     assert "http_status" not in response.json()["error"]
 
 
+def test_preview_307_without_location_omits_http_status(client):
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://site.example/").mock(return_value=httpx.Response(307))
+        router.get(url__regex=r"https://site\.example/.*").mock(return_value=httpx.Response(404))
+        response = client.post("/api/sources/preview", json={"url": "https://site.example/"})
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "fetch_failed"
+    assert "http_status" not in response.json()["error"]
+
+
 def test_preview_declared_feed_timeout_omits_http_status(client):
     with respx.mock(assert_all_mocked=True) as router:
         router.get("https://site.example/").mock(return_value=httpx.Response(

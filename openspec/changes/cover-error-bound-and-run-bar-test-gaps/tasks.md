@@ -19,7 +19,7 @@ Implementer notes:
 
 ## 1. Feed discovery bounds (#44)
 
-- [ ] 1.1 In `backend/tests/test_discovery.py`, add:
+- [x] 1.1 In `backend/tests/test_discovery.py`, add:
   1. **404, then over the size limit.** A page declares two feeds: the first answers 404, and the second answers 200 with a body over `max_feed_bytes`. `discover` raises `feed_unavailable` with `status_code` 404.
   2. **Blocked, then over the size limit.** The first declared feed is on a host that `blocked_candidate_dns` resolves to a private address, and the second is over the size limit. `blocked_address` is raised.
   3. **307 without `Location`.** The pasted page answers 307 with no `Location`. `fetch_failed` is raised with `status_code` 307, and no probe request is made.
@@ -33,7 +33,7 @@ Implementer notes:
   - For 5: change the text of `FEED_UNAVAILABLE_MESSAGE`.
 
   Verify: all new checks pass on the current code, each named mutation fails its check, and every mutation is reverted.
-- [ ] 1.2 In `backend/tests/test_sources_api.py`, add a preview of a page that answers 307 without `Location`. It returns 422 `fetch_failed`, and the JSON has no `http_status` key. Mutation: change the bound in `http_error_status` to `>= 303`.
+- [x] 1.2 In `backend/tests/test_sources_api.py`, add a preview of a page that answers 307 without `Location`. It returns 422 `fetch_failed`, and the JSON has no `http_status` key. Mutation: change the bound in `http_error_status` to `>= 303`.
 
   In `frontend/src/pages/Sources.test.tsx`, add a case to the bounds table: `fetch_failed` with `http_status` 307 gives the unchanged no-status message, "Could not fetch the source. Check the URL and try again." Mutation: change the frontend bound to `>= 303`.
 

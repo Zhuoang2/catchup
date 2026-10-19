@@ -123,6 +123,7 @@ describe('sources', () => {
     ['fetch_failed', 600, "The site answered HTTP 600. Check the URL, or paste the site's feed URL."],
     ['fetch_failed', 200, 'Could not fetch the source. Check the URL and try again.'],
     ['fetch_failed', 302, 'Could not fetch the source. Check the URL and try again.'],
+    ['fetch_failed', 307, 'Could not fetch the source. Check the URL and try again.'],
     ['feed_unavailable', 200, "The site's feed is temporarily unavailable. Try again later."],
   ])('bounds the preview message for %s with status %s', async (code, httpStatus, expected) => {
     fetchMock.mockImplementation(async (path: string) => {
@@ -132,12 +133,13 @@ describe('sources', () => {
       } }, 422)
       throw new Error(`Unexpected request: ${path}`)
     })
-    page()
+    const { container } = page()
     fireEvent.change(screen.getByLabelText('Website or feed URL'), {
       target: { value: saved.feed_url },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
     expect((await screen.findByRole('alert')).textContent).toBe(expected)
+    await expectAccessible(container)
   })
 
   it('shows HTTP 400 as an other-status preview error (mutation: D4 bound > 400)', async () => {

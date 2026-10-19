@@ -92,6 +92,28 @@ def test_untitled_cut_text_ending_in_ellipsis_gets_only_one(prefix, expected):
     assert _entry_title("", prefix + " more text") == expected
 
 
+@pytest.mark.parametrize("dots", ["。。。", "．．．", "⋯⋯"])
+def test_untitled_cut_cjk_dots_gets_only_one_ellipsis(dots):
+    prefix = "今" * (80 - len(dots)) + dots
+    assert _entry_title("", prefix + "后续") == "今" * (80 - len(dots)) + "…"
+
+
+def test_untitled_cut_keeps_part_of_long_word_if_word_boundary_is_only_dots():
+    assert _entry_title("", "... " + "A" * 100) == "... " + "A" * 76 + "…"
+
+
+def test_untitled_cut_of_all_dots_is_a_single_ellipsis():
+    assert _entry_title("", "." * 100) == "…"
+
+
+def test_untitled_cut_with_space_before_dots_has_one_ellipsis():
+    assert _entry_title("", "B" * 75 + " ... more text follows here") == "B" * 75 + "…"
+
+
+def test_untitled_cut_just_over_80_characters_strips_dots_after_cut():
+    assert _entry_title("", "A" * 78 + "..." + " more") == "A" * 78 + "…"
+
+
 def test_untitled_short_text_ending_in_dots_is_unchanged():
     text = "A" * 70 + "..."
     assert _entry_title("", text) == text

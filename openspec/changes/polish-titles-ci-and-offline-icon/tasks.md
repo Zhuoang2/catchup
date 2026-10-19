@@ -64,7 +64,7 @@ Review found no wrong behavior against the plan, but two edge cases of the title
 
 Use `tdd`. Behavior changes get a failing test first. Checks of behavior that is already correct get a named temporary mutation as their red step, applied by hand: see the test pass, apply the mutation and see it fail, then revert it. Record every check and its red result in the report.
 
-- [ ] 5.1 In `backend/tests/test_discovery.py`, add tests for `_entry_title`:
+- [x] 5.1 In `backend/tests/test_discovery.py`, add tests for `_entry_title`:
   1. **CJK full stops at the cut** (behavior change, red first). A Chinese text longer than 80 characters with "。。。" right at the cut gives a title that ends with exactly one "…", with no "。" before it. Add the same for "．．．" and "⋯⋯".
   2. **Nothing left after stripping** (behavior change, red first):
      - "... " followed by one 100-character word gives the first 80 characters, with trailing dots and spaces stripped, plus "…". The title begins with "... " and contains part of the word.
@@ -73,7 +73,7 @@ Use `tdd`. Behavior changes get a failing test first. Checks of behavior that is
   4. **A text just over 80 characters** (pin). "A" × 78 + "..." + " more" gives "A" × 78 + "…". Mutation: strip trailing dots from the whole text before cutting.
 
   Verify: case 1 and the first case of 2 fail before 5.2. The 100-dots guard and each pin fail under their mutations, which are then reverted.
-- [ ] 5.2 In `backend/src/catchup/sources/feeds.py`, `_entry_title`:
+- [x] 5.2 In `backend/src/catchup/sources/feeds.py`, `_entry_title`:
   - strip trailing spaces, ".", "…", "。", "．", and "⋯" from the cut text;
   - if nothing is left, cut the text at 80 characters, without the word-boundary rule, and strip again;
   - then append "…".

@@ -49,3 +49,58 @@ Implementer notes:
   Add your entry to `docs/process/ai-usage-log.md` after the latest entry, with a faithful excerpt of the prompt you actually received, and the tool and model. Leave out the session id; Claude Code adds it at review.
 
   Verify: every command passes, and the report has the actual numbers.
+
+## 3. Fix round 1 (test gaps from review)
+
+Review found no wrong behavior. It did find:
+- one spec wording problem, which Claude fixed in the user-interface delta: a rate-limited source is shown as rate limited in place of its error;
+- ten mutations that the tests do not catch;
+- four near-identical test blocks.
+
+This group changes only `frontend/src/pages/Home.test.tsx` and the docs. Do not change `Home.tsx`. The code is already correct, so the red step for each new check is a named temporary mutation of `Home.tsx`, applied by hand:
+1. Write the check and see it pass.
+2. Apply the mutation, and see the check fail.
+3. Revert the mutation, and see the check pass again.
+
+Record each check, its mutation, and the failing result in the report.
+
+- [ ] 3.1 Replace the four ended-run blocks added in 1.1 with one `it.each` table. Use the same three checks (`News` failed with error `offline`, `Blog` with a possible gap, `Docs` fine) and the all-fine variant. The table covers every combination of:
+  - **status:** `succeeded`, `no_new_content`, and `failed` (`error_kind: 'run_failed'`);
+  - **layout:** the compact run bar, with a latest digest shown, and the result card, with no digest;
+  - **variant:** needs attention, and all fine.
+
+  That makes 12 rows. Use one shared set of assertions:
+  - **Needs attention:**
+    - The label "Needs attention" is a `P` element with class `section-label` in the compact bar, and a level-2 heading in the card.
+    - There are exactly two rows.
+    - The `News` row has "Failed" and "offline".
+    - The `Blog` row has "Possible gap".
+    - The region does not contain `Docs` anywhere.
+  - **All fine:** there is no `.check-list`, and no element in the region has the exact text "Needs attention" or "Sources".
+  - **For `succeeded`:** the result line (`.result-meta`) contains "3 sources".
+
+  Named mutations, each to be seen failing:
+  - In the `succeeded`/`no_new_content` branch, pass `run.source_checks` when `!compact`. Seen failing for the `no_new_content` card rows.
+  - The same in the `failed` branch. Seen failing for the `failed` card rows.
+  - Use the label "Sources" when `!compact`, in each of those two branches.
+  - Render the ended compact label as an `h2`.
+  - Make the result line count only the checks that need attention.
+  - In the `no_new_content` branch, hide error text.
+
+  Verify:
+  - All 12 rows pass on the current code.
+  - Each named mutation fails at least one row.
+  - Every mutation is reverted: `git diff` shows only the test file.
+- [ ] 3.2 Add two more tests, each with its named mutation:
+  1. **During a run, compact.** A latest digest is shown, and the run is `collecting` with the three checks. The run bar lists all three under a `P` label "Sources". Mutation: use "Needs attention" as the active-run label when `compact`.
+  2. **A rate-limited row.** A `no_new_content` run, in the compact bar. `News` has `status: 'failed'`, `rate_limited: true`, `http_status: 429`, and the error "The source is rate limiting requests. Try again in about 120 seconds." The row shows "Rate limited · try later", and does not contain the error text. Mutation: show `check.error` for rate-limited checks too.
+
+  Verify: both tests pass, each mutation fails its test, and the mutations are reverted.
+- [ ] 3.3 Run `npm run build` and `npm test -- --run` in `frontend/`, and `openspec validate show-attention-sources-after-run --strict`. Add a "Fix round 1" section to `docs/process/test-report-show-attention-sources-after-run.md`:
+  - the real results;
+  - the mutation table from 3.1 and 3.2;
+  - the test count before and after the restructuring.
+
+  Add a fix-round entry to `docs/process/ai-usage-log.md` after the latest entry, with a faithful excerpt of the prompt you actually received, and the tool and model. Leave out the session id.
+
+  Verify: every command passes, and the report has the actual numbers.

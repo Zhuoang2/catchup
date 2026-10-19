@@ -6,7 +6,7 @@ The main screen SHALL show the newest saved digest in the digest reading layout,
 - while a run is active: its stage, its progress, and each source's check outcome
 - after a run ends: its result, the counts of held-back items, and the sources that need attention
 
-A source needs attention when its check in that run failed, including a rate limit, or flagged a possible gap. Each one MUST be shown with its outcome, and with its error when it has one. When no source needs attention, the main screen MUST NOT show a source list for the ended run. Each source's last outcome stays available on the Sources screen. The same rule applies to the result of an ended run when no digest has been saved yet.
+A source needs attention when its check in that run failed, including a rate limit, or flagged a possible gap. Each one MUST be shown with its outcome, and with its error when it has one. A rate-limited source is shown as rate limited in place of its error. When no source needs attention, the main screen MUST NOT show a source list for the ended run. Each source's last outcome stays available on the Sources screen. The same rule applies to the result of an ended run when no digest has been saved yet.
 
 While a run is active, and after a run ends with no new content or fails, the digest already shown MUST stay visible. When a run saves a digest, that digest MUST replace the one shown, without reloading the page. When no digest has been saved, the main screen SHALL guide the user instead, as described under "One primary action per state". The navigation SHALL name the main screen "Latest".
 

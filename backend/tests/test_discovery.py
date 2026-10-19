@@ -10,7 +10,7 @@ import respx
 
 from catchup.net.safe_fetch import FetchError, FetchResponse
 from catchup.sources.discovery import discover
-from catchup.sources.feeds import FeedParseError, parse_feed
+from catchup.sources.feeds import FeedParseError, _entry_title, parse_feed
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -82,6 +82,19 @@ def test_untitled_social_post_uses_plain_text_at_word_boundary():
     assert entry.title == "Happy opening day, hockey fans! Follow all 1,344 games and enjoy every moment of…"
     assert entry.identity_key == "at://did:plc:example/app.bsky.feed.post/1"
     assert entry.link == "https://bsky.app/profile/example.bsky.social/post/1"
+
+
+@pytest.mark.parametrize("prefix,expected", [
+    ("A" * 77 + "...", "A" * 77 + "…"),
+    ("A" * 79 + "…", "A" * 79 + "…"),
+])
+def test_untitled_cut_text_ending_in_ellipsis_gets_only_one(prefix, expected):
+    assert _entry_title("", prefix + " more text") == expected
+
+
+def test_untitled_short_text_ending_in_dots_is_unchanged():
+    text = "A" * 70 + "..."
+    assert _entry_title("", text) == text
 
 
 def test_untitled_long_cjk_text_cuts_at_80_characters():

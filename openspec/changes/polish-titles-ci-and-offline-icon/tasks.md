@@ -13,14 +13,14 @@ Implementer notes:
 
 ## 1. One ellipsis in derived titles (#15)
 
-- [ ] 1.1 In `backend/tests/test_discovery.py`, next to the existing derived-title test (the "Happy opening day, hockey fans!" case), add failing tests for `_entry_title`, either through `parse_feed` or directly:
+- [x] 1.1 In `backend/tests/test_discovery.py`, next to the existing derived-title test (the "Happy opening day, hockey fans!" case), add failing tests for `_entry_title`, either through `parse_feed` or directly:
   1. A text longer than 80 characters whose cut falls on "..." (three dots right before the cut) gives a title that ends with exactly one "…" and no "." before it.
   2. The same with a "…" character at the cut.
   3. A text of 80 characters or fewer that ends in "..." is returned unchanged, without an added ellipsis.
   4. The existing hockey case still gives the same title.
 
   Verify: cases 1 and 2 fail before 1.2. Cases 3 and 4 pass, as guards; the report says so.
-- [ ] 1.2 In `backend/src/catchup/sources/feeds.py`, `_entry_title`: after the cut, strip trailing whitespace, dots, and "…" from the prefix before appending "…".
+- [x] 1.2 In `backend/src/catchup/sources/feeds.py`, `_entry_title`: after the cut, strip trailing whitespace, dots, and "…" from the prefix before appending "…".
 
   Verify: the 1.1 tests pass, and `uv run pytest` passes in `backend/`.
 

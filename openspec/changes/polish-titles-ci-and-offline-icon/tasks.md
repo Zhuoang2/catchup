@@ -79,7 +79,7 @@ Use `tdd`. Behavior changes get a failing test first. Checks of behavior that is
   - then append "…".
 
   Verify: the 5.1 tests and all existing title tests pass, and `uv run pytest` passes in `backend/`.
-- [ ] 5.3 In `frontend/src/install.test.ts`, extend the offline-page test: no element in `offline.html` other than the inline icon link refers to an icon file. That is, no `img`, `link`, or `source` with a `src` or `href` containing "icon". Mutation: add `<img src="/icon.svg">` to the body.
+- [x] 5.3 In `frontend/src/install.test.ts`, extend the offline-page test: no element in `offline.html` other than the inline icon link refers to an icon file. That is, no `img`, `link`, or `source` with a `src` or `href` containing "icon". Mutation: add `<img src="/icon.svg">` to the body.
 
   Verify: the test passes on the current page, and fails under the mutation, which is then reverted. `npm test -- --run` passes in `frontend/`.
 - [ ] 5.4 Add a "Fix round 1" section to `docs/process/test-report-polish-titles-ci-and-offline-icon.md`, with the commands, the real results, and the red results. Also add these two known limits:

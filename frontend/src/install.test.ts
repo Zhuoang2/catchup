@@ -94,5 +94,9 @@ describe('install assets', () => {
     expect(document.documentElement.getAttribute('viewBox')).toBe('0 0 1024 1024')
     expect([...document.querySelectorAll('[fill]')].map(node => node.getAttribute('fill')))
       .toEqual(['#f4f0e6', '#151412'])
+    const otherIconReferences = [...page.querySelectorAll('img, link, source')]
+      .filter(element => element !== links[0]
+        && ['src', 'href'].some(attribute => element.getAttribute(attribute)?.toLowerCase().includes('icon')))
+    expect(otherIconReferences).toEqual([])
   })
 })

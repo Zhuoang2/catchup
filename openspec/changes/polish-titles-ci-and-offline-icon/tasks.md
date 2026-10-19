@@ -35,10 +35,10 @@ Implementer notes:
 
 ## 3. Icon on the offline page (#43, part 1)
 
-- [ ] 3.1 In `frontend/src/install.test.ts`, add a failing test: `public/offline.html` declares `<link rel="icon">` whose `href` is a `data:image/svg+xml` URI. Decode the URI and check that it is an `<svg>` with `viewBox="0 0 1024 1024"` and the same two fills (`#f4f0e6`, `#151412`) as `public/icon.svg`. Also check that the page loads no other external resource for the icon.
+- [x] 3.1 In `frontend/src/install.test.ts`, add a failing test: `public/offline.html` declares `<link rel="icon">` whose `href` is a `data:image/svg+xml` URI. Decode the URI and check that it is an `<svg>` with `viewBox="0 0 1024 1024"` and the same two fills (`#f4f0e6`, `#151412`) as `public/icon.svg`. Also check that the page loads no other external resource for the icon.
 
   Verify: the test fails before 3.2.
-- [ ] 3.2 In `frontend/public/offline.html`, add the inline icon link in `<head>`. Use the artwork of `public/icon.svg`, URL-encoded or base64-encoded.
+- [x] 3.2 In `frontend/public/offline.html`, add the inline icon link in `<head>`. Use the artwork of `public/icon.svg`, URL-encoded or base64-encoded.
 
   Verify: the 3.1 test passes, the existing install tests pass, and `npm test -- --run` and `npm run build` pass in `frontend/`.
 

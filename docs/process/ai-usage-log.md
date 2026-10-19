@@ -1152,9 +1152,23 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - Each red step is a named temporary mutation, because the code is already correct.
 - **Left out on purpose:** the row order of the attention list, because the spec does not require an order; and #44 item 5, the plan wording.
 
-## 2026-10-19 — `cover-error-bound-and-run-bar-test-gaps` implementation (Factory Droid, GPT-6 Sol)
+## 2026-10-19 — `cover-error-bound-and-run-bar-test-gaps` implementation (Factory Droid, GPT-6 Sol; session `8cae9cf3`)
 
-- Prompt excerpt received: "Implement OpenSpec change cover-error-bound-and-run-bar-test-gaps using the openspec-apply-change skill. Work through openspec/changes/cover-error-bound-and-run-bar-test-gaps/tasks.md in order, using the tdd skill. The runtime code is already correct, so the red step for each new check is the named temporary mutation in tasks.md: see the check pass, apply the mutation and see it fail, then revert it. Change only test files and docs. Check off each task only after its verification passes. Do not edit proposal.md. Commit after each task group. Do not push, tag, or open a PR."
+- Prompt (faithful excerpt): "Implement OpenSpec change cover-error-bound-and-run-bar-test-gaps using the openspec-apply-change skill. Work through openspec/changes/cover-error-bound-and-run-bar-test-gaps/tasks.md in order, using the tdd skill. The runtime code is already correct, so the red step for each new check is the named temporary mutation in tasks.md: see the check pass, apply the mutation and see it fail, then revert it. Change only test files and docs. Check off each task only after its verification passes. Do not edit proposal.md. Commit after each task group. Do not push, tag, or open a PR."
 - Outcome: Added backend discovery and preview checks, a frontend preview-status row, and result-title assertions in the 12-row ended-run table. Each named runtime mutation produced a failing check, and each was reverted. Committed the two test groups separately and recorded the results in `test-report-cover-error-bound-and-run-bar-test-gaps.md`.
-- What failed and how instructions were adjusted: The first focused green run had three test-fixture failures because a 100-byte feed limit was smaller than the declaring HTML page and an unused `respx` fallback route was required to be called. Increased the limit to 512 bytes with a 1,024-byte candidate response and permitted the fallback route to be unused. In the API mutation check, removed an extra call-count assertion so the red result specifically checked the requested missing `http_status` key. No runtime behavior was changed.
-- Final checks: frontend TypeScript/Vite build passed; backend **416 passed**, **96%** statement coverage; frontend **200 passed** in 13 files; strict OpenSpec validation passed. No real-network, live-feed, or model-generation test was run.
+- Problems / adjustment: The first focused green run had three test-fixture failures because a 100-byte feed limit was smaller than the declaring HTML page and an unused `respx` fallback route was required to be called. Increased the limit to 512 bytes with a 1,024-byte candidate response and permitted the fallback route to be unused. In the API mutation check, removed an extra call-count assertion so the red result specifically checked the requested missing `http_status` key. No runtime behavior was changed.
+- Outcome (final checks): frontend TypeScript/Vite build passed; backend **416 passed**, **96%** statement coverage; frontend **200 passed** in 13 files; strict OpenSpec validation passed. No real-network, live-feed, or model-generation test was run.
+
+## 2026-10-19 — `cover-error-bound-and-run-bar-test-gaps` (#44): review (Claude Code, Opus 5.5, with one spec-review subagent; Factory Droid session `8cae9cf3`)
+
+- **Authorization:** part of the overnight queue the user authorized (see the #47 review entry): merge once the review passes.
+- **Process.**
+  - `/code-review` of the run's diff.
+  - The spec subagent: every named mutation, plus two extra ones, in its own worktree.
+  - Claude reran the checks.
+  - Then Claude merged `origin/main` (with #47) into the branch, and the checks passed again: 431 backend and 200 frontend tests.
+- **Findings.**
+  - All checks exist as tasks.md asks, and no runtime code changed. No mutation survives at the final commit.
+  - **A wrong premise, in Claude's plan.** Issue #44 item 1 and the proposal said every existing test declares only one failing feed. In fact, two existing precedence rows already declare two failing feeds, and they killed the declared-guard mutation before this change. The spec subagent showed 2 failures at the base commit. So the two new tests add a scenario, but they did not close a real gap. The B21 survivor in the #39 review came from a narrower variant of that mutation.
+  - Two documentation fixes by Claude: the mutation table's first row now gives the full-suite count, and Droid's log entry now uses the log's usual labels and has session `8cae9cf3`.
+

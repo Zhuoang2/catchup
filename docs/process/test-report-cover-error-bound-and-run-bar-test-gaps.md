@@ -27,7 +27,7 @@ Each row passed on the unchanged code before the mutation, failed with the indic
 
 | Task/check | Mutation | Observed failing result |
 | --- | --- | --- |
-| 1.1, 404 then oversized; blocked then oversized | Reduce the declared-candidate guard to `if exc.code == "fetch_failed":`. | **2 failed**: the HTTP status became `None` instead of 404; `feed_unavailable` replaced `blocked_address`. |
+| 1.1, 404 then oversized; blocked then oversized | Reduce the declared-candidate guard to `if exc.code == "fetch_failed":`. | **2 failed** in the focused run, and 4 in the full suite. The full suite also fails 2 existing precedence rows, which already caught this mutation before this change (found at review). The HTTP status became `None` instead of 404, and `feed_unavailable` replaced `blocked_address`. |
 | 1.1, page 307 without `Location` | Change `http_error_status` to `>= 303`. | **1 failed**: 8 fetches instead of 1, including probes. |
 | 1.1, declared feed status 600 | Add `and exc.status_code < 600` to `http_error_status`. | **1 failed**: status became `None` instead of 600. |
 | 1.1, unavailable message | Change `FEED_UNAVAILABLE_MESSAGE` to "The site's feed is unavailable." | **1 failed**: exact expected message differed. |

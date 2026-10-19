@@ -5,7 +5,7 @@
 Two recent changes left known test gaps. In each case the behavior is correct today, but a later edit could break it without a failing test.
 
 - **`improve-feed-discovery-errors` (#39, #23), tracked in #44.** The final mutation run left four of these:
-  1. **Mixed declared-feed failures.** Reducing the declared-candidate guard in `backend/src/catchup/sources/discovery.py` to `exc.code == "fetch_failed"` makes "404, then over the size limit" lose its 404, and makes "blocked, then over the size limit" stop reporting `blocked_address`. Every existing test declares only one failing feed.
+  1. **Mixed declared-feed failures.** Reducing the declared-candidate guard in `backend/src/catchup/sources/discovery.py` to `exc.code == "fetch_failed"` makes "404, then over the size limit" lose its 404, and makes "blocked, then over the size limit" stop reporting `blocked_address`. Every existing test declares only one failing feed. (Corrected at review: two existing precedence rows declare two failing feeds and already killed this mutation. The new tests add the oversize scenario.)
   2. **Statuses 303 to 399.** Raising the bound in `http_error_status` or in `describeError` (`frontend/src/pages/Sources.tsx`) to `>= 303` fails no test. A 307 or 308 without `Location` is a real case.
   3. **Statuses of 600 and above.** An upper bound such as `< 600` in `http_error_status` survives. Design D2 says "400 or higher".
   4. **Message text.** Nothing checks the backend `FEED_UNAVAILABLE_MESSAGE` text, which an older frontend shows as is.

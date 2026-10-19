@@ -1112,14 +1112,33 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - a short design: D1 is the coverage rule, at least 60% of the feed's distinct words of 3 or more characters found in the extracted text, which was checked against the real case (1 of 27 words, 4%); D2 is what is stored; D3 lists the alternatives;
   - one test-first task group, and a checks-and-report group.
 
-## 2026-10-19 — `keep-feed-text-when-extraction-misses` implementation (Factory Droid, GPT-6 Sol)
+## 2026-10-19 — `keep-feed-text-when-extraction-misses` implementation (Factory Droid, GPT-6 Sol; session `b4abec56`)
 
 - Prompt (faithful excerpt): "Implement OpenSpec change keep-feed-text-when-extraction-misses using the openspec-apply-change skill. Work through openspec/changes/keep-feed-text-when-extraction-misses/tasks.md in order, completing each task test-first with the tdd skill: write the task's verification items as failing tests and watch them fail, then implement until they pass. Check off each task only after its verification passes. Do not edit proposal.md, design.md, or the spec deltas. Commit after each task group. Do not push, tag, or open a PR."
 - Outcome: A short website-feed description survives when an article extraction misses its words; a covered excerpt still uses the extracted article alone. Four focused checks failed before the fix and passed afterward. Final checks passed: **421 backend tests**, **95% `collection.py` coverage**, **96% total backend coverage**, frontend build, and strict OpenSpec validation. Commands and counts are recorded in `test-report-keep-feed-text-when-extraction-misses.md`.
 - Problems / adjustment: Frontend build initially failed because `tsc` was absent in this fresh worktree; `npm ci` installed the locked packages and the build then passed. The #47 post was not checked in a live local instance; no live feed or model provider was used in tests. No push, tag, or PR was made.
 
-## 2026-10-19 — `keep-feed-text-when-extraction-misses` fix round 1 (Factory Droid, GPT-6 Sol)
+## 2026-10-19 — `keep-feed-text-when-extraction-misses` fix round 1 (Factory Droid, GPT-6 Sol; session `b4abec56`)
 
 - Prompt (faithful excerpt): "Fix round 1 for OpenSpec change keep-feed-text-when-extraction-misses, in this worktree on branch keep-feed-text-when-extraction-misses. Review found no wrong behavior, but some decisions in design D1 are not pinned by tests. The plan was amended in commit f1cab32: task group 3 in tasks.md. Use the openspec-apply-change skill and work through tasks 3.1-3.2 in order. Change only backend/tests/test_collection.py and the docs; do not change collection.py. For each new test, the red step is the named temporary mutation: see the test pass, apply the mutation and see it fail, then revert it. Check off each task only after its verification passes. ... Commit after 3.1 and after 3.2. Do not push."
 - Outcome: Five new tests pin CJK runs, distinct words, case on the extracted side, trimmed extracted text, and a pending podcast text-post re-check. Each passed, failed under its named temporary mutation, and passed after restoration. The full backend suite passed **426 tests** with `collection.py` at **99% statement coverage**; frontend build and strict OpenSpec validation passed. See `test-report-keep-feed-text-when-extraction-misses.md` for the mutation table and command results.
 - Problems / adjustment: No behavior defect was found. The pending podcast text-post path was reached with the existing podcast feed fixture and a pending prior item. Every production-code mutation was reverted; no live feed or model was used, and the #47 local manual run remains unperformed. No push, tag, or PR was made.
+
+## 2026-10-19 — `keep-feed-text-when-extraction-misses` (#47): review and one fix round (Claude Code, Opus 5.5, with one spec-review subagent; Factory Droid session `b4abec56`)
+
+- **Authorization.** The user approved this plan as part of an overnight queue: "I'm going to sleep; prepare a few tasks that don't need my review and complete them one after another" (translated). Two AskUserQuestion answers set the terms: "merge automatically once the review passes", and the task list, starting with #47. Claude ran the fixed review step itself and merged without the user's per-PR approval, as authorized for that night.
+- **Process, after each Droid run:**
+  - `/code-review` of the run's diff.
+  - The spec subagent, with mutation tests in its own worktree.
+  - Claude reran the checks.
+- **Live check, after run 1.** The branch's `article_text` was run on real feeds:
+  - The #47 post, `simonwillison.net/2026/Oct/18/llm-tools-datasette/`, is now stored as its 254-character release note, a blank line, then the sidebar.
+  - 11 other short entries from Python Insider and Simon Willison were judged covered and kept only the extracted text, as before.
+- **Run 1.** No wrong behavior.
+  - The spec subagent reproduced the red result: 4 failed, 74 passed.
+  - It found that three D1 decisions were not pinned: CJK runs (an ASCII-only word pattern survived, which would bring #47 back for Chinese feeds), distinct counting, and the strip. The podcast text-post caller was also untested.
+  - Code review found three low items, all design choices, which were left as they are: substring matching can overcount short words; sidebar noise reaches the model unlabeled; no test runs the real extractor on a missed page.
+- **Fix round 1.** Claude decided on a test-only round (`f1cab32`, task group 3), with five tests, each red step a named mutation. Droid's two commits left `collection.py` unchanged.
+  - 426 backend tests passed, and `collection.py` coverage is 99%.
+  - The spec subagent's 21 mutations were all killed.
+- **Log corrections by Claude.** Added session `b4abec56` to Droid's two entries, from the `droid exec` output.

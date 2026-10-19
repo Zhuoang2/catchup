@@ -1092,3 +1092,12 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - **Left open (low).** The restructured table dropped three assertions that the old blocks had: the "Your digest is ready" title in the compact bar, the "Digest generation failed" title, and the row order (which the spec does not require). Four mutations of these survive. The plan's "one shared set of assertions" left them out, not Droid.
 - **Log corrections by Claude.** Added session `892a201e` to Droid's two entries, from the `droid exec` output.
 - The user replied "As you recommend; approve auto-merge, and delete the remote branch after merging" (translated).
+
+## 2026-10-19 — `cover-error-bound-and-run-bar-test-gaps` (#44): lean plan (Claude Code, Opus 5.5)
+
+- Prompt: part of the overnight queue the user authorized (see the #47 review entry). The queue's second task was "fill test gaps: #44's remaining four mutations, plus the title and order gaps left by the #38 review".
+- **Plan** (the `openspec-propose` skill, `skip_specs: true`, no design document):
+  - **Group 1:** backend and frontend tests for #44 items 1–4: mixed declared-feed failures, a 307 without `Location`, status 600, and the `feed_unavailable` message text.
+  - **Group 2:** a per-status result-title assertion in the 12-row ended-run table of `Home.test.tsx`.
+  - Each red step is a named temporary mutation, because the code is already correct.
+- **Left out on purpose:** the row order of the attention list, because the spec does not require an order; and #44 item 5, the plan wording.

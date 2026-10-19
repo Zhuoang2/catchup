@@ -73,9 +73,10 @@ def test_linked_context_stops_at_sixteen_thousand_chars(environment, monkeypatch
             ))
         result = execute(environment)
     assert result["status"] == "succeeded"
-    rows = sorted((row for row in environment.app.state.session_factory().scalars(select(ItemContext)).all()),
-                  key=lambda row: row.position)
-    assert sum(len(row.text) for row in rows) <= 16000
+    with environment.app.state.session_factory() as session:
+        rows = session.scalars(select(ItemContext).order_by(ItemContext.position)).all()
+        lengths = [len(row.text) for row in rows]
+    assert sum(lengths) <= 16000
     assert len(rows) <= 6
 
 
@@ -90,9 +91,10 @@ def test_author_reply_context_and_disable_switch(environment, monkeypatch, publi
         router.get("https://s0.example/robots.txt").mock(return_value=httpx.Response(404))
         router.get(post).mock(return_value=httpx.Response(200, text=body))
         assert execute(environment)["status"] == "succeeded"
-    rows = [row for row in environment.app.state.session_factory().scalars(select(ItemContext))]
-    assert [(row.ref, row.kind) for row in rows] == [("A1", "author_replies")]
-    assert "Reader asks why." in rows[0].text
+    with environment.app.state.session_factory() as session:
+        rows = session.scalars(select(ItemContext)).all()
+        assert [(row.ref, row.kind) for row in rows] == [("A1", "author_replies")]
+        assert "Reader asks why." in rows[0].text
 
     with environment.app.state.session_factory() as session:
         item = session.scalar(select(Item))
@@ -119,7 +121,8 @@ def test_robots_refusal_and_failed_pages_do_not_fail_run(environment, monkeypatc
         router.get("https://docs.example/2").mock(side_effect=httpx.ReadTimeout("timeout"))
         result = execute(environment)
     assert result["status"] == "succeeded"
-    assert not list(environment.app.state.session_factory().scalars(select(ItemContext)))
+    with environment.app.state.session_factory() as session:
+        assert not session.scalars(select(ItemContext)).all()
 
 
 def test_budget_leaves_unreached_items_ungathered_and_retries_do_not_refetch(
@@ -166,6 +169,12 @@ def test_audio_podcast_and_youtube_items_are_not_fetched(environment, monkeypatc
     with respx.mock(assert_all_mocked=True) as router:
         assert execute(environment)["context_total"] == 0
         assert not router.calls
+    with environment.app.state.session_factory() as session:
+        session.scalar(select(Source)).kind = "youtube"
+        session.commit()
+    with respx.mock(assert_all_mocked=True) as router:
+        assert execute(environment)["context_total"] == 0
+        assert not router.calls
 
 
 def test_budget_spent_on_robots_keeps_item_eligible_for_next_run(environment, monkeypatch, public_dns):
@@ -179,9 +188,3 @@ def test_budget_spent_on_robots_keeps_item_eligible_for_next_run(environment, mo
         assert page.call_count == 0
     with environment.app.state.session_factory() as session:
         assert session.scalar(select(Item)).context_status is None
-    with environment.app.state.session_factory() as session:
-        session.scalar(select(Source)).kind = "youtube"
-        session.commit()
-    with respx.mock(assert_all_mocked=True) as router:
-        assert execute(environment)["context_total"] == 0
-        assert not router.calls

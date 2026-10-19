@@ -55,7 +55,7 @@ Implementer notes:
 
 ## 3. Checks and report
 
-- [ ] 3.1 Run `npm run build` in `frontend/` first, then:
+- [x] 3.1 Run `npm run build` in `frontend/` first, then:
   - `uv run pytest --cov=catchup --cov-report=term` in `backend/`
   - `npm test -- --run` in `frontend/`
   - `openspec validate cover-error-bound-and-run-bar-test-gaps --strict`

@@ -96,7 +96,7 @@ Record each check, its mutation, and the failing result in the report.
   2. **A rate-limited row.** A `no_new_content` run, in the compact bar. `News` has `status: 'failed'`, `rate_limited: true`, `http_status: 429`, and the error "The source is rate limiting requests. Try again in about 120 seconds." The row shows "Rate limited · try later", and does not contain the error text. Mutation: show `check.error` for rate-limited checks too.
 
   Verify: both tests pass, each mutation fails its test, and the mutations are reverted.
-- [ ] 3.3 Run `npm run build` and `npm test -- --run` in `frontend/`, and `openspec validate show-attention-sources-after-run --strict`. Add a "Fix round 1" section to `docs/process/test-report-show-attention-sources-after-run.md`:
+- [x] 3.3 Run `npm run build` and `npm test -- --run` in `frontend/`, and `openspec validate show-attention-sources-after-run --strict`. Add a "Fix round 1" section to `docs/process/test-report-show-attention-sources-after-run.md`:
   - the real results;
   - the mutation table from 3.1 and 3.2;
   - the test count before and after the restructuring.

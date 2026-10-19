@@ -18,3 +18,33 @@
 No existing after-run test fixture was changed. All existing after-run tests stayed green. The new tests use mocked startup requests and run accessibility checks on each rendered state.
 
 **Manual check not performed:** a real run on a local instance. The mocked run checks do not verify a live feed or model.
+
+## Fix round 1
+
+2026-10-18. This round changed only Home tests, task checkboxes, and process docs. No implementation, backend, or API change was committed.
+
+| Check | Actual result |
+| --- | --- |
+| `npm test -- --run src/pages/Home.test.tsx` after the 12-row restructuring | **73 passed** in 1 file. |
+| Focused mutation checks from tasks 3.1 and 3.2 | Each check passed before mutation, failed under its named mutation (below), and passed after restoring `Home.tsx`. |
+| `npm test -- --run src/pages/Home.test.tsx` after both 3.2 checks | **75 passed** in 1 file. |
+| `npm run build` | TypeScript and Vite passed; **41 modules** transformed. |
+| `npm test -- --run` | **199 passed** in **13 files**. |
+| `openspec validate show-attention-sources-after-run --strict` | Valid. |
+| `rg -q '^## Fix round 1' docs/process/test-report-show-attention-sources-after-run.md` before writing | Expected red: exit 1; the section was absent. The chained log-header check did not run because the first check failed. |
+
+Test counts: before restructuring, **69 Home / 193 frontend** (8 ended-run variants); after the 12-row table, **73 Home / 197 frontend** (4 added combinations); after the two additional checks, **75 Home / 199 frontend**. The 197 figure is the prior full-suite count plus four table rows, not a separate full-suite run.
+
+| Task | Temporary mutation in `Home.tsx` | Focused red result |
+| --- | --- | --- |
+| 3.1 | Pass all `run.source_checks` to the succeeded/no-new-content card. | `no_new_content` card: **2 failed** (three rows instead of two; all-fine list shown). |
+| 3.1 | Pass all `run.source_checks` to the failed card. | `failed` card: **2 failed** (three rows instead of two; all-fine list shown). |
+| 3.1 | Use "Sources" for the succeeded/no-new-content card label. | `no_new_content` card, needs attention: **1 failed** (missing "Needs attention" heading). |
+| 3.1 | Use "Sources" for the failed card label. | `failed` card, needs attention: **1 failed** (missing "Needs attention" heading). |
+| 3.1 | Render the ended compact "Needs attention" label as `h2`. | `succeeded` compact, needs attention: **1 failed** (`H2` instead of `P`). |
+| 3.1 | Count only attention checks in the succeeded result line. | `succeeded` compact, needs attention: **1 failed** ("2 sources" instead of "3 sources"). |
+| 3.1 | Clear check errors for `no_new_content`. | `no_new_content` compact, needs attention: **1 failed** (missing "offline"). |
+| 3.2 | Use "Needs attention" for active compact runs. | Collecting run with a saved digest: **1 failed** (missing "Sources" label). |
+| 3.2 | Show `check.error` for rate-limited checks. | Rate-limited compact row: **1 failed** (error repeated after "Rate limited · try later"). |
+
+All nine mutations were reverted after their failing check, and their focused checks passed again. `git diff -- frontend/src/pages/Home.tsx` was empty before committing. No real local run was performed in this fix round.

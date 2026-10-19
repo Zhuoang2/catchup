@@ -44,7 +44,7 @@ Implementer notes:
 
 ## 4. Checks and report
 
-- [ ] 4.1 Run `npm run build` in `frontend/` first, then:
+- [x] 4.1 Run `npm run build` in `frontend/` first, then:
   - `uv run pytest --cov=catchup --cov-report=term` in `backend/`
   - `npm test -- --run` in `frontend/`
   - `actionlint`

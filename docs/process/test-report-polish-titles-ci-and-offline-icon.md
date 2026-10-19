@@ -31,3 +31,30 @@
 `npm ci` installed 124 locked frontend packages and reported 0 vulnerabilities. The first frontend build after adding the icon test failed with TypeScript TS2591 because the test used `Buffer` without Node types; it was changed to the browser `TextDecoder`/`atob` APIs, and the focused test, full suite, and build then passed. Tests did not fetch a real feed or model.
 
 **Not run before merge:** a documentation-only push to `main` proving it does not start "Release image"; a real-browser check that the offline page's tab icon appears when the server is stopped. The YAML and DOM tests verify configuration and asset content, not GitHub's live trigger or the browser's rendered tab.
+
+## Fix round 1 (2026-10-19)
+
+Commands below ran in this worktree; `uv run pytest` ran in `backend/`, `npm` commands in `frontend/`, and `actionlint` and `openspec` in the repository root. All mutations were applied temporarily by hand and reverted before committing.
+
+| Check and command | Actual result |
+| --- | --- |
+| `uv run pytest -q tests/test_discovery.py -k untitled_cut_cjk_dots_gets_only_one_ellipsis` before the backend change | Expected red: **3 failed, 53 deselected** (`。。。`, `．．．`, and `⋯⋯` remained before `…`). |
+| `uv run pytest -q tests/test_discovery.py -k 'untitled_cut_keeps_part_of_long_word or untitled_cut_of_all_dots'` before the backend change | **1 failed, 1 passed, 56 deselected**. `"... " + "A" * 100` yielded bare `…`; 100 dots already yielded `…`. |
+| `uv run pytest -q tests/test_discovery.py -k 'untitled_cut_with_space_before_dots or untitled_cut_just_over_80_characters or untitled_cut_of_all_dots'` before mutations | **3 passed, 57 deselected**. |
+| `uv run pytest -q tests/test_discovery.py -k untitled_cut_with_space_before_dots` with `rstrip(".…")` (no space), then after reverting | Mutation: **1 failed, 59 deselected** (`B` prefix ended in ` ... …`); reverted: **1 passed, 59 deselected**. |
+| `uv run pytest -q tests/test_discovery.py -k untitled_cut_just_over_80_characters` with trailing-dot stripping moved to the whole text before the cut, then after reverting | Mutation: **1 failed, 59 deselected** (title ended in `..…`); reverted: **1 passed, 59 deselected**. |
+| `uv run pytest -q tests/test_discovery.py -k 'untitled_cut or untitled_social_post or untitled_long_cjk_text'` after the backend change | **11 passed, 49 deselected**. |
+| `uv run pytest -q tests/test_discovery.py -k untitled_cut_of_all_dots` with stripping after the fallback 80-character cut skipped | Mutation: **1 failed, 59 deselected** (80 dots before `…`); after reverting, the title-focused run above passed again. |
+| `uv run pytest` after reverting mutations | **421 passed**. |
+| `npm test -- --run src/install.test.ts` on the unchanged offline page | **5 passed** after `npm ci` installed 124 locked packages (0 vulnerabilities). Before installation, Vitest was missing and the command exited 127. |
+| `npm test -- --run src/install.test.ts` with temporary `<img src="/icon.svg">` in `public/offline.html` | Expected mutation failure: **1 failed, 4 passed**; the new assertion detected the external icon file request. The mutation was reverted, and `git diff -- frontend/public/offline.html` was empty. |
+| `npm test -- --run` and `npm run build` after reverting | **200 passed** in **13 files**; TypeScript/Vite build passed with **41 modules** transformed. |
+| `npm run build` (first in final check sequence) | Passed; **41 modules** transformed. |
+| `uv run pytest --cov=catchup --cov-report=term -q` | **421 passed**, **96% statement coverage** (1,858/1,929 statements; 71 missed). `sources/feeds.py`: 97% (144 statements, 4 missed). |
+| `npm test -- --run` (final check sequence) | **200 passed** in **13 files**. |
+| `actionlint` (final check sequence) | Exit 0, no output. |
+| `openspec validate polish-titles-ci-and-offline-icon --strict` (final check sequence) | `Change 'polish-titles-ci-and-offline-icon' is valid`. |
+
+**Plan amendment and pause:** The first version of task 5.1 called 100 dots a red-first behavior change. Its test already passed before implementation, so work stopped with the tests left uncommitted rather than inventing a mutation. The follow-up amendment (`6b317a8`) recast it as a passing guard and named the post-fallback-strip mutation. The guard then failed under that mutation, which was reverted.
+
+**Known limits:** An entry with no guid, no unique link, and no title derives its identity key from its title and date. If this change alters that title, it can be collected once more after upgrade. `release.yml` has no committed trigger test; its configuration was checked with `actionlint` and a one-off YAML parse, not a real documentation-only push to `main`. The real-browser offline-tab check also remains unperformed.

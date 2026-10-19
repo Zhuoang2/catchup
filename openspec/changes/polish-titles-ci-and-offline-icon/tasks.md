@@ -82,7 +82,7 @@ Use `tdd`. Behavior changes get a failing test first. Checks of behavior that is
 - [x] 5.3 In `frontend/src/install.test.ts`, extend the offline-page test: no element in `offline.html` other than the inline icon link refers to an icon file. That is, no `img`, `link`, or `source` with a `src` or `href` containing "icon". Mutation: add `<img src="/icon.svg">` to the body.
 
   Verify: the test passes on the current page, and fails under the mutation, which is then reverted. `npm test -- --run` passes in `frontend/`.
-- [ ] 5.4 Add a "Fix round 1" section to `docs/process/test-report-polish-titles-ci-and-offline-icon.md`, with the commands, the real results, and the red results. Also add these two known limits:
+- [x] 5.4 Add a "Fix round 1" section to `docs/process/test-report-polish-titles-ci-and-offline-icon.md`, with the commands, the real results, and the red results. Also add these two known limits:
   - An entry with no guid, no unique link, and no title gets its identity key from its derived title and date. When such an entry's title changes under the new rule, it is collected once more after the upgrade.
   - `release.yml` has no committed test; the trigger was checked with `actionlint` and a one-off parse.
 

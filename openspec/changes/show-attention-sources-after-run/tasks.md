@@ -64,7 +64,7 @@ This group changes only `frontend/src/pages/Home.test.tsx` and the docs. Do not 
 
 Record each check, its mutation, and the failing result in the report.
 
-- [ ] 3.1 Replace the four ended-run blocks added in 1.1 with one `it.each` table. Use the same three checks (`News` failed with error `offline`, `Blog` with a possible gap, `Docs` fine) and the all-fine variant. The table covers every combination of:
+- [x] 3.1 Replace the four ended-run blocks added in 1.1 with one `it.each` table. Use the same three checks (`News` failed with error `offline`, `Blog` with a possible gap, `Docs` fine) and the all-fine variant. The table covers every combination of:
   - **status:** `succeeded`, `no_new_content`, and `failed` (`error_kind: 'run_failed'`);
   - **layout:** the compact run bar, with a latest digest shown, and the result card, with no digest;
   - **variant:** needs attention, and all fine.
@@ -91,7 +91,7 @@ Record each check, its mutation, and the failing result in the report.
   - All 12 rows pass on the current code.
   - Each named mutation fails at least one row.
   - Every mutation is reverted: `git diff` shows only the test file.
-- [ ] 3.2 Add two more tests, each with its named mutation:
+- [x] 3.2 Add two more tests, each with its named mutation:
   1. **During a run, compact.** A latest digest is shown, and the run is `collecting` with the three checks. The run bar lists all three under a `P` label "Sources". Mutation: use "Needs attention" as the active-run label when `compact`.
   2. **A rate-limited row.** A `no_new_content` run, in the compact bar. `News` has `status: 'failed'`, `rate_limited: true`, `http_status: 429`, and the error "The source is rate limiting requests. Try again in about 120 seconds." The row shows "Rate limited · try later", and does not contain the error text. Mutation: show `check.error` for rate-limited checks too.
 

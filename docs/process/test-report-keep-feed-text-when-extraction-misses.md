@@ -35,3 +35,17 @@ The initial `npm run build` could not run because this worktree had no frontend 
 | `openspec validate keep-feed-text-when-extraction-misses --strict` at the repository root | Passed: change is valid. |
 
 **Manual check not performed:** a real run on a local instance that includes the #47 post. The tests use invented text, mocked DNS and `respx`; they do not demonstrate live extraction or model output on that post.
+
+## Fix round 1
+
+2026-10-19. This round adds tests and process evidence only. Each focused check passed on the unchanged code, failed with the named temporary mutation, and passed after the mutation was reverted. Focused commands ran as `uv run pytest tests/test_collection.py::<test name> -q --no-header --tb=short` from `backend/`.
+
+| New check | Temporary mutation in `collection.py` | Focused red result |
+| --- | --- | --- |
+| `test_unrelated_cjk_sidebar_does_not_cover_feed_text` | Use `[A-Za-z0-9]+` instead of `\w+` for feed words. | **1 failed**: stored only the unrelated sidebar, losing the Chinese feed text. |
+| `test_repeated_feed_words_count_only_once` | Use a list instead of a set for feed words. | **1 failed**: five copies of "update" made the extraction appear covered; stored only "Weekly update digest". |
+| `test_uppercase_article_words_cover_lowercase_feed_text` | Drop `casefold()` from the extracted text only. | **1 failed**: stored the lowercase feed text before the uppercase article. |
+| `test_extracted_article_strips_surrounding_whitespace` | Store `text` instead of `text.strip()`. | **1 failed**: stored leading newline and spaces and trailing spaces and newline. |
+| `test_pending_podcast_text_post_keeps_feed_text_on_recheck` | In the prior-item podcast text-post path, discard the feed prefix after `article_text` returns. | **1 failed**: stored only the sidebar on the pending item's re-check. |
+
+The five focused checks each returned **1 passed** after restoring their mutation. `git diff -- backend/src/catchup/collection.py` was empty after the mutations, and `git status --short` showed only `backend/tests/test_collection.py` modified before the report and task checkbox were written. `uv run pytest -q --no-header` in `backend/`: **426 passed**.

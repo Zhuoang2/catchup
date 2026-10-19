@@ -69,7 +69,7 @@ Review found no wrong behavior, but three decisions in design D1 are not pinned 
 
 Record each check, its mutation, and the failing result in the report.
 
-- [ ] 3.1 Add these tests, through the same `stored_article_from_short_feed` helper:
+- [x] 3.1 Add these tests, through the same `stored_article_from_short_feed` helper:
   1. **CJK not covered.** The feed text is "这是一段摘要，介绍新版本的变化。". `extract` returns an unrelated Chinese sidebar, "最近文章\n花园笔记\n晨间路线". The stored text is the feed text, a blank line, then the sidebar. Mutation: the word pattern becomes `[A-Za-z0-9]+`.
   2. **Distinct words.** The feed text is "Update update update update update alpha beta". The extraction is "Weekly update digest". Only 1 of the 3 distinct words is found, so the feed text is kept first. Mutation: count the words as a list, with duplicates.
   3. **Case on the article side.** The feed text is "rust release notes for october", in lower case. The extraction contains "RUST RELEASE NOTES FOR OCTOBER" in upper case. It covers the feed text. Mutation: drop `casefold()` on the extracted text only.

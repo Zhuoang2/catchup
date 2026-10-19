@@ -81,7 +81,7 @@ Record each check, its mutation, and the failing result in the report.
   - Each named mutation fails its test.
   - Every mutation is reverted: `git diff` shows only test files and docs.
   - `uv run pytest` passes in `backend/`.
-- [ ] 3.2 Add a "Fix round 1" section to `docs/process/test-report-keep-feed-text-when-extraction-misses.md`, with:
+- [x] 3.2 Add a "Fix round 1" section to `docs/process/test-report-keep-feed-text-when-extraction-misses.md`, with:
   - the commands and their real results;
   - the mutation table;
   - the coverage of `collection.py`, measured with `frontend/dist` present.

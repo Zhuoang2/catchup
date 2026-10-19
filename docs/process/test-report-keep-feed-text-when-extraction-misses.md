@@ -49,3 +49,12 @@ The initial `npm run build` could not run because this worktree had no frontend 
 | `test_pending_podcast_text_post_keeps_feed_text_on_recheck` | In the prior-item podcast text-post path, discard the feed prefix after `article_text` returns. | **1 failed**: stored only the sidebar on the pending item's re-check. |
 
 The five focused checks each returned **1 passed** after restoring their mutation. `git diff -- backend/src/catchup/collection.py` was empty after the mutations, and `git status --short` showed only `backend/tests/test_collection.py` modified before the report and task checkbox were written. `uv run pytest -q --no-header` in `backend/`: **426 passed**.
+
+**Fix round 1 coverage and final checks:** `frontend/dist/index.html` was present; `npm run build` in `frontend/` passed TypeScript and Vite (**41 modules transformed**) before coverage was measured.
+
+| Command | Actual result |
+| --- | --- |
+| `uv run pytest --cov=catchup --cov-report=term` in `backend/` | **426 passed**; `collection.py`: **109 statements, 1 missed, 99% coverage**; total: **1,938 statements, 68 missed, 96% coverage**. |
+| `openspec validate keep-feed-text-when-extraction-misses --strict` at the repository root | Passed: change is valid. |
+
+No live local run including the #47 post was performed in this test-only fix round.

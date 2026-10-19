@@ -69,7 +69,7 @@ Implementer notes:
 
 ## 3. Author replies
 
-- [ ] 3.1 Create `context/comments.py` (design D5). The tests in a new `backend/tests/test_context_comments.py` come first, with invented fixtures:
+- [x] 3.1 Create `context/comments.py` (design D5). The tests in a new `backend/tests/test_context_comments.py` come first, with invented fixtures:
   - A WordPress-style post page with 6 comments, 2 of them `bypostauthor` and nested under a reader's comment. It returns 2 replies, each with its parent's text.
   - The same page without `bypostauthor`, where one comment's `.fn` equals the entry author. That comment is returned.
   - A page with no comment markup: the comment feed (RSS items "By: <name>" with `dc:creator`) is used. Only the author's items are kept, and pingbacks are skipped.

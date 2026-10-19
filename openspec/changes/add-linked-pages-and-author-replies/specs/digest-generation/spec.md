@@ -1,11 +1,19 @@
 ## ADDED Requirements
 
 ### Requirement: Use related context in summaries
-When an item has gathered context, the summary call SHALL receive it after the item's text, labeled by kind (linked page or author reply), with each part's title and site. The model MUST use context only where it relates to the item, and MUST NOT summarize a linked page or a reply on its own. The model SHALL return the references of the context it used. References that do not match the item's context MUST be discarded. The text budget for splitting long items SHALL include the context.
+When an item has gathered context, the summary call SHALL receive it after the item's text, labeled by kind (linked page or author reply), with each part's title and site. The model MUST use context only where it relates to the item, and MUST NOT summarize a linked page or a reply on its own. The model SHALL return the references of the context it used. References that do not match the item's context MUST be discarded. The text budget for splitting long items SHALL include the context. The context MUST be treated as data, not instructions. An item that already had a summary when its context was gathered SHALL be summarized again with the context.
 
 #### Scenario: Unrelated linked page
 - **WHEN** an item's context holds its release notes and an unrelated page linked from the post's footer
 - **THEN** the summary draws on the release notes, and only the release notes are recorded as used
+
+#### Scenario: Link-only post explained by its linked page
+- **WHEN** an item's own text is only a release title, and its context holds the release notes
+- **THEN** the summary describes the release from the notes, and does not say that the item has no substance
+
+#### Scenario: Context gathered after a summary
+- **WHEN** an item was summarized in a run that then failed, and the next run gathers its context
+- **THEN** the item is summarized again with that context
 
 #### Scenario: Model returns an unknown context reference
 - **WHEN** the summary output names a context reference that the item does not have

@@ -7,13 +7,16 @@ For each entry of a website feed, the system SHALL keep the entry's links in bod
   - same-site tag, category, archive, author, page, and search pages;
   - login-scoped or share pages;
   - image and PDF links;
+  - video watch pages;
   - `mailto:` and `javascript:` links;
   - x.com and twitter.com.
 
-  Each linked page's extracted text MUST be cut to 3,000 characters, and an item's linked context MUST stay within 16,000 characters.
-- **Author replies.** When the feed reports comments on the post, the author's own replies are read from the post page, each with the comment it answers. At most 10 replies and 4,000 characters are kept. When the page shows none, the post's comment feed is used.
+  A link counts as same-site when its host equals the site's host, ignoring a leading `www.`. The same rules apply to a page's final URL after redirects.
 
-Every context fetch MUST go through the safe fetcher with the run's host spacing. It MUST honor the site's robots.txt for CatchUp's User-Agent, and MUST count against a per-run limit (default 60). A context fetch that fails, is refused, or exceeds the limit MUST be skipped without failing the source check or the run. Gathered context SHALL be stored with the item and reused by later runs. Podcast episodes and YouTube videos MUST NOT get linked or comment context.
+  Each linked page's extracted text MUST be cut to 3,000 characters, and an item's linked context MUST stay within 16,000 characters.
+- **Author replies.** When the feed reports comments on the post, the author's own replies are read from the post page, each with the comment it answers, including when the theme lists replies after the comment they answer rather than inside it. At most 10 replies and 4,000 characters are kept. When the page shows none, the post's comment feed is used.
+
+Every context fetch MUST go through the safe fetcher with the run's host spacing. It MUST honor the site's robots.txt for CatchUp's User-Agent, and MUST count against a per-run limit (default 60). A context fetch that fails, is refused, or exceeds the limit MUST be skipped without failing the source check or the run. Gathered context SHALL be stored with the item and reused by later runs. When the per-run limit stops an item's fetches before they are done, that item MUST be gathered again on a later run. Podcast episodes and YouTube videos MUST NOT get linked or comment context.
 
 #### Scenario: Short post with linked pages
 - **WHEN** a pending website item links to its GitHub release, a project page, a changelog, and two of the site's tag pages
@@ -30,6 +33,14 @@ Every context fetch MUST go through the safe fetcher with the run's host spacing
 #### Scenario: Per-run fetch limit reached
 - **WHEN** a run's items have more related links than the per-run limit allows
 - **THEN** context fetches stop at the limit, the run continues, and the remaining items are summarized from what was gathered
+
+#### Scenario: Article links on the same site
+- **WHEN** a pending item links to another article on its own site at `/archives/10000`
+- **THEN** that article is read as context
+
+#### Scenario: Link redirects to a login page
+- **WHEN** a related link redirects to a login page
+- **THEN** the login page is not stored as context
 
 #### Scenario: Context gathered once
 - **WHEN** an item's context was gathered in a run that then failed, and the user starts a new run

@@ -49,7 +49,7 @@ Implementer notes:
 
 ## 2. Checks and report
 
-- [ ] 2.1 Run the full checks:
+- [x] 2.1 Run the full checks:
   - `npm run build` in `frontend/` first, so that backend coverage is measured with `frontend/dist` present
   - `uv run pytest --cov=catchup --cov-report=term` in `backend/`
   - `openspec validate keep-feed-text-when-extraction-misses --strict`

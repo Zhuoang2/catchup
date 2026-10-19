@@ -1111,3 +1111,9 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - a `content-collection` delta, with two new scenarios;
   - a short design: D1 is the coverage rule, at least 60% of the feed's distinct words of 3 or more characters found in the extracted text, which was checked against the real case (1 of 27 words, 4%); D2 is what is stored; D3 lists the alternatives;
   - one test-first task group, and a checks-and-report group.
+
+## 2026-10-19 — `keep-feed-text-when-extraction-misses` implementation (Factory Droid, GPT-6 Sol)
+
+- Prompt (faithful excerpt): "Implement OpenSpec change keep-feed-text-when-extraction-misses using the openspec-apply-change skill. Work through openspec/changes/keep-feed-text-when-extraction-misses/tasks.md in order, completing each task test-first with the tdd skill: write the task's verification items as failing tests and watch them fail, then implement until they pass. Check off each task only after its verification passes. Do not edit proposal.md, design.md, or the spec deltas. Commit after each task group. Do not push, tag, or open a PR."
+- Outcome: A short website-feed description survives when an article extraction misses its words; a covered excerpt still uses the extracted article alone. Four focused checks failed before the fix and passed afterward. Final checks passed: **421 backend tests**, **95% `collection.py` coverage**, **96% total backend coverage**, frontend build, and strict OpenSpec validation. Commands and counts are recorded in `test-report-keep-feed-text-when-extraction-misses.md`.
+- Problems / adjustment: Frontend build initially failed because `tsc` was absent in this fresh worktree; `npm ci` installed the locked packages and the build then passed. The #47 post was not checked in a live local instance; no live feed or model provider was used in tests. No push, tag, or PR was made.

@@ -23,3 +23,15 @@ The following new cases **passed as guards before 1.2**: excerpt covered, 6 of 1
 | --- | --- |
 | `uv run pytest tests/test_collection.py tests/test_sources_api.py -q` | **78 passed** (both existing test files and all new checks). |
 | `uv run pytest -q` | **421 passed** (full backend suite). |
+
+## Full checks (task 2.1)
+
+The initial `npm run build` could not run because this worktree had no frontend dependencies (`tsc: command not found`, exit 127). `npm ci` installed **124 locked packages** and reported **0 vulnerabilities**. The next `npm run build` passed TypeScript and Vite, transforming **41 modules** and creating `frontend/dist` before backend coverage.
+
+| Command | Actual result |
+| --- | --- |
+| `npm run build` in `frontend/` after `npm ci` | Passed; TypeScript and Vite built **41 modules**. |
+| `uv run pytest --cov=catchup --cov-report=term` in `backend/` | **421 passed**; `collection.py`: **109 statements, 5 missed, 95% coverage**; total: **1,938 statements, 72 missed, 96% coverage**. |
+| `openspec validate keep-feed-text-when-extraction-misses --strict` at the repository root | Passed: change is valid. |
+
+**Manual check not performed:** a real run on a local instance that includes the #47 post. The tests use invented text, mocked DNS and `respx`; they do not demonstrate live extraction or model output on that post.

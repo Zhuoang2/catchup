@@ -59,3 +59,33 @@ Implementer notes:
   Add your entry to `docs/process/ai-usage-log.md` after the latest entry, with a faithful excerpt of the prompt you actually received, and the tool and model. Leave out the session id; Claude Code adds it at review.
 
   Verify: every command passes, and the report has the actual numbers.
+
+## 3. Fix round 1 (test gaps from review)
+
+Review found no wrong behavior, but three decisions in design D1 are not pinned by any test. This group changes only `backend/tests/test_collection.py` and the docs. Do not change `collection.py`. The code is already correct, so the red step for each new check is a named temporary mutation of `collection.py`, applied by hand:
+1. Write the check and see it pass.
+2. Apply the mutation, and see the check fail.
+3. Revert the mutation, and see the check pass again.
+
+Record each check, its mutation, and the failing result in the report.
+
+- [ ] 3.1 Add these tests, through the same `stored_article_from_short_feed` helper:
+  1. **CJK not covered.** The feed text is "这是一段摘要，介绍新版本的变化。". `extract` returns an unrelated Chinese sidebar, "最近文章\n花园笔记\n晨间路线". The stored text is the feed text, a blank line, then the sidebar. Mutation: the word pattern becomes `[A-Za-z0-9]+`.
+  2. **Distinct words.** The feed text is "Update update update update update alpha beta". The extraction is "Weekly update digest". Only 1 of the 3 distinct words is found, so the feed text is kept first. Mutation: count the words as a list, with duplicates.
+  3. **Case on the article side.** The feed text is "rust release notes for october", in lower case. The extraction contains "RUST RELEASE NOTES FOR OCTOBER" in upper case. It covers the feed text. Mutation: drop `casefold()` on the extracted text only.
+  4. **Surrounding whitespace.** `extract` returns "\n  A complete report about the new instrument.  \n". The stored text is the stripped string, for an empty feed text. Mutation: drop the `strip()` of the extracted text.
+  5. **The podcast text-post path.** A pending podcast item without audio is re-checked, through the existing prior-item path (`collection.py`, `prior.content_text, prior.content_origin = article_text(...)`). Its short feed text is not covered by the extraction, and its stored text becomes the feed text, a blank line, then the extracted text. Use the existing podcast test helpers. If this path cannot be reached with short feed text and no audio, stop and report. Mutation: in that path, store only the extracted text.
+
+  Verify:
+  - All new tests pass on the current code.
+  - Each named mutation fails its test.
+  - Every mutation is reverted: `git diff` shows only test files and docs.
+  - `uv run pytest` passes in `backend/`.
+- [ ] 3.2 Add a "Fix round 1" section to `docs/process/test-report-keep-feed-text-when-extraction-misses.md`, with:
+  - the commands and their real results;
+  - the mutation table;
+  - the coverage of `collection.py`, measured with `frontend/dist` present.
+
+  Add a fix-round entry to `docs/process/ai-usage-log.md` after the latest entry, with a faithful excerpt of the prompt you actually received, and the tool and model. Leave out the session id.
+
+  Verify: every command passes, and the report has the actual numbers.

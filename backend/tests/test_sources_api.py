@@ -140,6 +140,22 @@ def test_large_article_keeps_feed_text(client):
         assert article_text(entry, {FEED_URL}, 500) == ("Excerpt", "feed")
 
 
+def test_short_excerpt_not_in_extracted_article_keeps_both(client, monkeypatch):
+    entry = FeedEntry(
+        "article", "https://site.example/article", "Article", None,
+        "The instrument release fixes a calibration error.",
+    )
+    extracted = "Recent articles\nOrchard survey\nCoastal mapping\nBridge repairs"
+    monkeypatch.setattr("catchup.collection.extract", lambda *_args, **_kwargs: extracted)
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(entry.link).mock(return_value=httpx.Response(
+            200, content=b"<html><body>Other posts</body></html>",
+            headers={"content-type": "text/html"},
+        ))
+        result = article_text(entry, {FEED_URL}, 500)
+    assert result == (entry.content_text + "\n\n" + extracted, "article")
+
+
 @pytest.mark.parametrize("fixture,url,kind", [
     ("podcast-kind.xml", FEED_URL, "podcast"),
     ("youtube-kind.xml", "https://www.youtube.com/feeds/videos.xml?channel_id=abc", "youtube"),

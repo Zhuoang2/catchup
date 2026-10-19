@@ -1231,3 +1231,29 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - The overnight rule stopped the merge, and Claude disabled auto-merge.
   - In the morning the user replied "Rerun #51's CI, and merge it once it passes" (translated).
   - By then the branch conflicted with `main`, because #53 had merged. Claude merged `origin/main` again, putting the #53 log entries first, and pushed. That push started a new CI run.
+
+## 2026-10-19 — `add-linked-pages-and-author-replies` (#48) and `add-item-images` (#49): research, proposals, and plans (Claude Code, Opus 5.5, with three research and fact-check subagents)
+
+- **Research**, run during the overnight queue the user authorized:
+  - Two subagents wrote each change's `research.md` from the code and from read-only fetches of the user's four sources. They covered links per entry, comment elements, author markers, image elements, and image hosts' headers.
+  - The #48 research agent did not fetch The Verge's pages, because its robots.txt disallows Claude agents.
+- **Proposals.**
+  - Claude wrote two proposals each into `design.md`.
+  - A fact-check subagent compared every claim with the research and the code, and fixed wrong line numbers and quotes.
+  - Claude fixed the design gaps the fact-check flagged:
+    - reusing the page that `article_text` drops;
+    - an inconsistency inside Proposal 2;
+    - the stepper and spec references;
+    - where preferences live;
+    - a risk that contradicted "each item appears in at most one digest".
+- **Prompts** (translated from Chinese): "1. I think it can fetch, and at most more than three links; later we can give users the option to choose deep or shallow crawling. 2. I think it can pick more than one image if there are many important ones. Rerun #51's CI, and merge it once it passes."
+- **Plans** (the `reppit-plan` skill):
+  - **#48**, Proposal 1:
+    - 8 links per item and 60 context fetches per run by default;
+    - robots.txt for context fetches only; Hacker News links kept; PDFs skipped; author replies on by default;
+    - a context pass in the run, an `item_contexts` table, `used` refs, "Also read", and a progress label;
+    - seven task groups.
+  - **#49**, Proposal 1: up to 3 images per item, and a "Show images from source sites" setting; it follows #48 (migration `0005`); five task groups.
+  - Decision log entries D-020 and D-021.
+  - The follow-up issue #54 for the depth setting.
+

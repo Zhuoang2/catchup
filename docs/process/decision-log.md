@@ -217,3 +217,35 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
 - **Consequences:**
   - During collecting, a source with only carried-over items can briefly show "No new items" before its final outcome.
   - A run that fails after choosing its items keeps `new_items` for those sources.
+
+## D-020 Gather bounded context for website items during the run; the summary judges relevance and cites what it used — accepted (2026-10-19)
+
+- **Decision.** For each pending website item, a context pass reads, once:
+  - up to 8 related linked pages (the rules drop tag, navigation, share, and login pages, as well as x.com, images, and PDFs);
+  - the author's own replies in the post's comments.
+
+  The pass runs after the sources are checked. It is bounded per page, per item, and per run (60 fetches); it honors robots.txt; and it never fails the run. The summary call receives the context as labeled sections, uses only what relates, and returns the references it used. The digest shows them as "Also read" links taken from stored data. Planned as OpenSpec change `add-linked-pages-and-author-replies` (issue #48), a full RePPIT change.
+- **Why.** Short posts and announcements carry their point in linked pages, and authors add context in replies. Both were found in user testing on 2026-10-19 (F7, F8). The user chose this proposal with one change: "more than three links", with a user-facing depth setting later (#54).
+- **Alternatives:**
+  - Model-picked links at summary time (Proposal 2). Rejected: an extra call per item, fetches inside the summarizing stage, nondeterministic selection, and re-fetching after a failed run.
+  - Reusing the item's article fetch for comments. Rejected for simplicity.
+- **Consequences:**
+  - Runs fetch more and cost more tokens.
+  - Only server-rendered, WordPress-style comments and comment feeds are read.
+  - Existing items get no context.
+
+## D-021 The summary call chooses up to three important images, shown from their source sites — accepted (2026-10-19)
+
+- **Decision.** Parsing keeps up to 8 image candidates per website item or YouTube video, with no avatars, icons, or tracking pixels. The summary call chooses at most 3 that show something the summary relies on, each with a short alt text, or none. The choice is stored with the summary, and snapshotted into the digest. The reading layout loads the images from their sites, lazily and with no referrer. A Settings toggle, "Show images from source sites" (default on), turns this off. Planned as OpenSpec change `add-item-images` (issue #49), a full RePPIT change, after #48.
+- **Why.** Charts, screenshots, and diagrams carry information that text summaries lose (user testing, F9). The user decided:
+  - the model chooses;
+  - more than one image when several matter;
+  - try loading from the source site first.
+- **Alternatives:**
+  - One image-selection call for the whole digest, after grouping. Rejected: it judges from summaries only, and adds a run stage.
+  - Storing image copies. Rejected for now, at the user's request.
+  - `og:image`. Left out: the page is not kept after extraction, and it is usually the feed's lead image or the site icon.
+- **Consequences:**
+  - Opening a digest contacts image hosts. This is documented in Settings and the README.
+  - Digests can show up to 3 images per item, with no cap per digest yet.
+

@@ -754,6 +754,40 @@ def test_failed_run_reuses_gathered_context_without_fetching_again(environment, 
     assert (retry["context_total"], retry["context_done"]) == (0, 0)
 
 
+def test_newly_gathered_link_invalidates_cached_summary(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        item = session.scalar(select(Item))
+        item.summary = "Old cached summary"
+        item.summary_language = "en"
+        item.entry_links = [{"url": "https://docs.example/notes", "text": "Notes"}]
+        session.commit()
+    monkeypatch.setattr(socket, "getaddrinfo", lambda _host, port, **_kwargs: [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", port)),
+    ])
+    model = FakeModel([
+        {"summary": "Contextual summary", "used": ["L1"]},
+        {"topics": [{"title": "Topic", "overview": "Overview", "item_refs": ["i1"]}]},
+    ])
+    environment.app.state.model_client_factory = lambda *_: model
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        router.get("https://docs.example/notes").mock(return_value=httpx.Response(
+            200, text="<html><title>Notes</title><article>" +
+            "Substantive notes about this item. " * 40 + "</article></html>",
+        ))
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert len(model.calls) == 2
+    assert "Context L1" in str(model.calls[0][0])
+    digest = environment.get(f"/api/digests/{result['digest_id']}").json()
+    assert digest["topics"][0]["items"][0]["summary"] == "Contextual summary"
+    assert digest["topics"][0]["items"][0]["also_read"] == [
+        {"title": "Notes", "url": "https://docs.example/notes", "kind": "link"},
+    ]
+
+
 def test_runner_context_requests_share_host_spacer(environment, monkeypatch):
     seed(environment)
     stub_collection(monkeypatch)

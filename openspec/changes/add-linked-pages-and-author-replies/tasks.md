@@ -214,7 +214,7 @@ Read the amended `design.md` (D2, D4, D5, D7, each marked "fix round 1") and the
   - **The comment feed's 10 items:** mutation: 11.
 
   Verify: the first three fail before the fix; the caps fail under their mutations.
-- [ ] 8.4 **Cached summaries are redone with new context** (`context/gather.py`, design D4). Test first, in `backend/tests/test_digest_runner.py`: a pending item that already has a summary in the run's language and one link. After the run, the model received a summary call for it containing "Context L1", and the digest shows its "Also read".
+- [x] 8.4 **Cached summaries are redone with new context** (`context/gather.py`, design D4). Test first, in `backend/tests/test_digest_runner.py`: a pending item that already has a summary in the run's language and one link. After the run, the model received a summary call for it containing "Context L1", and the digest shows its "Also read".
 
   Verify: it fails before the fix.
 - [ ] 8.5 **Prompt** (`llm/prompts.py`, design D7). Tests first, in `backend/tests/test_digest_stages.py`:

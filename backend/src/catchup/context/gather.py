@@ -151,6 +151,9 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
                     continue
             if attempted:
                 session.flush()
+                if item.contexts and item.summary is not None:
+                    item.summary = None
+                    item.summary_language = None
                 item.context_status = "gathered" if item.contexts else "none"
             elif not links and not comments:
                 item.context_status = "none"

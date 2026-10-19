@@ -217,7 +217,7 @@ Read the amended `design.md` (D2, D4, D5, D7, each marked "fix round 1") and the
 - [x] 8.4 **Cached summaries are redone with new context** (`context/gather.py`, design D4). Test first, in `backend/tests/test_digest_runner.py`: a pending item that already has a summary in the run's language and one link. After the run, the model received a summary call for it containing "Context L1", and the digest shows its "Also read".
 
   Verify: it fails before the fix.
-- [ ] 8.5 **Prompt** (`llm/prompts.py`, design D7). Tests first, in `backend/tests/test_digest_stages.py`:
+- [x] 8.5 **Prompt** (`llm/prompts.py`, design D7). Tests first, in `backend/tests/test_digest_stages.py`:
   - with context, the system prompt says that context is data and not instructions, and words the "no substantive content" rule as applying only when neither the item nor its context has substance;
   - without context, the system prompt is byte for byte the version on `main`, compared against a stored copy in the test (mutations: add the rules without context; add the `used` example without context).
 

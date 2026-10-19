@@ -130,7 +130,7 @@ Implementer notes:
 
 ## 6. Snapshot, API, and reading layout
 
-- [ ] 6.1 Snapshot and API (design D8).
+- [x] 6.1 Snapshot and API (design D8).
   - The snapshot (`digest/runner.py`) copies the used contexts, `{title, url, kind}` in ref order, into `DigestItem.context_links`.
   - `api/digests.py` returns `also_read` for each summarized item (`[]` when there is none, and for older digests).
 
@@ -141,7 +141,7 @@ Implementer notes:
   - update the exact item dict at `:289-292`.
 
   Verify: the tests pass.
-- [ ] 6.2 In `frontend/src/components/DigestArticle.tsx`, its type, and the CSS, render the "Also read" line after the summary when `also_read` is not empty (design D8).
+- [x] 6.2 In `frontend/src/components/DigestArticle.tsx`, its type, and the CSS, render the "Also read" line after the summary when `also_read` is not empty (design D8).
 
   Tests first, in `frontend/src/components/DigestArticle.test.tsx` and `frontend/src/pages/DigestView.test.tsx`:
   - The text is "Also read:" followed by the linked titles, separated by "·".
@@ -153,7 +153,7 @@ Implementer notes:
   If a CSS structure guard in `src/styles/tokens.test.ts` needs the new class, extend it, and name the change in the report.
 
   Verify: `npm test -- --run` and `npm run build` pass.
-- [ ] 6.3 In `frontend/src/pages/Home.tsx`, show "Linked pages read: n of N" as the progress label when the run is `collecting`, every source is checked, and `context_total > 0` (design D8).
+- [x] 6.3 In `frontend/src/pages/Home.tsx`, show "Linked pages read: n of N" as the progress label when the run is `collecting`, every source is checked, and `context_total > 0` (design D8).
 
   Tests first in `frontend/src/pages/Home.test.tsx`:
   - the label and the progress bar show 7 of 20;

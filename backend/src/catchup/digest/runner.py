@@ -353,6 +353,10 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                         source_kind=source_kind,
                         published_at=item.published_at, summary=summary.summary,
                         summary_unavailable=summary.unavailable,
+                        context_links=[
+                            {"title": part.title, "url": part.url, "kind": part.kind}
+                            for part in sorted(item.contexts, key=lambda row: row.position) if part.used
+                        ],
                     ))
                     item.state = "delivered"
             if updates:

@@ -27,7 +27,7 @@
   .items > .item { grid-template-columns: subgrid; grid-template-rows: auto auto 1fr; column-gap: var(--gutter); align-content: start; align-self: start; }
   .items > .item > .item-meta { grid-column: 1 / span 3; grid-row: 1; }
   .items > .item > .item-title { grid-column: 1 / span 3; grid-row: 2; }
-  .items > .item > .summary, .items > .item > .summary-unavailable { grid-column: 4 / -1; grid-row: 1 / -1; }
+  .items > .item > .item-body, .items > .item > .summary-unavailable { grid-column: 4 / -1; grid-row: 1 / -1; }
 }
 .creator { border-top: 1px solid var(--border-strong); }
 .creator.creator-only { border-top: 3px solid var(--fg); }

@@ -106,6 +106,25 @@ it('keeps the article beneath named run progress and source checks', async () =>
   await expectAccessible(container)
 })
 
+it('shows linked-page progress after every source is checked without changing status text', async () => {
+  const { container } = mockPage({ latest: digest, run: {
+    ...run, source_checks: attentionChecks, context_total: 20, context_done: 7,
+  } })
+  const progress = await screen.findByRole('progressbar', { name: 'Linked pages read: 7 of 20' })
+  expect(progress).toHaveAttribute('value', '7')
+  expect(progress).toHaveAttribute('max', '20')
+  expect(screen.getByRole('status')).toHaveTextContent('Checking sources, 3 of 3')
+  await expectAccessible(container)
+})
+
+it('keeps source progress during the source checks despite planned linked pages', async () => {
+  const { container } = mockPage({ run: { ...run, context_total: 20, context_done: 7 } })
+  expect(await screen.findByRole('progressbar', { name: 'Sources checked: 2 of 3' }))
+    .toBeInTheDocument()
+  expect(screen.getByRole('status')).toHaveTextContent('Checking sources, 2 of 3')
+  await expectAccessible(container)
+})
+
 it.each([
   ['succeeded', 'compact', 'needs attention'],
   ['succeeded', 'compact', 'all fine'],

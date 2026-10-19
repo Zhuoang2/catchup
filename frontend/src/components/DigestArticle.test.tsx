@@ -27,3 +27,32 @@ it('places the before slot first, headEnd after metadata, and appends its sectio
     & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   await expectAccessible(container)
 })
+
+it('shows used context links after the summary, safely opening originals', async () => {
+  const withLinks = { ...digest, topics: [{ ...digest.topics[0], items: [{
+    ...digest.topics[0].items[0], also_read: [
+      { title: 'GitHub release', url: 'https://github.com/example/release', kind: 'link' },
+      { title: 'Author replies (2)', url: 'https://example.test/comments', kind: 'author_replies' },
+    ],
+  }] }] }
+  const { container } = render(<MemoryRouter><DigestArticle digest={withLinks}/></MemoryRouter>)
+  const line = screen.getByText(/Also read:/)
+  expect(line).toHaveTextContent('Also read: GitHub release · Author replies (2)')
+  expect(line.compareDocumentPosition(screen.getByText('Summary')) & Node.DOCUMENT_POSITION_PRECEDING)
+    .toBeTruthy()
+  for (const link of withinLine(line)) {
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+    expect(link).toHaveAttribute('href', expect.stringMatching(/^https:\/\//))
+  }
+  await expectAccessible(container)
+})
+
+function withinLine(line: HTMLElement) {
+  return Array.from(line.querySelectorAll('a'))
+}
+
+it('omits also-read when the snapshot has no used links', () => {
+  render(<MemoryRouter><DigestArticle digest={digest}/></MemoryRouter>)
+  expect(screen.queryByText(/Also read:/)).toBeNull()
+})

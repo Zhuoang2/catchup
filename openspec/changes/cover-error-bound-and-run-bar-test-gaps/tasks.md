@@ -41,7 +41,7 @@ Implementer notes:
 
 ## 2. Result titles in the ended-run table (#38)
 
-- [ ] 2.1 In the 12-row ended-run table in `frontend/src/pages/Home.test.tsx` ("shows %s in the %s layout with %s"), add one shared title assertion per status:
+- [x] 2.1 In the 12-row ended-run table in `frontend/src/pages/Home.test.tsx` ("shows %s in the %s layout with %s"), add one shared title assertion per status:
   - `succeeded`: the `Digest run` region contains "Your digest is ready".
   - `no_new_content`: the region contains "No new content".
   - `failed`: the page shows the alert title "Digest generation failed". In the compact layout, it is inside the `Digest run` region.

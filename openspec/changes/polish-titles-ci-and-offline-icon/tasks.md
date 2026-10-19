@@ -26,7 +26,7 @@ Implementer notes:
 
 ## 2. Release builds skip documentation-only pushes (#21)
 
-- [ ] 2.1 In `.github/workflows/release.yml`, add `paths-ignore` to the `push` trigger with `docs/**`, `openspec/**`, `assets/**`, and `**/*.md`. Keep `branches: [main]` and `tags: ['v*.*.*']` as they are. GitHub does not evaluate path filters for tag pushes, so releases still build.
+- [x] 2.1 In `.github/workflows/release.yml`, add `paths-ignore` to the `push` trigger with `docs/**`, `openspec/**`, `assets/**`, and `**/*.md`. Keep `branches: [main]` and `tags: ['v*.*.*']` as they are. GitHub does not evaluate path filters for tag pushes, so releases still build.
 
   Verify:
   - `actionlint .github/workflows/release.yml` passes.

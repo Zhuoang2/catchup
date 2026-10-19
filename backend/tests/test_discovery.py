@@ -72,6 +72,53 @@ def test_normalizes_identity_date_and_text():
     assert atom.entries[0].content_text == "Atom text"
 
 
+def test_atom_keeps_body_links_in_order_with_resolved_urls_and_unique_targets():
+    html = ("<p>Release <a href='https://github.com/example/tool/releases/tag/v1'>GitHub release</a>"
+            " and <a href='/project'>Project page</a>,"
+            " <a href='https://docs.example/changelog'>Changelog</a>."
+            " <a href='/tags/python'>Python</a> <a href='/tags/tools'>Tools</a>"
+            " <a href='/project'>Duplicate project</a></p>")
+    import html as html_module
+    raw = (f"<feed xmlns='http://www.w3.org/2005/Atom'><title>Tools</title>"
+           f"<entry><id>one</id><title>Update</title>"
+           f"<link href='https://site.example/post'/>"
+           f"<content type='html'>{html_module.escape(html)}</content></entry></feed>").encode()
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert [(link.url, link.text) for link in entry.links] == [
+        ("https://github.com/example/tool/releases/tag/v1", "GitHub release"),
+        ("https://site.example/project", "Project page"),
+        ("https://docs.example/changelog", "Changelog"),
+        ("https://site.example/tags/python", "Python"),
+        ("https://site.example/tags/tools", "Tools"),
+    ]
+
+
+def test_rss_keeps_comment_pointers_count_and_creator():
+    raw = (b"<rss version='2.0' xmlns:wfw='http://wellformedweb.org/CommentAPI/' "
+           b"xmlns:slash='http://purl.org/rss/1.0/modules/slash/' "
+           b"xmlns:dc='http://purl.org/dc/elements/1.1/'><channel><title>Notes</title>"
+           b"<item><title>Post</title><link>https://site.example/post</link>"
+           b"<comments>https://site.example/post#comments</comments>"
+           b"<wfw:commentRss>https://site.example/post/comments/feed</wfw:commentRss>"
+           b"<slash:comments>12</slash:comments><dc:creator>Writer</dc:creator>"
+           b"</item></channel></rss>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert (entry.comments_url, entry.comment_feed_url, entry.comment_count, entry.author) == (
+        "https://site.example/post#comments", "https://site.example/post/comments/feed", 12, "Writer",
+    )
+
+
+def test_entry_without_links_or_comments_has_empty_defaults():
+    raw = (b"<rss version='2.0'><channel><title>Notes</title>"
+           b"<item><title>Post</title><link>https://site.example/post</link></item>"
+           b"</channel></rss>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert entry.links == ()
+    assert (entry.comments_url, entry.comment_feed_url, entry.comment_count, entry.author) == (
+        None, None, None, None,
+    )
+
+
 def test_untitled_social_post_uses_plain_text_at_word_boundary():
     feed = parse_feed(FetchResponse("https://site.example/feed", fixture("bluesky-untitled.xml"),
                                     "application/rss+xml", 200))

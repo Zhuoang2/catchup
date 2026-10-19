@@ -104,6 +104,24 @@ def test_repeated_entries_are_not_reinserted_or_changed(session, app):
     assert saved[0].state == "delivered"
 
 
+def test_new_website_item_stores_links_and_comment_metadata(session, app):
+    body = feed_bytes(item("post", text="<a href='/details'>Details</a> " + LONG_TEXT))
+    body = body.replace(
+        b"</item>", b"<slash:comments>2</slash:comments><dc:creator>Writer</dc:creator></item>",
+    ).replace(
+        b"<rss version='2.0'>",
+        b"<rss version='2.0' xmlns:slash='http://purl.org/rss/1.0/modules/slash/' "
+        b"xmlns:dc='http://purl.org/dc/elements/1.1/'>",
+    )
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(FEED_URL).mock(return_value=httpx.Response(200, content=body))
+        run_check(session, app.state.settings)
+    saved = session.scalar(select(Item))
+    assert saved.entry_links == [{"url": "https://site.example/details", "text": "Details"}]
+    assert saved.comment_count == 2
+    assert saved.entry_author == "Writer"
+
+
 def test_late_entry_is_new_despite_older_publish_date(session, app):
     old_date = NOW - timedelta(days=90)
     source = session.scalar(select(Source))

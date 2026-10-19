@@ -77,6 +77,28 @@ def test_preview_does_not_write_and_limits_entries(client):
         assert session.scalar(select(func.count()).select_from(Item)) == 0
 
 
+def test_confirm_stores_pending_item_links_and_comment_metadata(client):
+    raw = entries_xml(1).replace(
+        b"</item>",
+        b"<description>&lt;a href='/details'&gt;Details&lt;/a&gt; "
+        + b"Feed text " * 60
+        + b"</description><slash:comments>2</slash:comments>"
+          b"<dc:creator>Writer</dc:creator></item>",
+    ).replace(
+        b"<rss version='2.0'>",
+        b"<rss version='2.0' xmlns:slash='http://purl.org/rss/1.0/modules/slash/' "
+        b"xmlns:dc='http://purl.org/dc/elements/1.1/'>",
+    )
+    with respx.mock(assert_all_mocked=True) as router:
+        serve_feed(router, raw)
+        assert client.post("/api/sources", json={"feed_url": FEED_URL}).status_code == 201
+    with client.app.state.session_factory() as session:
+        saved = session.scalar(select(Item).where(Item.state == "pending"))
+        assert saved.entry_links == [{"url": "https://site.example/details", "text": "Details"}]
+        assert saved.comment_count == 2
+        assert saved.entry_author == "Writer"
+
+
 @pytest.mark.parametrize("path", ["direct", "declared", "probed"])
 def test_preview_confirm_uses_final_feed_url_once(client, path):
     target = "https://site.example/final.xml"

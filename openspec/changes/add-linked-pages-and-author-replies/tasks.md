@@ -18,16 +18,16 @@ Implementer notes:
 
 ## 1. Parse and store links and comment pointers
 
-- [ ] 1.1 In `backend/tests/test_discovery.py`, add failing parse tests with invented fixtures:
+- [x] 1.1 In `backend/tests/test_discovery.py`, add failing parse tests with invented fixtures:
   - **An Atom entry whose HTML has 5 links:** a GitHub release, a project page, a changelog, and 2 same-site `/tags/` links. `FeedEntry.links` holds all 5 in body order, with their anchor text, resolved to absolute URLs, and duplicates dropped.
   - **An RSS 2.0 item with `comments`, `wfw:commentRss`, `slash:comments` = 12, and `dc:creator`.** The entry's `comments_url`, `comment_feed_url`, `comment_count == 12`, and `author` are set.
   - **An entry without these elements** gets an empty `links`, and `None` for each pointer.
 
   Verify: the tests fail before 1.2.
-- [ ] 1.2 Implement design D1 in `backend/src/catchup/sources/feeds.py`: the `EntryLink` dataclass, the new `FeedEntry` fields with defaults, and link extraction from the same HTML that `plain_text` reads.
+- [x] 1.2 Implement design D1 in `backend/src/catchup/sources/feeds.py`: the `EntryLink` dataclass, the new `FeedEntry` fields with defaults, and link extraction from the same HTML that `plain_text` reads.
 
   Verify: the 1.1 tests and all existing parse tests pass.
-- [ ] 1.3 Add migration `backend/src/catchup/migrations/versions/0004_item_context.py` and the model changes in `models.py` for design D6:
+- [x] 1.3 Add migration `backend/src/catchup/migrations/versions/0004_item_context.py` and the model changes in `models.py` for design D6:
   - the `items` columns;
   - the `item_contexts` table, as an `ItemContext` model with a cascade from `Item`;
   - `digest_items.context_links`;
@@ -39,7 +39,7 @@ Implementer notes:
   - A downgrade removes the new table and columns.
 
   Verify: the tests pass, and `uv run pytest` passes.
-- [ ] 1.4 Store the parsed links and pointers on new items, in both `check_source` (`backend/src/catchup/collection.py`) and source confirmation (`backend/src/catchup/api/sources.py`).
+- [x] 1.4 Store the parsed links and pointers on new items, in both `check_source` (`backend/src/catchup/collection.py`) and source confirmation (`backend/src/catchup/api/sources.py`).
 
   Tests first:
   - `test_collection.py`: a new website item has `entry_links`, `comment_count`, and `entry_author`.

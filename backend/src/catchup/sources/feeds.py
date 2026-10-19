@@ -5,7 +5,7 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from html.parser import HTMLParser
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 import feedparser
 from lxml import etree
@@ -30,6 +30,12 @@ class TranscriptCandidate:
     type: str = ""
     language: str = ""
     rel: str = ""
+
+
+@dataclass(frozen=True)
+class EntryLink:
+    url: str
+    text: str
 
 
 def ordered_candidates(candidates: tuple[TranscriptCandidate, ...],
@@ -93,6 +99,33 @@ class _Text(HTMLParser):
         self.fragments.append(data)
 
 
+class _Links(HTMLParser):
+    def __init__(self, base: str):
+        super().__init__(convert_charrefs=True)
+        self.base = base
+        self.links: list[EntryLink] = []
+        self.seen: set[str] = set()
+        self.href: str | None = None
+        self.fragments: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "a":
+            self.href = dict(attrs).get("href")
+            self.fragments = []
+
+    def handle_data(self, data: str) -> None:
+        if self.href is not None:
+            self.fragments.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "a" and self.href is not None:
+            url = urljoin(self.base, self.href)
+            if url not in self.seen:
+                self.links.append(EntryLink(url, " ".join(" ".join(self.fragments).split())))
+                self.seen.add(url)
+            self.href = None
+
+
 def plain_text(html: str) -> str:
     parser = _Text()
     parser.feed(html)
@@ -128,6 +161,11 @@ class FeedEntry:
     content_text: str
     has_audio: bool = False
     transcripts: tuple[TranscriptCandidate, ...] = ()
+    links: tuple[EntryLink, ...] = ()
+    comments_url: str | None = None
+    comment_feed_url: str | None = None
+    comment_count: int | None = None
+    author: str | None = None
 
 
 @dataclass(frozen=True)
@@ -189,10 +227,21 @@ def parse_feed(response: FetchResponse) -> Feed:
                 ),)
         has_audio = any(str(enclosure.get("type", "")).lower().startswith("audio/")
                         for enclosure in entry.get("enclosures", []))
+        links_parser = _Links(link)
+        links_parser.feed(description)
+        try:
+            comment_count = int(entry["slash_comments"]) if entry.get("slash_comments") is not None else None
+        except (ValueError, TypeError):
+            comment_count = None
         entries.append(FeedEntry(
             identity_key=identity, link=link, title=title,
             published_at=published_at, content_text=content_text, has_audio=has_audio,
             transcripts=ordered_candidates(candidates, language),
+            links=tuple(links_parser.links),
+            comments_url=entry.get("comments") or None,
+            comment_feed_url=entry.get("wfw_commentrss") or None,
+            comment_count=comment_count,
+            author=entry.get("author") or None,
         ))
     site_url = parsed.feed.get("link") or f"{urlsplit(response.url).scheme}://{urlsplit(response.url).netloc}/"
     parts = urlsplit(response.url)

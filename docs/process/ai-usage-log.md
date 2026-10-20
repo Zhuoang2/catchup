@@ -1257,21 +1257,61 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - Decision log entries D-020 and D-021.
   - The follow-up issue #54 for the depth setting.
 
-## 2026-10-19 — `add-linked-pages-and-author-replies` implementation (Factory Droid, GPT-6 Sol)
+## 2026-10-19 — `add-linked-pages-and-author-replies` implementation (Factory Droid, GPT-6 Sol; session `3fe020ef`)
 
 - Prompt (faithful excerpt): "Implement OpenSpec change add-linked-pages-and-author-replies using the openspec-apply-change skill. Work through openspec/changes/add-linked-pages-and-author-replies/tasks.md in order, completing each task test-first with the tdd skill: write the task's verification items as failing tests and watch them fail, then implement until they pass. Check off each task only after its verification passes. Do not edit proposal.md, design.md, or the spec deltas, and do not touch openspec/changes/add-item-images (a later change). Commit after each task group. Do not push, tag, or open a PR."
 - Outcome: Parsed and stored entry links/comments, migrated item and digest context, added bounded robots-aware context gathering and author replies, summarized and validated used refs, snapshotted "Also read" links, rendered progress and citations, and documented settings. Seven groups were verified with red-first checks and group commits. The final build, 485 backend tests (96% coverage), 205 frontend tests, strict OpenSpec validation, and local Docker build passed; see `test-report-add-linked-pages-and-author-replies.md`.
 - Problems / adjustment: The worktree lacked frontend packages; `npm ci` installed them. A zero-budget regression caught an item marked `none` after robots.txt exhausted its fetch allowance; the implementation now leaves it eligible for a later run. A nested-comment fixture needed valid HTML, an unused robots route needed `assert_all_called=False`, and a UI test needed native `<progress>` `value`/`max` rather than ARIA attributes. No live feeds, real model, or manual token comparison was performed.
 
-## 2026-10-19 — `add-linked-pages-and-author-replies` fix round 1 (Factory Droid, GPT-6 Sol)
+## 2026-10-19 — `add-linked-pages-and-author-replies` fix round 1 (Factory Droid, GPT-6 Sol; session `3fe020ef`)
 
 - Prompt (faithful excerpt): "Complete the approved fix-round tasks 8.1–8.8 for linked-page context and author replies ... use diagnosing-bugs for 8.1–8.4, tdd thereafter, a commit after each task, and explicit `route.call_count == 0` assertions for routes that must not be requested ... Do not edit the planning artifacts or `add-item-images`; do not push or open a PR." The amended design, deltas and tasks from `e22776e` governed this pass.
 - Outcome: Fixed link segmentation, redirect filtering, atomic per-item budget recovery, per-fetch progress, deleted-item tolerance, sibling author replies, summary-cache invalidation and context-aware prompting. Added mutation-sensitive regressions and corrected test organization and docs. Seven task commits preceded the final documentation task. Full checks: 512 backend tests at 96% statement coverage, 206 frontend tests, frontend build and strict OpenSpec validation passed. The mutation results and limitations are in `test-report-add-linked-pages-and-author-replies.md`.
 - Problems / adjustment: A sibling fixture with a reply link passed before the fix, so the link was removed to reproduce the real structure. A short linked-page fixture did not extract text, so it was lengthened to expose cache reuse. An existing two-run disabled-comments test passed under the named mutation, so a fresh first-run test was added; the original intra-pass spacing test likewise passed with a new run-local spacer, so a collection-to-context clock check was added. A feed input cap was masked by an independent output cap, so the input test isolated the latter. Unrequested routes were explicitly mocked and asserted uncalled. No live feed/model or Docker run was performed.
 
-## 2026-10-19 — `add-linked-pages-and-author-replies` fix round 2 (Factory Droid, GPT-6 Sol)
+## 2026-10-19 — `add-linked-pages-and-author-replies` fix round 2 (Factory Droid, GPT-6 Sol; session `3fe020ef`)
 
 - Prompt (faithful excerpt): "Fix round 2 for OpenSpec change add-linked-pages-and-author-replies, in this worktree. The re-review found that round 1's rollback on budget exhaustion (task 8.2, a plan error) leaves a cut-off item without any context in a successful run ... Use the openspec-apply-change skill and work through tasks 9.1-9.5 in order. Use diagnosing-bugs for 9.1-9.3 and tdd for the rest: behavior changes get a failing test first; pins use the named temporary mutation as their red step ... assert route.call_count == 0 for anything that must not be requested ... Commit after each task. Do not push."
 - Outcome: Changed budget cutoffs to retain gathered rows for the same run's summary, limited author-comment anchor lookup to its own markup, and deduplicated stored linked pages by final URL. Seven remaining branch behaviors were pinned against temporary mutations, and round-1's model label and process reports were corrected. The full checks passed: 525 backend tests at 96% statement coverage, 206 frontend tests, frontend build, and strict OpenSpec validation. Details and mutation results are in `test-report-add-linked-pages-and-author-replies.md`.
 - Problems / adjustment: The previous rollback and its tests were based on a mistaken assumption that a delivered item would be gathered in the next run. Replaced those assertions with a successful two-item digest reproduction that checks the model prompt and saved Also read. The no-row cache test was green before mutation and failed when summary clearing became unconditional. All seven named survivor mutations failed their focused checks and were reverted. Tests used mocked DNS/network and fake model responses; no live feed/model or Docker run was performed.
 
+## 2026-10-19 — `add-linked-pages-and-author-replies` (#48): review and two fix rounds (Claude Code, Opus 5.5, with one spec-review subagent; Factory Droid session `3fe020ef`)
+
+- **Prompts** (translated from Chinese): "No problem, commit the plan and then start Droid". After each review, "As you recommend, one more fix round" (twice). Finally, "As you recommend; approve auto-merge, and delete the remote branch after merging".
+- **Process, after each of the three Droid runs:**
+  - `/code-review`.
+  - The same spec subagent: 106, then 141, then 147 mutations in its own worktrees.
+  - Claude reran the checks.
+  - A live check on a local instance built from the branch, with a context-aware stub model (it returns the refs it was given) on the real Simon Willison and Terry Tao feeds.
+- **Run 1 live check.**
+  - Run: 38 of 40 context fetches; the progress label read "Linked pages read: 11 of 40".
+  - `llm-tools-datasette`: it read the GitHub release, `pydantic/httpx2`, and the LLM 0.33 changelog, and skipped the tag pages.
+  - Terry Tao's own reply was stored.
+  - "Also read" appeared under the summaries.
+  - The layout at 1440, 1000, and 420 px matched #25.
+- **Run 1 findings.**
+  - **Confirmed live:**
+    - Terry Tao's real theme lists replies in `ul.children` after the parent comment, so the reply lost the comment it answers.
+    - Prefix link rules dropped `/archives/N` articles. This was Claude's design D2.
+    - A link redirecting to `/login/` was stored.
+    - YouTube watch pages added only boilerplate.
+  - **From the spec subagent:**
+    - budget exhaustion marked items done;
+    - a deleted source failed the run;
+    - cached summaries ignored new context;
+    - the "only a link" prompt rule conflicted with context;
+    - `gather.fetch()` swallowed respx's unmocked-request error, so "not requested" claims were unenforced;
+    - a new test had absorbed another test's assertions;
+    - 26 mutations survived.
+- **Fix round 1** (`e22776e`, task group 8).
+  - The user agreed that a cached summary is redone when new context arrives.
+  - Claude made a plan error: it rolled back an item cut off by the budget.
+- **Fix round 2** (`35bcaf8`, task group 9).
+  - The spec subagent showed that the rollback made a cut-off item lose all context in a successful run, because the run summarizes every pending item.
+  - The user agreed to keep partial context instead.
+  - Round 2 also scoped the reply-anchor lookup, and deduplicated links by final URL.
+- **The final review.** No high or medium findings. 139 of 147 mutations are killed; the 8 survivors do not change any item's status, stored rows, or summary.
+  - **Live check with a budget of 12:** the run succeeded; items 1–3 kept their pages and showed "Also read"; the items not reached were summarized without context.
+  - **Final checks:** 525 backend tests, 206 frontend tests, the build, and strict validation all pass.
+- **Not checked:** a real model's summary quality and token cost with context. It needs the user's model.
+- **Log corrections by Claude.** Session `3fe020ef` was added to Droid's three entries. Claude also corrected a stale D4 sentence (`8401282`).

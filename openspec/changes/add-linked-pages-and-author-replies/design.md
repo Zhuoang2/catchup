@@ -81,7 +81,7 @@ Full RePPIT change for issue #48. The research is in `research.md`, the motivati
 - **Fetching.** Each fetch goes through `safe_fetch(url, spacer=spacer, budget=budget)`, with one shared budget of `CATCHUP_CONTEXT_FETCHES_PER_RUN` (default 60) and the 5 MB limit. robots.txt is checked first.
 - **Linked pages.** The text comes from trafilatura's `extract`, cut to 3,000 characters. An item's linked context stops at 16,000 characters. The title is the page `<title>`, or else the anchor text.
 - **The result.** Each part is stored as an `ItemContext` row. Two links whose final URLs are the same are stored once (fix round 2). The item becomes `gathered` when anything was stored, or `none` otherwise. Each item's rows are committed together, so a crash keeps what was done.
-- **Failures** (`FetchError`, robots.txt refusal, extraction errors, an empty extraction) are skipped. A limit reached mid-run leaves the remaining items at `null`, so a later run gathers them.
+- **Failures** (`FetchError`, robots.txt refusal, extraction errors, an empty extraction) are skipped. A limit reached mid-run leaves the items the pass never reached at `null`. A later run gathers them only if this run fails before delivering them (see "Budget exhaustion inside an item").
 - **Budget exhaustion inside an item** (fix round 2, replacing round 1's rollback; the user agreed on 2026-10-19). This happens whenever a planned fetch, including the comment page, could not be made because the budget ran out: the sentinel, or `safe_fetch`'s limit error, detected by `budget[0] <= 0` and not by the message text.
   - The item keeps the rows it already stored, and becomes `gathered`, or `none` when it stored nothing.
   - This run's summary uses those rows.

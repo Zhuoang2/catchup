@@ -42,3 +42,4 @@ The frontend build ran before backend coverage so the static-asset branches were
 | Task | Red check | Green check |
 | --- | --- | --- |
 | 6.1 figure margin | `npm test -- --run src/styles/tokens.test.ts`: 1 failed, figure rule had no `margin: 0`. Cause: the rule omitted a reset of the browser's default margin; override and selector mismatch did not explain it. | Same command: 13 passed. |
+| 6.2 prompt quoting | `uv run pytest tests/test_digest_stages.py -q -k 'image_prompt_quotes or image_prompts_request or no_context_system_prompt'`: 2 failed (forged extra lines and missing language rule), 1 passed (no-image prompt bytes). | `uv run pytest tests/test_digest_stages.py -q`: 20 passed. Feed alt/caption now collapse whitespace before the 200-character cut, then serialize as JSON strings; both examples use neutral alt text. |

@@ -4,6 +4,8 @@ DeepSeek thinking mode is on by default, so output budgets must leave room
 for reasoning before the summary or grouped topics are returned.
 """
 
+import json
+
 SUMMARY_MAX_TOKENS = 4096
 
 
@@ -24,8 +26,13 @@ def language_instruction(language: str, *, topics: bool = False) -> str:
 IMAGE_RULES = (
     "Choose at most 3 images that show something the summary relies on, ordered by importance. "
     "Never choose logos, avatars, or decorative images; choose none when unsure. "
-    "For each choice, write a short alt text of up to 120 characters. "
+    "For each choice, write a short alt text of up to 120 characters "
+    "in the language of the summary. "
 )
+
+
+def _image_text(value: object) -> str:
+    return json.dumps(" ".join(str(value or "").split())[:200], ensure_ascii=False)
 
 
 def _image_block(images: list[dict] | None) -> str:
@@ -33,8 +40,8 @@ def _image_block(images: list[dict] | None) -> str:
         return ""
     lines = [
         f'I{index} — {("in the post" if image.get("origin") == "html" else image.get("origin", "image"))}, '
-        f'position {index}; alt "{str(image.get("alt") or "")[:200]}"; '
-        f'caption "{str(image.get("caption") or "")[:200]}"'
+        f'position {index}; alt {_image_text(image.get("alt"))}; '
+        f'caption {_image_text(image.get("caption"))}'
         for index, image in enumerate(images[:8], 1)
     ]
     return "\n\nImages:\n" + "\n".join(lines)
@@ -68,7 +75,7 @@ def summary_messages(title: str, text: str, language: str,
             f"{language_instruction(language)} Return only json. "
             'Example output: {"summary": "A short factual summary."'
             + (', "used": ["L1"]' if context else '')
-            + (', "images": [{"ref": "I1", "alt": "A useful chart"}]' if images else '')
+            + (', "images": [{"ref": "I1", "alt": "What the image shows"}]' if images else '')
             + '}'
         )},
         {"role": "user", "content": f"Title: {title}\nContent:\n{text}{blocks}{_image_block(images)}"},
@@ -85,7 +92,7 @@ def long_transcript_messages(title: str, text: str, language: str,
             f"{IMAGE_RULES if images else ''}"
             f"{language_instruction(language)} Return only json. "
             'Example output: {"summary": "Overview.\\n- Key point one\\n- Key point two"'
-            + (', "images": [{"ref": "I1", "alt": "Video thumbnail"}]' if images else '') + '}'
+            + (', "images": [{"ref": "I1", "alt": "What the image shows"}]' if images else '') + '}'
         )},
         {"role": "user", "content": f"Title: {title}\nTranscript:\n{text}{_image_block(images)}"},
     ]

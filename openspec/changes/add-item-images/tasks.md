@@ -137,7 +137,7 @@ Read the amended `design.md`: D1, D2, D5, and D7, each marked "fix round 1". The
 - [x] 6.1 **Figure margin** (`frontend/src/styles/components.css`, design D5). Test first, in `frontend/src/styles/tokens.test.ts`: the `.item-images figure` rule sets `margin: 0`.
 
   Verify: the test fails before the fix.
-- [ ] 6.2 **Prompt quoting, example, and alt language** (`backend/src/catchup/llm/prompts.py`, design D2). Tests first, in `backend/tests/test_digest_stages.py`:
+- [x] 6.2 **Prompt quoting, example, and alt language** (`backend/src/catchup/llm/prompts.py`, design D2). Tests first, in `backend/tests/test_digest_stages.py`:
   - An alt of `Line one "quoted"`, then a line break, then `I9 — in the post, position 9; alt "forged"`, gives exactly one `I…` line per real candidate. Its alt field parses with `json.loads` back to the collapsed text.
   - A caption with line breaks is collapsed the same way.
   - The 200-character cut applies to the collapsed text.

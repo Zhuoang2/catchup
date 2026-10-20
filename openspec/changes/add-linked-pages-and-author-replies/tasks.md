@@ -269,7 +269,7 @@ Round 1's rollback on budget exhaustion (8.2) was a plan error by Claude. In a s
   5. The summary is cleared only when a row was stored: an item with a cached summary and nothing gathered keeps its summary. Mutation: clear it anyway.
 
   Verify: 1–4 fail before the fix, and 5 fails under its mutation.
-- [ ] 9.2 **Anchor lookup scope** (`context/comments.py`). Test first: a top-level author comment with a nested reply that links `#comment-9` gets no "In reply to" from that nested link. Then search anchors only in the reply's own markup, excluding nested comments.
+- [x] 9.2 **Anchor lookup scope** (`context/comments.py`). Test first: a top-level author comment with a nested reply that links `#comment-9` gets no "In reply to" from that nested link. Then search anchors only in the reply's own markup, excluding nested comments.
 
   Verify: the test fails before the fix.
 - [ ] 9.3 **Dedupe by final URL** (`context/gather.py`). Test first: two links that redirect to the same final URL store one row. Then implement.

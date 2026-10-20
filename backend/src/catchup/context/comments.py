@@ -73,7 +73,7 @@ def author_replies(page: bytes, author: str | None, feed: bytes | None = None) -
                         parent = sibling
                         break
             if parent is None:
-                for anchor in node.xpath(".//a[starts-with(@href, '#')]"):
+                for anchor in within(node, ".//a[starts-with(@href, '#')]"):
                     target = tree.xpath("//*[@id=$ident]", ident=anchor.get("href", "")[1:])
                     if target and target[0] in comments and target[0] is not node:
                         parent = target[0]

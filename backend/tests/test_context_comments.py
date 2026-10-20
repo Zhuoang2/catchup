@@ -79,6 +79,19 @@ def test_top_level_author_self_link_is_not_a_parent():
     assert author_replies(html, "Writer") == ["Original thought."]
 
 
+def test_nested_reply_anchor_does_not_supply_parent_for_top_level_author():
+    html = page(
+        "<li id='comment-2' class='comment bypostauthor'>"
+        "<span class='fn'>Writer</span>"
+        "<div class='comment-content'>Original thought.</div>"
+        "<ol><li id='comment-3' class='comment'>"
+        "<span class='fn'>Reader</span><a href='#comment-9'>In reply to another reader</a>"
+        "<div class='comment-content'>Separate question.</div></li></ol></li>",
+        comment("comment-9", "Other reader", "An unrelated parent."),
+    )
+    assert author_replies(html, "Writer") == ["Original thought."]
+
+
 def test_entry_author_whitespace_is_normalized_for_comment_names():
     html = page(comment("one", "Terence Tao", "A reply."))
     assert author_replies(html, "Terence  Tao") == ["A reply."]

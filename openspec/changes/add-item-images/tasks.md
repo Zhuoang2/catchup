@@ -193,3 +193,36 @@ Read the amended `design.md`: D1, D2, D5, and D7, each marked "fix round 1". The
   - **`docs/process/ai-usage-log.md`:** add a fix-round entry after the latest entry, with a faithful excerpt of the prompt you actually received, and the tool and model. Leave out the session id.
 
   Verify: every command passes, and the report has the actual numbers.
+
+## 7. Fix round 2 (tests only)
+
+The re-review found one test that passes for the wrong reason (6.3) and five gaps where a wrong change to the code would not be noticed. The design is unchanged, and no source change is expected. Each item is a test with a named temporary mutation as its red step: see the test pass, apply the mutation and see it fail, then revert it. If a new test fails against the current code, that is a bug, not a test gap: stop and report it, with `diagnosing-bugs`.
+
+- [ ] 7.1 **The single-call long transcript uses the long-transcript prompt** (`backend/tests/test_long_summaries.py`). Extend `test_single_call_long_transcript_receives_image_rules_and_keeps_choice`. The call's system prompt must contain "3–6 key points", and its user message must start with `Title: Talk\nTranscript:`. Today the test passes even with the article prompt, because the article prompt has the same rules and `Images:` block.
+
+  Mutation: in `backend/src/catchup/digest/summarize.py`, use `summary_messages` when a long transcript has images (`if long_transcript and not item.images`).
+- [ ] 7.2 **A split long transcript sends its images to the combine call only** (`backend/tests/test_long_summaries.py`, design D2). Add a test next to `test_split_item_sends_images_to_combine_only`, for a transcript longer than the budget:
+  - the part calls have no `Images:` block and no image rules;
+  - the combine call has both, and uses the long-transcript prompt ("3–6 key points");
+  - the chosen image is in the result.
+
+  Mutation: the long-transcript branch of `combine_messages` passes no images.
+- [ ] 7.3 **The long-transcript prompt without images is unchanged** (`backend/tests/test_digest_stages.py`). Next to `test_no_context_system_prompt_matches_original_main_bytes`, compare the system prompt of `long_transcript_messages("Talk", "Transcript", "en")` with a stored copy of the version on `main` (take it from `git show 0614066:backend/src/catchup/llm/prompts.py`).
+
+  Mutation: always add `IMAGE_RULES` to the long-transcript prompt.
+- [ ] 7.4 **Non-ASCII alt text stays readable** (`backend/tests/test_digest_stages.py`, design D2: `ensure_ascii=False`). An alt and a caption written in Chinese appear literally in the user message, with no `\u` escapes.
+
+  Mutation: `ensure_ascii=True` in `_image_text`.
+- [ ] 7.5 **Duplicates in either order** (`backend/tests/test_discovery.py`, design D1). `https://example.com/a.png#x` first, then `https://example.com/a.png`, gives one candidate: the first, with its fragment.
+
+  Mutation: `seen.add(url)` instead of `seen.add(key)` in `_entry_images`.
+- [ ] 7.6 **The cap test keeps a duplicate** (`backend/tests/test_discovery.py`). After 6.5, `test_image_filters_duplicates_pixels_and_caps_at_eight` no longer contains a duplicate, although its name says so. Add an exact repeat of `/one.png` to its fixture, so that the expected list is unchanged.
+
+  Mutation: remove the duplicate check.
+- [ ] 7.7 **Docs.**
+  - In `docs/process/test-report-add-item-images.md`, add a "Fix round 2" section with the commands, the results, and the mutation table. In the 6.3 row, note that the review found the round-1 test passing with the wrong prompt, and that 7.1 fixed it.
+  - Add this change's fix-round-2 line to `docs/process/coverage-summary.md`.
+  - Run the full checks: `npm run build` first, backend coverage, `npm test -- --run`, and `openspec validate add-item-images --strict`.
+  - Add a fix-round-2 entry to `docs/process/ai-usage-log.md` after the latest entry, with a faithful excerpt of the prompt you actually received, and the tool and model. Leave out the session id.
+
+  Verify: every command passes, and the report has the actual numbers.

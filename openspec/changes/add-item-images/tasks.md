@@ -207,7 +207,7 @@ The re-review found one test that passes for the wrong reason (6.3) and five gap
   - the chosen image is in the result.
 
   Mutation: the long-transcript branch of `combine_messages` passes no images.
-- [ ] 7.3 **The long-transcript prompt without images is unchanged** (`backend/tests/test_digest_stages.py`). Next to `test_no_context_system_prompt_matches_original_main_bytes`, compare the system prompt of `long_transcript_messages("Talk", "Transcript", "en")` with a stored copy of the version on `main` (take it from `git show 0614066:backend/src/catchup/llm/prompts.py`).
+- [x] 7.3 **The long-transcript prompt without images is unchanged** (`backend/tests/test_digest_stages.py`). Next to `test_no_context_system_prompt_matches_original_main_bytes`, compare the system prompt of `long_transcript_messages("Talk", "Transcript", "en")` with a stored copy of the version on `main` (take it from `git show 0614066:backend/src/catchup/llm/prompts.py`).
 
   Mutation: always add `IMAGE_RULES` to the long-transcript prompt.
 - [ ] 7.4 **Non-ASCII alt text stays readable** (`backend/tests/test_digest_stages.py`, design D2: `ensure_ascii=False`). An alt and a caption written in Chinese appear literally in the user message, with no `\u` escapes.

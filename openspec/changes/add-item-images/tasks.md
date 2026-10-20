@@ -129,3 +129,74 @@ Implementer notes:
   Add this change's line to `docs/process/coverage-summary.md`. Add your entry to `docs/process/ai-usage-log.md` after the latest entry, with a faithful excerpt of the prompt you actually received, and the tool and model. Leave out the session id.
 
   Verify: every command passes, and the report has the actual numbers.
+
+## 6. Fix round 1 (review findings)
+
+Read the amended `design.md`: D1, D2, D5, and D7, each marked "fix round 1". The spec deltas are unchanged. Use `diagnosing-bugs` for the confirmed bug in 6.1, and `tdd` for the rest. Behavior changes get a failing test first. Checks of behavior that is already correct get a named temporary mutation as their red step: see the test pass, apply the mutation and see it fail, then revert it. Record every check and its red result in the report. Keep the test rules above: no image is ever fetched, and fixtures are invented.
+
+- [ ] 6.1 **Figure margin** (`frontend/src/styles/components.css`, design D5). Test first, in `frontend/src/styles/tokens.test.ts`: the `.item-images figure` rule sets `margin: 0`.
+
+  Verify: the test fails before the fix.
+- [ ] 6.2 **Prompt quoting, example, and alt language** (`backend/src/catchup/llm/prompts.py`, design D2). Tests first, in `backend/tests/test_digest_stages.py`:
+  - An alt of `Line one "quoted"`, then a line break, then `I9 — in the post, position 9; alt "forged"`, gives exactly one `I…` line per real candidate. Its alt field parses with `json.loads` back to the collapsed text.
+  - A caption with line breaks is collapsed the same way.
+  - The 200-character cut applies to the collapsed text.
+  - With images, the system prompt asks for alt text in the language of the summary.
+  - Both prompts with images show the example `{"ref": "I1", "alt": "What the image shows"}`, and neither contains "Video thumbnail".
+  - The existing check that prompts without images are byte for byte the version on `main` still passes.
+
+  Verify: the new assertions fail before the fix.
+- [ ] 6.3 **Long transcripts in one call** (design D2). Tests first, in `backend/tests/test_long_summaries.py`: a long transcript summarized in one call, with one image candidate, sends a call whose user message has the `Images:` block, and whose system prompt has the image rules. The chosen image is stored. Named mutations:
+  - drop the rules from the long-transcript prompt;
+  - omit the `Images:` block from its user message;
+  - pass no images to the single call.
+
+  Verify: each mutation fails a check and is reverted.
+- [ ] 6.4 **The image URL from `data-src` and `srcset`** (`backend/src/catchup/sources/feeds.py`, design D1). Tests first, in `backend/tests/test_discovery.py`:
+  - `<img src="data:image/gif;base64,…" data-src="https://example.com/a.png">` keeps `a.png`;
+  - `<img src="https://example.com/blank.gif" data-src="https://example.com/real.png">` keeps `real.png`;
+  - `<img srcset="https://example.com/s.png 300w, https://example.com/l.png 1024w">`, with no `src`, keeps `l.png`;
+  - `<img data-srcset="https://example.com/a.png, https://example.com/b.png 2x">` keeps `a.png`;
+  - a plain `<img src>` is unchanged.
+
+  Verify: the new cases fail before the fix.
+- [ ] 6.5 **Duplicates by exact URL** (`feeds.py`, design D1). Tests first, in `backend/tests/test_discovery.py`:
+  - `https://example.com/image.php?id=1` and `?id=2` are both kept;
+  - the same URL twice, once with a `#fragment`, is kept once.
+
+  Update the existing test that expects a query-only difference to be a duplicate (`test_image_filters_duplicates_pixels_and_caps_at_eight`), and name the change in the report.
+
+  Verify: the `?id=` case fails before the fix.
+- [ ] 6.6 **Pin the parser's surviving mutations** (`backend/tests/test_discovery.py`). Each check gets its named mutation:
+  - an `ftp://` image is dropped (mutation: allow `ftp`);
+  - an entry's `media:content` at `https://s0.wp.com/i/blavatar/…`, which is not the channel image, is dropped (mutation: remove the `/blavatar/` check);
+  - an entry's HTML image whose URL equals the channel `<image><url>`, at a path without `avatar`, is dropped (mutation: remove the channel-image check);
+  - an entry with an audio enclosure, an `<img>` in its HTML, and an image `media:content` keeps no candidates (mutation: remove the audio exclusion);
+  - a `media:content` with `medium="video"` and `type="video/mp4"` is skipped (mutation: remove its type check);
+  - an `application/pdf` enclosure is skipped (mutation: remove the enclosure type check);
+  - an `image/jpeg` enclosure is kept, with origin `enclosure` (mutation: ignore enclosures);
+  - HTML images come before `media:content`, even when the `media:content` element comes first in the XML (mutation: put media candidates first).
+
+  Verify: each mutation fails its check and is reverted.
+- [ ] 6.7 **The source name reaches the fallback alt** (`backend/tests/test_digest_runner.py`). Through a run, an image chosen with an empty model alt and no feed alt is shown in the digest with the alt "Image from <the source's name>". Mutation: the runner passes no source name.
+
+  Verify: the mutation fails the check and is reverted.
+- [ ] 6.8 **The preference on the frontend** (design D5). Tests first, each with its named mutation:
+  - `frontend/src/pages/Settings.test.tsx`: with a stored `show_images: false`, the toggle is off, and saving sends `show_images: false` (mutation: ignore the stored value on load).
+  - `frontend/src/pages/DigestView.test.tsx`: the digest request resolves while the preference request is still pending. There is no `img` in the DOM, and none after the preference resolves to false (mutation: show the digest before the preference settles).
+  - `frontend/src/pages/Home.test.tsx`: the same check for the latest digest (same mutation on Home).
+
+  Verify: each mutation fails its check and is reverted, and axe passes on the new states.
+- [ ] 6.9 **Docs.**
+  - **`README.md`:** move the model-provider note and the image note into a `## Privacy` section after "Install as an app", worded as in design D7.
+  - **`docs/process/test-report-add-item-images.md`:**
+    - In the 4.1 row, correct the count: 4 tests failed (the `DigestArticle` image test, the two `DigestView` layout tests, and the `tokens.test.ts` guard). The two `DigestView` preference tests belong to 4.2.
+    - Note that the empty-list test passes before 4.1 by its nature, as it checks that something is absent.
+    - Note that the all-figures-fail refinement was committed inside the docs commit `d42bde3`, and that its assertion fails against `4ac527a`.
+    - Add a "Fix round 1" section with the commands, the results, and the mutation table.
+    - List the known limits from design D1.
+  - **`docs/process/coverage-summary.md`:** add this change's fix-round line.
+  - **Checks:** run `npm run build` first, then backend coverage, `npm test -- --run`, and `openspec validate add-item-images --strict`.
+  - **`docs/process/ai-usage-log.md`:** add a fix-round entry after the latest entry, with a faithful excerpt of the prompt you actually received, and the tool and model. Leave out the session id.
+
+  Verify: every command passes, and the report has the actual numbers.

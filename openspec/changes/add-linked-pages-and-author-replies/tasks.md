@@ -286,7 +286,7 @@ Round 1's rollback on budget exhaustion (8.2) was a plan error by Claude. In a s
   - **The pass:** the first deleted-item guard is needed for an item with comments (mutation: remove guard 1).
 
   Verify: each mutation fails its check and is reverted.
-- [ ] 9.5 **Docs.**
+- [x] 9.5 **Docs.**
   - In `docs/process/ai-usage-log.md`, the fix-round-1 Droid entry's heading says the model identifier is not exposed. The session is the same one as the earlier entries, so change it to "GPT-6 Sol".
   - Add a "Fix round 2" section to the test report, with commands, results, and the mutation table, and note round 1's rollback and its replacement.
   - Add this change's fix-round line to `docs/process/coverage-summary.md`.

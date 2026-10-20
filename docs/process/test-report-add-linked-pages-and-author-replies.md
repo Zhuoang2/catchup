@@ -87,3 +87,44 @@ The frontend build ran before backend coverage so static-asset branches were mea
 | `openspec validate add-linked-pages-and-author-replies --strict` | Passed. |
 
 No fix-round Docker build/smoke or live feed/model/browser run was requested or performed. Known remaining limits: very large comment pages parse slowly; GitHub titles include `·`; redirect targets are not checked against robots.txt; context is not trimmed to fit small model windows.
+
+## Fix round 2
+
+Tasks 9.1–9.4 were verified and committed separately. The round-1 exhaustion rollback was a plan error: in a successful run, the item was summarized without the rolled-back context and delivered, so it could not be gathered on a later run. Round 2 keeps context already extracted when the budget cuts off an item. Only items the pass never reaches retain null status; an attempted item with no rows becomes `none`. Cache invalidation still happens only when a row was stored.
+
+### Red-first results
+
+| Task | Observed red result | Green result |
+| --- | --- | --- |
+| 9.1 | A first linked row disappeared on link-loop exhaustion. A second item's summary omitted `Context L1` and its saved digest lacked Also read; comment-page and comment-feed cutoffs also left stored links absent. Three old rollback assertions were replaced and failed on the expected `none` status. | Partial rows survive link, comment-page, and feed-fallback cutoffs. A successful two-item digest uses the second item's saved link. Robots-only and redirect-only exhausted items have `none`. `test_context_gather.py` plus `test_digest_runner.py`: 67 passed. |
+| 9.2 | A top-level author's comment incorrectly prefixed an unrelated reader's text because its nested reply linked to that reader. | Only anchors belonging to the author comment itself are searched; 12 comment tests passed. |
+| 9.3 | Two distinct links that redirected to the same final page stored `L1` and `L2` for one URL. | Both fetches still count; one context row is stored. 25 gathering tests passed. |
+| 9.4 | Each named mutation below failed its focused check; restored code passed all 23 comments, links and deleted-item checks. | Only the intended test files changed in task 9.4. |
+
+### Named mutation checks
+
+Each check passed first, failed with the temporary mutation, and passed after it was reverted:
+
+| Mutation | Red observation |
+| --- | --- |
+| Clear cached summary even when no row was stored (9.1) | The cached-only run failed after an unexpected summary call consumed the grouping response. |
+| Remove step-3 anchor lookup | An author's explicit `#comment-9` reply lost its reader prefix. |
+| Accept only `ul.children` | An `ol.children` reply lost its reader prefix. |
+| Drop the `children` class check | A comment in an unrelated `ul.other` gained a false reader prefix. |
+| Examine only the immediately preceding sibling | A thread separator blocked discovery of the reader comment. |
+| Compare author names case-sensitively | A mixed-case `.fn` no longer matched the entry author. |
+| Do not strip `m.` from YouTube hosts | `m.youtube.com/watch` was kept instead of excluded. |
+| Remove the first deleted-item guard | A deleted comment item failed the run on `item.link`; its mocked post route remained unrequested. |
+
+### Full checks
+
+The frontend was built first so static-asset paths were present for coverage:
+
+| Command | Result |
+| --- | --- |
+| `cd frontend && npm run build` | Passed, TypeScript and Vite build. |
+| `cd backend && uv run pytest --cov=catchup --cov-report=term -q` | **525 passed**, **96%** statement coverage (2,263 statements, 82 missed, 2,181 covered). Comments 93%, gather 95%, links 94%, robots 100%. |
+| `cd frontend && npm test -- --run` | **206 passed**, 13 files. |
+| `openspec validate add-linked-pages-and-author-replies --strict` | Passed. |
+
+All tests used invented fixtures, mock DNS/network and fake model responses. No live feed/model run, Docker build/smoke, or browser visual check was performed in this round. The remaining limits listed under fix round 1 are unchanged.

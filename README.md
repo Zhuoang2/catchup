@@ -196,8 +196,8 @@ For website items, CatchUp reads related links and author replies from public pa
 only. Context fetches honor each site's robots.txt.
 `CATCHUP_LINKS_PER_ITEM` (default 8) limits linked pages per item.
 `CATCHUP_CONTEXT_FETCHES_PER_RUN` (default 60) limits requests per run
-(including robots.txt), and
-`CATCHUP_AUTHOR_REPLIES` (default on) to `0`, `false`, or `no` to turn off
+(including robots.txt).
+Set `CATCHUP_AUTHOR_REPLIES` (default on) to `0`, `false`, or `no` to turn off
 author-reply fetching. Pages that cannot be read are skipped without failing
 the digest.
 

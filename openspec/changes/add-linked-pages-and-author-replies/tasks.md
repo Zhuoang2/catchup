@@ -241,7 +241,7 @@ Read the amended `design.md` (D2, D4, D5, D7, each marked "fix round 1") and the
 - [x] 8.7 **Test hygiene.** In `backend/tests/test_long_summaries.py`, move the CJK split assertions (now lines 107–110) back into `test_overflowing_separators_and_sentence_preference`, where they came from, and keep the new context test separate.
 
   Verify: both tests pass, and each asserts only its own subject.
-- [ ] 8.8 **Docs.**
+- [x] 8.8 **Docs.**
   - `README.md`: fix the sentence on `CATCHUP_AUTHOR_REPLIES` ("Set … to `0`, `false`, or `no` to turn off author replies").
   - `docs/process/test-report-add-linked-pages-and-author-replies.md`:
     - correct the group-4 red-first wording (the gather tests failed on routes, `TypeError`, or `KeyError`, not on an import, and the 16,000-character test passed before);

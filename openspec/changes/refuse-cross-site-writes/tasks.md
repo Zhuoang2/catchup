@@ -12,7 +12,7 @@ Implementer notes:
 
 ## 1. Refuse cross-site writes
 
-- [ ] 1.1 **Tests first**, in a new `backend/tests/test_cross_site.py`.
+- [x] 1.1 **Tests first**, in a new `backend/tests/test_cross_site.py`.
 
   **Refused**, each returning 403 `{"error": {"code": "cross_site_request", "message": "This request came from another site and was refused."}}` with no effect:
   1. `POST /api/digest-runs` with `Content-Type: application/x-www-form-urlencoded`, an empty body, and `Origin: https://evil.example`, while a model is configured. No `DigestRun` row exists afterwards.
@@ -44,13 +44,13 @@ Implementer notes:
   - "check `GET` too" fails check 16.
 
   Verify: checks 1–8 fail before 1.2, and the accepted checks pass.
-- [ ] 1.2 **Implement design D1** in `backend/src/catchup/main.py`: a middleware after `allowed_host`, for `POST`, `PUT`, `PATCH`, and `DELETE` on any path. Add a short comment at the decision point, saying that #58 will add the extension-token exception there (D3).
+- [x] 1.2 **Implement design D1** in `backend/src/catchup/main.py`: a middleware after `allowed_host`, for `POST`, `PUT`, `PATCH`, and `DELETE` on any path. Add a short comment at the decision point, saying that #58 will add the extension-token exception there (D3).
 
   Verify:
   - all 1.1 checks pass;
   - each named mutation fails its checks, and is reverted;
   - `uv run pytest` passes, including `tests/test_allowed_hosts.py`.
-- [ ] 1.3 **Raise the FastAPI floor** (design D2). Change `backend/pyproject.toml` to `fastapi>=0.132,<1`, and run `uv lock`. The locked version stays 0.142.2.
+- [x] 1.3 **Raise the FastAPI floor** (design D2). Change `backend/pyproject.toml` to `fastapi>=0.132,<1`, and run `uv lock`. The locked version stays 0.142.2.
 
   Verify: `uv lock --check` passes, and `uv run pytest` passes.
 

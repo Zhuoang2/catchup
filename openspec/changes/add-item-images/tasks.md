@@ -213,7 +213,7 @@ The re-review found one test that passes for the wrong reason (6.3) and five gap
 - [x] 7.4 **Non-ASCII alt text stays readable** (`backend/tests/test_digest_stages.py`, design D2: `ensure_ascii=False`). An alt and a caption written in Chinese appear literally in the user message, with no `\u` escapes.
 
   Mutation: `ensure_ascii=True` in `_image_text`.
-- [ ] 7.5 **Duplicates in either order** (`backend/tests/test_discovery.py`, design D1). `https://example.com/a.png#x` first, then `https://example.com/a.png`, gives one candidate: the first, with its fragment.
+- [x] 7.5 **Duplicates in either order** (`backend/tests/test_discovery.py`, design D1). `https://example.com/a.png#x` first, then `https://example.com/a.png`, gives one candidate: the first, with its fragment.
 
   Mutation: `seen.add(url)` instead of `seen.add(key)` in `_entry_images`.
 - [ ] 7.6 **The cap test keeps a duplicate** (`backend/tests/test_discovery.py`). After 6.5, `test_image_filters_duplicates_pixels_and_caps_at_eight` no longer contains a duplicate, although its name says so. Add an exact repeat of `/one.png` to its fixture, so that the expected list is unchanged.

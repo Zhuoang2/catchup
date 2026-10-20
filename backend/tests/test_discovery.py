@@ -188,6 +188,13 @@ def test_image_fragment_does_not_make_new_candidate():
     assert [image.url for image in entry.images] == ["https://example.com/image.php?id=1"]
 
 
+def test_image_fragment_first_keeps_first_candidate_only():
+    body = ("<img src='https://example.com/a.png#x'>"
+            "<img src='https://example.com/a.png'>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", image_feed(body), "", 200)).entries[0]
+    assert [image.url for image in entry.images] == ["https://example.com/a.png#x"]
+
+
 def test_ftp_media_image_is_dropped():
     raw = image_feed("", media="<media:content url='ftp://cdn.example/photo.jpg' type='image/jpeg'/>")
     entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]

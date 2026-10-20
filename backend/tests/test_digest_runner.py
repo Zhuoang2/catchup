@@ -574,6 +574,25 @@ def test_item_model_failure_is_unavailable_not_a_failed_run(environment, monkeyp
     assert snapshot.title == "Item 0" and snapshot.link.endswith("/0")
 
 
+def test_failed_resummary_does_not_expose_old_summary_images(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        item = session.scalar(select(Item))
+        item.summary_images = [{"url": "https://cdn.example/old.png", "alt": "Old chart"}]
+        item.summary = None  # newly gathered context invalidated the previous summary
+        session.commit()
+    environment.app.state.model_client_factory = lambda *_: FakeModel([
+        ProviderError("temporary"),
+        {"topics": [{"title": "News", "overview": "Recent", "item_refs": ["i1"]}]},
+    ])
+    result = execute(environment)
+    assert result["status"] == "succeeded"
+    saved = environment.get(f"/api/digests/{result['digest_id']}").json()["topics"][0]["items"][0]
+    assert saved["summary_unavailable"] is True
+    assert saved["images"] == []
+
+
 def test_missing_group_ref_goes_to_other_and_unknown_ref_is_ignored(environment, monkeypatch):
     seed(environment, count=2)
     stub_collection(monkeypatch)

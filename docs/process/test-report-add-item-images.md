@@ -17,6 +17,8 @@
 | 4.3 Settings | 2 tests failed because the toggle did not exist. | Full frontend suite: 216 passed; build passed. Note remains outside the clickable label and is linked by `aria-describedby`; axe passed on new rendered states. |
 | 5.1 README | The privacy note was absent. | `rg` found the setting's name, default, no-referrer behavior and source-site contact. |
 
+After the documentation commit, a snapshot regression reproduced stale images when new context invalidated an old summary and the replacement model call failed: the API returned the old image beside `summary_unavailable: true`. The runner snapshot was copying stored images without checking the summary result. It now snapshots images only when that summary succeeded; the focused regression passed (2 tests), followed by the full checks below. Ranked hypotheses were unconditional snapshot copy (confirmed), API fallback (rejected), and cached-summary reuse (rejected).
+
 ## Final checks
 
 The frontend build ran before backend coverage so the static-asset branches were included.
@@ -24,7 +26,7 @@ The frontend build ran before backend coverage so the static-asset branches were
 | Command | Actual result |
 | --- | --- |
 | `cd frontend && npm run build` | Passed: TypeScript and Vite, 41 modules transformed. |
-| `cd backend && uv run pytest --cov=catchup --cov-report=term -q` | **540 passed**, **96%** statement coverage (2,372 statements, 87 missed, 2,285 covered). `sources/feeds.py` 96%, `digest/summarize.py` 95%, `llm/prompts.py` 100%, `digest/runner.py` 99%, `api/digests.py` 100%, `api/settings.py` 94%. |
+| `cd backend && uv run pytest --cov=catchup --cov-report=term -q` | **541 passed**, **96%** statement coverage (2,372 statements, 87 missed, 2,285 covered). `sources/feeds.py` 96%, `digest/summarize.py` 95%, `llm/prompts.py` 100%, `digest/runner.py` 99%, `api/digests.py` 100%, `api/settings.py` 94%. |
 | `cd frontend && npm test -- --run` | **216 passed**, 13 files. |
 | `openspec validate add-item-images --strict` | Passed: change is valid. |
 | `docker build .` | Passed: local image built, not pushed. Docker runtime/smoke not checked. |

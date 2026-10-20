@@ -358,7 +358,7 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                             {"title": part.title, "url": part.url, "kind": part.kind}
                             for part in sorted(item.contexts, key=lambda row: row.position) if part.used
                         ],
-                        images=item.summary_images or [],
+                        images=(item.summary_images or []) if summary.summary and not summary.unavailable else [],
                     ))
                     item.state = "delivered"
             if updates:

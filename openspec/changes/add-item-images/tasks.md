@@ -153,7 +153,7 @@ Read the amended `design.md`: D1, D2, D5, and D7, each marked "fix round 1". The
 
   Verify: each mutation fails a check and is reverted.
 - [x] 6.4 **Dropped: the image URL from `data-src` and `srcset`.** Droid's run stopped here and reported that feedparser's sanitizer removes both attributes before the collector reads the HTML. The user chose to record this as a known limit instead (design D1). Nothing to implement; the report lists the limit under 6.9.
-- [ ] 6.5 **Duplicates by exact URL** (`feeds.py`, design D1). Tests first, in `backend/tests/test_discovery.py`:
+- [x] 6.5 **Duplicates by exact URL** (`feeds.py`, design D1). Tests first, in `backend/tests/test_discovery.py`:
   - `https://example.com/image.php?id=1` and `?id=2` are both kept;
   - the same URL twice, once with a `#fragment`, is kept once.
 

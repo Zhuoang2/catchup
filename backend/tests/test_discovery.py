@@ -166,8 +166,26 @@ def test_image_filters_duplicates_pixels_and_caps_at_eight():
     entry = parse_feed(FetchResponse("https://site.example/feed", image_feed(body), "", 200)).entries[0]
     assert [i.url for i in entry.images] == [
         "https://site.example/one.png",
-        *[f"https://site.example/picture-{n}.png" for n in range(7)],
+        "https://site.example/one.png?size=large",
+        *[f"https://site.example/picture-{n}.png" for n in range(6)],
     ]
+
+
+def test_image_query_identifies_distinct_images():
+    body = ("<img src='https://example.com/image.php?id=1'>"
+            "<img src='https://example.com/image.php?id=2'>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", image_feed(body), "", 200)).entries[0]
+    assert [image.url for image in entry.images] == [
+        "https://example.com/image.php?id=1",
+        "https://example.com/image.php?id=2",
+    ]
+
+
+def test_image_fragment_does_not_make_new_candidate():
+    body = ("<img src='https://example.com/image.php?id=1'>"
+            "<img src='https://example.com/image.php?id=1#view'>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", image_feed(body), "", 200)).entries[0]
+    assert [image.url for image in entry.images] == ["https://example.com/image.php?id=1"]
 
 
 def test_discovery_does_not_fetch_images(public_dns):

@@ -123,7 +123,7 @@ def _entry_images(entry, description: str, base: str, channel_images: set[str]) 
                     and image.width <= 1 and image.height <= 1)
                 or url in channel_images):
             continue
-        key = parts._replace(query="", fragment="").geturl()
+        key = parts._replace(fragment="").geturl()
         if key in seen:
             continue
         seen.add(key)

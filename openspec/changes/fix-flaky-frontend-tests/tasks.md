@@ -46,7 +46,7 @@ Implementer notes:
 - [x] 3.1 **Stress check.** Run 3 rounds of 6 parallel full `npx vitest run` from `frontend/`. Record the pass and fail counts per round. If any test fails, report its name and error, and stop before 3.2. Do not raise any other timeout to make it pass.
 
   Verify: all 18 runs pass.
-- [ ] 3.2 **Docs and final checks.**
+- [x] 3.2 **Docs and final checks.**
   - Write `docs/process/test-report-fix-flaky-frontend-tests.md`: the cause of each flake, each mutation and its red and green results, the parallel-run counts from 2.1 and 3.1, and the assertions left alone with the reason for each, from `proposal.md`.
   - Add this change's line to `docs/process/coverage-summary.md`.
   - Run `npm run build` and `npm test -- --run` in `frontend/`, `uv run pytest` in `backend/`, and `openspec validate fix-flaky-frontend-tests --strict`.

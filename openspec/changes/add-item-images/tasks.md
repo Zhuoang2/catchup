@@ -160,7 +160,7 @@ Read the amended `design.md`: D1, D2, D5, and D7, each marked "fix round 1". The
   Update the existing test that expects a query-only difference to be a duplicate (`test_image_filters_duplicates_pixels_and_caps_at_eight`), and name the change in the report.
 
   Verify: the `?id=` case fails before the fix.
-- [ ] 6.6 **Pin the parser's surviving mutations** (`backend/tests/test_discovery.py`). Each check gets its named mutation:
+- [x] 6.6 **Pin the parser's surviving mutations** (`backend/tests/test_discovery.py`). Each check gets its named mutation:
   - an `ftp://` image is dropped (mutation: allow `ftp`);
   - an entry's `media:content` at `https://s0.wp.com/i/blavatar/…`, which is not the channel image, is dropped (mutation: remove the `/blavatar/` check);
   - an entry's HTML image whose URL equals the channel `<image><url>`, at a path without `avatar`, is dropped (mutation: remove the channel-image check);

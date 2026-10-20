@@ -188,6 +188,72 @@ def test_image_fragment_does_not_make_new_candidate():
     assert [image.url for image in entry.images] == ["https://example.com/image.php?id=1"]
 
 
+def test_ftp_media_image_is_dropped():
+    raw = image_feed("", media="<media:content url='ftp://cdn.example/photo.jpg' type='image/jpeg'/>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert entry.images == ()
+
+
+def test_wordpress_entry_blavatar_is_dropped_even_without_channel_match():
+    raw = image_feed("", media="<media:content url='https://s0.wp.com/i/blavatar/writer.png' "
+                               "medium='image'/>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert entry.images == ()
+
+
+def test_html_image_matching_channel_image_is_dropped():
+    image = "https://site.example/site-banner.jpg"
+    raw = image_feed(f"<img src='{image}'>", channel=f"<image><url>{image}</url></image>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert entry.images == ()
+
+
+def test_audio_entry_ignores_html_and_media_images():
+    raw = image_feed("<img src='https://site.example/diagram.jpg'>",
+                     media="<media:content url='https://cdn.example/photo.jpg' medium='image'/>",
+                     enclosure="<enclosure url='https://cdn.example/episode.mp3' type='audio/mpeg'/>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert entry.has_audio is True
+    assert entry.images == ()
+
+
+def test_video_media_content_is_not_an_image():
+    raw = image_feed("", media="<media:content url='https://cdn.example/clip.mp4' "
+                               "medium='video' type='video/mp4'/>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert entry.images == ()
+
+
+def test_pdf_enclosure_is_not_an_image():
+    raw = image_feed("", enclosure="<enclosure url='https://cdn.example/report.pdf' "
+                                   "type='application/pdf'/>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert entry.images == ()
+
+
+def test_jpeg_enclosure_keeps_image_and_origin():
+    raw = image_feed("", enclosure="<enclosure url='https://cdn.example/photo.jpg' "
+                                   "type='image/jpeg'/>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert [(image.url, image.origin) for image in entry.images] == [
+        ("https://cdn.example/photo.jpg", "enclosure"),
+    ]
+
+
+def test_html_images_come_before_xml_media_regardless_of_element_order():
+    raw = ("<rss version='2.0' xmlns:media='http://search.yahoo.com/mrss/'><channel>"
+           "<title>Pictures</title><item><title>Post</title>"
+           "<link>https://site.example/post</link>"
+           "<media:content url='https://cdn.example/lead.png' medium='image'/>"
+           f"<description>{html.escape('<img src=\"https://site.example/diagram.png\">')}</description>"
+           "</item></channel></rss>").encode()
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert [(image.url, image.origin) for image in entry.images] == [
+        ("https://site.example/diagram.png", "html"),
+        ("https://cdn.example/lead.png", "media"),
+    ]
+
+
 def test_discovery_does_not_fetch_images(public_dns):
     raw = image_feed("<img src='https://cdn.example/chart.png'>")
     with respx.mock(assert_all_mocked=True) as router:

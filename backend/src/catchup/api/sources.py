@@ -148,6 +148,9 @@ def confirm(data: ConfirmInput, request: Request, session: Session = Depends(get
             title=entry.title, published_at=entry.published_at, discovered_at=now,
             content_text=text, content_origin=origin, state=state,
             transcript_status=transcript_status,
+            entry_links=[{"url": link.url, "text": link.text} for link in entry.links],
+            comments_url=entry.comments_url, comment_feed_url=entry.comment_feed_url,
+            comment_count=entry.comment_count, entry_author=entry.author,
         ))
     source.last_check_status = "new_items" if pending_count else "no_new_items"
     session.add(SourceCheck(

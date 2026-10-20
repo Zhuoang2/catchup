@@ -1,7 +1,7 @@
 """Concurrent model-only summarization; persistence stays on the runner thread."""
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from collections.abc import Callable, Iterable
 import re
 
@@ -20,6 +20,7 @@ class SummaryInput:
     summary: str | None
     summary_language: str | None
     content_origin: str = "feed"
+    context: list[dict] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -27,6 +28,8 @@ class SummaryResult:
     id: int
     summary: str | None
     unavailable: bool = False
+    used: tuple[str, ...] = ()
+    cached: bool = False
 
 
 def split_parts(text: str, max_chars: int) -> list[str]:
@@ -73,11 +76,12 @@ def _summarize(client: ModelClient, item: SummaryInput, language: str,
                max_chars: int, long_item_chars: int) -> SummaryResult:
     try:
         long_transcript = item.content_origin == "transcript" and len(item.content_text) > long_item_chars
-        if len(item.content_text) <= max_chars:
+        text_budget = max(2_000, max_chars - sum(len(part["text"]) for part in item.context)) if item.context else max_chars
+        if len(item.content_text) <= text_budget:
             messages = (long_transcript_messages(item.title, item.content_text, language)
-                        if long_transcript else summary_messages(item.title, item.content_text, language))
+                        if long_transcript else summary_messages(item.title, item.content_text, language, item.context))
         else:
-            parts = split_parts(item.content_text, max_chars)
+            parts = split_parts(item.content_text, text_budget)
             notes = []
             for index, part in enumerate(parts, 1):
                 response = client.chat_json(
@@ -89,12 +93,15 @@ def _summarize(client: ModelClient, item: SummaryInput, language: str,
                     raise ProviderError("The model provider returned no part summary.")
                 notes.append(note.strip())
             messages = combine_messages(item.title, "\n\n".join(notes), language,
-                                        long_transcript=long_transcript)
+                                        long_transcript=long_transcript, context=item.context)
         response = client.chat_json(messages, max_tokens=SUMMARY_MAX_TOKENS)
         summary = response.get("summary")
         if not isinstance(summary, str) or not summary.strip():
             raise ProviderError("The model provider returned no summary.")
-        return SummaryResult(item.id, summary.strip())
+        valid = {part["ref"] for part in item.context}
+        raw = response.get("used")
+        used = tuple(dict.fromkeys(ref for ref in raw if isinstance(ref, str) and ref in valid)) if isinstance(raw, list) else ()
+        return SummaryResult(item.id, summary.strip(), used=used)
     except (AuthFailed, InsufficientBalance):
         raise
     except (ModelError, ValueError):
@@ -114,7 +121,7 @@ def summarize_items(
     uncached = []
     for item in items:
         if item.summary and item.summary_language == language:
-            on_result(SummaryResult(item.id, item.summary))
+            on_result(SummaryResult(item.id, item.summary, cached=True))
         else:
             uncached.append(item)
     pool = ThreadPoolExecutor(max_workers=4)

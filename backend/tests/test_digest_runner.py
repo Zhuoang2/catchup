@@ -13,7 +13,7 @@ from catchup.llm.client import AuthFailed, InsufficientBalance, ProviderError
 from catchup.llm.client import ModelInfo
 from catchup.main import create_app
 from catchup.models import (
-    AppSettings, Digest, DigestItem, DigestRun, DigestTopic, Item, ModelConfig, Source, SourceCheck,
+    AppSettings, Digest, DigestItem, DigestRun, DigestTopic, Item, ItemContext, ModelConfig, Source, SourceCheck,
 )
 from catchup.net.host_spacing import HostSpacer
 from catchup.net.safe_fetch import RATE_LIMIT_PREFIX
@@ -155,6 +155,58 @@ def test_group_failure_preserves_pending_and_retry_uses_cached_summary(environme
     assert run_checks(environment, succeeded["id"])[0].new_count == 1
     assert len(retry.calls) == 1
     assert all_rows(environment, DigestItem)[0].summary == "Cached"
+
+
+def test_record_marks_only_valid_context_refs_and_cache_preserves_flags(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        item = session.scalar(select(Item))
+        item.context_status = "gathered"
+        session.add_all([
+            ItemContext(item_id=item.id, ref=ref, kind="link", url=f"https://docs.example/{ref}",
+                        title=ref, text=f"Text {ref}", position=position)
+            for position, ref in enumerate(("L1", "L2"), 1)
+        ])
+        session.commit()
+    first = FakeModel([
+        {"summary": "From L1.", "used": ["L1", "invented"]},
+        ProviderError("group failed"),
+    ])
+    environment.app.state.model_client_factory = lambda *_: first
+    assert execute(environment)["status"] == "failed"
+    assert [(row.ref, row.used) for row in all_rows(environment, ItemContext)] == [
+        ("L1", True), ("L2", False),
+    ]
+    retry = FakeModel([{"topics": [{"title": "Topic", "overview": "Overview", "item_refs": ["i1"]}]}])
+    environment.app.state.model_client_factory = lambda *_: retry
+    assert execute(environment)["status"] == "succeeded"
+    assert [(row.ref, row.used) for row in all_rows(environment, ItemContext)] == [
+        ("L1", True), ("L2", False),
+    ]
+
+
+def test_saved_also_read_keeps_context_position_order(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        item = session.scalar(select(Item))
+        item.context_status = "gathered"
+        session.add_all([
+            ItemContext(item_id=item.id, ref=ref, kind="link", url=f"https://docs.example/{ref}",
+                        title=ref, text=f"Text {ref}", position=position)
+            for position, ref in ((2, "L2"), (1, "L1"))
+        ])
+        session.commit()
+    model = FakeModel([
+        {"summary": "Uses both.", "used": ["L2", "L1"]},
+        {"topics": [{"title": "Topic", "overview": "Overview", "item_refs": ["i1"]}]},
+    ])
+    environment.app.state.model_client_factory = lambda *_: model
+    result = execute(environment)
+    assert result["status"] == "succeeded"
+    digest = environment.get(f"/api/digests/{result['digest_id']}").json()
+    assert [ref["title"] for ref in digest["topics"][0]["items"][0]["also_read"]] == ["L1", "L2"]
 
 
 def test_carried_over_item_sets_final_outcome_in_run_and_sources(environment, monkeypatch):
@@ -692,6 +744,150 @@ def test_runner_spaces_same_host_checks_without_delaying_other_hosts(environment
     assert len(starts) == 2
     assert starts[1] - starts[0] == (1.0 if same_host else 0.0)
     assert sleeps == ([1.0] if same_host else [])
+
+
+def test_failed_run_reuses_gathered_context_without_fetching_again(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        session.scalar(select(Item)).entry_links = [
+            {"url": "https://docs.example/notes", "text": "Notes"},
+        ]
+        session.commit()
+    monkeypatch.setattr(socket, "getaddrinfo", lambda _host, port, **_kwargs: [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", port)),
+    ])
+    first = FakeModel([{"summary": "Cached"}, ProviderError("group failed")])
+    environment.app.state.model_client_factory = lambda *_: first
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        router.get("https://docs.example/notes").mock(return_value=httpx.Response(
+            200, text="<html><title>Notes</title><article>Useful notes about the release.</article></html>",
+        ))
+        failed = execute(environment)
+    assert failed["status"] == "failed"
+    assert (failed["context_total"], failed["context_done"]) == (1, 1)
+    environment.app.state.model_client_factory = lambda *_: FakeModel([
+        {"topics": [{"title": "Topic", "overview": "Overview", "item_refs": ["i1"]}]},
+    ])
+    with respx.mock(assert_all_mocked=True) as router:
+        retry = execute(environment)
+        assert not router.calls
+    assert retry["status"] == "succeeded"
+    assert (retry["context_total"], retry["context_done"]) == (0, 0)
+
+
+def test_newly_gathered_link_invalidates_cached_summary(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        item = session.scalar(select(Item))
+        item.summary = "Old cached summary"
+        item.summary_language = "en"
+        item.entry_links = [{"url": "https://docs.example/notes", "text": "Notes"}]
+        session.commit()
+    monkeypatch.setattr(socket, "getaddrinfo", lambda _host, port, **_kwargs: [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", port)),
+    ])
+    model = FakeModel([
+        {"summary": "Contextual summary", "used": ["L1"]},
+        {"topics": [{"title": "Topic", "overview": "Overview", "item_refs": ["i1"]}]},
+    ])
+    environment.app.state.model_client_factory = lambda *_: model
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        router.get("https://docs.example/notes").mock(return_value=httpx.Response(
+            200, text="<html><title>Notes</title><article>" +
+            "Substantive notes about this item. " * 40 + "</article></html>",
+        ))
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert len(model.calls) == 2
+    assert "Context L1" in str(model.calls[0][0])
+    digest = environment.get(f"/api/digests/{result['digest_id']}").json()
+    assert digest["topics"][0]["items"][0]["summary"] == "Contextual summary"
+    assert digest["topics"][0]["items"][0]["also_read"] == [
+        {"title": "Notes", "url": "https://docs.example/notes", "kind": "link"},
+    ]
+
+
+def test_runner_context_requests_share_host_spacer(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        session.scalar(select(Item)).entry_links = [
+            {"url": f"https://docs.example/{i}", "text": str(i)} for i in (1, 2)
+        ]
+        session.commit()
+    monkeypatch.setattr(socket, "getaddrinfo", lambda _host, port, **_kwargs: [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", port)),
+    ])
+    now = [10.0]
+    calls = []
+    sleeps = []
+
+    def advance(seconds):
+        sleeps.append(seconds)
+        now[0] += seconds
+
+    monkeypatch.setattr(
+        "catchup.digest.runner.HostSpacer",
+        lambda: HostSpacer(clock=lambda: now[0], sleep=advance),
+    )
+
+    def reply(request):
+        calls.append((str(request.url), now[0]))
+        return httpx.Response(200, text="<html><title>Notes</title><article>Useful content.</article></html>")
+
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://docs.example/robots.txt").mock(side_effect=reply)
+        router.get("https://docs.example/1").mock(side_effect=reply)
+        router.get("https://docs.example/2").mock(side_effect=reply)
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert [stamp for _, stamp in calls] == [10.0, 11.0, 12.0]
+    assert sleeps == [1.0, 1.0]
+
+
+def test_context_pass_uses_collection_spacer_for_same_host(environment, monkeypatch):
+    seed(environment)
+    with environment.app.state.session_factory() as session:
+        session.scalar(select(Item)).entry_links = [{"url": "https://docs.example/page", "text": "Page"}]
+        session.commit()
+    monkeypatch.setattr(socket, "getaddrinfo", lambda _host, port, **_kwargs: [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", port)),
+    ])
+    now = [10.0]
+    sleeps = []
+    starts = []
+
+    def advance(seconds):
+        sleeps.append(seconds)
+        now[0] += seconds
+
+    monkeypatch.setattr(
+        "catchup.digest.runner.HostSpacer",
+        lambda: HostSpacer(clock=lambda: now[0], sleep=advance),
+    )
+
+    def checked(session, source, run_id, _settings, *, spacer=None, transcripts=None):
+        spacer.wait("https://docs.example/feed")
+        session.add(SourceCheck(run_id=run_id, source_id=source.id, status="no_new_items",
+                                entries_seen=0, new_count=0))
+        session.commit()
+
+    monkeypatch.setattr("catchup.digest.runner.check_source", checked)
+
+    def reply(_request):
+        starts.append(now[0])
+        return httpx.Response(200, text="<html><article>Detailed context " * 40 + "</article></html>")
+
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://docs.example/robots.txt").mock(side_effect=reply)
+        router.get("https://docs.example/page").mock(side_effect=reply)
+        assert execute(environment)["status"] == "succeeded"
+    assert starts == [11.0, 12.0]
+    assert sleeps == [1.0, 1.0]
 
 
 @pytest.mark.parametrize("status,error,expected", [

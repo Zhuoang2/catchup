@@ -192,6 +192,15 @@ pending. Shorts are skipped by default, unless you switch off Skip Shorts
 in Settings. Creator updates show a reason for missing transcripts or captions
 without sending show notes or descriptions to the model.
 
+For website items, CatchUp reads related links and author replies from public pages
+only. Context fetches honor each site's robots.txt.
+`CATCHUP_LINKS_PER_ITEM` (default 8) limits linked pages per item.
+`CATCHUP_CONTEXT_FETCHES_PER_RUN` (default 60) limits requests per run
+(including robots.txt).
+Set `CATCHUP_AUTHOR_REPLIES` (default on) to `0`, `false`, or `no` to turn off
+author-reply fetching. Pages that cannot be read are skipped without failing
+the digest.
+
 Feed documents may be up to `CATCHUP_MAX_FEED_BYTES` (default 33554432,
 32 MiB). Articles and transcripts remain limited to 5 MiB. Text longer
 than a model call's budget is summarized in parts and combined; if a small

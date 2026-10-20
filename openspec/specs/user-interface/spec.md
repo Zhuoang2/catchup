@@ -38,6 +38,7 @@ When the digest has more than one section, an index of its topics and of Creator
 - its source name and publish time
 - its title linked to the original
 - its summary: paragraphs, with "- " lines as a list
+- when its summary used gathered context: an "Also read" line after the summary, with each used page's or reply's title linked to its source
 
 In windows wider than 1100 px, each item MUST be a row of its topic: its source line and linked title beside its summary. From 901 to 1100 px, an item's source line, title, and summary MUST stack within the item area, beside the topic's title and overview. At 900 px and wider, every item's summary MUST have the same width and end at the right edge of the content, whatever the summary's length, the item's position, or the number of items in the topic. In a 1440 px window, a summary line MUST hold no more than 40 Chinese characters or 80 Latin characters. At 900 px and below, an item's source line, title, and summary MUST stack in one column, in that order. A digest with only Creator updates MUST say that nothing could be summarized this time. The main screen and a saved digest opened from History MUST use the same layout.
 
@@ -64,6 +65,10 @@ In windows wider than 1100 px, each item MUST be a row of its topic: its source 
 #### Scenario: Same digest in both places
 - **WHEN** the main screen shows digest No. 7, and the user then opens No. 7 from History
 - **THEN** both show the same headline, index, topics, items, and Creator updates. They differ only in the masthead, the main screen's run bar, and the saved digest's link back to all digests
+
+#### Scenario: Item with also-read links
+- **WHEN** an item's summary used a GitHub release page and a changelog page
+- **THEN** the item shows "Also read:" after its summary, with both titles linked, and opening a link leaves the digest open
 
 ### Requirement: Readable Creator updates
 Creator updates SHALL be grouped by source, and each group shows the source kind. Each item SHALL show its title linked to the original, its publish time, and its reason, in sentence case at a readable size, keeping proper nouns such as "YouTube" as written.

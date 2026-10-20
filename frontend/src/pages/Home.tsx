@@ -14,6 +14,7 @@ type Check = {
 }
 type Run = {
   id: number; status: string; items_total: number; items_done: number; sources_total: number
+  context_total?: number; context_done?: number
   digest_item_count: number | null; digest_update_count: number | null
   source_checks: Check[]; error_kind: string | null; error_message: string | null; digest_id: number | null
   waiting_count: number; deferred_count: number; prompt_tokens: number | null; completion_tokens: number | null
@@ -60,12 +61,15 @@ function RunStateContent({ run, compact, firstRun, loadingNewDigest, configurati
 }) {
   if (active(run)) {
     const checking = run.status === 'collecting' || run.status === 'queued'
-    const progress = checking ? run.source_checks.length : run.items_done
-    const total = checking ? run.sources_total : run.items_total
+    const reading = run.status === 'collecting'
+      && run.source_checks.length === run.sources_total && (run.context_total ?? 0) > 0
+    const progress = reading ? run.context_done ?? 0 : checking ? run.source_checks.length : run.items_done
+    const total = reading ? run.context_total ?? 0 : checking ? run.sources_total : run.items_total
     const content = <>
       <Stepper current={run.status === 'queued' ? 'collecting'
         : run.status === 'grouping' ? 'grouping' : run.status as 'collecting' | 'summarizing'}/>
-      <Progress label={checking ? `Sources checked: ${progress} of ${total}`
+      <Progress label={reading ? `Linked pages read: ${progress} of ${total}`
+        : checking ? `Sources checked: ${progress} of ${total}`
         : `Items summarized: ${progress} of ${total}`}
         value={progress} max={total}/>
       <SourceChecks checks={run.source_checks} label="Sources" compact={compact}/>

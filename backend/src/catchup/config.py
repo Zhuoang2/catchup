@@ -44,6 +44,9 @@ class Settings:
     single_call_chars: int | None = None
     user_agent_contact: str | None = None
     frontend_dist: Path | None = None
+    links_per_item: int = 8
+    context_fetches_per_run: int = 60
+    author_replies: bool = True
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -60,6 +63,9 @@ class Settings:
             transcript_wait_days=positive_env("CATCHUP_TRANSCRIPT_WAIT_DAYS", 7),
             caption_wait_hours=positive_env("CATCHUP_CAPTION_WAIT_HOURS", 24),
             captions_per_run=positive_env("CATCHUP_CAPTIONS_PER_RUN", 20),
+            links_per_item=positive_env("CATCHUP_LINKS_PER_ITEM", 8),
+            context_fetches_per_run=positive_env("CATCHUP_CONTEXT_FETCHES_PER_RUN", 60),
+            author_replies=os.getenv("CATCHUP_AUTHOR_REPLIES", "true").lower() not in ("0", "false", "no"),
             long_item_chars=positive_env("CATCHUP_LONG_ITEM_CHARS", 20_000),
             single_call_chars=positive_env("CATCHUP_SINGLE_CALL_CHARS"),
             allowed_hosts=tuple(

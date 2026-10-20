@@ -2,8 +2,8 @@
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import TypeDecorator
 
 from catchup.db import Base
@@ -90,6 +90,27 @@ class Item(Base):
     summary_language: Mapped[str | None] = mapped_column(String(40))
     state: Mapped[str] = mapped_column(String(16))
     transcript_status: Mapped[str | None] = mapped_column(String(16))
+    entry_links: Mapped[list[dict] | None] = mapped_column(JSON)
+    comments_url: Mapped[str | None] = mapped_column(Text)
+    comment_feed_url: Mapped[str | None] = mapped_column(Text)
+    comment_count: Mapped[int | None] = mapped_column(Integer)
+    entry_author: Mapped[str | None] = mapped_column(Text)
+    context_status: Mapped[str | None] = mapped_column(String(16))
+    contexts: Mapped[list["ItemContext"]] = relationship(cascade="all, delete-orphan")
+
+
+class ItemContext(Base):
+    __tablename__ = "item_contexts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    item_id: Mapped[int] = mapped_column(ForeignKey("items.id", ondelete="CASCADE"))
+    ref: Mapped[str] = mapped_column(String(16))
+    kind: Mapped[str] = mapped_column(String(32))
+    url: Mapped[str] = mapped_column(Text)
+    title: Mapped[str] = mapped_column(Text)
+    text: Mapped[str] = mapped_column(Text)
+    position: Mapped[int] = mapped_column(Integer)
+    used: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
 
 
 class SourceCheck(Base):
@@ -114,6 +135,8 @@ class DigestRun(Base):
     status: Mapped[str] = mapped_column(String(32))
     items_total: Mapped[int] = mapped_column(Integer, default=0)
     items_done: Mapped[int] = mapped_column(Integer, default=0)
+    context_total: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    context_done: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     prompt_tokens: Mapped[int | None] = mapped_column(Integer)
     completion_tokens: Mapped[int | None] = mapped_column(Integer)
     waiting_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
@@ -165,3 +188,4 @@ class DigestItem(Base):
     summary: Mapped[str | None] = mapped_column(Text)
     summary_unavailable: Mapped[bool] = mapped_column(Boolean, default=False)
     update_reason: Mapped[str | None] = mapped_column(String(16))
+    context_links: Mapped[list[dict] | None] = mapped_column(JSON)

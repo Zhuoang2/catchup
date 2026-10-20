@@ -10,6 +10,7 @@ import { useJump } from './useJump'
 type DigestItem = {
   title: string; link: string; source_name: string; source_kind?: SourceKind | null
   published_at: string | null; summary: string | null; summary_unavailable: boolean
+  also_read?: { title: string; url: string; kind: string }[]
 }
 type Topic = { title: string; overview: string; items: DigestItem[] }
 type CreatorUpdate = {
@@ -73,7 +74,15 @@ export function DigestArticle({ digest, className = '', before, headEnd }: {
                 </a></h3>
                 {item.summary_unavailable
                   ? <p className="summary-unavailable">Summary unavailable</p>
-                  : item.summary && <SummaryText text={item.summary} lang={lang}/>}
+                  : item.summary && <div className="item-body">
+                    <SummaryText text={item.summary} lang={lang}/>
+                    {!!item.also_read?.length && <p className="also-read">Also read: {' '}
+                      {item.also_read.map((part, index) => <span key={`${part.url}-${index}`}>
+                        {index > 0 && ' · '}
+                        <a href={part.url} target="_blank" rel="noopener noreferrer">{part.title}</a>
+                      </span>)}
+                    </p>}
+                  </div>}
               </article>
             )}</div>
           </SectionRow>)}

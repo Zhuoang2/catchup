@@ -2,6 +2,7 @@
 
 import logging
 import threading
+from urllib.parse import urlsplit
 from collections import Counter
 from contextlib import closing
 from datetime import timedelta
@@ -11,6 +12,7 @@ from fastapi import FastAPI
 from sqlalchemy import func, select, update
 
 from catchup.collection import check_source
+from catchup.context.gather import gather_context
 from catchup.crypto import decrypt_key
 from catchup.digest.group import GroupItem, group_items
 from catchup.digest.summarize import SummaryInput, SummaryResult, summarize_items
@@ -208,6 +210,7 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                     check_source(session, source, run_id, app.state.settings,
                                  spacer=spacer, transcripts=transcripts)
         caption_pass(factory, transcripts)
+        gather_context(factory, run_id, app.state.settings, spacer)
 
         with factory() as session:
             rows = session.execute(
@@ -220,7 +223,11 @@ def run_digest(app: FastAPI, run_id: int) -> None:
             )
             inputs = [
                 SummaryInput(item.id, item.title, item.content_text, item.summary,
-                             item.summary_language, item.content_origin)
+                             item.summary_language, item.content_origin, [
+                                 {"ref": part.ref, "kind": part.kind, "title": part.title,
+                                  "host": urlsplit(part.url).hostname or "", "text": part.text}
+                                 for part in sorted(item.contexts, key=lambda row: row.position)
+                             ])
                 for item, _ in ready
             ]
             names = {item.id: name for item, name in ready}
@@ -272,6 +279,9 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                     if item is not None:
                         item.summary = result.summary
                         item.summary_language = language
+                        if not result.cached:
+                            for part in item.contexts:
+                                part.used = part.ref in result.used
                 run = session.get(DigestRun, run_id)
                 run.items_done += 1
                 session.commit()
@@ -343,6 +353,10 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                         source_kind=source_kind,
                         published_at=item.published_at, summary=summary.summary,
                         summary_unavailable=summary.unavailable,
+                        context_links=[
+                            {"title": part.title, "url": part.url, "kind": part.kind}
+                            for part in sorted(item.contexts, key=lambda row: row.position) if part.used
+                        ],
                     ))
                     item.state = "delivered"
             if updates:
@@ -403,7 +417,8 @@ def run_detail(session, run: DigestRun) -> dict:
     ) if digest is not None else None
     return {
         "id": run.id, "status": run.status, "items_total": run.items_total,
-        "items_done": run.items_done, "error_kind": run.error_kind,
+        "items_done": run.items_done, "context_total": run.context_total,
+        "context_done": run.context_done, "error_kind": run.error_kind,
         "waiting_count": run.waiting_count, "deferred_count": run.deferred_count,
         "prompt_tokens": run.prompt_tokens, "completion_tokens": run.completion_tokens,
         "error_message": run.error_message, "digest_id": run.digest_id,

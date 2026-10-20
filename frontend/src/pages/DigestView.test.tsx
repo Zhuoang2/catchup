@@ -255,7 +255,8 @@ it('keeps every item in one markup order regardless of summary length or availab
       { title: 'Story 141', link: 'https://example.test/141', source_name: 'Feed',
         published_at: null, summary: 'x'.repeat(141), summary_unavailable: false },
       { title: 'Story 140', link: 'https://example.test/140', source_name: 'Feed',
-        published_at: null, summary: 'x'.repeat(140), summary_unavailable: false },
+        published_at: null, summary: 'x'.repeat(140), summary_unavailable: false,
+        also_read: [{ title: 'Notes', url: 'https://docs.example/notes', kind: 'link' }] },
       { title: 'Unavailable', link: 'https://example.test/unavailable', source_name: 'Feed',
         published_at: null, summary: null, summary_unavailable: true },
     ] }],
@@ -269,9 +270,11 @@ it('keeps every item in one markup order regardless of summary length or availab
     expect(Array.from(article.children).map(child =>
       `${child.tagName.toLowerCase()}.${child.className}`)).toEqual([
       'p.item-meta', 'h3.item-title',
-      index === 3 ? 'p.summary-unavailable' : 'div.summary',
+      index === 3 ? 'p.summary-unavailable' : 'div.item-body',
     ])
   }
+  expect(articles[2].querySelector('.item-body')).toHaveTextContent('Also read: Notes')
+  expect(articles[2].querySelector('.also-read a')).toHaveAttribute('href', 'https://docs.example/notes')
   expect(container.querySelector('.digest-meta')).toHaveTextContent('4 items · 1 source')
 })
 

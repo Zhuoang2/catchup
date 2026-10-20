@@ -19,7 +19,7 @@ def test_startup_migrates_database_and_enables_wal(test_settings: Settings) -> N
         engine = client.app.state.engine
         assert set(inspect(engine).get_table_names()) == {
             "alembic_version", "model_config", "app_settings", "sources", "items",
-            "source_checks", "digest_runs", "digests", "digest_topics", "digest_items",
+            "source_checks", "digest_runs", "digests", "digest_topics", "digest_items", "item_contexts",
         }
         with engine.connect() as connection:
             assert connection.execute(text("PRAGMA journal_mode")).scalar() == "wal"
@@ -43,6 +43,7 @@ def test_migrations_live_inside_package() -> None:
     assert (migrations / "versions" / "0001_initial.py").is_file()
     assert (migrations / "versions" / "0002_transcripts.py").is_file()
     assert (migrations / "versions" / "0003_digest_snapshot.py").is_file()
+    assert (migrations / "versions" / "0004_item_context.py").is_file()
 
 
 def test_existing_database_at_old_revision_is_unchanged(tmp_path) -> None:
@@ -60,7 +61,7 @@ def test_existing_database_at_old_revision_is_unchanged(tmp_path) -> None:
             ).scalars().all()
         migrate(engine)
         with engine.connect() as connection:
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0003_digest_snapshot"
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0004_item_context"
             assert connection.execute(text("SELECT digest_language FROM app_settings WHERE id=1")).scalar_one() == "zh-Hans"
             assert connection.execute(
                 text("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -165,5 +166,40 @@ def test_snapshot_migration_from_0002_preserves_existing_rows(tmp_path) -> None:
         assert "source_kind" not in {col["name"] for col in inspect(engine).get_columns("digest_items")}
         with engine.connect() as connection:
             assert connection.execute(text("SELECT title FROM digest_items")).scalar_one() == "Title"
+    finally:
+        engine.dispose()
+
+
+def test_context_migration_from_0003_preserves_rows_and_downgrades(tmp_path) -> None:
+    engine = make_engine(tmp_path)
+    config = Config()
+    config.set_main_option("script_location", str(Path(catchup.__file__).resolve().parent / "migrations"))
+    config.attributes["connection"] = engine
+    try:
+        command.upgrade(config, "0003_digest_snapshot")
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO sources (id, title, site_url, feed_url, input_url, created_at) "
+                "VALUES (1, 'News', 'https://site.example', 'https://site.example/feed', "
+                "'https://site.example/feed', '2026-10-01')"
+            ))
+            connection.execute(text(
+                "INSERT INTO items (id, source_id, identity_key, link, title, discovered_at, "
+                "content_text, content_origin, state) VALUES "
+                "(1, 1, 'post', 'https://site.example/post', 'Post', '2026-10-01', "
+                "'Text', 'feed', 'pending')"
+            ))
+        command.upgrade(config, "head")
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT title, context_status FROM items WHERE id=1")).one() == ("Post", None)
+            assert connection.execute(text("SELECT context_total, context_done FROM digest_runs")).all() == []
+            assert "item_contexts" in inspect(engine).get_table_names()
+        command.downgrade(config, "0003_digest_snapshot")
+        assert "item_contexts" not in inspect(engine).get_table_names()
+        assert "context_status" not in {col["name"] for col in inspect(engine).get_columns("items")}
+        assert "context_links" not in {col["name"] for col in inspect(engine).get_columns("digest_items")}
+        assert "context_total" not in {col["name"] for col in inspect(engine).get_columns("digest_runs")}
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT title FROM items WHERE id=1")).scalar_one() == "Post"
     finally:
         engine.dispose()

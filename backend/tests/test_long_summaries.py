@@ -144,3 +144,31 @@ def test_split_item_sends_images_to_combine_only():
     assert len(model.calls) == 4
     assert all("Images:" not in call[0][1]["content"] for call in model.calls[:-1])
     assert "Images:" in model.calls[-1][0][1]["content"]
+
+
+def test_split_long_transcript_sends_images_only_to_long_combine_call():
+    class ChoiceModel(CaptureModel):
+        def chat_json(self, messages, max_tokens):
+            self.calls.append((messages, max_tokens))
+            if "part " in messages[0]["content"]:
+                return {"summary": "Notes on a pipeline."}
+            return {"summary": "A pipeline is explained.",
+                    "images": [{"ref": "I1", "alt": "Pipeline diagram"}]}
+
+    image = {"url": "https://cdn.example/diagram.png", "alt": "Stages",
+             "caption": "A pipeline", "origin": "html"}
+    model = ChoiceModel()
+    results = []
+    summarize_items(model, [SummaryInput(1, "Talk", "x" * 20_001, None, None,
+                                         content_origin="transcript", images=[image])],
+                    "en", 10_000, results.append)
+    assert len(model.calls) == 4
+    for messages, _ in model.calls[:-1]:
+        assert "Images:" not in messages[1]["content"]
+        assert "at most 3 images" not in messages[0]["content"]
+    combined = model.calls[-1][0]
+    assert "3–6 key points" in combined[0]["content"]
+    assert "at most 3 images" in combined[0]["content"]
+    assert "Images:\nI1 — in the post, position 1;" in combined[1]["content"]
+    assert results[0].images == (
+        {"url": "https://cdn.example/diagram.png", "alt": "Pipeline diagram"},)

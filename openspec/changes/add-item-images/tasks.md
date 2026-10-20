@@ -201,7 +201,7 @@ The re-review found one test that passes for the wrong reason (6.3) and five gap
 - [x] 7.1 **The single-call long transcript uses the long-transcript prompt** (`backend/tests/test_long_summaries.py`). Extend `test_single_call_long_transcript_receives_image_rules_and_keeps_choice`. The call's system prompt must contain "3–6 key points", and its user message must start with `Title: Talk\nTranscript:`. Today the test passes even with the article prompt, because the article prompt has the same rules and `Images:` block.
 
   Mutation: in `backend/src/catchup/digest/summarize.py`, use `summary_messages` when a long transcript has images (`if long_transcript and not item.images`).
-- [ ] 7.2 **A split long transcript sends its images to the combine call only** (`backend/tests/test_long_summaries.py`, design D2). Add a test next to `test_split_item_sends_images_to_combine_only`, for a transcript longer than the budget:
+- [x] 7.2 **A split long transcript sends its images to the combine call only** (`backend/tests/test_long_summaries.py`, design D2). Add a test next to `test_split_item_sends_images_to_combine_only`, for a transcript longer than the budget:
   - the part calls have no `Images:` block and no image rules;
   - the combine call has both, and uses the long-transcript prompt ("3–6 key points");
   - the chosen image is in the result.

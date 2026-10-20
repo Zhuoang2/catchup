@@ -25,7 +25,7 @@ Implementer notes:
   - after the revert, `npm test -- --run src/pages/DigestView.test.tsx src/pages/Home.test.tsx` passes.
 
   If one of the eight still passes under the mutation, say so in the report and explain why, for example because the previous test left the same title.
-- [ ] 1.2 **Focus after a deletion** (`frontend/src/pages/Sources.test.tsx:230, 268`). Change each `expect(document.activeElement).toBe(...)` to `await waitFor(() => expect(document.activeElement).toBe(...))`, as line 247 already does.
+- [x] 1.2 **Focus after a deletion** (`frontend/src/pages/Sources.test.tsx:230, 268`). Change each `expect(document.activeElement).toBe(...)` to `await waitFor(() => expect(document.activeElement).toBe(...))`, as line 247 already does.
 
   Mutation: in `frontend/src/pages/Sources.tsx`, inside the `focusAfterDelete` effect, call `focus()` inside `setTimeout(() => { … }, 50)`.
 

@@ -227,7 +227,7 @@ describe('sources', () => {
     fireEvent.click(screen.getByRole('group', { name: 'Confirm deletion' }).querySelector('button')!)
     expect(fetchMock).toHaveBeenCalledWith('/api/sources/2', { method: 'DELETE' })
     expect(await screen.findByText('No sources yet')).toBeInTheDocument()
-    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'No sources yet' }))
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'No sources yet' })))
     await expectAccessible(container)
   })
 
@@ -265,7 +265,7 @@ describe('sources', () => {
     await waitFor(() => expect(fetchMock.mock.calls.filter(([path]) => path === '/api/sources')).toHaveLength(2))
     expect(screen.queryByText('Example News')).toBeNull()
     expect(screen.queryByRole('group', { name: 'Confirm deletion' })).toBeNull()
-    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'No sources yet' }))
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'No sources yet' })))
     await act(async () => { rejectRefresh(new Error('Offline')) })
     expect(screen.getByRole('alert')).toHaveTextContent(/refresh/i)
     expect(screen.getByLabelText('Website or feed URL')).not.toHaveAttribute('aria-invalid')

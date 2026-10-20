@@ -65,7 +65,7 @@ The review found two more gaps of the same kind, and one unneeded change. Keep t
   Verify: `npm test -- --run` passes. If a test relied on a title left by another test, report it and fix that test.
 - [x] 4.2 **Wait for the poll timer before advancing time** (`frontend/src/pages/Home.test.tsx`). The poll `setInterval` (`Home.tsx:170`) is registered in a `useEffect`. Many tests `await findBy…` and then advance the fake clock at once. Right after the `findBy`, no poll timer is registered yet: on review, `vi.getTimerCount()` was 0 there in "keeps a startup latest-digest error visible through successful progress polls". The tests pass only because `advanceTimersByTimeAsync` yields once before it ticks.
   - Add a helper that waits until a 1000 ms interval has been registered, for example by spying on `window.setInterval` and waiting for a call whose delay is 1000. Do **not** use `vi.getTimerCount()` inside `waitFor`: `waitFor` registers its own timers, so the count is never 0 while it waits.
-  - Call the helper before the first `advanceTimersByTimeAsync` of each test that expects a poll. Later advances do not need it: when the run status changes, the effect clears the old interval and registers a new one in the same flush, so an interval is always registered.
+  - Call the helper before the first `advanceTimersByTimeAsync` of each test that expects a poll. Later advances do not need it: when the run status changes, the effect clears the old interval and registers a new one in the same flush, so an interval is always registered. (Wrong for a second run started by a Generate click after the first run ended; corrected in 5.1.)
 
   Red step: in one of these tests, add a temporary assertion right after the `findBy` that a 1000 ms interval is registered. See it fail on the current code. Then call the helper before the assertion, and see it pass. Remove the temporary assertion.
 
@@ -82,5 +82,29 @@ The review found two more gaps of the same kind, and one unneeded change. Keep t
   - **`docs/process/coverage-summary.md`:** add a fix-round line.
   - **Final checks:** run `npm run build`, `npm test -- --run`, and `openspec validate fix-flaky-frontend-tests --strict`.
   - **`docs/process/ai-usage-log.md`:** add a fix-round entry after the latest entry, with a faithful excerpt of the prompt you actually received, and the tool and model. Leave out the session id.
+
+  Verify: every command passes, and the report has the actual numbers.
+
+## 5. Fix round 2 (review findings)
+
+The re-review showed that a sentence in 4.2 was wrong, a plan error by Claude. A test that starts a second run with a Generate click, after the first run has ended, has no poll interval until the second run's state arrives. That state comes from the start request, outside `act`, so its interval is registered in a passive effect, as in 4.2. With React's passive effects held back by 50 ms outside `act`, four Home test cases failed in every one of four runs.
+
+- [ ] 5.1 **Wait for the second run's poll timer** (`frontend/src/pages/Home.test.tsx`). In every test that clicks Generate to start a new run and then advances the fake clock, start a new `watchPollTimer()` right before the click, and await it before that advance. The four definitions are:
+  - "keeps a fetched edition when the next run ends %s" (both cases);
+  - "hides an older digest fetch error after an overlapping run shows a newer edition";
+  - "hides an older fetch error when the newer digest resolves in the same tick";
+  - "keeps the higher digest error when an older pending fetch also fails".
+
+  The second one passes today because an `act` in between flushes the effect. It gets the wait anyway, so that the rule is the same everywhere.
+
+  Red step: in "keeps the higher digest error when an older pending fetch also fails", add a temporary assertion right after the second `findByRole('progressbar')` that the new watcher has seen a 1000 ms interval. Run the test alone, and record whether it fails on the current code. If it passes, record that too: in normal runs the second interval was usually already registered at review. Then await the watcher before the assertion, and see it pass. Remove the temporary assertion.
+
+  Verify: `npm test -- --run src/pages/Home.test.tsx` passes.
+- [ ] 5.2 **Checks and docs.**
+  - **Stress check:** rerun 3 rounds of 6 parallel full `npx vitest run` from `frontend/`, and record the counts.
+  - **`docs/process/test-report-fix-flaky-frontend-tests.md`:** add a "Fix round 2" section, with the red step's result, the four definitions, and the stress counts. In the fix-round-1 section, note that the "later advances" sentence was wrong, and that 5.1 corrected it.
+  - **`docs/process/coverage-summary.md`:** add a fix-round-2 line.
+  - **Final checks:** run `npm run build`, `npm test -- --run`, and `openspec validate fix-flaky-frontend-tests --strict`.
+  - **`docs/process/ai-usage-log.md`:** add a fix-round-2 entry after the latest entry, with a faithful excerpt of the prompt you actually received, and the tool and model. Leave out the session id.
 
   Verify: every command passes, and the report has the actual numbers.

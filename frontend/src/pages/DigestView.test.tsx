@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import DigestView from './DigestView'
@@ -98,6 +98,35 @@ it.each([
   if (shown) expect(screen.getByRole('img', { name: 'Growth chart' })).toBeInTheDocument()
   else expect(container.querySelector('img')).toBeNull()
   expect(fetchMock).toHaveBeenCalledWith('/api/settings/preferences', undefined)
+  await expectAccessible(container)
+})
+
+it('waits for the stored image preference after the saved digest arrives', async () => {
+  let release!: (value: ReturnType<typeof respond>) => void
+  const pending = new Promise<ReturnType<typeof respond>>(resolve => { release = resolve })
+  const digestRead = vi.fn()
+  const digest = { id: 7, created_at: '2026-10-03T10:00:00Z', model_id: 'test',
+    topics: [{ title: 'News', overview: '', items: [{
+      title: 'Article', link: 'https://site.example/post', source_name: 'Blog',
+      published_at: null, summary: 'A chart.', summary_unavailable: false,
+      images: [{ url: 'https://cdn.example/chart.png', alt: 'Growth chart' }],
+    }] }] }
+  fetchMock.mockImplementation(async (url: string) => {
+    if (url === '/api/digests/7') return {
+      ok: true, status: 200, json: async () => { digestRead(); return digest },
+    }
+    if (url === '/api/settings/preferences') return pending
+    throw Error(url)
+  })
+  const { container } = page()
+  await waitFor(() => expect(digestRead).toHaveBeenCalledTimes(1))
+  await act(async () => { await Promise.resolve() })
+  expect(screen.getByRole('heading', { name: 'Loading digest…' })).toBeInTheDocument()
+  expect(container.querySelector('img')).toBeNull()
+  await expectAccessible(container)
+  await act(async () => { release(respond({ show_images: false })); await pending })
+  expect(await screen.findByRole('heading', { name: 'News' })).toBeInTheDocument()
+  expect(container.querySelector('img')).toBeNull()
   await expectAccessible(container)
 })
 

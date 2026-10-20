@@ -64,6 +64,37 @@ it.each([['off', false], ['read fails', true]] as const)(
     await expectAccessible(container)
   },
 )
+
+it('waits for the stored image preference after the latest digest arrives', async () => {
+  let release!: (value: ReturnType<typeof respond>) => void
+  const pending = new Promise<ReturnType<typeof respond>>(resolve => { release = resolve })
+  const latestRead = vi.fn()
+  const withImage = { ...digest, topics: [{ ...digest.topics[0], items: [{
+    ...digest.topics[0].items[0],
+    images: [{ url: 'https://cdn.example/chart.png', alt: 'Growth chart' }],
+  }] }] }
+  fetchMock.mockImplementation(async (path: string) => {
+    if (path === '/api/settings/model') return respond({ key_set: true })
+    if (path === '/api/sources') return respond(sources)
+    if (path === '/api/digests/latest') return {
+      ok: true, status: 200, json: async () => { latestRead(); return withImage },
+    }
+    if (path === '/api/digest-runs/active') return respond(null)
+    if (path === '/api/settings/preferences') return pending
+    throw Error(path)
+  })
+  const { container } = render(<MemoryRouter><Home/></MemoryRouter>)
+  await waitFor(() => expect(latestRead).toHaveBeenCalledTimes(1))
+  await act(async () => { await Promise.resolve() })
+  expect(screen.getByRole('heading', { name: 'Loading…' })).toBeInTheDocument()
+  expect(container.querySelector('img')).toBeNull()
+  await expectAccessible(container)
+  await act(async () => { release(respond({ show_images: false })); await pending })
+  expect(await screen.findByRole('heading', { name: 'Technology' })).toBeInTheDocument()
+  expect(container.querySelector('img')).toBeNull()
+  await expectAccessible(container)
+})
+
 it('shows the same digest reading markup on Home and the saved digest page', async () => {
   const edition = { ...digest, id: 7 }
   const home = mockPage({ latest: edition })

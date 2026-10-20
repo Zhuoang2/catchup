@@ -67,6 +67,35 @@ describe('model settings', () => {
       youtube_captions: false, youtube_skip_shorts: true })
     await expectAccessible(container)
   })
+
+  it('loads stored images off and preserves off when saving without changing it', async () => {
+    const original = fetchMock.getMockImplementation()!
+    let saved: Record<string, unknown> | undefined
+    fetchMock.mockImplementation(async (url: string, options?: RequestInit) => {
+      if (url === '/api/settings/preferences' && !options?.method) return respond({
+        digest_language: 'en', youtube_captions: false, youtube_skip_shorts: true,
+        show_images: false,
+      })
+      if (url === '/api/settings/preferences' && options?.method === 'PUT') {
+        saved = JSON.parse(options.body as string) as Record<string, unknown>
+        return respond(saved)
+      }
+      if (url === '/api/settings/model' && options?.method === 'PUT') return respond({
+        base_url: 'https://api.deepseek.com', model_id: 'saved-model',
+        key_set: true, api_key_last4: '1234',
+      })
+      return original(url)
+    })
+    const { container } = render(<Settings />)
+    const images = await screen.findByRole('switch', { name: 'Show images from source sites' })
+    expect(images).not.toBeChecked()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await screen.findByText('Settings saved.')
+    expect(images).not.toBeChecked()
+    expect(saved).toMatchObject({ show_images: false })
+    await expectAccessible(container)
+  })
+
   it('shows opt-in captions and default Shorts settings with the risk notice', async () => {
     const { container } = render(<Settings />)
     const captions = await screen.findByLabelText('Fetch captions locally')

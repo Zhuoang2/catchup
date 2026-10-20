@@ -174,7 +174,7 @@ Read the amended `design.md`: D1, D2, D5, and D7, each marked "fix round 1". The
 - [x] 6.7 **The source name reaches the fallback alt** (`backend/tests/test_digest_runner.py`). Through a run, an image chosen with an empty model alt and no feed alt is shown in the digest with the alt "Image from <the source's name>". Mutation: the runner passes no source name.
 
   Verify: the mutation fails the check and is reverted.
-- [ ] 6.8 **The preference on the frontend** (design D5). Tests first, each with its named mutation:
+- [x] 6.8 **The preference on the frontend** (design D5). Tests first, each with its named mutation:
   - `frontend/src/pages/Settings.test.tsx`: with a stored `show_images: false`, the toggle is off, and saving sends `show_images: false` (mutation: ignore the stored value on load).
   - `frontend/src/pages/DigestView.test.tsx`: the digest request resolves while the preference request is still pending. There is no `img` in the DOM, and none after the preference resolves to false (mutation: show the digest before the preference settles).
   - `frontend/src/pages/Home.test.tsx`: the same check for the latest digest (same mutation on Home).

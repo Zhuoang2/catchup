@@ -58,7 +58,7 @@ Implementer notes:
 
 The review found two more gaps of the same kind, and one unneeded change. Keep the rules above: tests only, a named red step for each check, and a commit after each task.
 
-- [ ] 4.1 **Reset the title between tests** (`frontend/src/test/setup.ts`). Today `document.title` carries over from one test to the next. A title check can therefore pass on the title that an earlier test left: under the 1.1 mutation, `Home.test.tsx:130` passed in the full file for this reason.
+- [x] 4.1 **Reset the title between tests** (`frontend/src/test/setup.ts`). Today `document.title` carries over from one test to the next. A title check can therefore pass on the title that an earlier test left: under the 1.1 mutation, `Home.test.tsx:130` passed in the full file for this reason.
 
   Test first: add `frontend/src/test/setup.test.ts` with two tests in order. The first sets `document.title = 'Left by an earlier test'`. The second expects `document.title` to be `''`. See the second fail. Then set `document.title = ''` in a `beforeEach` in `setup.ts`, and see it pass.
 

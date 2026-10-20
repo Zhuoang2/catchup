@@ -70,7 +70,7 @@ The review found two more gaps of the same kind, and one unneeded change. Keep t
   Red step: in one of these tests, add a temporary assertion right after the `findBy` that a 1000 ms interval is registered. See it fail on the current code. Then call the helper before the assertion, and see it pass. Remove the temporary assertion.
 
   Verify: `npm test -- --run src/pages/Home.test.tsx` passes. Name in the report every test that now calls the helper. If the spy does not work with the fake timers, stop and report.
-- [ ] 4.3 **Undo the unneeded change** at `Home.test.tsx:406` (old numbering), "keeps the previous article and links to the new edition when detail loading fails". The title does not change in that test, so it goes back to the synchronous `expect(document.title).toBe('Latest · No. 4 · CatchUp')`.
+- [x] 4.3 **Undo the unneeded change** at `Home.test.tsx:406` (old numbering), "keeps the previous article and links to the new edition when detail loading fails". The title does not change in that test, so it goes back to the synchronous `expect(document.title).toBe('Latest · No. 4 · CatchUp')`.
 
   Verify: the test passes.
 - [ ] 4.4 **Checks and docs.**

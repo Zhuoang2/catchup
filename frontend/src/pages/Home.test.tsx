@@ -417,7 +417,7 @@ it('keeps the previous article and links to the new edition when detail loading 
   expect(await screen.findByText('Could not load the new digest')).toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'View digest' })).toHaveAttribute('href', '/digests/9')
   expect(screen.getByRole('heading', { name: 'Technology' })).toBeInTheDocument()
-  await waitFor(() => expect(document.title).toBe('Latest · No. 4 · CatchUp'))
+  expect(document.title).toBe('Latest · No. 4 · CatchUp')
 })
 
 it('keeps Generate available when the latest digest fails to load', async () => {

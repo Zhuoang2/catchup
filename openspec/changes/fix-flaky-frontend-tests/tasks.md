@@ -53,3 +53,34 @@ Implementer notes:
   - Add your entry to `docs/process/ai-usage-log.md` after the latest entry, with a faithful excerpt of the prompt you actually received, and the tool and model. Leave out the session id.
 
   Verify: every command passes, and the report has the actual numbers.
+
+## 4. Fix round 1 (review findings)
+
+The review found two more gaps of the same kind, and one unneeded change. Keep the rules above: tests only, a named red step for each check, and a commit after each task.
+
+- [ ] 4.1 **Reset the title between tests** (`frontend/src/test/setup.ts`). Today `document.title` carries over from one test to the next. A title check can therefore pass on the title that an earlier test left: under the 1.1 mutation, `Home.test.tsx:130` passed in the full file for this reason.
+
+  Test first: add `frontend/src/test/setup.test.ts` with two tests in order. The first sets `document.title = 'Left by an earlier test'`. The second expects `document.title` to be `''`. See the second fail. Then set `document.title = ''` in a `beforeEach` in `setup.ts`, and see it pass.
+
+  Verify: `npm test -- --run` passes. If a test relied on a title left by another test, report it and fix that test.
+- [ ] 4.2 **Wait for the poll timer before advancing time** (`frontend/src/pages/Home.test.tsx`). The poll `setInterval` (`Home.tsx:170`) is registered in a `useEffect`. Many tests `await findBy…` and then advance the fake clock at once. Right after the `findBy`, no poll timer is registered yet: on review, `vi.getTimerCount()` was 0 there in "keeps a startup latest-digest error visible through successful progress polls". The tests pass only because `advanceTimersByTimeAsync` yields once before it ticks.
+  - Add a helper that waits until a 1000 ms interval has been registered, for example by spying on `window.setInterval` and waiting for a call whose delay is 1000. Do **not** use `vi.getTimerCount()` inside `waitFor`: `waitFor` registers its own timers, so the count is never 0 while it waits.
+  - Call the helper before the first `advanceTimersByTimeAsync` of each test that expects a poll. Later advances do not need it: when the run status changes, the effect clears the old interval and registers a new one in the same flush, so an interval is always registered.
+
+  Red step: in one of these tests, add a temporary assertion right after the `findBy` that a 1000 ms interval is registered. See it fail on the current code. Then call the helper before the assertion, and see it pass. Remove the temporary assertion.
+
+  Verify: `npm test -- --run src/pages/Home.test.tsx` passes. Name in the report every test that now calls the helper. If the spy does not work with the fake timers, stop and report.
+- [ ] 4.3 **Undo the unneeded change** at `Home.test.tsx:406` (old numbering), "keeps the previous article and links to the new edition when detail loading fails". The title does not change in that test, so it goes back to the synchronous `expect(document.title).toBe('Latest · No. 4 · CatchUp')`.
+
+  Verify: the test passes.
+- [ ] 4.4 **Checks and docs.**
+  - **Stress check:** rerun 3 rounds of 6 parallel full `npx vitest run` from `frontend/`, and record the counts.
+  - **`docs/process/test-report-fix-flaky-frontend-tests.md`:**
+    - Add a "Fix round 1" section, with the red and green results of 4.1 and 4.2, and the stress counts.
+    - Correct the reason given for `ui.test.tsx:60`: focus is set in the click handler (`useJump`), not by an effect that `fireEvent` flushes.
+    - Add `App.test.tsx:21` (a title right after `render`) and `App.test.tsx:63` (focus set by a handler) to the assertions left alone.
+  - **`docs/process/coverage-summary.md`:** add a fix-round line.
+  - **Final checks:** run `npm run build`, `npm test -- --run`, and `openspec validate fix-flaky-frontend-tests --strict`.
+  - **`docs/process/ai-usage-log.md`:** add a fix-round entry after the latest entry, with a faithful excerpt of the prompt you actually received, and the tool and model. Leave out the session id.
+
+  Verify: every command passes, and the report has the actual numbers.

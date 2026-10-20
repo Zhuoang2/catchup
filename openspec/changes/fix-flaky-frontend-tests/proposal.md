@@ -19,8 +19,9 @@ The timing failures could not be reproduced on demand: 40 stressed runs of those
   - `Home.test.tsx:130, 150, 377, 406, 631, 920, 1054`;
   - `Sources.test.tsx:230, 268`.
 - **Leave alone** the assertions that are already safe:
-  - those right after `fireEvent`, which runs inside `act` and flushes effects (`ui.test.tsx:60`, `Sources.test.tsx:220, 224, 226`);
-  - focus set in a click handler (`DigestView.test.tsx:314`);
+  - those right after `fireEvent`, which runs inside `act` and flushes effects (`Sources.test.tsx:220, 224, 226`);
+  - focus set in a click handler (`ui.test.tsx:60`, `DigestView.test.tsx:314`, and `App.test.tsx:63`; corrected at review: `ui.test.tsx:60` was first listed under `fireEvent`);
+  - a title read right after `render`, which runs inside `act` (`App.test.tsx:21`; added at review);
   - a title that does not change (`DigestView.test.tsx:137, 139`);
   - the check that focus stayed where the user put it (`Home.test.tsx:382`). Waiting cannot make a "did not move" check fail.
 - **Give the icon test an explicit timeout** of 30 s.

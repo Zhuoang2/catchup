@@ -92,6 +92,51 @@ def test_nested_reply_anchor_does_not_supply_parent_for_top_level_author():
     assert author_replies(html, "Writer") == ["Original thought."]
 
 
+def test_own_reply_to_anchor_finds_other_comment():
+    html = page(
+        comment("comment-9", "Reader", "Why did the format change?"),
+        "<li id='comment-2' class='comment bypostauthor'>"
+        "<span class='fn'>Writer</span><a href='#comment-9'>In reply to Reader</a>"
+        "<div class='comment-content'>It is now simpler.</div></li>",
+    )
+    assert author_replies(html, "Writer") == [
+        "In reply to: Why did the format change?\nIt is now simpler.",
+    ]
+
+
+def test_ordered_children_list_finds_preceding_parent():
+    html = page(
+        "<div id='comment-9' class='comment'><div class='comment-content'>A reader asks.</div></div>"
+        "<ol class='children'><div id='comment-2' class='comment bypostauthor'>"
+        "<div class='comment-content'>The writer answers.</div></div></ol>"
+    )
+    assert author_replies(html, "Writer") == ["In reply to: A reader asks.\nThe writer answers."]
+
+
+def test_list_without_children_class_does_not_supply_sibling_parent():
+    html = page(
+        "<div id='comment-9' class='comment'><div class='comment-content'>An unrelated note.</div></div>"
+        "<ul class='other'><div id='comment-2' class='comment bypostauthor'>"
+        "<div class='comment-content'>Independent thought.</div></div></ul>"
+    )
+    assert author_replies(html, "Writer") == ["Independent thought."]
+
+
+def test_children_list_skips_non_comment_siblings_when_finding_parent():
+    html = page(
+        "<div id='comment-9' class='comment'><div class='comment-content'>A reader asks.</div></div>"
+        "<div class='thread-separator'>Separator</div>"
+        "<ul class='children'><div id='comment-2' class='comment bypostauthor'>"
+        "<div class='comment-content'>The writer answers.</div></div></ul>"
+    )
+    assert author_replies(html, "Writer") == ["In reply to: A reader asks.\nThe writer answers."]
+
+
+def test_author_name_match_ignores_case():
+    html = page(comment("comment-2", "tErEnCe TaO", "A reply."))
+    assert author_replies(html, "TERENCE TAO") == ["A reply."]
+
+
 def test_entry_author_whitespace_is_normalized_for_comment_names():
     html = page(comment("one", "Terence Tao", "A reply."))
     assert author_replies(html, "Terence  Tao") == ["A reply."]

@@ -60,3 +60,9 @@ def test_rejects_social_video_watch_and_ftp_links():
         "https://vimeo.com/123", "ftp://files.example/article",
     )]
     assert related_links(ITEM, SITE, links, 8) == []
+
+
+def test_mobile_youtube_watch_is_excluded():
+    watch = EntryLink("https://m.youtube.com/watch?v=video", "Watch")
+    article = EntryLink("https://docs.example/analysis", "Analysis")
+    assert related_links(ITEM, SITE, [watch, article], 8) == [article]

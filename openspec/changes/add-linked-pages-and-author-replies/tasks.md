@@ -275,7 +275,7 @@ Round 1's rollback on budget exhaustion (8.2) was a plan error by Claude. In a s
 - [x] 9.3 **Dedupe by final URL** (`context/gather.py`). Test first: two links that redirect to the same final URL store one row. Then implement.
 
   Verify: the test fails before the fix.
-- [ ] 9.4 **Pin the remaining survivors**, each with its named mutation:
+- [x] 9.4 **Pin the remaining survivors**, each with its named mutation:
   - **Comments:**
     - a step-3 `In reply to` link to another comment's id finds the parent (mutation: remove the anchor lookup);
     - `ol.children` works (mutation: accept `ul` only);

@@ -554,6 +554,27 @@ def test_deleted_item_during_context_plan_does_not_fail_run(environment, monkeyp
     assert execute(environment)["status"] == "no_new_content"
 
 
+def test_deleted_comment_item_is_skipped_before_fetch(environment, monkeypatch):
+    setup(environment, [], comments=1)
+    stub_collection(monkeypatch)
+    from catchup.context import gather
+
+    original = gather.related_links
+
+    def remove_source(*args, **kwargs):
+        links = original(*args, **kwargs)
+        with environment.app.state.session_factory() as session:
+            session.delete(session.scalar(select(Source)))
+            session.commit()
+        return links
+
+    monkeypatch.setattr(gather, "related_links", remove_source)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        post = router.get("https://s0.example/0").mock(return_value=httpx.Response(200))
+        assert execute(environment)["status"] == "no_new_content"
+    assert post.call_count == 0
+
+
 def test_deleted_item_during_context_fetch_does_not_fail_run(environment, monkeypatch, public_dns):
     setup(environment, [("https://docs.example/page", "Page")])
     stub_collection(monkeypatch)

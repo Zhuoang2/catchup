@@ -210,7 +210,7 @@ The re-review found one test that passes for the wrong reason (6.3) and five gap
 - [x] 7.3 **The long-transcript prompt without images is unchanged** (`backend/tests/test_digest_stages.py`). Next to `test_no_context_system_prompt_matches_original_main_bytes`, compare the system prompt of `long_transcript_messages("Talk", "Transcript", "en")` with a stored copy of the version on `main` (take it from `git show 0614066:backend/src/catchup/llm/prompts.py`).
 
   Mutation: always add `IMAGE_RULES` to the long-transcript prompt.
-- [ ] 7.4 **Non-ASCII alt text stays readable** (`backend/tests/test_digest_stages.py`, design D2: `ensure_ascii=False`). An alt and a caption written in Chinese appear literally in the user message, with no `\u` escapes.
+- [x] 7.4 **Non-ASCII alt text stays readable** (`backend/tests/test_digest_stages.py`, design D2: `ensure_ascii=False`). An alt and a caption written in Chinese appear literally in the user message, with no `\u` escapes.
 
   Mutation: `ensure_ascii=True` in `_image_text`.
 - [ ] 7.5 **Duplicates in either order** (`backend/tests/test_discovery.py`, design D1). `https://example.com/a.png#x` first, then `https://example.com/a.png`, gives one candidate: the first, with its fragment.

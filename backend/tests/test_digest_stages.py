@@ -142,6 +142,14 @@ def test_image_prompt_quotes_untrusted_fields_on_one_line_after_collapsing_and_c
     assert parsed_caption == ("Caption with lines and " + "x" * 210)[:200]
 
 
+def test_image_prompt_keeps_chinese_alt_and_caption_readable():
+    user = summary_messages("Post", "Text", "zh-Hans", images=[
+        {"origin": "html", "alt": "管线图", "caption": "处理步骤"},
+    ])[1]["content"]
+    assert 'alt "管线图"; caption "处理步骤"' in user
+    assert "\\u" not in user
+
+
 def test_image_prompts_request_summary_language_alt_and_share_neutral_example():
     image = [{"origin": "html", "alt": "Chart", "caption": ""}]
     for messages in (summary_messages("Post", "Text", "zh-Hans", images=image),

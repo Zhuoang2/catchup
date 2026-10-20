@@ -89,7 +89,7 @@ The review found two more gaps of the same kind, and one unneeded change. Keep t
 
 The re-review showed that a sentence in 4.2 was wrong, a plan error by Claude. A test that starts a second run with a Generate click, after the first run has ended, has no poll interval until the second run's state arrives. That state comes from the start request, outside `act`, so its interval is registered in a passive effect, as in 4.2. With React's passive effects held back by 50 ms outside `act`, four Home test cases failed in every one of four runs.
 
-- [ ] 5.1 **Wait for the second run's poll timer** (`frontend/src/pages/Home.test.tsx`). In every test that clicks Generate to start a new run and then advances the fake clock, start a new `watchPollTimer()` right before the click, and await it before that advance. The four definitions are:
+- [x] 5.1 **Wait for the second run's poll timer** (`frontend/src/pages/Home.test.tsx`). In every test that clicks Generate to start a new run and then advances the fake clock, start a new `watchPollTimer()` right before the click, and await it before that advance. The four definitions are:
   - "keeps a fetched edition when the next run ends %s" (both cases);
   - "hides an older digest fetch error after an overlapping run shows a newer edition";
   - "hides an older fetch error when the newer digest resolves in the same tick";

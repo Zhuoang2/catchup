@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import DigestView from './DigestView'
@@ -58,6 +58,76 @@ it('renders saved topics, text summaries, dates and safe original links', async 
   expect(document.querySelector('.digest-head')).toHaveTextContent('No. 7')
   expect(screen.getByRole('region', { name: 'Other' })).toHaveTextContent('Third summary')
   expect(fetchMock).toHaveBeenCalledWith('/api/digests/7', undefined)
+})
+
+it('keeps the images inside the summary cell and before Also read', async () => {
+  fetchMock.mockResolvedValue(respond({
+    id: 7, created_at: '2026-10-03T10:00:00Z', model_id: 'test',
+    topics: [{ title: 'News', overview: '', items: [{
+      title: 'Article', link: 'https://site.example/post', source_name: 'Blog',
+      published_at: null, summary: 'A chart.', summary_unavailable: false,
+      images: [{ url: 'https://cdn.example/chart.png', alt: 'Growth chart' }],
+      also_read: [{ title: 'Data', url: 'https://docs.example/data', kind: 'link' }],
+    }] }],
+  }))
+  const { container } = page()
+  await screen.findByRole('img', { name: 'Growth chart' })
+  const article = container.querySelector('article.item')!
+  expect(Array.from(article.children).map(child => child.className)).toEqual([
+    'item-meta', 'item-title', 'item-body',
+  ])
+  expect(Array.from(article.querySelector('.item-body')!.children).map(child => child.className))
+    .toEqual(['summary', 'item-images', 'also-read'])
+  await expectAccessible(container)
+})
+
+it.each([
+  ['off', { show_images: false }, false],
+  ['read fails', { error: { code: 'request_failed', message: 'Offline' } }, true],
+])('uses the image preference when %s on a saved digest', async (_case, preference, shown) => {
+  fetchMock.mockImplementation(async (url: string) => url === '/api/settings/preferences'
+    ? respond(preference, shown ? 503 : 200)
+    : respond({ id: 7, created_at: '2026-10-03T10:00:00Z', model_id: 'test',
+      topics: [{ title: 'News', overview: '', items: [{
+        title: 'Article', link: 'https://site.example/post', source_name: 'Blog',
+        published_at: null, summary: 'A chart.', summary_unavailable: false,
+        images: [{ url: 'https://cdn.example/chart.png', alt: 'Growth chart' }],
+      }] }] }))
+  const { container } = page()
+  await screen.findByRole('heading', { name: 'News' })
+  if (shown) expect(screen.getByRole('img', { name: 'Growth chart' })).toBeInTheDocument()
+  else expect(container.querySelector('img')).toBeNull()
+  expect(fetchMock).toHaveBeenCalledWith('/api/settings/preferences', undefined)
+  await expectAccessible(container)
+})
+
+it('waits for the stored image preference after the saved digest arrives', async () => {
+  let release!: (value: ReturnType<typeof respond>) => void
+  const pending = new Promise<ReturnType<typeof respond>>(resolve => { release = resolve })
+  const digestRead = vi.fn()
+  const digest = { id: 7, created_at: '2026-10-03T10:00:00Z', model_id: 'test',
+    topics: [{ title: 'News', overview: '', items: [{
+      title: 'Article', link: 'https://site.example/post', source_name: 'Blog',
+      published_at: null, summary: 'A chart.', summary_unavailable: false,
+      images: [{ url: 'https://cdn.example/chart.png', alt: 'Growth chart' }],
+    }] }] }
+  fetchMock.mockImplementation(async (url: string) => {
+    if (url === '/api/digests/7') return {
+      ok: true, status: 200, json: async () => { digestRead(); return digest },
+    }
+    if (url === '/api/settings/preferences') return pending
+    throw Error(url)
+  })
+  const { container } = page()
+  await waitFor(() => expect(digestRead).toHaveBeenCalledTimes(1))
+  await act(async () => { await Promise.resolve() })
+  expect(screen.getByRole('heading', { name: 'Loading digest…' })).toBeInTheDocument()
+  expect(container.querySelector('img')).toBeNull()
+  await expectAccessible(container)
+  await act(async () => { release(respond({ show_images: false })); await pending })
+  expect(await screen.findByRole('heading', { name: 'News' })).toBeInTheDocument()
+  expect(container.querySelector('img')).toBeNull()
+  await expectAccessible(container)
 })
 
 it('reports an unavailable digest', async () => {
@@ -256,6 +326,7 @@ it('keeps every item in one markup order regardless of summary length or availab
         published_at: null, summary: 'x'.repeat(141), summary_unavailable: false },
       { title: 'Story 140', link: 'https://example.test/140', source_name: 'Feed',
         published_at: null, summary: 'x'.repeat(140), summary_unavailable: false,
+        images: [{ url: 'https://cdn.example/figure.png', alt: 'Figure' }],
         also_read: [{ title: 'Notes', url: 'https://docs.example/notes', kind: 'link' }] },
       { title: 'Unavailable', link: 'https://example.test/unavailable', source_name: 'Feed',
         published_at: null, summary: null, summary_unavailable: true },
@@ -274,6 +345,8 @@ it('keeps every item in one markup order regardless of summary length or availab
     ])
   }
   expect(articles[2].querySelector('.item-body')).toHaveTextContent('Also read: Notes')
+  expect(Array.from(articles[2].querySelector('.item-body')!.children).map(child => child.className))
+    .toEqual(['summary', 'item-images', 'also-read'])
   expect(articles[2].querySelector('.also-read a')).toHaveAttribute('href', 'https://docs.example/notes')
   expect(container.querySelector('.digest-meta')).toHaveTextContent('4 items · 1 source')
 })

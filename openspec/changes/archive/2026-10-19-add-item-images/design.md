@@ -47,20 +47,34 @@ Full RePPIT change for issue #49. The research is in `research.md`, the motivati
   2. `media_content` with `medium="image"` or an image type.
   3. `media_thumbnail`.
   4. Enclosures with an `image/*` type.
-- **Filters.** Keep http(s) only. Skip `data:` URLs, Gravatar `/avatar/` and `/blavatar/`, the feed's channel image and icon, and images whose width and height are both at most 1 px.
-- **Duplicates and the cap.** Drop duplicates by URL, ignoring the query string only for exact matches. Cap at 8.
-- **Not for podcasts.** Podcast entries with audio keep no candidates.
+- **Filters.** Keep http(s) only. Skip:
+  - `data:` URLs;
+  - paths containing `/avatar/` or `/blavatar/`, on any host;
+  - the feed's channel image, icon, and logo, by exact URL;
+  - images whose width and height are both whole numbers of at most 1.
+- **Duplicates and the cap (fix round 1).** Two candidates are duplicates only when their URLs are equal after resolving and removing the fragment. The query string is kept, because some hosts tell images apart only by it, such as `/image.php?id=1` and `?id=2`. Cap at 8.
+- **Not for podcasts.** Entries with an audio enclosure keep no candidates. This covers podcast episodes. Their cover art (`entry.image`, `itunes:image`) is never read.
+- **Known limits (fix round 1, recorded, not changed):**
+  - The avatar rule also drops another site's `/avatar/` path, and misses avatars at other paths, such as GitHub's.
+  - A channel image with a different query string, such as `?v=2`, is not matched.
+  - A website feed's entry with an audio enclosure keeps no candidates.
+  - Sizes with units, such as `width="1px"`, are not recognized as tracking pixels.
+  - Images whose URL is only in `data-src` or `srcset` are missed. feedparser's sanitizer removes both attributes before the collector reads the HTML. Reading them would need a second, unsanitized parse; the four sampled feeds have no such images (user's decision, 2026-10-19).
 - **Storage.** `check_source` and confirmation store them on new items as `Item.image_candidates` (JSON).
 
 ### D2. Choosing in the summary call
 - **The prompt.** `summary_messages` gains an optional `images` list. After the content and the #48 context blocks, the user message adds `Images:`, then one line per candidate, such as `I1 — in the post, position 1; alt "…"; caption "…"`. Alt and caption are each cut to 200 characters.
+- **Quoting (fix round 1).** Alt and caption come from the feed, so they are data. Before the cut, whitespace, including line breaks, is collapsed to single spaces. After the cut, each is written as a JSON string (`json.dumps(..., ensure_ascii=False)`). A quote or a line break in feed text therefore cannot end the field or start a new candidate line.
 - **The rules,** added to the system prompt:
   - choose at most 3 images that show something the summary relies on, ordered by importance;
   - never choose logos, avatars, or decorative images;
   - choose none when unsure;
-  - write a short alt text of up to 120 characters for each.
+  - write a short alt text of up to 120 characters for each;
+  - (fix round 1) write each alt text in the language of the summary.
 - **The output.** `{"summary": "...", "used": [...], "images": [{"ref": "I1", "alt": "..."}]}`.
-- **Validation.** Unknown or duplicate refs are dropped, and anything beyond 3 is cut. An empty model alt falls back to the feed alt cut to 120 characters, and then to "Image from <source name>".
+- **The example (fix round 1).** The summary prompt and the long-transcript prompt show the same neutral example, `{"ref": "I1", "alt": "What the image shows"}`. The long-transcript example no longer says "Video thumbnail", which suggested choosing the thumbnail.
+- **Validation.** Unknown or duplicate refs are dropped, and anything beyond 3 is cut. An empty model alt falls back to the feed alt cut to 120 characters, and then to "Image from <source name>". That fallback stays in English, like the rest of the interface.
+- **Long transcripts.** A long transcript summarized in one call receives the images and the rules in that call.
 - **Split items.** The images go to the combine call.
 
 ### D3. Storage, migration `0005_item_images`
@@ -78,8 +92,10 @@ Full RePPIT change for issue #49. The research is in `research.md`, the motivati
 - **Where.** After the summary, and before #48's "Also read" line, render `<div class="item-images">`.
 - **Each image** is `<figure><img src alt loading="lazy" decoding="async" referrerpolicy="no-referrer"></figure>`.
 - **Size.** CSS sets `max-height: 320px`, `max-width: 100%`, `object-fit: contain`, and a thin border. Two or three images wrap in a flex row with a gap. The item grid is unchanged, because the block sits inside the summary cell.
+- **Figure margin (fix round 1).** `.item-images figure` sets `margin: 0`. Without it, the browser's default figure margin indents each image by 40 px on both sides: the images no longer line up with the summary, and two or three no longer fit in one row.
 - **Failure.** `onError` hides that figure.
 - **The setting.** When `show_images` is false, the block is not rendered, so no request is made. `DigestView` and `Home` read the preference once with their other startup requests. If that read fails, images are shown, which matches the default.
+- **Order of loading (fix round 1).** Both pages show the digest only after the preference request has also settled, so no image is requested before a stored "off" is known. Settings shows a stored false as off, and saving keeps it off.
 - **Guards.** The CSS structure guards in `tokens.test.ts` are extended to allow the new class.
 
 ### D6. Settings (`pages/Settings.tsx`)
@@ -87,6 +103,9 @@ Full RePPIT change for issue #49. The research is in `research.md`, the motivati
 
 ### D7. Privacy
 - Hotlinking sends the user's IP address and a normal browser request to each image host, with no referrer (`referrerpolicy="no-referrer"`). The README's privacy notes, and the Settings note, say this.
+- **The README (fix round 1).** A `## Privacy` section, after "Install as an app", holds the existing note on the model provider and the image note. The image note says:
+  - images load when a digest is shown, including the latest digest on the home page;
+  - if CatchUp cannot read the setting, images are shown.
 - No cookies were set by the four sampled hosts (research, External Facts).
 
 ### D8. Alternatives considered

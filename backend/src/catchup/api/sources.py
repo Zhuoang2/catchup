@@ -1,6 +1,7 @@
 """Source preview, confirmation, listing and deletion."""
 
 from datetime import timedelta
+from dataclasses import asdict
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
@@ -151,6 +152,7 @@ def confirm(data: ConfirmInput, request: Request, session: Session = Depends(get
             entry_links=[{"url": link.url, "text": link.text} for link in entry.links],
             comments_url=entry.comments_url, comment_feed_url=entry.comment_feed_url,
             comment_count=entry.comment_count, entry_author=entry.author,
+            image_candidates=[asdict(image) for image in entry.images],
         ))
     source.last_check_status = "new_items" if pending_count else "no_new_items"
     session.add(SourceCheck(

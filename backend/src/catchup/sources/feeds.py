@@ -38,6 +38,101 @@ class EntryLink:
     text: str
 
 
+@dataclass(frozen=True)
+class EntryImage:
+    url: str
+    alt: str = ""
+    caption: str = ""
+    width: int | None = None
+    height: int | None = None
+    origin: str = "html"
+
+
+def _dimension(value: object) -> int | None:
+    try:
+        return int(str(value))
+    except (ValueError, TypeError):
+        return None
+
+
+class _Images(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.images: list[EntryImage] = []
+        self.figures: list[tuple[list[int], list[str]]] = []
+        self.in_caption = False
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attrs_dict = dict(attrs)
+        if tag == "figure":
+            self.figures.append(([], []))
+        elif tag == "figcaption" and self.figures:
+            self.in_caption = True
+        elif tag == "img" and attrs_dict.get("src"):
+            if self.figures:
+                self.figures[-1][0].append(len(self.images))
+            self.images.append(EntryImage(
+                url=attrs_dict["src"] or "", alt=attrs_dict.get("alt") or "",
+                width=_dimension(attrs_dict.get("width")), height=_dimension(attrs_dict.get("height")),
+            ))
+
+    def handle_data(self, data: str) -> None:
+        if self.in_caption and self.figures:
+            self.figures[-1][1].append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "figcaption":
+            self.in_caption = False
+        elif tag == "figure" and self.figures:
+            indices, fragments = self.figures.pop()
+            caption = " ".join(" ".join(fragments).split())
+            for index in indices:
+                image = self.images[index]
+                self.images[index] = EntryImage(image.url, image.alt, caption, image.width, image.height)
+
+
+def _entry_images(entry, description: str, base: str, channel_images: set[str]) -> tuple[EntryImage, ...]:
+    parser = _Images()
+    parser.feed(description)
+    candidates = list(parser.images)
+    for media in entry.get("media_content", []):
+        if media.get("medium") == "image" or str(media.get("type", "")).lower().startswith("image/"):
+            candidates.append(EntryImage(
+                media.get("url", ""), width=_dimension(media.get("width")),
+                height=_dimension(media.get("height")), origin="media",
+            ))
+    for media in entry.get("media_thumbnail", []):
+        candidates.append(EntryImage(
+            media.get("url", ""), width=_dimension(media.get("width")),
+            height=_dimension(media.get("height")), origin="thumbnail",
+        ))
+    for media in entry.get("enclosures", []):
+        if str(media.get("type", "")).lower().startswith("image/"):
+            candidates.append(EntryImage(media.get("href") or media.get("url", ""), origin="enclosure"))
+    result: list[EntryImage] = []
+    seen: set[str] = set()
+    for image in candidates:
+        url = urljoin(base, image.url.strip())
+        try:
+            parts = urlsplit(url)
+        except ValueError:
+            continue
+        if (parts.scheme.lower() not in ("http", "https") or not parts.hostname
+                or "/avatar/" in parts.path.lower() or "/blavatar/" in parts.path.lower()
+                or (image.width is not None and image.height is not None
+                    and image.width <= 1 and image.height <= 1)
+                or url in channel_images):
+            continue
+        key = parts._replace(fragment="").geturl()
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(EntryImage(url, image.alt, image.caption, image.width, image.height, image.origin))
+        if len(result) == 8:
+            break
+    return tuple(result)
+
+
 def ordered_candidates(candidates: tuple[TranscriptCandidate, ...],
                        language: str = "") -> tuple[TranscriptCandidate, ...]:
     primary = language.split("-", 1)[0].lower()
@@ -166,6 +261,7 @@ class FeedEntry:
     comment_feed_url: str | None = None
     comment_count: int | None = None
     author: str | None = None
+    images: tuple[EntryImage, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -199,6 +295,12 @@ def parse_feed(response: FetchResponse) -> Feed:
     language = parsed.feed.get("language", "")
     raw_links = [entry.get("link", "") for entry in parsed.entries]
     shared_links = {link for link, count in Counter(raw_links).items() if link and count > 1}
+    channel_images = {
+        url for field in ("image", "icon", "logo")
+        if (value := parsed.feed.get(field))
+        for url in ([value] if isinstance(value, str) else
+                    [value.get("href") or value.get("url", "")] if isinstance(value, dict) else [])
+    }
     entries = []
     for entry in parsed.entries:
         stamp = entry.get("published_parsed") or entry.get("updated_parsed")
@@ -242,6 +344,7 @@ def parse_feed(response: FetchResponse) -> Feed:
             comment_feed_url=entry.get("wfw_commentrss") or None,
             comment_count=comment_count,
             author=entry.get("author") or None,
+            images=() if has_audio else _entry_images(entry, description, link, channel_images),
         ))
     site_url = parsed.feed.get("link") or f"{urlsplit(response.url).scheme}://{urlsplit(response.url).netloc}/"
     parts = urlsplit(response.url)

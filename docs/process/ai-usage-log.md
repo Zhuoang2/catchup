@@ -1315,3 +1315,55 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - **Final checks:** 525 backend tests, 206 frontend tests, the build, and strict validation all pass.
 - **Not checked:** a real model's summary quality and token cost with context. It needs the user's model.
 - **Log corrections by Claude.** Session `3fe020ef` was added to Droid's three entries. Claude also corrected a stale D4 sentence (`8401282`).
+
+## 2026-10-19 — `add-item-images` implementation (Factory Droid, GPT-6 Sol; session `46e2d019`)
+
+- Prompt (faithful excerpt): "Implement OpenSpec change add-item-images using the openspec-apply-change skill. Its prerequisite, add-linked-pages-and-author-replies (#48), is merged into main ... Work through ... tasks.md in order, completing each task test-first with the tdd skill: write the task's verification items as failing tests and watch them fail, then implement until they pass. Check off each task only after its verification passes. Do not edit proposal.md, design.md, or the spec deltas. Commit after each task group. Do not push, tag, or open a PR."
+- Outcome: Parsed and stored feed image candidates without fetching images; the summary call chose and stored images; saved digests retain them after source deletion; the reading layout shows them with lazy/no-referrer loading, hides failed images, and obeys a default-on privacy setting. Four implementation groups were committed after red-first tests and verification. Final results: 540 backend tests at 96% coverage, 216 frontend tests, frontend build, strict OpenSpec validation, and local Docker build passed. See `test-report-add-item-images.md`.
+- Problems / adjustment: The worktree needed `uv run` to create a backend environment and `npm ci` to install frontend dependencies. A snapshot test identified that the API had no `images` field even though the model choice was stored; added the snapshot copy and API serialization. Frontend startup tests exposed that rendering the digest before the preference resolves could request images despite the off setting; the page now waits for both requests. An error-event refinement exposed an empty image block after the last failed image, which now disappears. Final checks were rerun after the refinement. No live feed, provider, or browser layout check was performed.
+- Follow-up before handoff: An offline runner/API regression found that a failed resummary after context invalidation copied stale `summary_images` into an unavailable digest item. Ranked causes: snapshot copy without checking current result (confirmed), API fallback (rejected), cached-summary reuse (rejected). The snapshot now requires a successful summary. Reran final checks: 541 backend tests at 96%, 216 frontend tests, strict validation, Docker build.
+
+## 2026-10-19 — `add-item-images` fix round 1 (Factory Droid, GPT-6 Sol; session `46e2d019`)
+
+- Prompt (faithful excerpts): "Fix round 1 for OpenSpec change add-item-images ... Read the amended ... design.md ... tasks.md group 6. Using the openspec-apply-change skill, work through tasks 6.1-6.9 in order: test-first with the tdd skill (diagnosing-bugs for 6.1), with a named temporary mutation as the red step wherever the task asks for one ... Commit after each task." Follow-up: "Your report on 6.4 was right: feedparser's sanitizer removes data-src and srcset. The user chose to record it as a known limit instead ... Continue fix round 1 with tasks 6.5-6.9 in order ... In the 6.9 report, include the 6.4 stop and the user's decision."
+- Outcome: Reset figure margin, quoted and collapsed untrusted image descriptions, aligned model prompt examples/language, kept URL queries distinct during deduplication, and strengthened long-transcript, parser, runner, and stored-off frontend coverage. The README now gives image and provider privacy behavior together. New checks passed against real code and failed under every named temporary mutation. Final checks: 555 backend tests at 96% coverage, 219 frontend tests, frontend build, and strict validation passed. No real feeds, provider, image requests, or browser layout checks were performed.
+- Problem / adjustment: The first 6.4 collector change still failed four lazy-image cases because feedparser strips both attributes. Turning off sanitization also preserved scripts, so Droid reverted the unfinished edit and stopped. The user chose to drop 6.4 and record the limit; Claude Code amended the plan accordingly (`1c92dd1`). Implementation then resumed at 6.5. No push, tag, PR, or archive was performed.
+
+## 2026-10-19 — `add-item-images` fix round 2 (Factory Droid, GPT-6 Sol; session `46e2d019`)
+
+- Prompt (faithful excerpt): "Fix round 2 for OpenSpec change add-item-images: tests only, after a second review. Commit c710f48 adds tasks.md group 7 (7.1-7.7). The design is unchanged and no source change is expected. ... Each item is a test with a named temporary mutation as its red step: see the test pass, apply the mutation and see it fail, then revert it. If a new test fails against the current code, stop and report it as a bug, using diagnosing-bugs. ... Commit c710f48 also corrected one sentence in your fix-round-1 log entry (who amended the plan); keep that correction."
+- Outcome: Strengthened long-transcript prompt routing, split-combine image handling, no-image prompt bytes, Chinese alt/caption readability, fragment-first deduplication, and the eight-image cap fixture. Each of the six tests passed on the current code, failed under its named mutation, and passed after reversion. Full checks passed: 559 backend tests at 96% coverage, 219 frontend tests, frontend build, and strict OpenSpec validation. Details are in `test-report-add-item-images.md`.
+- Problems / adjustment: The review found the round-1 6.3 test would pass with the article prompt; 7.1 now checks transcript-specific instructions and the `Transcript:` user heading. No unmutated baseline test failed, and no product code changed. No live-source/provider, browser layout, or Docker check was run in this round.
+
+## 2026-10-19 — `add-item-images` (#49): review and two fix rounds (Claude Code, Opus 5.5, with spec-review subagents; Factory Droid session `46e2d019`)
+
+- **Prompts** (translated from Chinese): "No problem, commit the plan and then start Droid". When the first spec subagent stopped on a rate limit: "Retry". After the run-1 review: "As you recommend, one more fix round". When Droid stopped at 6.4, the user chose "Don't do it; record it as a known limit". After the fix-round-1 review: "As you recommend, one more small fix round". Finally, "As you recommend; approve auto-merge, and delete the remote branch after merging".
+- **Process, after each of the three Droid runs:**
+  - `/code-review`.
+  - A spec subagent with mutations in its own worktree: 68 mutations for run 1 (a fresh agent, after the first one stopped on a rate limit and could not be resumed), 57 for fix round 1 (a new agent), and 8 for fix round 2 (the same agent, resumed).
+  - Claude reran the checks.
+  - A live check on a local instance built from the branch, with a stub model that returns the image refs it was given, on the real Simon Willison and The Verge feeds.
+- **Run 1 live check.**
+  - The Verge items got one or two images each, after the summary, with lazy loading, async decoding, no referrer, and alt text.
+  - At most 320 px tall, and no overflow at 1440, 900, or 420 px.
+  - With the setting off, Home and a saved digest had no `img` and made no image request.
+  - Lazy images never load in the hidden in-app browser pane; a control lazy image failed the same way, so this is the environment, not the change.
+- **Run 1 findings.**
+  - **Confirmed live:** the browser's default figure margin indented every image by 40 px, so images did not line up with the summary, and two did not fit in one row.
+  - **From the code review:**
+    - the duplicate check ignored the query string, so `?id=1` and `?id=2` collapsed;
+    - the long-transcript example alt "Video thumbnail" invited choosing the thumbnail;
+    - `data-src` and `srcset` images were missed;
+    - feed alt text was quoted without escaping, so a line break could forge a candidate line.
+  - **From the spec subagent:** 14 surviving mutations (parser filters and order, the long-transcript prompt, the source-name fallback, a stored "off" in Settings, and rendering before the preference arrives), and a wrong red-first count. Claude confirmed the count by running the 4.1 tests against the code before 4.1: 4 failed, not 3.
+- **Fix round 1** (`9e3725e`, task group 6).
+  - The user agreed to exact-URL duplicates, `data-src` and `srcset`, and alt text in the summary's language. Before the amendment, Claude compared both duplicate rules on four saved real feeds: the candidates were identical.
+  - Droid stopped at 6.4 and reported that feedparser's sanitizer removes `data-src` and `srcset`. Claude confirmed it, and the user chose to record it as a known limit (`1c92dd1`).
+  - **Live re-test:** figures now start at the summary's edge (x = 732 at 1440 px), two images share a row at 900 px, images fill the column at 420 px, and the dark theme is fine.
+- **Fix round 2** (`c710f48`, task group 7, tests only). The spec subagent showed that the round-1 long-transcript test passed even with the article prompt. Claude reproduced that mutation before planning the round.
+- **The final review.** No high or medium findings. Every named mutation is killed. Remaining survivors: CSS overrides that a text check cannot see (the margin was checked live), and scheme normalization in the duplicate check. The final code review found only two log errors, corrected below.
+  - **Final checks:** 559 backend tests, 219 frontend tests, the build, and strict validation all pass.
+  - **Known limits** (design D1): the `/avatar/` path rule, channel images with another query string, website entries with audio, sizes with units, and `data-src`/`srcset`. Exact-URL duplicates may also keep two sizes of the same image; none of the four sampled feeds has such a pair.
+- **After the merge approval.** CI's `docker` job failed: `scripts/docker-smoke.sh` expected the old preferences dict, without `show_images`. The reviews had checked only `docker build`, never the smoke script. Claude reproduced the failure locally, added the key to both expected dicts, and reran the script: all 11 checks passed. Review checks for a change that adds a preference now need the Docker smoke script too.
+- **Not checked:** a real model's image choices and their token cost. It needs the user's model.
+- **Log corrections by Claude.** Session `46e2d019` was added to Droid's three entries. In the fix-round-1 entry, Claude corrected who amended the plan (`c710f48`). In the fix-round-2 entry, it named the model, and replaced a paraphrase quoted as the prompt with the prompt's actual text.

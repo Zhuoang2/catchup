@@ -79,9 +79,16 @@ go to Application (or Storage) → Service Workers, select CatchUp's origin,
 and choose **Unregister**. Reload the page afterwards. Unregister separately
 for `localhost` and `127.0.0.1` if you have used both.
 
-Collected content is sent to the
-configured model provider. Self-hosting does not keep that content local if
-you choose a cloud provider.
+## Privacy
+
+Collected content is sent to the configured model provider. Self-hosting
+does not keep that content local if you choose a cloud provider.
+
+Chosen digest images load directly from their source sites when a digest is
+shown, including the latest digest on the home page. This contacts those
+sites with your IP address but sends no referrer. In Settings → Digest,
+**Show images from source sites** is on by default; turn it off to prevent
+these image requests. If CatchUp cannot read that setting, images are shown.
 
 ## Run with Docker
 

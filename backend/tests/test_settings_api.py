@@ -194,13 +194,16 @@ def test_preference_save_and_read(api):
     client, _ = api
     assert client.get("/api/settings/preferences").json() == {
         "digest_language": "en", "youtube_captions": False, "youtube_skip_shorts": True,
+        "show_images": True,
     }
     for language in ("zh-Hans", "original", "Français"):
         assert client.put("/api/settings/preferences", json={"digest_language": language}).json() == {
             "digest_language": language, "youtube_captions": False, "youtube_skip_shorts": True,
+            "show_images": True,
         }
         assert client.get("/api/settings/preferences").json() == {
             "digest_language": language, "youtube_captions": False, "youtube_skip_shorts": True,
+            "show_images": True,
         }
 
 
@@ -208,13 +211,29 @@ def test_partial_preference_updates_keep_other_values(api):
     client, _ = api
     assert client.put("/api/settings/preferences", json={
         "youtube_captions": True, "youtube_skip_shorts": False,
-    }).json() == {"digest_language": "en", "youtube_captions": True, "youtube_skip_shorts": False}
+    }).json() == {"digest_language": "en", "youtube_captions": True, "youtube_skip_shorts": False,
+                  "show_images": True}
     assert client.put("/api/settings/preferences", json={"digest_language": "zh-Hans"}).json() == {
         "digest_language": "zh-Hans", "youtube_captions": True, "youtube_skip_shorts": False,
+        "show_images": True,
     }
     assert client.put("/api/settings/preferences", json={"youtube_skip_shorts": True}).json() == {
         "digest_language": "zh-Hans", "youtube_captions": True, "youtube_skip_shorts": True,
+        "show_images": True,
     }
+
+
+def test_image_preference_can_be_saved_without_changing_others(api):
+    client, _ = api
+    client.put("/api/settings/preferences", json={"digest_language": "zh-Hans", "youtube_captions": True})
+    saved = client.put("/api/settings/preferences", json={"show_images": False})
+    assert saved.status_code == 200
+    assert saved.json() == {
+        "digest_language": "zh-Hans", "youtube_captions": True,
+        "youtube_skip_shorts": True, "show_images": False,
+    }
+    assert client.get("/api/settings/preferences").json() == saved.json()
+    assert client.put("/api/settings/preferences", json={"show_images": True}).json()["show_images"] is True
 
 
 @pytest.mark.parametrize("language", ["", "   ", "x" * 41])

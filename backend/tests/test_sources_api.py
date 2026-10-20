@@ -104,6 +104,22 @@ def test_confirm_stores_pending_item_links_and_comment_metadata(client):
         assert saved.comment_feed_url == "https://site.example/articles/0/comments/feed"
 
 
+def test_confirm_stores_image_candidates_without_fetching_images(client):
+    raw = entries_xml(1).replace(
+        b"</item>", b"<description>&lt;img src='https://site.example/chart.png' alt='Chart'&gt;"
+        + b"Feed text " * 60 + b"</description></item>",
+    )
+    with respx.mock(assert_all_mocked=True) as router:
+        serve_feed(router, raw)
+        assert client.post("/api/sources", json={"feed_url": FEED_URL}).status_code == 201
+        assert [str(call.request.url) for call in router.calls] == [FEED_URL]
+    with client.app.state.session_factory() as session:
+        assert session.scalar(select(Item)).image_candidates == [{
+            "url": "https://site.example/chart.png", "alt": "Chart", "caption": "",
+            "width": None, "height": None, "origin": "html",
+        }]
+
+
 @pytest.mark.parametrize("path", ["direct", "declared", "probed"])
 def test_preview_confirm_uses_final_feed_url_once(client, path):
     target = "https://site.example/final.xml"

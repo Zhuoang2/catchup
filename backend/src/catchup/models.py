@@ -53,6 +53,7 @@ class AppSettings(Base):
     digest_language: Mapped[str] = mapped_column(String(40), default="en", server_default="en")
     youtube_captions: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     youtube_skip_shorts: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    show_images: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
 
 
@@ -96,6 +97,8 @@ class Item(Base):
     comment_count: Mapped[int | None] = mapped_column(Integer)
     entry_author: Mapped[str | None] = mapped_column(Text)
     context_status: Mapped[str | None] = mapped_column(String(16))
+    image_candidates: Mapped[list[dict] | None] = mapped_column(JSON)
+    summary_images: Mapped[list[dict] | None] = mapped_column(JSON)
     contexts: Mapped[list["ItemContext"]] = relationship(cascade="all, delete-orphan")
 
 
@@ -189,3 +192,4 @@ class DigestItem(Base):
     summary_unavailable: Mapped[bool] = mapped_column(Boolean, default=False)
     update_reason: Mapped[str | None] = mapped_column(String(16))
     context_links: Mapped[list[dict] | None] = mapped_column(JSON)
+    images: Mapped[list[dict] | None] = mapped_column(JSON)

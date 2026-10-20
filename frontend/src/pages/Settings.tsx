@@ -5,7 +5,8 @@ import { useDocumentTitle } from '../components/useDocumentTitle'
 import { Button, PageHead, Switch } from '../components/ui'
 
 type ModelSettings = { base_url: string; model_id: string; key_set: boolean; api_key_last4: string | null }
-type Preferences = { digest_language: string; youtube_captions: boolean; youtube_skip_shorts: boolean }
+type Preferences = { digest_language: string; youtube_captions: boolean; youtube_skip_shorts: boolean;
+  show_images: boolean }
 type TestResult = { ok: true; models: string[] }
 const languageOptions = ['en', 'zh-Hans', 'original']
 
@@ -44,6 +45,7 @@ export default function Settings() {
   const [otherLanguage, setOtherLanguage] = useState('')
   const [youtubeCaptions, setYoutubeCaptions] = useState(false)
   const [skipShorts, setSkipShorts] = useState(true)
+  const [showImages, setShowImages] = useState(true)
   const [error, setError] = useState('')
   const [errorField, setErrorField] = useState<'key' | 'base' | null>(null)
   const [message, setMessage] = useState('')
@@ -65,6 +67,7 @@ export default function Settings() {
       if (!languageOptions.includes(selected)) setOtherLanguage(selected)
       setYoutubeCaptions(preferences.youtube_captions)
       setSkipShorts(preferences.youtube_skip_shorts)
+      setShowImages(preferences.show_images !== false)
     }).catch((err: unknown) => { if (mounted) setError(errorMessage(err)) })
       .finally(() => { if (mounted) setLoading(false) })
     return () => { mounted = false }
@@ -105,6 +108,7 @@ export default function Settings() {
         body: JSON.stringify({
           digest_language: language === 'other' ? otherLanguage : language,
           youtube_captions: youtubeCaptions, youtube_skip_shorts: skipShorts,
+          show_images: showImages,
         }),
       })
       setLast4(saved.api_key_last4)
@@ -164,6 +168,11 @@ export default function Settings() {
         {language === 'other' && <div className="field"><label className="field-label" htmlFor="other">Other language</label>
           <input className="input" id="other" value={otherLanguage} maxLength={40}
             onChange={event => setOtherLanguage(event.target.value)} required/></div>}
+        <Switch label="Show images from source sites" checked={showImages}
+          onChange={event => setShowImages(event.target.checked)} describedBy="images-note"/>
+        <p className="field-hint" id="images-note">
+          Opening a digest loads its images from the sites that published them.
+        </p>
       </SettingsSection>
       <SettingsSection number={3} title="YouTube">
         <Switch label="Fetch captions locally" checked={youtubeCaptions}

@@ -127,6 +127,18 @@ def test_new_website_item_stores_links_and_comment_metadata(session, app):
     assert saved.comment_feed_url == "https://site.example/story/comments/feed"
 
 
+def test_new_item_stores_image_candidates_without_fetching_images(session, app):
+    raw = feed_bytes(item("post", text="<img src='https://cdn.example/chart.png' alt='Trend'> " + LONG_TEXT))
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(FEED_URL).mock(return_value=httpx.Response(200, content=raw))
+        run_check(session, app.state.settings)
+        assert [str(call.request.url) for call in router.calls] == [FEED_URL]
+    assert session.scalar(select(Item)).image_candidates == [{
+        "url": "https://cdn.example/chart.png", "alt": "Trend", "caption": "",
+        "width": None, "height": None, "origin": "html",
+    }]
+
+
 def test_late_entry_is_new_despite_older_publish_date(session, app):
     old_date = NOW - timedelta(days=90)
     source = session.scalar(select(Source))

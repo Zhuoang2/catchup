@@ -1,4 +1,5 @@
 import hashlib
+import html
 import re
 import socket
 from datetime import datetime, timezone
@@ -117,6 +118,159 @@ def test_entry_without_links_or_comments_has_empty_defaults():
     assert (entry.comments_url, entry.comment_feed_url, entry.comment_count, entry.author) == (
         None, None, None, None,
     )
+
+
+def image_feed(body: str, *, media: str = "", channel: str = "", enclosure: str = "",
+               url: str = "https://site.example/feed") -> bytes:
+    return (f"<rss version='2.0' xmlns:media='http://search.yahoo.com/mrss/' "
+            f"xmlns:itunes='http://www.itunes.com/dtds/podcast-1.0.dtd'><channel>"
+            f"<title>Pictures</title>{channel}<item><title>Post</title>"
+            f"<link>https://site.example/post</link><description>{html.escape(body)}</description>"
+            f"{media}{enclosure}</item></channel></rss>").encode()
+
+
+def test_entry_html_keeps_images_in_order_with_figure_caption():
+    raw = image_feed("<p><img src='/chart.png' alt='Growth chart'></p>"
+                     "<figure><img src='https://cdn.example/screen.png' alt='New interface'>"
+                     "<figcaption>Settings screen</figcaption></figure>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert [(i.url, i.alt, i.caption, i.origin) for i in entry.images] == [
+        ("https://site.example/chart.png", "Growth chart", "", "html"),
+        ("https://cdn.example/screen.png", "New interface", "Settings screen", "html"),
+    ]
+
+
+def test_wordpress_media_skips_avatars_and_channel_blavatar():
+    raw = image_feed("", channel="<image><url>https://site.example/blavatar/42</url></image>",
+                     media="<media:content url='https://gravatar.com/avatar/abc' medium='image'/>"
+                           "<media:content url='https://cdn.example/post.png' type='image/png'/>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert [(i.url, i.origin) for i in entry.images] == [("https://cdn.example/post.png", "media")]
+
+
+def test_youtube_thumbnail_is_candidate_and_podcast_cover_is_not():
+    video = image_feed("", media="<media:thumbnail url='https://img.example/thumb.jpg'/>")
+    entry = parse_feed(FetchResponse("https://www.youtube.com/feeds/videos.xml", video, "", 200)).entries[0]
+    assert [(i.url, i.origin) for i in entry.images] == [("https://img.example/thumb.jpg", "thumbnail")]
+    podcast = image_feed("", media="<itunes:image href='https://cdn.example/cover.png'/>",
+                         enclosure="<enclosure url='https://cdn.example/episode.mp3' type='audio/mpeg'/>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", podcast, "", 200)).entries[0]
+    assert entry.images == ()
+
+
+def test_image_filters_duplicates_pixels_and_caps_at_eight():
+    body = ("<img src='data:image/png;base64,aaa'>"
+            "<img src='/pixel.png' width='1' height='1'>"
+            "<img src='/one.png' alt='first'><img src='/one.png'>"
+            "<img src='/one.png?size=large'>"
+            + "".join(f"<img src='/picture-{n}.png'>" for n in range(12)))
+    entry = parse_feed(FetchResponse("https://site.example/feed", image_feed(body), "", 200)).entries[0]
+    assert [i.url for i in entry.images] == [
+        "https://site.example/one.png",
+        "https://site.example/one.png?size=large",
+        *[f"https://site.example/picture-{n}.png" for n in range(6)],
+    ]
+
+
+def test_image_query_identifies_distinct_images():
+    body = ("<img src='https://example.com/image.php?id=1'>"
+            "<img src='https://example.com/image.php?id=2'>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", image_feed(body), "", 200)).entries[0]
+    assert [image.url for image in entry.images] == [
+        "https://example.com/image.php?id=1",
+        "https://example.com/image.php?id=2",
+    ]
+
+
+def test_image_fragment_does_not_make_new_candidate():
+    body = ("<img src='https://example.com/image.php?id=1'>"
+            "<img src='https://example.com/image.php?id=1#view'>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", image_feed(body), "", 200)).entries[0]
+    assert [image.url for image in entry.images] == ["https://example.com/image.php?id=1"]
+
+
+def test_image_fragment_first_keeps_first_candidate_only():
+    body = ("<img src='https://example.com/a.png#x'>"
+            "<img src='https://example.com/a.png'>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", image_feed(body), "", 200)).entries[0]
+    assert [image.url for image in entry.images] == ["https://example.com/a.png#x"]
+
+
+def test_ftp_media_image_is_dropped():
+    raw = image_feed("", media="<media:content url='ftp://cdn.example/photo.jpg' type='image/jpeg'/>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert entry.images == ()
+
+
+def test_wordpress_entry_blavatar_is_dropped_even_without_channel_match():
+    raw = image_feed("", media="<media:content url='https://s0.wp.com/i/blavatar/writer.png' "
+                               "medium='image'/>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert entry.images == ()
+
+
+def test_html_image_matching_channel_image_is_dropped():
+    image = "https://site.example/site-banner.jpg"
+    raw = image_feed(f"<img src='{image}'>", channel=f"<image><url>{image}</url></image>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert entry.images == ()
+
+
+def test_audio_entry_ignores_html_and_media_images():
+    raw = image_feed("<img src='https://site.example/diagram.jpg'>",
+                     media="<media:content url='https://cdn.example/photo.jpg' medium='image'/>",
+                     enclosure="<enclosure url='https://cdn.example/episode.mp3' type='audio/mpeg'/>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert entry.has_audio is True
+    assert entry.images == ()
+
+
+def test_video_media_content_is_not_an_image():
+    raw = image_feed("", media="<media:content url='https://cdn.example/clip.mp4' "
+                               "medium='video' type='video/mp4'/>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert entry.images == ()
+
+
+def test_pdf_enclosure_is_not_an_image():
+    raw = image_feed("", enclosure="<enclosure url='https://cdn.example/report.pdf' "
+                                   "type='application/pdf'/>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert entry.images == ()
+
+
+def test_jpeg_enclosure_keeps_image_and_origin():
+    raw = image_feed("", enclosure="<enclosure url='https://cdn.example/photo.jpg' "
+                                   "type='image/jpeg'/>")
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert [(image.url, image.origin) for image in entry.images] == [
+        ("https://cdn.example/photo.jpg", "enclosure"),
+    ]
+
+
+def test_html_images_come_before_xml_media_regardless_of_element_order():
+    raw = ("<rss version='2.0' xmlns:media='http://search.yahoo.com/mrss/'><channel>"
+           "<title>Pictures</title><item><title>Post</title>"
+           "<link>https://site.example/post</link>"
+           "<media:content url='https://cdn.example/lead.png' medium='image'/>"
+           f"<description>{html.escape('<img src=\"https://site.example/diagram.png\">')}</description>"
+           "</item></channel></rss>").encode()
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert [(image.url, image.origin) for image in entry.images] == [
+        ("https://site.example/diagram.png", "html"),
+        ("https://cdn.example/lead.png", "media"),
+    ]
+
+
+def test_discovery_does_not_fetch_images(public_dns):
+    raw = image_feed("<img src='https://cdn.example/chart.png'>")
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://site.example/feed").mock(return_value=httpx.Response(
+            200, content=raw, headers={"content-type": "application/rss+xml"},
+        ))
+        found = discover("https://site.example/feed")
+        assert [str(call.request.url) for call in router.calls] == ["https://site.example/feed"]
+    assert found.feed.entries[0].images[0].url == "https://cdn.example/chart.png"
 
 
 def test_untitled_social_post_uses_plain_text_at_word_boundary():

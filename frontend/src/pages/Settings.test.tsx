@@ -28,6 +28,45 @@ afterEach(() => {
 })
 
 describe('model settings', () => {
+  it('defaults images on, describes the site contact, and limits the clickable area', async () => {
+    const { container } = render(<Settings />)
+    const images = await screen.findByRole('switch', { name: 'Show images from source sites' })
+    expect(images).toBeChecked()
+    expect(images).toHaveAccessibleDescription(
+      'Opening a digest loads its images from the sites that published them.',
+    )
+    const note = screen.getByText('Opening a digest loads its images from the sites that published them.')
+    expect(images.closest('label')).not.toContainElement(note)
+    fireEvent.click(note)
+    expect(images).toBeChecked()
+    fireEvent.click(images)
+    expect(images).not.toBeChecked()
+    await expectAccessible(container)
+  })
+
+  it('saves the image preference with the other digest preferences', async () => {
+    const original = fetchMock.getMockImplementation()!
+    let saved: Record<string, unknown> | undefined
+    fetchMock.mockImplementation(async (url: string, options?: RequestInit) => {
+      if (options?.method === 'PUT' && url === '/api/settings/model') return respond({
+        base_url: 'https://api.deepseek.com', model_id: 'saved-model',
+        key_set: true, api_key_last4: '1234',
+      })
+      if (options?.method === 'PUT' && url === '/api/settings/preferences') {
+        saved = JSON.parse(options.body as string) as Record<string, unknown>
+        return respond(saved)
+      }
+      return original(url)
+    })
+    const { container } = render(<Settings />)
+    const images = await screen.findByRole('switch', { name: 'Show images from source sites' })
+    fireEvent.click(images)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await screen.findByText('Settings saved.')
+    expect(saved).toMatchObject({ show_images: false, digest_language: 'en',
+      youtube_captions: false, youtube_skip_shorts: true })
+    await expectAccessible(container)
+  })
   it('shows opt-in captions and default Shorts settings with the risk notice', async () => {
     const { container } = render(<Settings />)
     const captions = await screen.findByLabelText('Fetch captions locally')

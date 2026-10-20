@@ -39,6 +39,31 @@ const digest = {
     reason: 'no_transcript',
   }] }],
 }
+
+it.each([['off', false], ['read fails', true]] as const)(
+  'respects image preference on Latest when %s', async (variant, shown) => {
+    const withImage = { ...digest, topics: [{ ...digest.topics[0], items: [{
+      ...digest.topics[0].items[0],
+      images: [{ url: 'https://cdn.example/chart.png', alt: 'Growth chart' }],
+    }] }] }
+    fetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/settings/model') return respond({ key_set: true })
+      if (path === '/api/settings/preferences') return variant === 'off'
+        ? respond({ show_images: false })
+        : respond({ error: { code: 'request_failed', message: 'Offline' } }, 503)
+      if (path === '/api/sources') return respond(sources)
+      if (path === '/api/digests/latest') return respond(withImage)
+      if (path === '/api/digest-runs/active') return respond(null)
+      throw Error(path)
+    })
+    const { container } = render(<MemoryRouter><Home/></MemoryRouter>)
+    await screen.findByRole('heading', { name: 'Technology' })
+    if (shown) expect(screen.getByRole('img', { name: 'Growth chart' })).toBeInTheDocument()
+    else expect(container.querySelector('img')).toBeNull()
+    expect(fetchMock).toHaveBeenCalledWith('/api/settings/preferences', undefined)
+    await expectAccessible(container)
+  },
+)
 it('shows the same digest reading markup on Home and the saved digest page', async () => {
   const edition = { ...digest, id: 7 }
   const home = mockPage({ latest: edition })

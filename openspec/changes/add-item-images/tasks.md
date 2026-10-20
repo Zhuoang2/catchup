@@ -84,7 +84,7 @@ Implementer notes:
 
 ## 4. Reading layout and Settings
 
-- [ ] 4.1 In `frontend/src/components/DigestArticle.tsx`, its type, and the CSS, render the images block after the summary and before "Also read" (D5).
+- [x] 4.1 In `frontend/src/components/DigestArticle.tsx`, its type, and the CSS, render the images block after the summary and before "Also read" (D5).
 
   Tests first, in `frontend/src/components/DigestArticle.test.tsx` and `frontend/src/pages/DigestView.test.tsx`:
   - each image has its `src` and `alt`, `loading="lazy"`, `decoding="async"`, and `referrerpolicy="no-referrer"`;
@@ -97,12 +97,12 @@ Implementer notes:
   Update `DigestView.test.tsx:47` (no `img`, now with images turned off, or with no images) and `:248-276` (item children). Extend the `tokens.test.ts` guards for the new class, and name each change in the report.
 
   Verify: `npm test -- --run` and `npm run build` pass.
-- [ ] 4.2 Read `show_images` with the other startup requests, in `frontend/src/pages/DigestView.tsx` and `frontend/src/pages/Home.tsx`. A failed read shows images.
+- [x] 4.2 Read `show_images` with the other startup requests, in `frontend/src/pages/DigestView.tsx` and `frontend/src/pages/Home.tsx`. A failed read shows images.
 
   Tests first: off → no `img`; the read fails → images are shown.
 
   Verify: the tests pass.
-- [ ] 4.3 In `frontend/src/pages/Settings.tsx`, add the toggle "Show images from source sites", with its note, to the Digest group (D6).
+- [x] 4.3 In `frontend/src/pages/Settings.tsx`, add the toggle "Show images from source sites", with its note, to the Digest group (D6).
 
   Tests first in `frontend/src/pages/Settings.test.tsx`:
   - the toggle is on by default;

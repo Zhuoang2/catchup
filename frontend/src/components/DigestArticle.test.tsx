@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { expect, it } from 'vitest'
 import { expectAccessible } from '../test/accessibility'
@@ -63,4 +63,49 @@ it('omits also-read for an explicitly empty snapshot list', () => {
   }] }] }
   render(<MemoryRouter><DigestArticle digest={empty}/></MemoryRouter>)
   expect(screen.queryByText(/Also read:/)).toBeNull()
+})
+
+it('renders chosen images in order between the summary and Also read, and hides a failed figure', async () => {
+  const withImages = { ...digest, topics: [{ ...digest.topics[0], items: [{
+    ...digest.topics[0].items[0],
+    images: [
+      { url: 'https://cdn.example/chart.png', alt: 'Growth chart' },
+      { url: 'https://cdn.example/shot.png', alt: 'Interface screenshot' },
+    ],
+    also_read: [{ title: 'Details', url: 'https://docs.example/', kind: 'link' }],
+  }] }] }
+  const { container } = render(<MemoryRouter><DigestArticle digest={withImages}/></MemoryRouter>)
+  const block = container.querySelector('.item-images')!
+  const imgs = Array.from(block.querySelectorAll('img'))
+  expect(imgs.map(img => img.getAttribute('src'))).toEqual([
+    'https://cdn.example/chart.png', 'https://cdn.example/shot.png',
+  ])
+  expect(imgs.map(img => img.alt)).toEqual(['Growth chart', 'Interface screenshot'])
+  for (const img of imgs) {
+    expect(img).toHaveAttribute('loading', 'lazy')
+    expect(img).toHaveAttribute('decoding', 'async')
+    expect(img).toHaveAttribute('referrerpolicy', 'no-referrer')
+    expect(img.closest('figure')).toBeInTheDocument()
+  }
+  expect(block.compareDocumentPosition(screen.getByText('Summary')) & Node.DOCUMENT_POSITION_PRECEDING)
+    .toBeTruthy()
+  expect(block.compareDocumentPosition(screen.getByText(/Also read:/)) & Node.DOCUMENT_POSITION_FOLLOWING)
+    .toBeTruthy()
+  await expectAccessible(container)
+  fireEvent.error(imgs[0])
+  expect(container.querySelectorAll('.item-images figure')).toHaveLength(1)
+  expect(screen.getByRole('img', { name: 'Interface screenshot' })).toBeInTheDocument()
+  await expectAccessible(container)
+})
+
+it('renders no image block for empty images and no image request markup when turned off', async () => {
+  const withImages = { ...digest, topics: [{ ...digest.topics[0], items: [{
+    ...digest.topics[0].items[0], images: [{ url: 'https://cdn.example/chart.png', alt: 'Chart' }],
+  }] }] }
+  const empty = render(<MemoryRouter><DigestArticle digest={digest}/></MemoryRouter>)
+  expect(empty.container.querySelector('.item-images')).toBeNull()
+  empty.unmount()
+  const off = render(<MemoryRouter><DigestArticle digest={withImages} showImages={false}/></MemoryRouter>)
+  expect(off.container.querySelector('img, .item-images')).toBeNull()
+  await expectAccessible(off.container)
 })

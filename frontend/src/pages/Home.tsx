@@ -126,6 +126,7 @@ export default function Home() {
   const [modelReady, setModelReady] = useState<boolean | null>(null)
   const [sources, setSources] = useState<Source[] | null>(null)
   const [digest, setDigest] = useState<Digest | null>(null)
+  const [showImages, setShowImages] = useState(true)
   const [loading, setLoading] = useState(true)
   const [latestLoadError, setLatestLoadError] = useState<string | null>(null)
   const [pageDetailsError, setPageDetailsError] = useState<string | null>(null)
@@ -147,12 +148,14 @@ export default function Home() {
       request<Source[]>('/sources'),
       request<Digest | null>('/digests/latest'),
       request<Run | null>('/digest-runs/active'),
-    ] as const).then(([settings, savedSources, history, current]) => {
+      request<{ show_images: boolean }>('/settings/preferences'),
+    ] as const).then(([settings, savedSources, history, current, preferences]) => {
       if (!mounted) return
       setModelReady(settings.status === 'fulfilled' ? settings.value.key_set : true)
       if (savedSources.status === 'fulfilled') setSources(savedSources.value)
       if (history.status === 'fulfilled') setDigest(history.value)
       if (current.status === 'fulfilled') setRun(current.value)
+      setShowImages(preferences.status === 'fulfilled' ? preferences.value.show_images !== false : true)
       if (history.status === 'rejected') setLatestLoadError((history.reason as Error).message)
       const detailsFailure = [settings, savedSources, current].find(result => result.status === 'rejected')
       if (detailsFailure?.status === 'rejected') setPageDetailsError((detailsFailure.reason as Error).message)
@@ -224,7 +227,7 @@ export default function Home() {
 
   return <>
   {loading ? <section className="page page-generate"><PageHead title="Loading…"/></section>
-    : digest ? <DigestArticle digest={digest} className="page-home" before={
+    : digest ? <DigestArticle digest={digest} showImages={showImages} className="page-home" before={
       <section className="run-bar" aria-label="Digest run">
         <div className="run-bar-actions">
           {firstRun ? <>

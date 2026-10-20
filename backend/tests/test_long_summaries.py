@@ -108,3 +108,15 @@ def test_split_item_sends_context_only_to_combine_and_counts_its_length():
     assert len(model.calls) == 4  # 5,000 text characters split into three 2,000-char parts.
     assert all("Context L1" not in call[0][1]["content"] for call in model.calls[:-1])
     assert "Context L1" in model.calls[-1][0][1]["content"]
+
+
+def test_split_item_sends_images_to_combine_only():
+    image = {"url": "https://cdn.example/diagram.png", "alt": "Pipeline",
+             "caption": "Stages", "origin": "html"}
+    model = CaptureModel()
+    results = []
+    summarize_items(model, [SummaryInput(1, "Post", "A" * 5000, None, None, images=[image])],
+                    "en", 2000, results.append)
+    assert len(model.calls) == 4
+    assert all("Images:" not in call[0][1]["content"] for call in model.calls[:-1])
+    assert "Images:" in model.calls[-1][0][1]["content"]

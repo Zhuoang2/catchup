@@ -21,6 +21,8 @@ class SummaryInput:
     summary_language: str | None
     content_origin: str = "feed"
     context: list[dict] = field(default_factory=list)
+    images: list[dict] = field(default_factory=list)
+    source_name: str = ""
 
 
 @dataclass(frozen=True)
@@ -30,6 +32,7 @@ class SummaryResult:
     unavailable: bool = False
     used: tuple[str, ...] = ()
     cached: bool = False
+    images: tuple[dict, ...] = ()
 
 
 def split_parts(text: str, max_chars: int) -> list[str]:
@@ -78,8 +81,9 @@ def _summarize(client: ModelClient, item: SummaryInput, language: str,
         long_transcript = item.content_origin == "transcript" and len(item.content_text) > long_item_chars
         text_budget = max(2_000, max_chars - sum(len(part["text"]) for part in item.context)) if item.context else max_chars
         if len(item.content_text) <= text_budget:
-            messages = (long_transcript_messages(item.title, item.content_text, language)
-                        if long_transcript else summary_messages(item.title, item.content_text, language, item.context))
+            messages = (long_transcript_messages(item.title, item.content_text, language, item.images)
+                        if long_transcript else summary_messages(
+                            item.title, item.content_text, language, item.context, item.images))
         else:
             parts = split_parts(item.content_text, text_budget)
             notes = []
@@ -93,7 +97,7 @@ def _summarize(client: ModelClient, item: SummaryInput, language: str,
                     raise ProviderError("The model provider returned no part summary.")
                 notes.append(note.strip())
             messages = combine_messages(item.title, "\n\n".join(notes), language,
-                                        long_transcript=long_transcript, context=item.context)
+                                        long_transcript=long_transcript, context=item.context, images=item.images)
         response = client.chat_json(messages, max_tokens=SUMMARY_MAX_TOKENS)
         summary = response.get("summary")
         if not isinstance(summary, str) or not summary.strip():
@@ -101,7 +105,26 @@ def _summarize(client: ModelClient, item: SummaryInput, language: str,
         valid = {part["ref"] for part in item.context}
         raw = response.get("used")
         used = tuple(dict.fromkeys(ref for ref in raw if isinstance(ref, str) and ref in valid)) if isinstance(raw, list) else ()
-        return SummaryResult(item.id, summary.strip(), used=used)
+        choices = []
+        seen = set()
+        candidates = {f"I{index}": image for index, image in enumerate(item.images[:8], 1)}
+        raw_images = response.get("images")
+        for choice in raw_images if isinstance(raw_images, list) else []:
+            if not isinstance(choice, dict):
+                continue
+            ref = choice.get("ref")
+            if not isinstance(ref, str) or ref not in candidates or ref in seen:
+                continue
+            image = candidates[ref]
+            alt = choice.get("alt")
+            alt = alt.strip() if isinstance(alt, str) else ""
+            choices.append({"url": image["url"],
+                            "alt": (alt or str(image.get("alt") or "").strip()
+                                    or f"Image from {item.source_name}")[:120]})
+            seen.add(ref)
+            if len(choices) == 3:
+                break
+        return SummaryResult(item.id, summary.strip(), used=used, images=tuple(choices))
     except (AuthFailed, InsufficientBalance):
         raise
     except (ModelError, ValueError):

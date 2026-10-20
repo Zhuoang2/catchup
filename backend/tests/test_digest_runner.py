@@ -157,6 +157,37 @@ def test_group_failure_preserves_pending_and_retry_uses_cached_summary(environme
     assert all_rows(environment, DigestItem)[0].summary == "Cached"
 
 
+def test_record_persists_image_choices_and_retry_keeps_them(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        session.scalar(select(Item)).image_candidates = [
+            {"url": "https://cdn.example/chart.png", "alt": "Chart", "caption": "",
+             "origin": "html"},
+        ]
+        session.commit()
+    first = FakeModel([
+        {"summary": "Explains the chart.", "images": [{"ref": "I1", "alt": "Rising trend"}]},
+        ProviderError("group failed"),
+    ])
+    environment.app.state.model_client_factory = lambda *_: first
+    assert execute(environment)["status"] == "failed"
+    with environment.app.state.session_factory() as session:
+        assert session.scalar(select(Item)).summary_images == [
+            {"url": "https://cdn.example/chart.png", "alt": "Rising trend"},
+        ]
+    retry = FakeModel([
+        {"topics": [{"title": "Topic", "overview": "Overview", "item_refs": ["i1"]}]},
+    ])
+    environment.app.state.model_client_factory = lambda *_: retry
+    assert execute(environment)["status"] == "succeeded"
+    assert len(retry.calls) == 1
+    with environment.app.state.session_factory() as session:
+        assert session.scalar(select(Item)).summary_images == [
+            {"url": "https://cdn.example/chart.png", "alt": "Rising trend"},
+        ]
+
+
 def test_record_marks_only_valid_context_refs_and_cache_preserves_flags(environment, monkeypatch):
     seed(environment)
     stub_collection(monkeypatch)

@@ -43,7 +43,7 @@ Implementer notes:
 
 ## 2. The summary chooses images
 
-- [ ] 2.1 Implement D2 in `backend/src/catchup/llm/prompts.py` and `backend/src/catchup/digest/summarize.py`:
+- [x] 2.1 Implement D2 in `backend/src/catchup/llm/prompts.py` and `backend/src/catchup/digest/summarize.py`:
   - `SummaryInput.images`, filled by the runner from `image_candidates`;
   - the `Images:` lines, with alt and caption cut to 200 characters;
   - the rules;
@@ -59,7 +59,7 @@ Implementer notes:
   - an empty model alt falls back to the feed alt, then to "Image from <source name>".
 
   Verify: the tests fail first, then pass.
-- [ ] 2.2 In `record()` (`digest/runner.py`), store `summary_images`, a list of `{url, alt}`, with the summary. A reused summary keeps them.
+- [x] 2.2 In `record()` (`digest/runner.py`), store `summary_images`, a list of `{url, alt}`, with the summary. A reused summary keeps them.
 
   Tests first in `test_digest_runner.py`.
 

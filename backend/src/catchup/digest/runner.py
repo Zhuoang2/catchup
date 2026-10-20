@@ -227,8 +227,8 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                                  {"ref": part.ref, "kind": part.kind, "title": part.title,
                                   "host": urlsplit(part.url).hostname or "", "text": part.text}
                                  for part in sorted(item.contexts, key=lambda row: row.position)
-                             ])
-                for item, _ in ready
+                             ], item.image_candidates or [], name)
+                for item, name in ready
             ]
             names = {item.id: name for item, name in ready}
             run = session.get(DigestRun, run_id)
@@ -280,6 +280,7 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                         item.summary = result.summary
                         item.summary_language = language
                         if not result.cached:
+                            item.summary_images = list(result.images)
                             for part in item.contexts:
                                 part.used = part.ref in result.used
                 run = session.get(DigestRun, run_id)

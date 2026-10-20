@@ -35,7 +35,7 @@ Implementer notes:
 
 ## 2. The icon test's timeout
 
-- [ ] 2.1 In `frontend/src/install.test.ts`, give "regenerates byte-identical icons in a temporary directory" an explicit timeout of `30_000` ms, as the third argument of `it`.
+- [x] 2.1 In `frontend/src/install.test.ts`, give "regenerates byte-identical icons in a temporary directory" an explicit timeout of `30_000` ms, as the third argument of `it`.
 
   Red check, before the change: start 6 full runs of `npx vitest run` in parallel from `frontend/`, and record how many of them fail this test with "Test timed out in 5000ms". Planning saw 18 of 18.
 

@@ -216,7 +216,7 @@ The re-review found one test that passes for the wrong reason (6.3) and five gap
 - [x] 7.5 **Duplicates in either order** (`backend/tests/test_discovery.py`, design D1). `https://example.com/a.png#x` first, then `https://example.com/a.png`, gives one candidate: the first, with its fragment.
 
   Mutation: `seen.add(url)` instead of `seen.add(key)` in `_entry_images`.
-- [ ] 7.6 **The cap test keeps a duplicate** (`backend/tests/test_discovery.py`). After 6.5, `test_image_filters_duplicates_pixels_and_caps_at_eight` no longer contains a duplicate, although its name says so. Add an exact repeat of `/one.png` to its fixture, so that the expected list is unchanged.
+- [x] 7.6 **The cap test keeps a duplicate** (`backend/tests/test_discovery.py`). After 6.5, `test_image_filters_duplicates_pixels_and_caps_at_eight` no longer contains a duplicate, although its name says so. Add an exact repeat of `/one.png` to its fixture, so that the expected list is unchanged.
 
   Mutation: remove the duplicate check.
 - [ ] 7.7 **Docs.**

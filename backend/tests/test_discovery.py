@@ -161,7 +161,8 @@ def test_youtube_thumbnail_is_candidate_and_podcast_cover_is_not():
 def test_image_filters_duplicates_pixels_and_caps_at_eight():
     body = ("<img src='data:image/png;base64,aaa'>"
             "<img src='/pixel.png' width='1' height='1'>"
-            "<img src='/one.png' alt='first'><img src='/one.png?size=large'>"
+            "<img src='/one.png' alt='first'><img src='/one.png'>"
+            "<img src='/one.png?size=large'>"
             + "".join(f"<img src='/picture-{n}.png'>" for n in range(12)))
     entry = parse_feed(FetchResponse("https://site.example/feed", image_feed(body), "", 200)).entries[0]
     assert [i.url for i in entry.images] == [

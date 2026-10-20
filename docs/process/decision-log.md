@@ -249,5 +249,5 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
 - **Consequences:**
   - Opening a digest contacts image hosts. This is documented in Settings and the README.
   - Digests can show up to 3 images per item, with no cap per digest yet.
-  - **Amended after review (2026-10-19).** Duplicates are exact URL matches, because some hosts tell images apart only by the query string. Lazy-loaded images are read from `data-src` and `srcset`. Feed alt text and captions are quoted in the prompt as data, and the model writes alt text in the language of the summary. Four limits of the filters are recorded, not changed (user: "As you recommend, one more fix round", translated).
+  - **Amended after review (2026-10-19).** Duplicates are exact URL matches, because some hosts tell images apart only by the query string. Feed alt text and captions are quoted in the prompt as data, and the model writes alt text in the language of the summary. Four limits of the filters are recorded, not changed (user: "As you recommend, one more fix round", translated). Images whose URL is only in `data-src` or `srcset` are not supported, because feedparser's sanitizer removes those attributes. The user chose to record this rather than parse each feed a second time.
 

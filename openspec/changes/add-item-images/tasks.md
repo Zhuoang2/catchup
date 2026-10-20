@@ -152,14 +152,7 @@ Read the amended `design.md`: D1, D2, D5, and D7, each marked "fix round 1". The
   - pass no images to the single call.
 
   Verify: each mutation fails a check and is reverted.
-- [ ] 6.4 **The image URL from `data-src` and `srcset`** (`backend/src/catchup/sources/feeds.py`, design D1). Tests first, in `backend/tests/test_discovery.py`:
-  - `<img src="data:image/gif;base64,…" data-src="https://example.com/a.png">` keeps `a.png`;
-  - `<img src="https://example.com/blank.gif" data-src="https://example.com/real.png">` keeps `real.png`;
-  - `<img srcset="https://example.com/s.png 300w, https://example.com/l.png 1024w">`, with no `src`, keeps `l.png`;
-  - `<img data-srcset="https://example.com/a.png, https://example.com/b.png 2x">` keeps `a.png`;
-  - a plain `<img src>` is unchanged.
-
-  Verify: the new cases fail before the fix.
+- [x] 6.4 **Dropped: the image URL from `data-src` and `srcset`.** Droid's run stopped here and reported that feedparser's sanitizer removes both attributes before the collector reads the HTML. The user chose to record this as a known limit instead (design D1). Nothing to implement; the report lists the limit under 6.9.
 - [ ] 6.5 **Duplicates by exact URL** (`feeds.py`, design D1). Tests first, in `backend/tests/test_discovery.py`:
   - `https://example.com/image.php?id=1` and `?id=2` are both kept;
   - the same URL twice, once with a `#fragment`, is kept once.

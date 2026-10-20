@@ -44,7 +44,6 @@ Full RePPIT change for issue #49. The research is in `research.md`, the motivati
 ### D1. Candidates at parse time
 - **The new field.** `FeedEntry.images: tuple[EntryImage, ...]`, where `EntryImage(url, alt, caption, width, height, origin)`. Website and YouTube entries fill it, in this order:
   1. `<img>` elements in the entry HTML, in body order. The alt comes from `alt`. The caption is the enclosing `<figure>`'s `<figcaption>` text.
-     - **The URL (fix round 1).** Use `data-src` when present, because lazy-loading markup keeps a placeholder in `src`. Otherwise use `src`, unless it is missing or a `data:` URL. Otherwise use `srcset`, or `data-srcset`: take the candidate with the largest `w` descriptor, or the first candidate when none has one.
   2. `media_content` with `medium="image"` or an image type.
   3. `media_thumbnail`.
   4. Enclosures with an `image/*` type.
@@ -60,6 +59,7 @@ Full RePPIT change for issue #49. The research is in `research.md`, the motivati
   - A channel image with a different query string, such as `?v=2`, is not matched.
   - A website feed's entry with an audio enclosure keeps no candidates.
   - Sizes with units, such as `width="1px"`, are not recognized as tracking pixels.
+  - Images whose URL is only in `data-src` or `srcset` are missed. feedparser's sanitizer removes both attributes before the collector reads the HTML. Reading them would need a second, unsanitized parse; the four sampled feeds have no such images (user's decision, 2026-10-19).
 - **Storage.** `check_source` and confirmation store them on new items as `Item.image_candidates` (JSON).
 
 ### D2. Choosing in the summary call

@@ -73,7 +73,7 @@ The review found two more gaps of the same kind, and one unneeded change. Keep t
 - [x] 4.3 **Undo the unneeded change** at `Home.test.tsx:406` (old numbering), "keeps the previous article and links to the new edition when detail loading fails". The title does not change in that test, so it goes back to the synchronous `expect(document.title).toBe('Latest · No. 4 · CatchUp')`.
 
   Verify: the test passes.
-- [ ] 4.4 **Checks and docs.**
+- [x] 4.4 **Checks and docs.**
   - **Stress check:** rerun 3 rounds of 6 parallel full `npx vitest run` from `frontend/`, and record the counts.
   - **`docs/process/test-report-fix-flaky-frontend-tests.md`:**
     - Add a "Fix round 1" section, with the red and green results of 4.1 and 4.2, and the stress counts.

@@ -238,7 +238,7 @@ Read the amended `design.md` (D2, D4, D5, D7, each marked "fix round 1") and the
   - an empty `also_read: []` renders no line (frontend; mutation: render the line for an empty list).
 
   Verify: each mutation fails its check and is reverted. `git diff` shows only the intended test files before 8.7.
-- [ ] 8.7 **Test hygiene.** In `backend/tests/test_long_summaries.py`, move the CJK split assertions (now lines 107–110) back into `test_overflowing_separators_and_sentence_preference`, where they came from, and keep the new context test separate.
+- [x] 8.7 **Test hygiene.** In `backend/tests/test_long_summaries.py`, move the CJK split assertions (now lines 107–110) back into `test_overflowing_separators_and_sentence_preference`, where they came from, and keep the new context test separate.
 
   Verify: both tests pass, and each asserts only its own subject.
 - [ ] 8.8 **Docs.**

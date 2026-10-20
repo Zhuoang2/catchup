@@ -92,6 +92,10 @@ def test_overflowing_separators_and_sentence_preference():
     parts = split_parts(text, 100)
     assert all(len(part) <= 100 for part in parts)
     assert "".join(parts) == text
+    text = "中" * 94 + "。" + "文" * 20
+    parts = split_parts(text, 100)
+    assert parts[0].endswith("。")
+    assert "".join(parts) == text
 
 
 def test_split_item_sends_context_only_to_combine_and_counts_its_length():
@@ -104,7 +108,3 @@ def test_split_item_sends_context_only_to_combine_and_counts_its_length():
     assert len(model.calls) == 4  # 5,000 text characters split into three 2,000-char parts.
     assert all("Context L1" not in call[0][1]["content"] for call in model.calls[:-1])
     assert "Context L1" in model.calls[-1][0][1]["content"]
-    text = "中" * 94 + "。" + "文" * 20
-    parts = split_parts(text, 100)
-    assert parts[0].endswith("。")
-    assert "".join(parts) == text

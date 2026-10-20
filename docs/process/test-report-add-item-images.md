@@ -116,3 +116,8 @@ The frontend build ran first so backend coverage includes built static assets.
 | `openspec validate add-item-images --strict` | Passed: change is valid. |
 
 Docker build/runtime, a live provider or source, and the manual browser/layout checks listed above were not run in this test-only round.
+
+## After review: the Docker smoke test
+
+CI's `docker` job failed on PR #56. `scripts/docker-smoke.sh` compares the preferences response with an exact dict, which had no `show_images` key. The image built in every round, but no round ran the smoke script. Claude reproduced the failure locally (`docker build -t catchup:smoke-49 .`, then `scripts/docker-smoke.sh catchup:smoke-49`: an `AssertionError` on the saved-preference check), and added `"show_images": True` to both expected dicts. The script then passed all 11 checks, including "preference survives restart".
+

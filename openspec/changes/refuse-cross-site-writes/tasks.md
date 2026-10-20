@@ -56,12 +56,12 @@ Implementer notes:
 
 ## 2. Checks and docs
 
-- [ ] 2.1 **The frontend and the image.**
+- [x] 2.1 **The frontend and the image.**
   - Run `npm run build` and `npm test -- --run` in `frontend/`. Nothing there changes, and everything still passes.
   - Build a local image with `docker build -t catchup:cross-site-local .`, and run `scripts/docker-smoke.sh catchup:cross-site-local`.
 
   Verify: everything passes. Record the commands and results.
-- [ ] 2.2 **Docs.**
+- [x] 2.2 **Docs.**
   - **`README.md`**, in the paragraph on local-only access (around `:129-136`):
     - CatchUp accepts requests that change data only from its own pages, and from tools that send no browser origin headers;
     - a page on another site, or on another local port, is refused;

@@ -43,7 +43,7 @@ The frontend build ran before backend coverage so the static-asset branches were
 | --- | --- | --- |
 | 6.1 figure margin | `npm test -- --run src/styles/tokens.test.ts`: 1 failed, figure rule had no `margin: 0`. Cause: the rule omitted a reset of the browser's default margin; override and selector mismatch did not explain it. | Same command: 13 passed. |
 | 6.2 prompt quoting | `uv run pytest tests/test_digest_stages.py -q -k 'image_prompt_quotes or image_prompts_request or no_context_system_prompt'`: 2 failed (forged extra lines and missing language rule), 1 passed (no-image prompt bytes). | `uv run pytest tests/test_digest_stages.py -q`: 20 passed. Feed alt/caption now collapse whitespace before the 200-character cut, then serialize as JSON strings; both examples use neutral alt text. |
-| 6.3 long transcript | New one-call check passed. Named temporary mutations **drop long prompt rules**, **omit its Images block**, and **pass no images to the single call** each failed the new check (1 failed, 9 deselected per run), then were reverted. | `uv run pytest tests/test_long_summaries.py -q`: 10 passed. |
+| 6.3 long transcript | New one-call check passed. Named temporary mutations **drop long prompt rules**, **omit its Images block**, and **pass no images to the single call** each failed the new check (1 failed, 9 deselected per run), then were reverted. The review found that this test also passed with the wrong (article) prompt, because it checked shared image rules rather than transcript-specific wording. Task 7.1 added those assertions and killed that mutation. | `uv run pytest tests/test_long_summaries.py -q`: 10 passed in round 1; task 7.1's strengthened suite: 10 passed. |
 | 6.4 lazy HTML sources, dropped | `uv run pytest tests/test_discovery.py -q -k html_image_prefers_lazy_source_then_largest_srcset_width`: 4 failed, 1 passed before the attempted collector change. After adding `data-src`/`srcset` support to the collector, the same four cases still failed: feedparser sanitizes both attributes before the collector sees entry HTML. A probe with `feedparser.parse(..., sanitize_html=False)` retained the attributes but also retained a script the default sanitizer removes. Droid stopped rather than change text sanitization or add a second unsanitized parse; unfinished edits were removed. | The user chose to record this as a known limit instead. Commit `1c92dd1` amended D1 and marked 6.4 dropped; no parser behavior change was made. |
 | 6.5 exact-URL duplicates | `uv run pytest tests/test_discovery.py -q -k test_image_query_identifies_distinct_images --tb=short`: 1 failed, `?id=2` omitted. After the fix the old cap test failed because it expected `?size=large` to be a duplicate; updated it to count as a separate image and to cap the remaining pictures at six. | `uv run pytest tests/test_discovery.py -q --tb=short`: 78 passed, including fragment deduplication. |
 | 6.6 parser mutation guards | Each new check passed first. Eight named temporary mutations failed their respective focused `uv run pytest tests/test_discovery.py -q -k <test> --tb=short` commands (1 failed each): **allow ftp** (`test_ftp_media_image_is_dropped`); **remove /blavatar/** (`test_wordpress_entry_blavatar_is_dropped_even_without_channel_match`); **remove channel-image check** (`test_html_image_matching_channel_image_is_dropped`); **remove audio exclusion** (`test_audio_entry_ignores_html_and_media_images`); **remove media type check** (`test_video_media_content_is_not_an_image`); **remove enclosure type check** (`test_pdf_enclosure_is_not_an_image`); **ignore enclosures** (`test_jpeg_enclosure_keeps_image_and_origin`); **put media first** (`test_html_images_come_before_xml_media_regardless_of_element_order`). Each mutation was reverted before the next. | `uv run pytest tests/test_discovery.py -q --tb=short`: 86 passed; `feeds.py` unchanged by the mutations. |
@@ -92,3 +92,27 @@ Docker build/runtime, a live provider or source, and the manual browser/layout c
 - An otherwise website-style entry with an audio enclosure has no image candidates.
 - Sizes with units, such as `width="1px"`, do not count as 1×1 tracking pixels.
 - Images whose URL exists only in `data-src` or `srcset` are missed because feedparser sanitizes those attributes.
+
+## Fix round 2 (tests only)
+
+Each test passed on the unmodified code, failed under its named temporary mutation (one focused failure per task), and passed again after the mutation was reverted. No source mutation was committed. Focused commands used `cd backend && uv run pytest tests/<file>.py -q -k <test_name> --tb=short`.
+
+| Task | Named temporary mutation | Red check after passing baseline | Green check after reversion |
+| --- | --- | --- | --- |
+| 7.1 | Route long transcripts with images through `summary_messages` | Single-call test: 1 failed, missing "3–6 key points" (9 deselected). | `test_long_summaries.py`: 10 passed. |
+| 7.2 | Omit images in `combine_messages`'s long-transcript branch | Split long-transcript test: 1 failed, missing image rules (10 deselected). | `test_long_summaries.py`: 11 passed. |
+| 7.3 | Always add `IMAGE_RULES` to the long-transcript prompt | No-image prompt byte comparison against `0614066`: 1 failed (20 deselected). | `test_digest_stages.py`: 21 passed. |
+| 7.4 | Set `ensure_ascii=True` in `_image_text` | Chinese alt/caption test: 1 failed, escaped text (21 deselected). | `test_digest_stages.py`: 22 passed. |
+| 7.5 | Record `url` instead of the fragment-free `key` in `seen` | Fragment-first duplicate test: 1 failed, second image retained (86 deselected). | `test_discovery.py`: 87 passed. |
+| 7.6 | Remove the `key in seen` duplicate check | Cap fixture with repeated `/one.png`: 1 failed, duplicate at index 1 (86 deselected). | `test_discovery.py`: 87 passed. |
+
+The frontend build ran first so backend coverage includes built static assets.
+
+| Command | Actual result |
+| --- | --- |
+| `cd frontend && npm run build` | Passed: TypeScript and Vite, 41 modules transformed. |
+| `cd backend && uv run pytest --cov=catchup --cov-report=term -q` | **559 passed**, **96%** statement coverage (2,375 statements, 85 missed, 2,290 covered). `sources/feeds.py` 97%, `digest/summarize.py` 95%, `llm/prompts.py` 100%. |
+| `cd frontend && npm test -- --run` | **219 passed**, 13 test files. |
+| `openspec validate add-item-images --strict` | Passed: change is valid. |
+
+Docker build/runtime, a live provider or source, and the manual browser/layout checks listed above were not run in this test-only round.

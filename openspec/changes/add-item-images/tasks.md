@@ -219,7 +219,7 @@ The re-review found one test that passes for the wrong reason (6.3) and five gap
 - [x] 7.6 **The cap test keeps a duplicate** (`backend/tests/test_discovery.py`). After 6.5, `test_image_filters_duplicates_pixels_and_caps_at_eight` no longer contains a duplicate, although its name says so. Add an exact repeat of `/one.png` to its fixture, so that the expected list is unchanged.
 
   Mutation: remove the duplicate check.
-- [ ] 7.7 **Docs.**
+- [x] 7.7 **Docs.**
   - In `docs/process/test-report-add-item-images.md`, add a "Fix round 2" section with the commands, the results, and the mutation table. In the 6.3 row, note that the review found the round-1 test passing with the wrong prompt, and that 7.1 fixed it.
   - Add this change's fix-round-2 line to `docs/process/coverage-summary.md`.
   - Run the full checks: `npm run build` first, backend coverage, `npm test -- --run`, and `openspec validate add-item-images --strict`.

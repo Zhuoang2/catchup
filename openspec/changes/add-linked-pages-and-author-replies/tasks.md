@@ -222,7 +222,7 @@ Read the amended `design.md` (D2, D4, D5, D7, each marked "fix round 1") and the
   - without context, the system prompt is byte for byte the version on `main`, compared against a stored copy in the test (mutations: add the rules without context; add the `used` example without context).
 
   Verify: the new with-context assertions fail before the fix, and the no-context check fails under its mutations.
-- [ ] 8.6 **Pin the remaining surviving mutations.** Each check gets a named mutation:
+- [x] 8.6 **Pin the remaining surviving mutations.** Each check gets a named mutation:
   - `links_per_item` is honored: with `CATCHUP_LINKS_PER_ITEM=2`, only 2 link routes are called (mutation: ignore the setting);
   - `CATCHUP_AUTHOR_REPLIES=0`: the post page route has `call_count == 0` (mutation: ignore the setting);
   - a robots.txt refusal: the refused route has `call_count == 0` (mutation: ignore the refusal);

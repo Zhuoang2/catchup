@@ -107,11 +107,14 @@ def test_repeated_entries_are_not_reinserted_or_changed(session, app):
 def test_new_website_item_stores_links_and_comment_metadata(session, app):
     body = feed_bytes(item("post", text="<a href='/details'>Details</a> " + LONG_TEXT))
     body = body.replace(
-        b"</item>", b"<slash:comments>2</slash:comments><dc:creator>Writer</dc:creator></item>",
+        b"</item>", b"<comments>https://site.example/story#comments</comments>"
+        b"<wfw:commentRss>https://site.example/story/comments/feed</wfw:commentRss>"
+        b"<slash:comments>2</slash:comments><dc:creator>Writer</dc:creator></item>",
     ).replace(
         b"<rss version='2.0'>",
         b"<rss version='2.0' xmlns:slash='http://purl.org/rss/1.0/modules/slash/' "
-        b"xmlns:dc='http://purl.org/dc/elements/1.1/'>",
+        b"xmlns:dc='http://purl.org/dc/elements/1.1/' "
+        b"xmlns:wfw='http://wellformedweb.org/CommentAPI/'>",
     )
     with respx.mock(assert_all_mocked=True) as router:
         router.get(FEED_URL).mock(return_value=httpx.Response(200, content=body))
@@ -120,6 +123,8 @@ def test_new_website_item_stores_links_and_comment_metadata(session, app):
     assert saved.entry_links == [{"url": "https://site.example/details", "text": "Details"}]
     assert saved.comment_count == 2
     assert saved.entry_author == "Writer"
+    assert saved.comments_url == "https://site.example/story#comments"
+    assert saved.comment_feed_url == "https://site.example/story/comments/feed"
 
 
 def test_late_entry_is_new_despite_older_publish_date(session, app):

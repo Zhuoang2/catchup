@@ -56,3 +56,11 @@ it('omits also-read when the snapshot has no used links', () => {
   render(<MemoryRouter><DigestArticle digest={digest}/></MemoryRouter>)
   expect(screen.queryByText(/Also read:/)).toBeNull()
 })
+
+it('omits also-read for an explicitly empty snapshot list', () => {
+  const empty = { ...digest, topics: [{ ...digest.topics[0], items: [{
+    ...digest.topics[0].items[0], also_read: [],
+  }] }] }
+  render(<MemoryRouter><DigestArticle digest={empty}/></MemoryRouter>)
+  expect(screen.queryByText(/Also read:/)).toBeNull()
+})

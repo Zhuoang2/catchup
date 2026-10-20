@@ -53,3 +53,19 @@ def test_robots_request_uses_shared_budget(public_dns):
         route = router.get("https://site.example/robots.txt").mock(return_value=httpx.Response(200, text=""))
         assert not RobotsCache(budget=[0]).allowed("https://site.example/post")
         assert route.call_count == 0
+
+
+def test_robots_request_limits_response_to_512_kib(monkeypatch):
+    captured = []
+
+    class Response:
+        content = b"User-agent: CatchUp\nAllow: /\n"
+
+    def fetch(url, **kwargs):
+        captured.append((url, kwargs))
+        return Response()
+
+    monkeypatch.setattr("catchup.context.robots.safe_fetch", fetch)
+    assert RobotsCache(budget=[2]).allowed("https://site.example/post")
+    assert captured[0][0] == "https://site.example/robots.txt"
+    assert captured[0][1]["max_bytes"] == 512 * 1024

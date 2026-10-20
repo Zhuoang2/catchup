@@ -186,6 +186,29 @@ def test_record_marks_only_valid_context_refs_and_cache_preserves_flags(environm
     ]
 
 
+def test_saved_also_read_keeps_context_position_order(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        item = session.scalar(select(Item))
+        item.context_status = "gathered"
+        session.add_all([
+            ItemContext(item_id=item.id, ref=ref, kind="link", url=f"https://docs.example/{ref}",
+                        title=ref, text=f"Text {ref}", position=position)
+            for position, ref in ((2, "L2"), (1, "L1"))
+        ])
+        session.commit()
+    model = FakeModel([
+        {"summary": "Uses both.", "used": ["L2", "L1"]},
+        {"topics": [{"title": "Topic", "overview": "Overview", "item_refs": ["i1"]}]},
+    ])
+    environment.app.state.model_client_factory = lambda *_: model
+    result = execute(environment)
+    assert result["status"] == "succeeded"
+    digest = environment.get(f"/api/digests/{result['digest_id']}").json()
+    assert [ref["title"] for ref in digest["topics"][0]["items"][0]["also_read"]] == ["L1", "L2"]
+
+
 def test_carried_over_item_sets_final_outcome_in_run_and_sources(environment, monkeypatch):
     seed(environment)
     stub_outcomes(monkeypatch, {"Source 0": "no_new_items"})
@@ -823,6 +846,47 @@ def test_runner_context_requests_share_host_spacer(environment, monkeypatch):
         result = execute(environment)
     assert result["status"] == "succeeded"
     assert [stamp for _, stamp in calls] == [10.0, 11.0, 12.0]
+    assert sleeps == [1.0, 1.0]
+
+
+def test_context_pass_uses_collection_spacer_for_same_host(environment, monkeypatch):
+    seed(environment)
+    with environment.app.state.session_factory() as session:
+        session.scalar(select(Item)).entry_links = [{"url": "https://docs.example/page", "text": "Page"}]
+        session.commit()
+    monkeypatch.setattr(socket, "getaddrinfo", lambda _host, port, **_kwargs: [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", port)),
+    ])
+    now = [10.0]
+    sleeps = []
+    starts = []
+
+    def advance(seconds):
+        sleeps.append(seconds)
+        now[0] += seconds
+
+    monkeypatch.setattr(
+        "catchup.digest.runner.HostSpacer",
+        lambda: HostSpacer(clock=lambda: now[0], sleep=advance),
+    )
+
+    def checked(session, source, run_id, _settings, *, spacer=None, transcripts=None):
+        spacer.wait("https://docs.example/feed")
+        session.add(SourceCheck(run_id=run_id, source_id=source.id, status="no_new_items",
+                                entries_seen=0, new_count=0))
+        session.commit()
+
+    monkeypatch.setattr("catchup.digest.runner.check_source", checked)
+
+    def reply(_request):
+        starts.append(now[0])
+        return httpx.Response(200, text="<html><article>Detailed context " * 40 + "</article></html>")
+
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://docs.example/robots.txt").mock(side_effect=reply)
+        router.get("https://docs.example/page").mock(side_effect=reply)
+        assert execute(environment)["status"] == "succeeded"
+    assert starts == [11.0, 12.0]
     assert sleeps == [1.0, 1.0]
 
 

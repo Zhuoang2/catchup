@@ -44,13 +44,16 @@ def test_runner_stores_three_links_in_order_and_ignores_tags(environment, monkey
         ("https://s0.example/tags/one", "Tag"), ("https://s0.example/tags/two", "Tag"),
     ])
     stub_collection(monkeypatch)
-    with respx.mock(assert_all_mocked=True) as router:
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
         router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        tag_one = router.get("https://s0.example/tags/one").mock(return_value=httpx.Response(200))
+        tag_two = router.get("https://s0.example/tags/two").mock(return_value=httpx.Response(200))
         for i in range(3):
             router.get(links[i][0]).mock(return_value=httpx.Response(
                 200, text=html(f"Page {i}", f"Context {i} " * 450),
             ))
         result = execute(environment)
+    assert tag_one.call_count == tag_two.call_count == 0
     assert result["status"] == "succeeded"
     assert (result["context_total"], result["context_done"]) == (3, 3)
     with environment.app.state.session_factory() as session:
@@ -94,6 +97,7 @@ def test_author_reply_context_and_disable_switch(environment, monkeypatch, publi
     with environment.app.state.session_factory() as session:
         rows = session.scalars(select(ItemContext)).all()
         assert [(row.ref, row.kind) for row in rows] == [("A1", "author_replies")]
+        assert rows[0].title == "Author replies (1)"
         assert "Reader asks why." in rows[0].text
 
     with environment.app.state.session_factory() as session:
@@ -104,22 +108,40 @@ def test_author_reply_context_and_disable_switch(environment, monkeypatch, publi
         session.query(ItemContext).delete()
         session.commit()
     environment.app.state.settings = replace(environment.app.state.settings, author_replies=False)
-    with respx.mock(assert_all_mocked=True) as router:
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        disabled_post = router.get(post).mock(return_value=httpx.Response(200, text=body))
         result = execute(environment)
-        assert not router.calls
+        assert disabled_post.call_count == 0
     assert result["status"] == "succeeded"
+
+
+def test_comments_disabled_never_requests_post_on_first_run(environment, monkeypatch, public_dns):
+    setup(environment, [], comments=2)
+    stub_collection(monkeypatch)
+    environment.app.state.settings = replace(environment.app.state.settings, author_replies=False)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://s0.example/robots.txt").mock(return_value=httpx.Response(404))
+        post = router.get("https://s0.example/0").mock(return_value=httpx.Response(
+            200, text="<div class='comment bypostauthor'><div class='comment-content'>Reply.</div></div>",
+        ))
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert post.call_count == 0
+    assert result["context_total"] == 0
 
 
 def test_robots_refusal_and_failed_pages_do_not_fail_run(environment, monkeypatch, public_dns):
     setup(environment, [(f"https://docs.example/{i}", str(i)) for i in range(3)])
     stub_collection(monkeypatch)
-    with respx.mock(assert_all_mocked=True) as router:
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
         router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(
             200, text="User-agent: CatchUp\nDisallow: /0\n",
         ))
+        refused = router.get("https://docs.example/0").mock(return_value=httpx.Response(200))
         router.get("https://docs.example/1").mock(return_value=httpx.Response(404))
         router.get("https://docs.example/2").mock(side_effect=httpx.ReadTimeout("timeout"))
         result = execute(environment)
+    assert refused.call_count == 0
     assert result["status"] == "succeeded"
     with environment.app.state.session_factory() as session:
         assert not session.scalars(select(ItemContext)).all()
@@ -188,6 +210,96 @@ def test_budget_spent_on_robots_keeps_item_eligible_for_next_run(environment, mo
         assert page.call_count == 0
     with environment.app.state.session_factory() as session:
         assert session.scalar(select(Item)).context_status is None
+
+
+def test_configured_two_link_limit_never_requests_third(environment, monkeypatch, public_dns):
+    setup(environment, [(f"https://docs.example/{i}", str(i)) for i in range(3)])
+    stub_collection(monkeypatch)
+    environment.app.state.settings = replace(environment.app.state.settings, links_per_item=2)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        first = router.get("https://docs.example/0").mock(return_value=httpx.Response(
+            200, text=html("First", "A page with substance " * 30),
+        ))
+        second = router.get("https://docs.example/1").mock(return_value=httpx.Response(
+            200, text=html("Second", "Another substantive page " * 30),
+        ))
+        third = router.get("https://docs.example/2").mock(return_value=httpx.Response(200))
+        result = execute(environment)
+    assert result["context_total"] == 2
+    assert (first.call_count, second.call_count, third.call_count) == (1, 1, 0)
+
+
+def test_comment_feed_fallback_counts_extra_fetch_and_saves_named_reply(
+    environment, monkeypatch, public_dns,
+):
+    setup(environment, [], comments=1)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        item = session.scalar(select(Item))
+        item.entry_author = "Writer"
+        item.comment_feed_url = "https://s0.example/comments/feed"
+        session.commit()
+    feed = (b"<rss version='2.0' xmlns:dc='http://purl.org/dc/elements/1.1/'>"
+            b"<channel><item><title>By: Writer</title><dc:creator>Writer</dc:creator>"
+            b"<description>Author clarifies the point.</description></item></channel></rss>")
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://s0.example/robots.txt").mock(return_value=httpx.Response(404))
+        post = router.get("https://s0.example/0").mock(return_value=httpx.Response(
+            200, text="<html><body><article>No comment markup here.</article></body></html>",
+        ))
+        comments = router.get("https://s0.example/comments/feed").mock(return_value=httpx.Response(
+            200, content=feed,
+        ))
+        result = execute(environment)
+    assert (post.call_count, comments.call_count) == (1, 1)
+    assert (result["context_total"], result["context_done"]) == (2, 2)
+    with environment.app.state.session_factory() as session:
+        row = session.scalar(select(ItemContext))
+        assert (row.ref, row.title, row.text) == (
+            "A1", "Author replies (1)", "Author clarifies the point.",
+        )
+
+
+def test_comment_plan_counts_one_post_fetch(environment, monkeypatch, public_dns):
+    setup(environment, [], comments=1)
+    stub_collection(monkeypatch)
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://s0.example/robots.txt").mock(return_value=httpx.Response(404))
+        post = router.get("https://s0.example/0").mock(return_value=httpx.Response(
+            200, text="<html><body>No comments found.</body></html>",
+        ))
+        result = execute(environment)
+    assert post.call_count == 1
+    assert (result["context_total"], result["context_done"]) == (1, 1)
+
+
+def test_link_without_title_uses_anchor_text(environment, monkeypatch, public_dns):
+    setup(environment, [("https://docs.example/notes", "Anchor title")])
+    stub_collection(monkeypatch)
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        router.get("https://docs.example/notes").mock(return_value=httpx.Response(
+            200, text="<html><body><article><p>" +
+            "Substantive document text. " * 40 + "</p></article></body></html>",
+        ))
+        assert execute(environment)["status"] == "succeeded"
+    with environment.app.state.session_factory() as session:
+        assert session.scalar(select(ItemContext)).title == "Anchor title"
+
+
+def test_podcast_text_post_gathers_link(environment, monkeypatch, public_dns):
+    setup(environment, [("https://docs.example/notes", "Notes")], kind="podcast")
+    stub_collection(monkeypatch)
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        page = router.get("https://docs.example/notes").mock(return_value=httpx.Response(
+            200, text=html("Notes", "Podcast text post context " * 35),
+        ))
+        result = execute(environment)
+    assert page.call_count == 1 and result["context_done"] == 1
+    with environment.app.state.session_factory() as session:
+        assert session.scalar(select(ItemContext)).ref == "L1"
 
 
 def test_link_redirecting_to_login_does_not_store_the_final_page(environment, monkeypatch, public_dns):

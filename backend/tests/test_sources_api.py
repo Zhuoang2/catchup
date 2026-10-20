@@ -82,12 +82,15 @@ def test_confirm_stores_pending_item_links_and_comment_metadata(client):
         b"</item>",
         b"<description>&lt;a href='/details'&gt;Details&lt;/a&gt; "
         + b"Feed text " * 60
-        + b"</description><slash:comments>2</slash:comments>"
+        + b"</description><comments>https://site.example/articles/0#comments</comments>"
+          b"<wfw:commentRss>https://site.example/articles/0/comments/feed</wfw:commentRss>"
+          b"<slash:comments>2</slash:comments>"
           b"<dc:creator>Writer</dc:creator></item>",
     ).replace(
         b"<rss version='2.0'>",
         b"<rss version='2.0' xmlns:slash='http://purl.org/rss/1.0/modules/slash/' "
-        b"xmlns:dc='http://purl.org/dc/elements/1.1/'>",
+        b"xmlns:dc='http://purl.org/dc/elements/1.1/' "
+        b"xmlns:wfw='http://wellformedweb.org/CommentAPI/'>",
     )
     with respx.mock(assert_all_mocked=True) as router:
         serve_feed(router, raw)
@@ -97,6 +100,8 @@ def test_confirm_stores_pending_item_links_and_comment_metadata(client):
         assert saved.entry_links == [{"url": "https://site.example/details", "text": "Details"}]
         assert saved.comment_count == 2
         assert saved.entry_author == "Writer"
+        assert saved.comments_url == "https://site.example/articles/0#comments"
+        assert saved.comment_feed_url == "https://site.example/articles/0/comments/feed"
 
 
 @pytest.mark.parametrize("path", ["direct", "declared", "probed"])

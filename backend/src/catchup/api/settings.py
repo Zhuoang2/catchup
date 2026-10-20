@@ -36,6 +36,7 @@ class PreferenceInput(BaseModel):
     digest_language: str | None = None
     youtube_captions: bool | None = None
     youtube_skip_shorts: bool | None = None
+    show_images: bool | None = None
 
 
 def get_model_client_factory() -> Callable[..., ModelClient]:
@@ -143,6 +144,7 @@ def read_preferences(session: Session = Depends(get_session)) -> dict:
         "digest_language": row.digest_language if row else "en",
         "youtube_captions": row.youtube_captions if row else False,
         "youtube_skip_shorts": row.youtube_skip_shorts if row else True,
+        "show_images": row.show_images if row else True,
     }
 
 
@@ -161,6 +163,8 @@ def save_preferences(data: PreferenceInput, session: Session = Depends(get_sessi
         row.youtube_captions = data.youtube_captions
     if data.youtube_skip_shorts is not None:
         row.youtube_skip_shorts = data.youtube_skip_shorts
+    if data.show_images is not None:
+        row.show_images = data.show_images
     row.updated_at = utc_now()
     session.commit()
     return read_preferences(session)

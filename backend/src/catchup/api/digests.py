@@ -72,6 +72,7 @@ def _serialize_digest(digest: Digest, session: Session) -> dict:
             "published_at": item.published_at, "summary": item.summary,
             "summary_unavailable": item.summary_unavailable,
             "also_read": item.context_links or [],
+            "images": item.images or [],
         })
     creator_groups: dict[tuple[str, str | None], list[dict]] = {}
     for topic in topics:

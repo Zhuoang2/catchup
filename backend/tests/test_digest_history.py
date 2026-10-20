@@ -289,12 +289,60 @@ def test_digest_detail_uses_snapshot_positions_and_survives_source_deletion(test
             "title": "Saved first", "link": "https://example.test/first",
             "source_name": "Saved source", "source_kind": None, "published_at": before["created_at"],
             "summary": "Saved summary", "summary_unavailable": False, "also_read": [],
+            "images": [],
         }
         assert before["topics"][0]["items"][1]["summary_unavailable"] is True
+        assert before["topics"][0]["items"][1]["images"] == []
         assert before["topics"][1]["items"][0]["link"] == "https://example.test/other"
         assert client.delete(f"/api/sources/{source_id}").status_code == 204
         assert client.get("/api/digests/1").json() == before
         assert client.get("/api/digests/999").json()["error"]["code"] == "not_found"
+
+
+def test_digest_snapshots_chosen_images_in_order_and_survives_source_deletion(test_settings, monkeypatch):
+    from dataclasses import replace
+    from sqlalchemy import select
+    from catchup.crypto import encrypt_key
+    from catchup.digest.runner import run_digest, start_run
+    from catchup.models import ModelConfig
+    from test_digest_runner import FakeModel, stub_collection
+
+    settings = replace(test_settings, secret_key="test-only-image-secret")
+    with TestClient(create_app(settings)) as client:
+        with client.app.state.session_factory() as session:
+            session.add(ModelConfig(id=1, base_url="https://model.example", model_id="test",
+                                    api_key_encrypted=encrypt_key("dummy", settings.secret_key),
+                                    api_key_last4="ummy"))
+            source = Source(title="Charts", site_url="https://site.example",
+                            feed_url="https://site.example/feed", input_url="https://site.example/feed")
+            session.add(source)
+            session.flush()
+            session.add(Item(source_id=source.id, identity_key="post", link="https://site.example/post",
+                             title="Post", content_text="A chart and a screenshot",
+                             content_origin="feed", state="pending", image_candidates=[
+                                 {"url": "https://cdn.example/chart.png", "alt": "Chart", "origin": "html"},
+                                 {"url": "https://cdn.example/screen.png", "alt": "Screen", "origin": "html"},
+                             ]))
+            source_id = source.id
+            session.commit()
+        stub_collection(monkeypatch)
+        client.app.state.model_client_factory = lambda *_: FakeModel([
+            {"summary": "A new tool.", "images": [
+                {"ref": "I2", "alt": "New interface"}, {"ref": "I1", "alt": "Rising values"},
+            ]},
+            {"topics": [{"title": "News", "overview": "Recent", "item_refs": ["i1"]}]},
+        ])
+        run = start_run(client.app, background=False)
+        run_digest(client.app, run.id)
+        assert client.get(f"/api/digest-runs/{run.id}").json()["status"] == "succeeded"
+        digest_id = client.get(f"/api/digest-runs/{run.id}").json()["digest_id"]
+        expected = [
+            {"url": "https://cdn.example/screen.png", "alt": "New interface"},
+            {"url": "https://cdn.example/chart.png", "alt": "Rising values"},
+        ]
+        assert client.get(f"/api/digests/{digest_id}").json()["topics"][0]["items"][0]["images"] == expected
+        assert client.delete(f"/api/sources/{source_id}").status_code == 204
+        assert client.get(f"/api/digests/{digest_id}").json()["topics"][0]["items"][0]["images"] == expected
 
 
 def test_snapshot_keeps_only_used_context_after_source_deletion(test_settings, monkeypatch):

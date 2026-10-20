@@ -67,7 +67,7 @@ Implementer notes:
 
 ## 3. Snapshot, API, and the setting
 
-- [ ] 3.1 The snapshot copies `summary_images` into `DigestItem.images`, and `api/digests.py` returns `images` for each summarized item (D4).
+- [x] 3.1 The snapshot copies `summary_images` into `DigestItem.images`, and `api/digests.py` returns `images` for each summarized item (D4).
 
   Tests first in `backend/tests/test_digest_history.py`:
   - a digest item returns its images in order;
@@ -76,7 +76,7 @@ Implementer notes:
   - update the exact item dict.
 
   Verify: the tests pass.
-- [ ] 3.2 Add `show_images` to `GET` and `PUT /api/settings/preferences` (`backend/src/catchup/api/settings.py`).
+- [x] 3.2 Add `show_images` to `GET` and `PUT /api/settings/preferences` (`backend/src/catchup/api/settings.py`).
 
   Tests first in `backend/tests/test_settings_api.py`: the default is true, it can be saved, and the other preferences stay unchanged.
 

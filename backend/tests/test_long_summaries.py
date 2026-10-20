@@ -57,6 +57,8 @@ def test_single_call_long_transcript_receives_image_rules_and_keeps_choice():
                     "en", 60_000, results.append)
     assert len(model.calls) == 1
     messages = model.calls[0][0]
+    assert "3–6 key points" in messages[0]["content"]
+    assert messages[1]["content"].startswith("Title: Talk\nTranscript:")
     assert "at most 3 images" in messages[0]["content"]
     assert "none when unsure" in messages[0]["content"]
     assert "Images:\nI1 — in the post, position 1;" in messages[1]["content"]

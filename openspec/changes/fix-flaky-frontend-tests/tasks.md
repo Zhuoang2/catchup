@@ -100,7 +100,7 @@ The re-review showed that a sentence in 4.2 was wrong, a plan error by Claude. A
   Red step: in "keeps the higher digest error when an older pending fetch also fails", add a temporary assertion right after the second `findByRole('progressbar')` that the new watcher has seen a 1000 ms interval. Run the test alone, and record whether it fails on the current code. If it passes, record that too: in normal runs the second interval was usually already registered at review. Then await the watcher before the assertion, and see it pass. Remove the temporary assertion.
 
   Verify: `npm test -- --run src/pages/Home.test.tsx` passes.
-- [ ] 5.2 **Checks and docs.**
+- [x] 5.2 **Checks and docs.**
   - **Stress check:** rerun 3 rounds of 6 parallel full `npx vitest run` from `frontend/`, and record the counts.
   - **`docs/process/test-report-fix-flaky-frontend-tests.md`:** add a "Fix round 2" section, with the red step's result, the four definitions, and the stress counts. In the fix-round-1 section, note that the "later advances" sentence was wrong, and that 5.1 corrected it.
   - **`docs/process/coverage-summary.md`:** add a fix-round-2 line.

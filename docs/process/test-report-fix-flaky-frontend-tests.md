@@ -69,7 +69,32 @@ The poll-registration helper runs before the first fake-clock advance in each of
 17. "starts one run and shows its saved article without requesting the list";
 18. "uses action-specific alerts when starting or checking a run fails".
 
+Correction after the second review: task 4.2's claim that later fake-clock advances never need another wait was wrong for a **new run started by Generate after the first run ended**. The second start request resolves outside `act`, and its interval is registered in a new passive effect. Task 5.1 adds a second wait for that case.
+
 Three rounds of six parallel full `npx vitest run` commands from `frontend/`:
+
+| Round | Passed | Failed |
+| --- | ---: | ---: |
+| 1 | 6 | 0 |
+| 2 | 6 | 0 |
+| 3 | 6 | 0 |
+| **Total** | **18** | **0** |
+
+Final commands: `cd frontend && npm run build` passed (41 modules transformed); `cd frontend && npm test -- --run` passed **221 tests in 14 files**; `openspec validate fix-flaky-frontend-tests --strict` passed. Backend tests and coverage were not rerun in this test-only fix round.
+
+## Fix round 2 (2026-10-20)
+
+**5.1, second-run poll interval:** In "keeps the higher digest error when an older pending fetch also fails", the temporary assertion immediately after the second `findByRole('progressbar')` that the new `window.setInterval` watcher had seen a 1000 ms interval **passed on the unchanged test** (1 passed, 79 skipped). This is what the plan allowed: in an isolated normal run the second interval was already registered. After awaiting the new watcher before that assertion, the isolated test again **passed** (1 passed, 79 skipped). The temporary assertion and spy exposure were removed. A fresh watcher now starts just before the Generate click and is awaited before advancing the fake clock in four test definitions (five cases):
+
+- "keeps a fetched edition when the next run ends no_new_content";
+- "keeps a fetched edition when the next run ends succeeded";
+- "hides an older digest fetch error after an overlapping run shows a newer edition";
+- "hides an older fetch error when the newer digest resolves in the same tick";
+- "keeps the higher digest error when an older pending fetch also fails".
+
+`npm test -- --run src/pages/Home.test.tsx`: **80 passed**.
+
+**5.2, three rounds of six parallel full `npx vitest run` commands from `frontend/`:**
 
 | Round | Passed | Failed |
 | --- | ---: | ---: |

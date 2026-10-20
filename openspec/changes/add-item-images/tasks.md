@@ -146,7 +146,7 @@ Read the amended `design.md`: D1, D2, D5, and D7, each marked "fix round 1". The
   - The existing check that prompts without images are byte for byte the version on `main` still passes.
 
   Verify: the new assertions fail before the fix.
-- [ ] 6.3 **Long transcripts in one call** (design D2). Tests first, in `backend/tests/test_long_summaries.py`: a long transcript summarized in one call, with one image candidate, sends a call whose user message has the `Images:` block, and whose system prompt has the image rules. The chosen image is stored. Named mutations:
+- [x] 6.3 **Long transcripts in one call** (design D2). Tests first, in `backend/tests/test_long_summaries.py`: a long transcript summarized in one call, with one image candidate, sends a call whose user message has the `Images:` block, and whose system prompt has the image rules. The chosen image is stored. Named mutations:
   - drop the rules from the long-transcript prompt;
   - omit the `Images:` block from its user message;
   - pass no images to the single call.

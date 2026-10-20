@@ -42,6 +42,28 @@ def test_large_context_window_uses_single_call_without_truncation():
     assert "3–6 key points" in model.calls[0][0][0]["content"]
 
 
+def test_single_call_long_transcript_receives_image_rules_and_keeps_choice():
+    class ChoiceModel(CaptureModel):
+        def chat_json(self, messages, max_tokens):
+            self.calls.append((messages, max_tokens))
+            return {"summary": "A pipeline is explained.", "images": [{"ref": "I1", "alt": "Pipeline"}]}
+
+    image = {"url": "https://cdn.example/diagram.png", "alt": "Diagram",
+             "caption": "Steps", "origin": "html"}
+    model = ChoiceModel()
+    results = []
+    summarize_items(model, [SummaryInput(1, "Talk", "x" * 20_001, None, None,
+                                         content_origin="transcript", images=[image])],
+                    "en", 60_000, results.append)
+    assert len(model.calls) == 1
+    messages = model.calls[0][0]
+    assert "at most 3 images" in messages[0]["content"]
+    assert "none when unsure" in messages[0]["content"]
+    assert "Images:\nI1 — in the post, position 1;" in messages[1]["content"]
+    assert 'alt "Diagram"; caption "Steps"' in messages[1]["content"]
+    assert results[0].images == ({"url": "https://cdn.example/diagram.png", "alt": "Pipeline"},)
+
+
 @pytest.mark.parametrize("budget,count", [(60_000, 170), (20_000, 51)])
 def test_split_into_three_parts_and_combine_without_dropping_text(budget, count):
     text = paragraphs(count)

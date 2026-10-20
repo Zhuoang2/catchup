@@ -182,7 +182,7 @@ it('titles a saved edition using its local short date', async () => {
   }))
   page('3')
   await screen.findByText(/Tokens: not reported/)
-  expect(document.title).toBe('No. 3 · 5 Oct 2026 · CatchUp')
+  await waitFor(() => expect(document.title).toBe('No. 3 · 5 Oct 2026 · CatchUp'))
 })
 
 it('uses saved source count when two distinct sources have the same title', async () => {

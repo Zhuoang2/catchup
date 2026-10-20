@@ -1,8 +1,9 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
-import { afterEach } from 'vitest'
+import { afterEach, beforeEach } from 'vitest'
 import 'vitest-axe/extend-expect'
 
+beforeEach(() => { document.title = '' })
 afterEach(cleanup)
 
 // axe probes canvas font rendering; jsdom does not implement a canvas context.

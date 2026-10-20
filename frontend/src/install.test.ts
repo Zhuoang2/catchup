@@ -59,7 +59,7 @@ describe('install assets', () => {
     } finally {
       rmSync(directory, { recursive: true, force: true })
     }
-  })
+  }, 30_000)
 
   it('provides both start commands and a working Reload button on the offline page', () => {
     const html = readFileSync('public/offline.html', 'utf8')

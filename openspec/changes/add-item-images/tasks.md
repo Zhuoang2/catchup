@@ -180,7 +180,7 @@ Read the amended `design.md`: D1, D2, D5, and D7, each marked "fix round 1". The
   - `frontend/src/pages/Home.test.tsx`: the same check for the latest digest (same mutation on Home).
 
   Verify: each mutation fails its check and is reverted, and axe passes on the new states.
-- [ ] 6.9 **Docs.**
+- [x] 6.9 **Docs.**
   - **`README.md`:** move the model-provider note and the image note into a `## Privacy` section after "Install as an app", worded as in design D7.
   - **`docs/process/test-report-add-item-images.md`:**
     - In the 4.1 row, correct the count: 4 tests failed (the `DigestArticle` image test, the two `DigestView` layout tests, and the `tokens.test.ts` guard). The two `DigestView` preference tests belong to 4.2.

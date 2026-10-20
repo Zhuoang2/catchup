@@ -77,6 +77,7 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
                 continue
             linked_length = 0
             position = 0
+            stored_urls = set()
             attempted = False
             exhausted = False
             for link in links:
@@ -95,6 +96,8 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
                     continue
                 if not related_links(item.link, site_url, [EntryLink(response.url, link.text)], 1):
                     continue
+                if response.url in stored_urls:
+                    continue
                 try:
                     text = extract(response.content, url=response.url)
                     if not text or not text.strip():
@@ -105,6 +108,7 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
                     content = text.strip()[:min(3000, 16_000 - linked_length)]
                     linked_length += len(content)
                     position += 1
+                    stored_urls.add(response.url)
                     session.add(ItemContext(
                         item_id=item.id, ref=f"L{position}", kind="link", url=response.url,
                         title=title, text=content, position=position,

@@ -319,6 +319,34 @@ def test_link_redirecting_to_login_does_not_store_the_final_page(environment, mo
         assert session.scalars(select(ItemContext)).all() == []
 
 
+def test_two_redirected_links_to_same_final_page_store_one_context(
+    environment, monkeypatch, public_dns,
+):
+    setup(environment, [("https://docs.example/one", "One"),
+                        ("https://docs.example/two", "Two")])
+    stub_collection(monkeypatch)
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        first = router.get("https://docs.example/one").mock(return_value=httpx.Response(
+            302, headers={"location": "/final"},
+        ))
+        second = router.get("https://docs.example/two").mock(return_value=httpx.Response(
+            302, headers={"location": "/final"},
+        ))
+        final = router.get("https://docs.example/final").mock(return_value=httpx.Response(
+            200, text=html("Final page", "Detailed context from a shared destination " * 35),
+        ))
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert (first.call_count, second.call_count, final.call_count) == (1, 1, 2)
+    assert (result["context_total"], result["context_done"]) == (2, 2)
+    with environment.app.state.session_factory() as session:
+        rows = session.scalars(select(ItemContext)).all()
+        assert [(row.ref, row.title, row.url) for row in rows] == [
+            ("L1", "Final page", "https://docs.example/final"),
+        ]
+
+
 def test_robots_exhaustion_marks_comment_item_none(environment, monkeypatch, public_dns):
     setup(environment, [], comments=1)
     stub_collection(monkeypatch)

@@ -272,7 +272,7 @@ Round 1's rollback on budget exhaustion (8.2) was a plan error by Claude. In a s
 - [x] 9.2 **Anchor lookup scope** (`context/comments.py`). Test first: a top-level author comment with a nested reply that links `#comment-9` gets no "In reply to" from that nested link. Then search anchors only in the reply's own markup, excluding nested comments.
 
   Verify: the test fails before the fix.
-- [ ] 9.3 **Dedupe by final URL** (`context/gather.py`). Test first: two links that redirect to the same final URL store one row. Then implement.
+- [x] 9.3 **Dedupe by final URL** (`context/gather.py`). Test first: two links that redirect to the same final URL store one row. Then implement.
 
   Verify: the test fails before the fix.
 - [ ] 9.4 **Pin the remaining survivors**, each with its named mutation:

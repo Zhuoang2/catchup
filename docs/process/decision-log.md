@@ -251,3 +251,17 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Digests can show up to 3 images per item, with no cap per digest yet.
   - **Amended after review (2026-10-19).** Duplicates are exact URL matches, because some hosts tell images apart only by the query string. Feed alt text and captions are quoted in the prompt as data, and the model writes alt text in the language of the summary. Four limits of the filters are recorded, not changed (user: "As you recommend, one more fix round", translated). Images whose URL is only in `data-src` or `srcset` are not supported, because feedparser's sanitizer removes those attributes. The user chose to record this rather than parse each feed a second time.
 
+## D-022 Refuse write requests that a browser sends from another origin — accepted (2026-10-20)
+
+- **Decision.** The server refuses a `POST`, `PUT`, `PATCH`, or `DELETE` when its `Origin` header does not match the request's `Host` (host and port), or is `null`, or when `Sec-Fetch-Site` is `cross-site` or `same-site`. It answers 403 `cross_site_request`, and does nothing. Requests with neither header (tools) and `GET` requests are unchanged. The FastAPI floor rises to 0.132, whose strict content-type check keeps JSON routes closed to simple requests. Planned as OpenSpec change `refuse-cross-site-writes` (issue #59), a lean change.
+- **Why.** During the research for the browser extension (#58), Claude found that a plain form on any web page could start a digest run, because `POST /api/digest-runs` takes no body and the server checked only `Host`. That spends the user's model tokens. The user chose to fix this first (user: "As you recommend, choose Proposal 1, fix the security issue first", translated).
+- **Alternatives:**
+  - A CSRF token. Rejected: CatchUp has no sessions or cookies, and every request would change.
+  - A required custom header. Rejected: every write in the frontend would change, and it would block the future extension's requests until CORS exists.
+  - CORS configuration. Rejected: it controls reading responses, not whether a simple request is sent.
+  - Requiring JSON on `POST /api/digest-runs` alone. Rejected: it fixes one route, and leaves future bodiless routes open.
+- **Consequences:**
+  - A page on another local port, such as `http://localhost:3000`, can no longer change CatchUp's data.
+  - A reverse proxy must pass the browser's `Host` header, which `CATCHUP_ALLOWED_HOSTS` already assumes.
+  - The browser extension (#58) will add an exception for requests with a valid extension token, at the same decision point.
+

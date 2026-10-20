@@ -1416,3 +1416,21 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - **Not changed:** runtime code. The only remaining note is theoretical: `Sources.test.tsx:266–267` check the DOM right after waiting on a fetch count, and a 30 ms delay still passed.
 - **Log correction by Claude:** session `c7e365e1` was added to Droid's three entries.
 
+## 2026-10-20 — `add-browser-extension` (#58): research and two proposals, overnight (Claude Code, Opus 5.5, with five subagents)
+
+- **Prompt** (translated from Chinese): "I'm going to sleep. I think tonight you can start on the extension part. What do you think?" Claude proposed research and two proposals only, docs only, with no code, no merges, and no release, and the user did not object.
+- **Process:**
+  - Four parallel research subagents: the API and the server's protections; the data model and the item pipeline; the specs and docs; and external facts on Chrome MV3, Firefox, Safari, and X.
+  - A fifth subagent fact-checked both documents. It found about 15 errors, all corrected. Five were design claims that would have failed with today's code, for example: captured items would never be summarized (`select_pending` summarizes null-status items only on feed sources); a built-in captures source would fail its check on every run; and X's `t.co` links are disallowed by robots.txt.
+  - Claude probed a throwaway instance. A cross-site form POST to `POST /api/digest-runs` reached `start_run`, while JSON, PUT, and DELETE routes were blocked.
+- **Outcome:** `research.md` and `design.md` (Proposal 1, click to capture; Proposal 2, a logged-in collector), with the X API as context for #41. The user chose Proposal 1, and asked to fix the cross-site hole first (#59).
+
+## 2026-10-20 — `refuse-cross-site-writes` (#59): lean plan (Claude Code, Opus 5.5)
+
+- **Prompts** (translated from Chinese): "As you recommend, choose Proposal 1, fix the security issue first." Then, approving the plan: "No problem, commit the plan and then start Droid".
+- **Plan** (the `openspec-propose` skill):
+  - A middleware after the host check refuses writes whose `Origin` does not match `Host`, or whose `Sec-Fetch-Site` is `cross-site` or `same-site`.
+  - The FastAPI floor rises to 0.132.
+  - An ADDED `model-settings` requirement, with five scenarios. D-022 records the alternatives.
+  - Tasks: a 16-case test matrix, with a configured model for the run case, named mutations for the accepted cases, and the Docker smoke script. The script is included because #49's review missed it.
+

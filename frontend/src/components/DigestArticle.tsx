@@ -35,11 +35,15 @@ function SourceTime({ value }: { value: string | null }) {
   return value && <><span aria-hidden="true">·</span><time dateTime={value}>{shortDateTime(value)}</time></>
 }
 
-function ItemImage({ url, alt }: { url: string; alt: string }) {
-  const [failed, setFailed] = useState(false)
-  if (failed) return null
-  return <figure><img src={url} alt={alt} loading="lazy" decoding="async"
-    referrerPolicy="no-referrer" onError={() => setFailed(true)}/></figure>
+function ItemImages({ images }: { images: { url: string; alt: string }[] }) {
+  const [failed, setFailed] = useState<Set<number>>(() => new Set())
+  if (failed.size === images.length) return null
+  return <div className="item-images">
+    {images.map((image, index) => failed.has(index) ? null : <figure key={`${image.url}-${index}`}>
+      <img src={image.url} alt={image.alt} loading="lazy" decoding="async"
+        referrerPolicy="no-referrer" onError={() => setFailed(previous => new Set(previous).add(index))}/>
+    </figure>)}
+  </div>
 }
 
 export function DigestArticle({ digest, className = '', before, headEnd, showImages = true }: {
@@ -84,10 +88,8 @@ export function DigestArticle({ digest, className = '', before, headEnd, showIma
                   ? <p className="summary-unavailable">Summary unavailable</p>
                   : item.summary && <div className="item-body">
                     <SummaryText text={item.summary} lang={lang}/>
-                    {showImages && !!item.images?.length && <div className="item-images">
-                      {item.images.map((image, index) =>
-                        <ItemImage key={`${image.url}-${index}`} url={image.url} alt={image.alt}/>)}
-                    </div>}
+                    {showImages && !!item.images?.length && <ItemImages
+                      key={`${digest.id}-${index}-${position}`} images={item.images}/>}
                     {!!item.also_read?.length && <p className="also-read">Also read: {' '}
                       {item.also_read.map((part, index) => <span key={`${part.url}-${index}`}>
                         {index > 0 && ' · '}

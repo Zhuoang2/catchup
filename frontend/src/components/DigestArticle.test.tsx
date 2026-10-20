@@ -95,6 +95,10 @@ it('renders chosen images in order between the summary and Also read, and hides 
   fireEvent.error(imgs[0])
   expect(container.querySelectorAll('.item-images figure')).toHaveLength(1)
   expect(screen.getByRole('img', { name: 'Interface screenshot' })).toBeInTheDocument()
+  fireEvent.error(imgs[1])
+  expect(container.querySelector('.item-images')).toBeNull()
+  expect(screen.getByText('Summary')).toBeInTheDocument()
+  expect(screen.getByText(/Also read:/)).toBeInTheDocument()
   await expectAccessible(container)
 })
 

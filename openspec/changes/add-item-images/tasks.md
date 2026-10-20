@@ -115,10 +115,10 @@ Implementer notes:
 
 ## 5. Docs and checks
 
-- [ ] 5.1 In `README.md`, add a privacy note: images are loaded from their source sites when a digest is opened, with no referrer, and can be turned off in Settings.
+- [x] 5.1 In `README.md`, add a privacy note: images are loaded from their source sites when a digest is opened, with no referrer, and can be turned off in Settings.
 
   Verify: the README states the setting's name and default.
-- [ ] 5.2 Run `npm run build` in `frontend/` first. Then run:
+- [x] 5.2 Run `npm run build` in `frontend/` first. Then run:
   - `uv run pytest --cov=catchup --cov-report=term` in `backend/`
   - `npm test -- --run` in `frontend/`
   - `openspec validate add-item-images --strict`

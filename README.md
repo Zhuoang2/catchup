@@ -83,6 +83,11 @@ Collected content is sent to the
 configured model provider. Self-hosting does not keep that content local if
 you choose a cloud provider.
 
+Chosen digest images are loaded directly from their source sites when you open
+a digest. This contacts those sites with your IP address, but sends no referrer.
+In Settings → Digest, **Show images from source sites** is on by default; turn
+it off to prevent these image requests.
+
 ## Run with Docker
 
 Install Docker with Compose **2.24 or newer**. No local Python, uv, or Node

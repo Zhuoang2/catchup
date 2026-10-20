@@ -1367,3 +1367,17 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - **After the merge approval.** CI's `docker` job failed: `scripts/docker-smoke.sh` expected the old preferences dict, without `show_images`. The reviews had checked only `docker build`, never the smoke script. Claude reproduced the failure locally, added the key to both expected dicts, and reran the script: all 11 checks passed. Review checks for a change that adds a preference now need the Docker smoke script too.
 - **Not checked:** a real model's image choices and their token cost. It needs the user's model.
 - **Log corrections by Claude.** Session `46e2d019` was added to Droid's three entries. In the fix-round-1 entry, Claude corrected who amended the plan (`c710f48`). In the fix-round-2 entry, it named the model, and replaced a paraphrase quoted as the prompt with the prompt's actual text.
+
+## 2026-10-20 — `fix-flaky-frontend-tests` (#52): lean plan (Claude Code, Opus 5.5)
+
+- **Prompts** (translated from Chinese). The user chose "Fix #52 first, then prepare the Alpha (recommended)", and approved the plan with "No problem, commit the plan and then start Droid".
+- **Diagnosis before the plan.**
+  - Ten assertions read `document.title` or `document.activeElement` synchronously, right after an async wait. Both are set in `useEffect`. A wait on the DOM can return before React runs the passive effect. This matches the CI failure on PR #51 (`Sources.test.tsx:268`, where focus was still on `<body>`), and the local `DigestView.test.tsx:185` failure.
+  - 40 stressed runs of those test files (8 in parallel, 5 rounds) all passed, so the timing flakes could not be reproduced on demand.
+  - The icon test runs `python3 scripts/make-icons.py`, which takes 0.42 s alone, under the default 5 s timeout. With 6 parallel full-suite runs, it timed out in 18 of 18 runs.
+- **Plan** (the `openspec-propose` skill, `skip_specs: true`, no design document):
+  - Wrap the ten assertions in `await waitFor(...)`. Ten others are already safe and are left alone, each with its reason in the proposal.
+  - Give the icon test a 30 s timeout.
+  - Each red step is a named temporary mutation that delays the effect by 50 ms, which makes the race certain. The icon fix is checked with the same 6-parallel load, and a final stress check runs 18 full suites.
+- **Left out on purpose:** moving the effects to `useLayoutEffect`. That would change runtime code for a test-timing problem.
+

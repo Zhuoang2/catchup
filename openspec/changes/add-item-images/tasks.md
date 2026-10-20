@@ -134,7 +134,7 @@ Implementer notes:
 
 Read the amended `design.md`: D1, D2, D5, and D7, each marked "fix round 1". The spec deltas are unchanged. Use `diagnosing-bugs` for the confirmed bug in 6.1, and `tdd` for the rest. Behavior changes get a failing test first. Checks of behavior that is already correct get a named temporary mutation as their red step: see the test pass, apply the mutation and see it fail, then revert it. Record every check and its red result in the report. Keep the test rules above: no image is ever fetched, and fixtures are invented.
 
-- [ ] 6.1 **Figure margin** (`frontend/src/styles/components.css`, design D5). Test first, in `frontend/src/styles/tokens.test.ts`: the `.item-images figure` rule sets `margin: 0`.
+- [x] 6.1 **Figure margin** (`frontend/src/styles/components.css`, design D5). Test first, in `frontend/src/styles/tokens.test.ts`: the `.item-images figure` rule sets `margin: 0`.
 
   Verify: the test fails before the fix.
 - [ ] 6.2 **Prompt quoting, example, and alt language** (`backend/src/catchup/llm/prompts.py`, design D2). Tests first, in `backend/tests/test_digest_stages.py`:

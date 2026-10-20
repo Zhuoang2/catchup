@@ -117,7 +117,7 @@
 .summary { display: grid; gap: .55rem; line-height: 1.75; }
 .item-body { display: grid; gap: .7rem; min-width: 0; align-content: start; }
 .item-images { display: flex; flex-wrap: wrap; gap: .7rem; min-width: 0; }
-.item-images figure { max-width: 100%; }
+.item-images figure { margin: 0; max-width: 100%; }
 .item-images img { display: block; max-height: 320px; max-width: 100%; object-fit: contain; border: 1px solid var(--border); }
 .also-read { color: var(--muted); font-size: .88em; line-height: 1.6; overflow-wrap: anywhere; }
 .points { display: grid; gap: .4rem; }

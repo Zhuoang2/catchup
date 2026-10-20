@@ -36,3 +36,9 @@ The frontend build ran before backend coverage so the static-asset branches were
 - A real run on Simon Willison and The Verge.
 - The reading layout at 1440, 900, and 420 px in both themes.
 - A live browser/network check of image loading or a real model's image choices.
+
+## Fix round 1 (in progress)
+
+| Task | Red check | Green check |
+| --- | --- | --- |
+| 6.1 figure margin | `npm test -- --run src/styles/tokens.test.ts`: 1 failed, figure rule had no `margin: 0`. Cause: the rule omitted a reset of the browser's default margin; override and selector mismatch did not explain it. | Same command: 13 passed. |

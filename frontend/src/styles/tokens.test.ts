@@ -292,10 +292,12 @@ it('does not size items by length or separate them with a vertical rule', () => 
 it('keeps image figures inside the summary cell, bounded and wrapping without grid rules', () => {
   const components = readFileSync('src/styles/components.css', 'utf8')
   const block = components.match(/\.item-images\s*\{([^}]+)\}/)?.[1]
+  const figure = components.match(/\.item-images figure\s*\{([^}]+)\}/)?.[1]
   const image = components.match(/\.item-images img\s*\{([^}]+)\}/)?.[1]
   expect(block).toMatch(/display:\s*flex/)
   expect(block).toMatch(/flex-wrap:\s*wrap/)
   expect(block).not.toMatch(/grid-column|grid-row/)
+  expect(figure).toMatch(/(?:^|;)\s*margin:\s*0\s*(?:;|$)/)
   expect(image).toMatch(/max-height:\s*320px/)
   expect(image).toMatch(/max-width:\s*100%/)
   expect(image).toMatch(/object-fit:\s*contain/)

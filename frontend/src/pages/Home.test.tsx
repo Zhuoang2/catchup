@@ -127,7 +127,7 @@ it('shows the latest article and one compact action above its headline without a
   expect(bar.querySelector('h1,h2,h3')).toBeNull()
   expect(container.querySelector('h1')).toBe(container.querySelector('.digest-head h1'))
   expect(container.querySelector('.rail')).toBeNull()
-  expect(document.title).toBe('Latest · No. 4 · CatchUp')
+  await waitFor(() => expect(document.title).toBe('Latest · No. 4 · CatchUp'))
   await expectAccessible(container)
 })
 
@@ -147,7 +147,7 @@ it.each([
 it('titles an empty home without an edition', async () => {
   const { container } = mockPage()
   await screen.findByRole('button', { name: 'Generate digest' })
-  expect(document.title).toBe('Latest · CatchUp')
+  await waitFor(() => expect(document.title).toBe('Latest · CatchUp'))
   await expectAccessible(container)
 })
 it('keeps the article beneath named run progress and source checks', async () => {
@@ -374,7 +374,7 @@ it.each([
   await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
   expect(await screen.findByRole('heading', { name: 'New edition' })).toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Technology' })).toBeNull()
-  expect(document.title).toBe('Latest · No. 9 · CatchUp')
+  await waitFor(() => expect(document.title).toBe('Latest · No. 9 · CatchUp'))
   expect(fetchMock).toHaveBeenCalledWith('/api/digests/9', undefined)
   expect(fetchMock.mock.calls.some(([path]) => path === '/api/digests')).toBe(false)
   expect(screen.getByRole('status')).toBe(status)
@@ -403,7 +403,7 @@ it('keeps the previous article and links to the new edition when detail loading 
   expect(await screen.findByText('Could not load the new digest')).toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'View digest' })).toHaveAttribute('href', '/digests/9')
   expect(screen.getByRole('heading', { name: 'Technology' })).toBeInTheDocument()
-  expect(document.title).toBe('Latest · No. 4 · CatchUp')
+  await waitFor(() => expect(document.title).toBe('Latest · No. 4 · CatchUp'))
 })
 
 it('keeps Generate available when the latest digest fails to load', async () => {
@@ -628,7 +628,7 @@ it.each([
   }
   expect(await screen.findByRole('heading', { name: shownId === 8 ? 'Fetched edition' : 'Newer edition' }))
     .toBeInTheDocument()
-  expect(document.title).toBe(`Latest · No. ${shownId} · CatchUp`)
+  await waitFor(() => expect(document.title).toBe(`Latest · No. ${shownId} · CatchUp`))
 })
 
 it('hides an older digest fetch error after an overlapping run shows a newer edition', async () => {
@@ -917,7 +917,7 @@ it('polls from summarizing to success with a persistent status region using fake
   expect(statusRegion).toHaveTextContent('Digest ready: 12 items')
   expect(await screen.findByRole('heading', { name: 'Technology' })).toBeInTheDocument()
   expect(screen.getByRole('status')).toBe(statusRegion)
-  expect(document.title).toBe('Latest · No. 8 · CatchUp')
+  await waitFor(() => expect(document.title).toBe('Latest · No. 8 · CatchUp'))
 })
 
 it('announces a polled run failure only through the persistent status region', async () => {
@@ -1051,7 +1051,7 @@ it('starts one run and shows its saved article without requesting the list', asy
   await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
   await screen.findByText('New from sources you follow, listed without a summary because no transcript or captions were available.')
   expect(screen.getByRole('heading', { name: 'Technology' })).toBeInTheDocument()
-  expect(document.title).toBe('Latest · No. 9 · CatchUp')
+  await waitFor(() => expect(document.title).toBe('Latest · No. 9 · CatchUp'))
   expect(screen.queryByRole('link', { name: 'View digest' })).toBeNull()
   expect(fetchMock.mock.calls.some(([path]) => path === '/api/digests')).toBe(false)
 })

@@ -16,7 +16,7 @@ Implementer notes:
 
 ## 1. Wait for effect-driven state
 
-- [ ] 1.1 **Titles** (`frontend/src/pages/DigestView.test.tsx:185`, and `frontend/src/pages/Home.test.tsx:130, 150, 377, 406, 631, 920, 1054`). Change each `expect(document.title).toBe(...)` to `await waitFor(() => expect(document.title).toBe(...))`. Import `waitFor` where it is missing.
+- [x] 1.1 **Titles** (`frontend/src/pages/DigestView.test.tsx:185`, and `frontend/src/pages/Home.test.tsx:130, 150, 377, 406, 631, 920, 1054`). Change each `expect(document.title).toBe(...)` to `await waitFor(() => expect(document.title).toBe(...))`. Import `waitFor` where it is missing.
 
   Mutation: in `frontend/src/components/useDocumentTitle.ts`, set the title inside `setTimeout(() => { … }, 50)`.
 

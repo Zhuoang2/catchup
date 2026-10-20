@@ -20,10 +20,10 @@ The system SHALL list saved digests from newest to oldest, showing for each its 
 The system SHALL let the user open a saved digest and see:
 - its edition number (the digest's sequence number), and its date and time
 - its topics and each topic's overview
-- for each summarized item: its summary, title, source name and source kind, publish date when known, and a link to the original
+- for each summarized item: its summary, title, source name and source kind, publish date when known, a link to the original, and the "Also read" links of the context its summary used
 - its Creator updates section when it has one, with each item's title, publish date when known, link, and reason, grouped by source with the source kind
 
-The content shown MUST be the content that was saved, and MUST NOT be regenerated. The digest MUST record the language its summaries were written in, and each item's source kind, at the time it was saved. Later changes to the digest language setting or to a source MUST NOT change how a saved digest is presented. Digests saved before these were recorded are shown without a language mark or source kind.
+The content shown MUST be the content that was saved, and MUST NOT be regenerated. The digest MUST record the language its summaries were written in, each item's source kind, and each item's "Also read" links, at the time it was saved. Later changes to the digest language setting or to a source MUST NOT change how a saved digest is presented. Digests saved before these were recorded are shown without a language mark, source kind, or "Also read" links.
 
 #### Scenario: Open an older digest
 - **WHEN** the user opens a digest from the history
@@ -40,6 +40,10 @@ The content shown MUST be the content that was saved, and MUST NOT be regenerate
 #### Scenario: Source deleted after saving
 - **WHEN** a podcast source is deleted after a digest containing its episodes was saved
 - **THEN** reopening the digest still shows those items as from a podcast
+
+#### Scenario: Also-read links kept
+- **WHEN** a saved digest's item used a linked changelog page, and that item's source is later deleted
+- **THEN** reopening the digest still shows the changelog under "Also read"
 
 ### Requirement: Persist across restarts
 Saved digests, sources, recorded items, and check outcomes SHALL survive an application restart.

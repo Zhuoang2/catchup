@@ -43,7 +43,7 @@ Implementer notes:
 
 ## 3. Checks and docs
 
-- [ ] 3.1 **Stress check.** Run 3 rounds of 6 parallel full `npx vitest run` from `frontend/`. Record the pass and fail counts per round. If any test fails, report its name and error, and stop before 3.2. Do not raise any other timeout to make it pass.
+- [x] 3.1 **Stress check.** Run 3 rounds of 6 parallel full `npx vitest run` from `frontend/`. Record the pass and fail counts per round. If any test fails, report its name and error, and stop before 3.2. Do not raise any other timeout to make it pass.
 
   Verify: all 18 runs pass.
 - [ ] 3.2 **Docs and final checks.**

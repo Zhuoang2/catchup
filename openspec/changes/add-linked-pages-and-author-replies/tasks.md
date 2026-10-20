@@ -251,3 +251,46 @@ Read the amended `design.md` (D2, D4, D5, D7, each marked "fix round 1") and the
   Run the full checks: `npm run build` first, backend coverage, `npm test -- --run`, and `openspec validate --strict`. Add a fix-round entry to `docs/process/ai-usage-log.md` after the latest entry, with a faithful excerpt of the prompt you actually received, and the tool and model. Leave out the session id.
 
   Verify: every command passes, and the report has the actual numbers.
+
+## 9. Fix round 2 (review findings)
+
+Round 1's rollback on budget exhaustion (8.2) was a plan error by Claude. In a successful run, the rolled-back item is summarized without context and never gathered again. Read the amended design D4 (the "Budget exhaustion inside an item" bullet, and "Nothing is cleared when no row was stored"), D5 step 3, and the "The result" bullet, along with the amended content-collection sentence. Use `diagnosing-bugs` for 9.1–9.3 and `tdd` for the rest. Pins get named temporary mutations: see the test pass, apply the mutation and see it fail, then revert it. Keep the round-1 test rule: assert `route.call_count == 0` for anything that must not be requested.
+
+- [ ] 9.1 **Keep partial context on exhaustion** (`context/gather.py`). Replace round 1's rollback.
+  - Detect exhaustion by `budget[0] <= 0`, not by the message text.
+  - When exhausted, keep the stored rows and set the status (`gathered`, or `none` when nothing was stored).
+  - Replace the 8.2 tests that expected a rollback.
+
+  Tests first:
+  1. Two items, budget 3: item 2's first page is stored, the run succeeds, and the digest shows item 2's "Also read".
+  2. An item with 1 link plus comments, at budget 2: L1 is kept, the status is `gathered`, and the comment page route has `call_count == 0`.
+  3. Exhaustion during the comment-feed fallback keeps the item's earlier rows.
+  4. A link-loop exhaustion after an earlier link was stored keeps that row.
+  5. The summary is cleared only when a row was stored: an item with a cached summary and nothing gathered keeps its summary. Mutation: clear it anyway.
+
+  Verify: 1–4 fail before the fix, and 5 fails under its mutation.
+- [ ] 9.2 **Anchor lookup scope** (`context/comments.py`). Test first: a top-level author comment with a nested reply that links `#comment-9` gets no "In reply to" from that nested link. Then search anchors only in the reply's own markup, excluding nested comments.
+
+  Verify: the test fails before the fix.
+- [ ] 9.3 **Dedupe by final URL** (`context/gather.py`). Test first: two links that redirect to the same final URL store one row. Then implement.
+
+  Verify: the test fails before the fix.
+- [ ] 9.4 **Pin the remaining survivors**, each with its named mutation:
+  - **Comments:**
+    - a step-3 `In reply to` link to another comment's id finds the parent (mutation: remove the anchor lookup);
+    - `ol.children` works (mutation: accept `ul` only);
+    - the `children` class is required (mutation: drop the class check);
+    - the sibling walk skips non-comment siblings (mutation: look only at the immediate previous sibling);
+    - names match case-insensitively (mutation: case-sensitive).
+  - **Links:** `m.youtube.com/watch` is dropped (mutation: do not strip `m.`).
+  - **The pass:** the first deleted-item guard is needed for an item with comments (mutation: remove guard 1).
+
+  Verify: each mutation fails its check and is reverted.
+- [ ] 9.5 **Docs.**
+  - In `docs/process/ai-usage-log.md`, the fix-round-1 Droid entry's heading says the model identifier is not exposed. The session is the same one as the earlier entries, so change it to "GPT-6 Sol".
+  - Add a "Fix round 2" section to the test report, with commands, results, and the mutation table, and note round 1's rollback and its replacement.
+  - Add this change's fix-round line to `docs/process/coverage-summary.md`.
+  - Run the full checks: `npm run build` first, backend coverage, `npm test -- --run`, and `openspec validate --strict`.
+  - Add a fix-round-2 entry to the AI usage log, with a faithful excerpt of the prompt you actually received, and the tool and model. Leave out the session id.
+
+  Verify: every command passes, and the report has the actual numbers.

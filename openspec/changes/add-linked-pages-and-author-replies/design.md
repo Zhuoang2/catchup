@@ -80,19 +80,23 @@ Full RePPIT change for issue #48. The research is in `research.md`, the motivati
 - **The plan.** Count the planned fetches (related links, plus one post page for items with `comment_count > 0`). Store the total on the run as `context_total`, and increment `context_done` as fetches finish.
 - **Fetching.** Each fetch goes through `safe_fetch(url, spacer=spacer, budget=budget)`, with one shared budget of `CATCHUP_CONTEXT_FETCHES_PER_RUN` (default 60) and the 5 MB limit. robots.txt is checked first.
 - **Linked pages.** The text comes from trafilatura's `extract`, cut to 3,000 characters. An item's linked context stops at 16,000 characters. The title is the page `<title>`, or else the anchor text.
-- **The result.** Each part is stored as an `ItemContext` row. The item becomes `gathered` when anything was stored, or `none` otherwise. Each item's rows are committed together, so a crash keeps what was done.
+- **The result.** Each part is stored as an `ItemContext` row. Two links whose final URLs are the same are stored once (fix round 2). The item becomes `gathered` when anything was stored, or `none` otherwise. Each item's rows are committed together, so a crash keeps what was done.
 - **Failures** (`FetchError`, robots.txt refusal, extraction errors, an empty extraction) are skipped. A limit reached mid-run leaves the remaining items at `null`, so a later run gathers them.
-- **Budget exhaustion inside an item** (fix round 1). This happens whenever a planned fetch, including the comment page, could not be made because the budget ran out: the sentinel or a limit error from `safe_fetch`. The item then keeps `context_status = null` and none of its rows for this run are stored, so the next run gathers it whole. Otherwise the item would be marked done without its replies.
+- **Budget exhaustion inside an item** (fix round 2, replacing round 1's rollback; the user agreed on 2026-10-19). This happens whenever a planned fetch, including the comment page, could not be made because the budget ran out: the sentinel, or `safe_fetch`'s limit error, detected by `budget[0] <= 0` and not by the message text.
+  - The item keeps the rows it already stored, and becomes `gathered`, or `none` when it stored nothing.
+  - This run's summary uses those rows.
+  - Round 1's rollback was wrong: the same successful run summarizes every pending item, so a rolled-back item was delivered without any context and never gathered again.
+  - Items the pass never reaches stay `null`. In a successful run they are summarized without context. They are gathered on a later run only if this run fails before delivering them.
 - **A deleted item.** An item whose source was deleted during the pass, so that `session.get` returns None, is skipped without failing the run.
 - **Progress** is committed after each fetch, not once per item.
-- **Cached summaries** (fix round 1, the user's decision on 2026-10-19). When the pass stores at least one context row for an item that already has a summary, it clears `summary` and `summary_language`. The item is then summarized again with its context. This follows the spec's "When an item has gathered context, the summary call SHALL receive it".
+- **Cached summaries** (fix round 1, the user's decision on 2026-10-19). When the pass stores at least one context row for an item that already has a summary, it clears `summary` and `summary_language`. Nothing is cleared when no row was stored. The item is then summarized again with its context. This follows the spec's "When an item has gathered context, the summary call SHALL receive it".
 
 ### D5. Author replies (`context/comments.py`)
 - **Primary path.** Fetch the post page (`item.link`). Parse `div.comment` or `li.comment` elements whose class contains `bypostauthor`. If there are none, match those whose `comment-author-<login>` or `.fn` text equals `entry_author`. Names are compared case-insensitively, with whitespace collapsed (fix round 1).
 - **Each reply** keeps its text from `.comment-content`, plus its parent comment's text, each cut to 600 characters. The parent is found in this order (fix round 1):
   1. the nearest ancestor comment;
   2. when the reply sits in a `ul.children` or `ol.children` list, the comment just before that list, as WordPress themes render threads (Terry Tao's real page does this);
-  3. an `In reply to` link to another comment's id. A link to the reply's own id is ignored.
+  3. an `In reply to` link to another comment's id. A link to the reply's own id is ignored. Only the reply's own markup is searched, not the replies nested inside it (fix round 2).
 - **The comment feed** (`comment_feed_url`) is the fallback when the page has no comment markup. It holds the newest 10 items, matched by `dc:creator`. Pingback items are skipped.
 - **Limits:** at most 10 replies and 4,000 characters, stored as one `author_replies` context row whose title is "Author replies (n)".
 

@@ -233,7 +233,7 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Runs fetch more and cost more tokens.
   - Only server-rendered, WordPress-style comments and comment feeds are read.
   - Existing items get no context.
-  - **Amended after review (2026-10-19).** When context arrives for an item that already has a summary, the summary is cleared and redone with the context (user: "As you recommend, one more fix round", translated). Link rules match whole path segments, and are applied to the final URL after redirects.
+  - **Amended after review (2026-10-19).** When context arrives for an item that already has a summary, the summary is cleared and redone with the context (user: "As you recommend, one more fix round", translated). Link rules match whole path segments, and are applied to the final URL after redirects. In a second round, an item that the per-run limit cuts off keeps the context it already gathered, because a successful run summarizes every pending item. The first round had rolled such items back (user: "As you recommend, one more fix round", translated).
 
 ## D-021 The summary call chooses up to three important images, shown from their source sites — accepted (2026-10-19)
 

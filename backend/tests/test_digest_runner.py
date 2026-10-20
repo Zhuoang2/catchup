@@ -188,6 +188,26 @@ def test_record_persists_image_choices_and_retry_keeps_them(environment, monkeyp
         ]
 
 
+def test_run_uses_source_title_for_empty_image_alt_fallback(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        session.scalar(select(Item)).image_candidates = [
+            {"url": "https://cdn.example/chart.png", "alt": "", "caption": "", "origin": "html"},
+        ]
+        session.commit()
+    environment.app.state.model_client_factory = lambda *_: FakeModel([
+        {"summary": "A chart describes the trend.", "images": [{"ref": "I1", "alt": ""}]},
+        {"topics": [{"title": "Charts", "overview": "Overview", "item_refs": ["i1"]}]},
+    ])
+    result = execute(environment)
+    assert result["status"] == "succeeded"
+    item = environment.get(f"/api/digests/{result['digest_id']}").json()["topics"][0]["items"][0]
+    assert item["images"] == [
+        {"url": "https://cdn.example/chart.png", "alt": "Image from Source 0"},
+    ]
+
+
 def test_record_marks_only_valid_context_refs_and_cache_preserves_flags(environment, monkeypatch):
     seed(environment)
     stub_collection(monkeypatch)

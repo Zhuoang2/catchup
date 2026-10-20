@@ -171,7 +171,7 @@ Read the amended `design.md`: D1, D2, D5, and D7, each marked "fix round 1". The
   - HTML images come before `media:content`, even when the `media:content` element comes first in the XML (mutation: put media candidates first).
 
   Verify: each mutation fails its check and is reverted.
-- [ ] 6.7 **The source name reaches the fallback alt** (`backend/tests/test_digest_runner.py`). Through a run, an image chosen with an empty model alt and no feed alt is shown in the digest with the alt "Image from <the source's name>". Mutation: the runner passes no source name.
+- [x] 6.7 **The source name reaches the fallback alt** (`backend/tests/test_digest_runner.py`). Through a run, an image chosen with an empty model alt and no feed alt is shown in the digest with the alt "Image from <the source's name>". Mutation: the runner passes no source name.
 
   Verify: the mutation fails the check and is reverted.
 - [ ] 6.8 **The preference on the frontend** (design D5). Tests first, each with its named mutation:

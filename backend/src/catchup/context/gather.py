@@ -48,12 +48,12 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
             return EXHAUSTED
         try:
             if not robots.allowed(url):
-                return None
+                return EXHAUSTED if budget[0] <= 0 else None
             if budget[0] <= 0:
                 return EXHAUSTED
             return safe_fetch(url, budget=budget, spacer=spacer)
         except FetchError as exc:
-            if exc.code == "fetch_failed" and str(exc) == "Feed probing request limit reached.":
+            if budget[0] <= 0:
                 return EXHAUSTED
             logger.info("Context fetch skipped (%s)", exc.code)
             return None
@@ -142,14 +142,11 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
                             ))
                     except Exception as exc:
                         logger.warning("Comment extraction skipped (%s)", type(exc).__name__)
-            if exhausted:
-                session.rollback()
-                continue
             with factory() as check_session:
                 if check_session.get(Item, item_id) is None:
                     session.rollback()
                     continue
-            if attempted:
+            if attempted or exhausted:
                 session.flush()
                 if item.contexts and item.summary is not None:
                     item.summary = None

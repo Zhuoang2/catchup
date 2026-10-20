@@ -256,7 +256,7 @@ Read the amended `design.md` (D2, D4, D5, D7, each marked "fix round 1") and the
 
 Round 1's rollback on budget exhaustion (8.2) was a plan error by Claude. In a successful run, the rolled-back item is summarized without context and never gathered again. Read the amended design D4 (the "Budget exhaustion inside an item" bullet, and "Nothing is cleared when no row was stored"), D5 step 3, and the "The result" bullet, along with the amended content-collection sentence. Use `diagnosing-bugs` for 9.1–9.3 and `tdd` for the rest. Pins get named temporary mutations: see the test pass, apply the mutation and see it fail, then revert it. Keep the round-1 test rule: assert `route.call_count == 0` for anything that must not be requested.
 
-- [ ] 9.1 **Keep partial context on exhaustion** (`context/gather.py`). Replace round 1's rollback.
+- [x] 9.1 **Keep partial context on exhaustion** (`context/gather.py`). Replace round 1's rollback.
   - Detect exhaustion by `budget[0] <= 0`, not by the message text.
   - When exhausted, keep the stored rows and set the status (`gathered`, or `none` when nothing was stored).
   - Replace the 8.2 tests that expected a rollback.

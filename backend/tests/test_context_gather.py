@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from catchup.models import DigestRun, Item, ItemContext, Source
 from catchup.net.host_spacing import HostSpacer
-from test_digest_runner import environment, execute, seed, stub_collection
+from test_digest_runner import FakeModel, environment, execute, seed, stub_collection
 
 
 @pytest.fixture
@@ -199,7 +199,7 @@ def test_audio_podcast_and_youtube_items_are_not_fetched(environment, monkeypatc
         assert not router.calls
 
 
-def test_budget_spent_on_robots_keeps_item_eligible_for_next_run(environment, monkeypatch, public_dns):
+def test_budget_spent_on_robots_marks_attempted_item_none(environment, monkeypatch, public_dns):
     setup(environment, [("https://docs.example/one", "One")])
     stub_collection(monkeypatch)
     environment.app.state.settings = replace(environment.app.state.settings, context_fetches_per_run=1)
@@ -209,7 +209,7 @@ def test_budget_spent_on_robots_keeps_item_eligible_for_next_run(environment, mo
         assert execute(environment)["status"] == "succeeded"
         assert page.call_count == 0
     with environment.app.state.session_factory() as session:
-        assert session.scalar(select(Item)).context_status is None
+        assert session.scalar(select(Item)).context_status == "none"
 
 
 def test_configured_two_link_limit_never_requests_third(environment, monkeypatch, public_dns):
@@ -319,7 +319,7 @@ def test_link_redirecting_to_login_does_not_store_the_final_page(environment, mo
         assert session.scalars(select(ItemContext)).all() == []
 
 
-def test_robots_exhaustion_does_not_mark_comment_item_done(environment, monkeypatch, public_dns):
+def test_robots_exhaustion_marks_comment_item_none(environment, monkeypatch, public_dns):
     setup(environment, [], comments=1)
     stub_collection(monkeypatch)
     environment.app.state.settings = replace(environment.app.state.settings, context_fetches_per_run=1)
@@ -332,11 +332,11 @@ def test_robots_exhaustion_does_not_mark_comment_item_done(environment, monkeypa
     assert result["status"] == "succeeded"
     assert robots.call_count == 1 and post.call_count == 0
     with environment.app.state.session_factory() as session:
-        assert session.scalar(select(Item)).context_status is None
+        assert session.scalar(select(Item)).context_status == "none"
         assert session.scalars(select(ItemContext)).all() == []
 
 
-def test_redirect_exhaustion_discards_partial_context_and_retries_whole_item(
+def test_redirect_exhaustion_marks_item_none_without_stored_context(
     environment, monkeypatch, public_dns,
 ):
     setup(environment, [("https://docs.example/redirect", "Redirect")])
@@ -354,11 +354,11 @@ def test_redirect_exhaustion_discards_partial_context_and_retries_whole_item(
     assert result["status"] == "succeeded"
     assert first.call_count == 1 and destination.call_count == 0
     with environment.app.state.session_factory() as session:
-        assert session.scalar(select(Item)).context_status is None
+        assert session.scalar(select(Item)).context_status == "none"
         assert session.scalars(select(ItemContext)).all() == []
 
 
-def test_budget_exhaustion_rolls_back_first_link_in_partial_item(
+def test_budget_exhaustion_keeps_first_link_in_partial_item(
     environment, monkeypatch, public_dns,
 ):
     setup(environment, [("https://docs.example/one", "One"), ("https://docs.example/two", "Two")])
@@ -375,8 +375,137 @@ def test_budget_exhaustion_rolls_back_first_link_in_partial_item(
         assert execute(environment)["status"] == "succeeded"
     assert first.call_count == 1 and second.call_count == 0
     with environment.app.state.session_factory() as session:
-        assert session.scalar(select(Item)).context_status is None
-        assert session.scalars(select(ItemContext)).all() == []
+        assert session.scalar(select(Item)).context_status == "gathered"
+        assert [(row.ref, row.title) for row in session.scalars(select(ItemContext)).all()] == [("L1", "One")]
+
+
+def test_second_item_keeps_partial_context_in_successful_digest(
+    environment, monkeypatch, public_dns,
+):
+    seed(environment, count=2)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        first, second = session.scalars(select(Item).order_by(Item.id)).all()
+        first.entry_links = [{"url": "https://docs.example/first", "text": "First"}]
+        second.entry_links = [
+            {"url": "https://docs.example/second", "text": "Second"},
+            {"url": "https://docs.example/never", "text": "Never"},
+        ]
+        session.commit()
+        second_id = second.id
+
+    class ContextModel(FakeModel):
+        def chat_json(self, messages, max_tokens):
+            self.calls.append((messages, max_tokens))
+            if '"summary"' in messages[0]["content"]:
+                return {"summary": "Linked summary", "used": ["L1"]}
+            return {"topics": [{"title": "Links", "overview": "Notes", "item_refs": ["i1", "i2"]}]}
+
+    model = ContextModel()
+    environment.app.state.model_client_factory = lambda *_: model
+    environment.app.state.settings = replace(environment.app.state.settings, context_fetches_per_run=3)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        router.get("https://docs.example/first").mock(return_value=httpx.Response(
+            200, text=html("First", "First detailed notes " * 40),
+        ))
+        second_page = router.get("https://docs.example/second").mock(return_value=httpx.Response(
+            200, text=html("Second", "Second detailed notes " * 40),
+        ))
+        never = router.get("https://docs.example/never").mock(return_value=httpx.Response(200))
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert second_page.call_count == 1 and never.call_count == 0
+    assert any("Title: Item 1" in call[0][1]["content"] and "Context L1" in call[0][1]["content"]
+               for call in model.calls if len(call[0]) > 1)
+    with environment.app.state.session_factory() as session:
+        item = session.get(Item, second_id)
+        assert item.context_status == "gathered"
+        assert [(part.ref, part.title) for part in item.contexts] == [("L1", "Second")]
+    digest = environment.get(f"/api/digests/{result['digest_id']}").json()
+    saved = {item["title"]: item for item in digest["topics"][0]["items"]}
+    assert saved["Item 1"]["also_read"] == [
+        {"title": "Second", "url": "https://docs.example/second", "kind": "link"},
+    ]
+
+
+def test_comment_budget_cutoff_keeps_link_without_requesting_post(
+    environment, monkeypatch, public_dns,
+):
+    setup(environment, [("https://docs.example/one", "One")], comments=1)
+    stub_collection(monkeypatch)
+    environment.app.state.settings = replace(environment.app.state.settings, context_fetches_per_run=2)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        router.get("https://docs.example/one").mock(return_value=httpx.Response(
+            200, text=html("One", "Useful linked text " * 40),
+        ))
+        post = router.get("https://s0.example/0").mock(return_value=httpx.Response(200))
+        result = execute(environment)
+    assert result["status"] == "succeeded" and post.call_count == 0
+    with environment.app.state.session_factory() as session:
+        item = session.scalar(select(Item))
+        assert item.context_status == "gathered"
+        assert [(part.ref, part.title) for part in item.contexts] == [("L1", "One")]
+
+
+def test_comment_feed_budget_cutoff_keeps_link(
+    environment, monkeypatch, public_dns,
+):
+    setup(environment, [("https://docs.example/one", "One")], comments=1)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        session.scalar(select(Item)).comment_feed_url = "https://s0.example/comments/feed"
+        session.commit()
+    environment.app.state.settings = replace(environment.app.state.settings, context_fetches_per_run=4)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        router.get("https://docs.example/one").mock(return_value=httpx.Response(
+            200, text=html("One", "Useful linked text " * 40),
+        ))
+        router.get("https://s0.example/robots.txt").mock(return_value=httpx.Response(404))
+        post = router.get("https://s0.example/0").mock(return_value=httpx.Response(
+            200, text="<html><body><p>No comment markup</p></body></html>",
+        ))
+        feed = router.get("https://s0.example/comments/feed").mock(return_value=httpx.Response(200))
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert post.call_count == 1 and feed.call_count == 0
+    assert (result["context_total"], result["context_done"]) == (3, 2)
+    with environment.app.state.session_factory() as session:
+        item = session.scalar(select(Item))
+        assert item.context_status == "gathered"
+        assert [(part.ref, part.title) for part in item.contexts] == [("L1", "One")]
+
+
+def test_exhaustion_without_a_row_keeps_cached_summary(
+    environment, monkeypatch, public_dns,
+):
+    setup(environment, [("https://docs.example/one", "One")])
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        item = session.scalar(select(Item))
+        item.summary = "Previously summarized"
+        item.summary_language = "en"
+        session.commit()
+    model = FakeModel([
+        {"topics": [{"title": "Topic", "overview": "Overview", "item_refs": ["i1"]}]},
+    ])
+    environment.app.state.model_client_factory = lambda *_: model
+    environment.app.state.settings = replace(environment.app.state.settings, context_fetches_per_run=1)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        page = router.get("https://docs.example/one").mock(return_value=httpx.Response(200))
+        result = execute(environment)
+    assert result["status"] == "succeeded" and page.call_count == 0
+    with environment.app.state.session_factory() as session:
+        item = session.scalar(select(Item))
+        assert item.context_status == "none"
+        assert (item.summary, item.summary_language) == ("Previously summarized", "en")
+        assert item.contexts == []
+    assert len(model.calls) == 1
+    digest = environment.get(f"/api/digests/{result['digest_id']}").json()
+    assert digest["topics"][0]["items"][0]["summary"] == "Previously summarized"
 
 
 def test_deleted_item_during_context_plan_does_not_fail_run(environment, monkeypatch):

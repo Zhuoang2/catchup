@@ -2,6 +2,7 @@
 
 import logging
 import re
+from dataclasses import asdict
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -140,6 +141,7 @@ def check_source(session: Session, source: Source, run_id: int, settings: Settin
             entry_links=[{"url": link.url, "text": link.text} for link in entry.links],
             comments_url=entry.comments_url, comment_feed_url=entry.comment_feed_url,
             comment_count=entry.comment_count, entry_author=entry.author,
+            image_candidates=[asdict(image) for image in entry.images],
         )
         session.add(item)
         if source.kind == "podcast" and entry.has_audio:

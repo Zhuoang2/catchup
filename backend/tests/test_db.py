@@ -44,6 +44,7 @@ def test_migrations_live_inside_package() -> None:
     assert (migrations / "versions" / "0002_transcripts.py").is_file()
     assert (migrations / "versions" / "0003_digest_snapshot.py").is_file()
     assert (migrations / "versions" / "0004_item_context.py").is_file()
+    assert (migrations / "versions" / "0005_item_images.py").is_file()
 
 
 def test_existing_database_at_old_revision_is_unchanged(tmp_path) -> None:
@@ -61,7 +62,7 @@ def test_existing_database_at_old_revision_is_unchanged(tmp_path) -> None:
             ).scalars().all()
         migrate(engine)
         with engine.connect() as connection:
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0004_item_context"
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0005_item_images"
             assert connection.execute(text("SELECT digest_language FROM app_settings WHERE id=1")).scalar_one() == "zh-Hans"
             assert connection.execute(
                 text("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -199,6 +200,50 @@ def test_context_migration_from_0003_preserves_rows_and_downgrades(tmp_path) -> 
         assert "context_status" not in {col["name"] for col in inspect(engine).get_columns("items")}
         assert "context_links" not in {col["name"] for col in inspect(engine).get_columns("digest_items")}
         assert "context_total" not in {col["name"] for col in inspect(engine).get_columns("digest_runs")}
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT title FROM items WHERE id=1")).scalar_one() == "Post"
+    finally:
+        engine.dispose()
+
+
+def test_image_migration_from_0004_preserves_rows_and_downgrades(tmp_path) -> None:
+    engine = make_engine(tmp_path)
+    config = Config()
+    config.set_main_option("script_location", str(Path(catchup.__file__).resolve().parent / "migrations"))
+    config.attributes["connection"] = engine
+    try:
+        command.upgrade(config, "0004_item_context")
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO app_settings (id, digest_language, updated_at) "
+                "VALUES (1, 'zh-Hans', '2026-10-04')"
+            ))
+            connection.execute(text(
+                "INSERT INTO sources (id, title, site_url, feed_url, input_url, created_at) "
+                "VALUES (1, 'News', 'https://site.example', 'https://site.example/feed', "
+                "'https://site.example/feed', '2026-10-04')"
+            ))
+            connection.execute(text(
+                "INSERT INTO items (id, source_id, identity_key, link, title, discovered_at, "
+                "content_text, content_origin, state) VALUES "
+                "(1, 1, 'one', 'https://site.example/one', 'Post', '2026-10-04', "
+                "'Text', 'feed', 'pending')"
+            ))
+        command.upgrade(config, "head")
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0005_item_images"
+            assert connection.execute(text(
+                "SELECT image_candidates, summary_images FROM items WHERE id=1"
+            )).one() == (None, None)
+            assert connection.execute(text(
+                "SELECT digest_language, show_images FROM app_settings WHERE id=1"
+            )).one() == ("zh-Hans", 1)
+            assert "images" in {col["name"] for col in inspect(engine).get_columns("digest_items")}
+        command.downgrade(config, "0004_item_context")
+        assert "image_candidates" not in {c["name"] for c in inspect(engine).get_columns("items")}
+        assert "summary_images" not in {c["name"] for c in inspect(engine).get_columns("items")}
+        assert "images" not in {c["name"] for c in inspect(engine).get_columns("digest_items")}
+        assert "show_images" not in {c["name"] for c in inspect(engine).get_columns("app_settings")}
         with engine.connect() as connection:
             assert connection.execute(text("SELECT title FROM items WHERE id=1")).scalar_one() == "Post"
     finally:

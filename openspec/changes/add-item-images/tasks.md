@@ -18,7 +18,7 @@ Implementer notes:
 
 ## 1. Image candidates
 
-- [ ] 1.1 In `backend/tests/test_discovery.py`, add failing parse tests (design D1):
+- [x] 1.1 In `backend/tests/test_discovery.py`, add failing parse tests (design D1):
   - **An entry whose HTML has 2 `<img>`, one inside a `<figure>` with a `<figcaption>`:** both are candidates in order, with alt and caption.
   - **A WordPress-style item:** its `media:content` holds a `gravatar.com/avatar/…` image and one post image, and the channel `<image>` is a blavatar. Only the post image is kept.
   - **A YouTube entry with `media:thumbnail`:** one candidate, with origin `thumbnail`.
@@ -27,10 +27,10 @@ Implementer notes:
   - **No image fetched:** the respx routes see no image request.
 
   Verify: the tests fail before 1.2.
-- [ ] 1.2 Implement D1 in `backend/src/catchup/sources/feeds.py`: the `EntryImage` dataclass and `FeedEntry.images`, filled by an HTML image collector for the same HTML that `plain_text` reads.
+- [x] 1.2 Implement D1 in `backend/src/catchup/sources/feeds.py`: the `EntryImage` dataclass and `FeedEntry.images`, filled by an HTML image collector for the same HTML that `plain_text` reads.
 
   Verify: the 1.1 tests and all existing parse tests pass.
-- [ ] 1.3 Add migration `backend/src/catchup/migrations/versions/0005_item_images.py` and the model columns (D3).
+- [x] 1.3 Add migration `backend/src/catchup/migrations/versions/0005_item_images.py` and the model columns (D3).
 
   Tests first:
   - `backend/tests/test_db.py`: the head is `0005_item_images`.

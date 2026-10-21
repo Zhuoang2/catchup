@@ -4,7 +4,7 @@
 
 See `proposal.md` for the problem. The facts that shape the design:
 - **The host check.** The `allowed_host` middleware (`backend/src/catchup/main.py:50-77`) checks the `Host` header's hostname against `CATCHUP_ALLOWED_HOSTS`. It accepts any port. It runs on every request, before any route.
-- **Same-origin calls.** The frontend calls `fetch('/api' + path)` on its own origin (`frontend/src/api/client.ts:14-15`). Browsers send `Origin` on same-origin `POST`, `PUT`, and `DELETE`, but not on `GET`. Modern browsers also send `Sec-Fetch-Site` on every request.
+- **Same-origin calls.** The frontend calls `fetch('/api' + path)` on its own origin (`frontend/src/api/client.ts:14-15`). Browsers send `Origin` on same-origin `POST`, `PUT`, and `DELETE`, but not on `GET`. Modern browsers also send `Sec-Fetch-Site`, on requests to potentially trustworthy URLs: https, and loopback addresses such as `127.0.0.1`. (Corrected at review; a plain-http domain gets only `Origin`.)
 - **The dev proxy.** The Vite dev server proxies `/api` without `changeOrigin` (`frontend/vite.config.ts:7-8`). The `Host` header therefore stays `localhost:5173`, the page's own origin.
 - **Domain deployments.** README tells them to add their domain to `CATCHUP_ALLOWED_HOSTS` (`README.md:59-63, 129-136`). This works only when the proxy passes the browser's `Host` header.
 - **Tools.** The tests (`TestClient`), the Docker smoke script, and `curl` send neither `Origin` nor `Sec-Fetch-Site`.

@@ -68,6 +68,8 @@ def test_foreign_form_cannot_start_run(client, monkeypatch, headers):
     {"Origin": "chrome-extension://abc"},  # 7: non-web origin
     {"Origin": "file://"},  # 7: non-web origin
     {"Origin": "http://127.0.0.1:8000"},  # 8: different local host
+    {"Origin": "http://localhost:99999"},  # invalid port: refused, not a server error
+    {"Origin": "http://localhost"},  # default port 80 is not the Host's port 8000
 ])
 def test_foreign_origin_cannot_change_preferences(client, headers):
     before = client.get(PREFERENCES, headers=HOST).json()
@@ -153,8 +155,17 @@ def test_cross_site_read_is_unaffected(client):
 
 
 def test_disallowed_host_wins_over_cross_site_origin(client):
+    # The Origin must not match the Host, so that only the host check's order decides the answer.
     response = client.put(PREFERENCES, json={"digest_language": "fr"}, headers={
-        "Host": "evil.example", "Origin": "https://evil.example",
+        "Host": "evil.example", "Origin": "https://other.example",
     })
     assert response.status_code == 400
     assert response.json() == {"error": {"code": "invalid_host", "message": "Host is not allowed."}}
+
+
+@pytest.mark.parametrize("method", ["POST", "PUT", "PATCH", "DELETE"])
+def test_own_origin_writes_reach_routing_for_every_method(client, method):
+    response = client.request(method, "/api/no-such-route", headers={
+        **HOST, "Origin": "http://localhost:8000", "Sec-Fetch-Site": "same-origin",
+    })
+    assert response.status_code == 404

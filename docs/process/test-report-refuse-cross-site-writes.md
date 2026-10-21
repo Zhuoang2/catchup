@@ -61,3 +61,25 @@ Checks 14, 15, and host-check ordering had no named mutation in the task plan; t
 | `openspec validate refuse-cross-site-writes --strict` | Passed. |
 
 No live browser-origin or production proxy check was performed; those are review-time checks in the design. No external feed or model provider was contacted in tests.
+
+## Review additions (Claude Code, 2026-10-21)
+
+Following D-023, these were added in Claude's review commit, with no second Droid run. Each check was proved with a named temporary mutation of `main.py`, reverted afterwards (`main.py` was compared with a backup).
+
+| Check | Temporary mutation | Result under the mutation |
+| --- | --- | --- |
+| The host-order test now sends `Origin: https://other.example` with `Host: evil.example`, so the Origin does not match the Host | Swap the two middlewares | 1 failed (KILLED). The old version, whose Origin matched its Host, passed under the swap. |
+| `Origin: http://localhost:99999` (an invalid port) is refused with 403 | Remove the `try`/`except` | 1 failed: a server error instead of 403 (KILLED) |
+| `Origin: http://localhost` against `Host: localhost:8000` is refused | An Origin without a port matches any port | 1 failed (KILLED) |
+| Own-origin `POST`, `PUT`, `PATCH`, `DELETE` to an unknown `/api` path reach routing (404) | Refuse own-origin `POST` and `DELETE` | 2 failed (KILLED) |
+
+**Skipped on purpose:**
+- `.get("host", "")` in the middleware. It cannot be reached with the tested order, and it would guard the same thing as the order test.
+- A test for FastAPI's 422 on `text/plain`. The version floor and the lock already pin it.
+
+**The live check** (Claude, at review), on a local instance from the branch with a stub model:
+- A page at `http://localhost:5195` (another site) and at `http://127.0.0.1:5195` (another port of the same host) sent a form POST and a `no-cors` fetch to `POST /api/digest-runs`. All four got 403, and `digest_runs` stayed empty.
+- In CatchUp's own pages, saving Settings (200), previewing and confirming a real feed (200, 201), Generate (the run succeeded) and deleting the source (204) all worked.
+
+`cd backend && uv run pytest -q`: **585 passed**.
+

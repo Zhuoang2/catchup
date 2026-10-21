@@ -136,7 +136,8 @@ and `127.0.0.1` (for the container health check), for example
 `*`. CatchUp accepts requests that change data only from its own pages or
 tools that send no browser origin headers. A page on another site, or on
 another local port, is refused. A proxy in front of CatchUp must pass the
-browser's `Host` header. Provide your own access control and TLS. Collected
+browser's `Host` header, including its port (in nginx, `$http_host`, not
+`$host`). Provide your own access control and TLS. Collected
 content is sent to the configured model provider, even when CatchUp itself
 runs locally.
 

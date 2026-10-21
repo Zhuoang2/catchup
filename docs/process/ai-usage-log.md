@@ -1475,3 +1475,31 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - It opened #60 for the cleanup.
   - Backend: 585 tests pass.
 
+## 2026-10-21 — `add-browser-extension` (#58): plan, with a fresh-eyes check (Claude Code, Opus 5.5, with one sub-agent)
+
+- **Prompts** (translated from Chinese):
+  - "Let's start on the browser extension first."
+  - The user answered four plan questions:
+    - "Chrome and Edge (recommended)";
+    - "Popup (recommended)";
+    - "Copy a connection token (recommended)";
+    - "Support it, reading only the author's own replies (recommended)".
+  - Then: "Approve the plan, commit, and start Droid".
+- **Plan** (the `reppit-plan` skill):
+  - `proposal.md`;
+  - a new `browser-extension` capability, and deltas to six existing capabilities;
+  - the final `design.md`, D1–D11, with Proposal 2 under Alternatives;
+  - `tasks.md`: 8 groups, 16 tasks, test-first, with named seams.
+- **The fresh-eyes check (D-023).** A sub-agent that had seen only the code and the plan found 12 real problems. Claude verified the most expensive ones in the code, or by running them, before correcting the plan:
+  - `chrome.scripting.executeScript` serializes its function, so helpers outside it are lost in the tab, while jsdom tests that call the function directly still pass;
+  - jsdom has no `innerText`, an empty `currentSrc`, and a `textContent` that runs paragraphs together (Claude ran a probe);
+  - the Settings page is one `<form>`, and `Button` sets no `type`, so a new section inside it would submit the model form;
+  - the token step must run before the middleware's check for write methods, or the extension's `GET` requests fail;
+  - the context pass stops when the fetch budget runs out, so captured replies would be lost;
+  - finding the waiting item by its key broke on a third save;
+  - Vite mirrors HTML source paths.
+- **Outcome:**
+  - All 12 were folded into the design (D1, D3, D4, D6–D9), the tasks, and two spec lines.
+  - The plan validates with `--strict`.
+  - D-024 and a requirements row were added.
+

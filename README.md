@@ -133,8 +133,13 @@ expose it, change the loopback address in `compose.yaml`, set
 `CATCHUP_ALLOWED_HOSTS` to include your intended domain **and** `localhost`
 and `127.0.0.1` (for the container health check), for example
 `CATCHUP_ALLOWED_HOSTS=localhost,127.0.0.1,catchup.example.com`. Do not use
-`*`. Provide your own access control and TLS. Collected content is sent to
-the configured model provider, even when CatchUp itself runs locally.
+`*`. CatchUp accepts requests that change data only from its own pages or
+tools that send no browser origin headers. A page on another site, or on
+another local port, is refused. A proxy in front of CatchUp must pass the
+browser's `Host` header, including its port (in nginx, `$http_host`, not
+`$host`). Provide your own access control and TLS. Collected
+content is sent to the configured model provider, even when CatchUp itself
+runs locally.
 
 To upgrade the published image without deleting the volume:
 

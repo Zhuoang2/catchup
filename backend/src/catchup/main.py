@@ -21,6 +21,24 @@ from catchup.llm.client import ModelClient
 from catchup.net.feed_cache import FeedCache
 
 
+def _origin_matches_host(origin: str, host: str) -> bool:
+    try:
+        parsed = urlsplit(origin)
+        address = urlsplit(f"//{host}")
+        return (
+            origin == origin.strip()
+            and parsed.scheme in ("http", "https")
+            and parsed.hostname is not None
+            and parsed.username is None and parsed.password is None
+            and not parsed.path and not parsed.query and not parsed.fragment
+            and parsed.hostname.lower() == address.hostname.lower()
+            and (parsed.port or (443 if parsed.scheme == "https" else 80))
+            == (address.port or (443 if parsed.scheme == "https" else 80))
+        )
+    except (ValueError, AttributeError):
+        return False
+
+
 def create_app(settings: Settings | None = None, dist_dir: Path | None = None) -> FastAPI:
     instance_settings = settings or Settings.from_env()
     validate_user_agent_contact(instance_settings.user_agent_contact)
@@ -46,6 +64,24 @@ def create_app(settings: Settings | None = None, dist_dir: Path | None = None) -
     app.include_router(sources_router)
     app.include_router(runs_router)
     app.include_router(digests_router)
+
+    # Starlette runs the last registered middleware first; host validation must run before this check.
+    @app.middleware("http")
+    async def cross_site_writes(request: Request, call_next):
+        if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+            origin = request.headers.get("origin")
+            fetch_site = request.headers.get("sec-fetch-site", "").lower()
+            # #58 will add the extension-token exception at this decision point.
+            if ((origin is not None and not _origin_matches_host(origin, request.headers["host"]))
+                    or fetch_site in {"cross-site", "same-site"}):
+                return JSONResponse(
+                    status_code=403,
+                    content={"error": {
+                        "code": "cross_site_request",
+                        "message": "This request came from another site and was refused.",
+                    }},
+                )
+        return await call_next(request)
 
     @app.middleware("http")
     async def allowed_host(request: Request, call_next):

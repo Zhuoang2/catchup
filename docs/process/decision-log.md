@@ -251,3 +251,41 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Digests can show up to 3 images per item, with no cap per digest yet.
   - **Amended after review (2026-10-19).** Duplicates are exact URL matches, because some hosts tell images apart only by the query string. Feed alt text and captions are quoted in the prompt as data, and the model writes alt text in the language of the summary. Four limits of the filters are recorded, not changed (user: "As you recommend, one more fix round", translated). Images whose URL is only in `data-src` or `srcset` are not supported, because feedparser's sanitizer removes those attributes. The user chose to record this rather than parse each feed a second time.
 
+## D-022 Refuse write requests that a browser sends from another origin — accepted (2026-10-20)
+
+- **Decision.** The server refuses a `POST`, `PUT`, `PATCH`, or `DELETE` when its `Origin` header does not match the request's `Host` (host and port), or is `null`, or when `Sec-Fetch-Site` is `cross-site` or `same-site`. It answers 403 `cross_site_request`, and does nothing. Requests with neither header (tools) and `GET` requests are unchanged. The FastAPI floor rises to 0.132, whose strict content-type check keeps JSON routes closed to simple requests. Planned as OpenSpec change `refuse-cross-site-writes` (issue #59), a lean change.
+- **Why.** During the research for the browser extension (#58), Claude found that a plain form on any web page could start a digest run, because `POST /api/digest-runs` takes no body and the server checked only `Host`. That spends the user's model tokens. The user chose to fix this first (user: "As you recommend, choose Proposal 1, fix the security issue first", translated).
+- **Alternatives:**
+  - A CSRF token. Rejected: CatchUp has no sessions or cookies, and every request would change.
+  - A required custom header. Rejected: every write in the frontend would change, and it would block the future extension's requests until CORS exists.
+  - CORS configuration. Rejected: it controls reading responses, not whether a simple request is sent.
+  - Requiring JSON on `POST /api/digest-runs` alone. Rejected: it fixes one route, and leaves future bodiless routes open.
+- **Consequences:**
+  - A page on another local port, such as `http://localhost:3000`, can no longer change CatchUp's data.
+  - A reverse proxy must pass the browser's `Host` header, which `CATCHUP_ALLOWED_HOSTS` already assumes.
+  - The browser extension (#58) will add an exception for requests with a valid extension token, at the same decision point.
+
+## D-023 Classify review findings, and stop fix rounds early — accepted (2026-10-21)
+
+- **Decision.** Fix rounds follow the stop rules now in `AGENTS.md`, under "Fix rounds and when to stop". It amends D-016's review step:
+  - classify every finding first, into a real defect, a plan error, a test-only gap, or churn;
+  - one Droid fix round by default;
+  - small leftovers go into Claude Code's review commit;
+  - a fresh-eyes check of each task group before Droid runs;
+  - re-derive rather than re-patch code that a round already patched;
+  - the Docker smoke script and the live check are required.
+- **Why.** The user worried that fix rounds were "one patch patching another patch" (2026-10-21, translated). An independent meta-review then classified about 75 fix-round items across #48, #49, and #52:
+  - 18 were real defects, mostly found by live checks and by reasoning about the code;
+  - 6 corrected errors in Claude's own plans, plus 1 task dropped for a false library assumption;
+  - about 45 were test-only pins driven by mutation testing, at 8–15 test lines per source line;
+  - 2 were churn.
+
+  Only one plan error changed behavior: #48's budget rollback. It left vestigial flags in `context/gather.py`. The second rounds of #49 and #52 changed no behavior. Mutation testing was most useful for finding tests that could not fail, and it missed #49's broken Docker smoke script.
+- **Alternatives:**
+  - Keep re-reviewing until no survivors remain. Rejected: mutation testing always finds another marginal survivor, so rounds never end.
+  - Drop mutation testing. Rejected: it found tests that could not fail, such as the swallowed respx errors in #48, a long-transcript test in #49 that passed with the wrong prompt, and the host-order test in #59.
+- **Consequences:**
+  - Claude Code may now commit small test and doc fixes directly in its review commit. That is a change from "Droid implements, Claude reviews", and the user approved it.
+  - The layering left by #48 (budget signals, vestigial flags), a quadratic lookup in `context/comments.py`, and the repeated poll steps in `Home.test.tsx` go to a low-priority cleanup issue, #60.
+  - #59 was the first change handled this way: no second Droid round. Claude added three review tests, and skipped two proposed items as patch on patch.
+

@@ -22,7 +22,7 @@ Implementer notes:
 
 ## 1. Connection tokens and the cross-site exception
 
-- [ ] 1.1 **Migration and models** (design D2, D4). Add `backend/src/catchup/migrations/versions/0006_captures.py` and the model changes:
+- [x] 1.1 **Migration and models** (design D2, D4). Add `backend/src/catchup/migrations/versions/0006_captures.py` and the model changes:
   - the `extension_tokens` table;
   - `Item.site_name`;
   - `Item.captured_replies`.
@@ -35,14 +35,14 @@ Implementer notes:
   Update the existing assertions this changes, and name each in the report: the table set at `test_db.py:20-23`, and the head at `:47`, `:65`, and `:234`.
 
   Verify: the tests fail before, and pass after; `uv run pytest` passes.
-- [ ] 1.2 **Token routes** (D2), in a new `backend/src/catchup/api/extension.py`, registered in `main.py`. Tests first, in a new `backend/tests/test_extension_api.py`:
+- [x] 1.2 **Token routes** (D2), in a new `backend/src/catchup/api/extension.py`, registered in `main.py`. Tests first, in a new `backend/tests/test_extension_api.py`:
   - **Create:** `POST /api/settings/extension-tokens` with `{"name": "Chrome"}` returns the token once. The database holds only its SHA-256 hash.
   - **List:** `GET` lists `{id, name, created_at, last_used_at}`, with no token.
   - **Disconnect:** `DELETE` returns 204, and the token stops working.
   - **Names:** a name of 0, or more than 60, characters gets 422 `invalid_request`.
 
   Verify: the tests fail before, and pass after.
-- [ ] 1.3 **The token step in `cross_site_writes`** (D3), in `backend/src/catchup/main.py`, **before** the check for write methods (`:71`), so that it runs for `GET` too. Replace #59's comment at `:74`. Add `GET /api/extension/status`. Run the lookup and the `last_used_at` update in `run_in_threadpool`, with the update best-effort. Tests first, in `test_extension_api.py`. Every request carries `Origin: chrome-extension://abcdefghijklmnop` unless noted.
+- [x] 1.3 **The token step in `cross_site_writes`** (D3), in `backend/src/catchup/main.py`, **before** the check for write methods (`:71`), so that it runs for `GET` too. Replace #59's comment at `:74`. Add `GET /api/extension/status`. Run the lookup and the `last_used_at` update in `run_in_threadpool`, with the update best-effort. Tests first, in `test_extension_api.py`. Every request carries `Origin: chrome-extension://abcdefghijklmnop` unless noted.
   1. A valid token on `POST /api/sources/preview` (with a respx feed) returns 200, and `last_used_at` is set.
   2. A valid token on `POST /api/sources` saves the source.
   3. A valid token with `Sec-Fetch-Site: cross-site` on `POST /api/sources/preview` passes.

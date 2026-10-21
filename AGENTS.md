@@ -34,6 +34,21 @@ This supersedes the note in `docs/handoff.md` §9 that OpenSpec/RePPIT are not t
   1. Bugs: run Claude Code's built-in `/code-review` on that diff.
   2. Spec: an independent sub-agent that has not seen the design discussion checks the diff against `openspec/changes/<change-name>/` (spec deltas, `design.md`, `tasks.md`). Quoting the spec line for each finding, it reports requirements that are missing or partial, behavior nobody asked for, requirements that look implemented but are wrong, and `tasks.md` verification claims that the tests do not actually perform.
   3. Claude Code verifies every finding against the code or by running it before anything is changed, reports which findings were confirmed, rejected, or need the user's decision, and adds live checks (browser, measurements, Docker) where the change is user-visible.
+- Fix rounds and when to stop (D-023, decided 2026-10-21):
+  - Classify every confirmed finding before planning a round:
+    - (a) a real defect in behavior;
+    - (b) an error in an earlier plan or round;
+    - (c) a test-only gap, where the behavior is already correct;
+    - (d) churn.
+
+    A round contains only (a) and (b) items, tests that cannot fail, and spec scenarios that no test covers. Mutation survivors that are equivalent or marginal (literal strings, logs, caps the spec does not name) are recorded, not fixed.
+  - One Droid fix round by default. A second Droid round is only for (a) or (b) items that affect behavior. Leftover test or doc fixes of about 30 lines or fewer go into Claude Code's review commit, verified with named mutations, with no new Droid run and no full re-review.
+  - Before changing what a stored state means, find every place that reads it, and trace one item through this run and the next.
+  - Before Droid runs, a fresh sub-agent that sees only the code and the new task group checks it for false assumptions. Any assumption about a library's behavior gets a short probe first.
+  - When a round would edit code that an earlier round already patched, re-derive that unit from its invariant instead of patching it again.
+  - Re-review only the delta: mutations on the changed lines.
+  - A round with no (a) item, that adds more than about 10 test lines per source line, is the last one.
+  - The Docker smoke script (`scripts/docker-smoke.sh`) and the live check are required for every change. Extra pins are optional.
 - Shared skills live in `.agents/skills/` (read by Droid; symlinked into `.claude/skills/` for Claude Code) and are pinned in `skills-lock.json`. Commit them, because a new worktree contains only committed files.
 
 ## Process evidence (course requirement)

@@ -265,3 +265,27 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - A reverse proxy must pass the browser's `Host` header, which `CATCHUP_ALLOWED_HOSTS` already assumes.
   - The browser extension (#58) will add an exception for requests with a valid extension token, at the same decision point.
 
+## D-023 Classify review findings, and stop fix rounds early — accepted (2026-10-21)
+
+- **Decision.** Fix rounds follow the stop rules now in `AGENTS.md`, under "Fix rounds and when to stop". It amends D-016's review step:
+  - classify every finding first, into a real defect, a plan error, a test-only gap, or churn;
+  - one Droid fix round by default;
+  - small leftovers go into Claude Code's review commit;
+  - a fresh-eyes check of each task group before Droid runs;
+  - re-derive rather than re-patch code that a round already patched;
+  - the Docker smoke script and the live check are required.
+- **Why.** The user worried that fix rounds were "one patch patching another patch" (2026-10-21, translated). An independent meta-review then classified about 75 fix-round items across #48, #49, and #52:
+  - 18 were real defects, mostly found by live checks and by reasoning about the code;
+  - 6 corrected errors in Claude's own plans, plus 1 task dropped for a false library assumption;
+  - about 45 were test-only pins driven by mutation testing, at 8–15 test lines per source line;
+  - 2 were churn.
+
+  Only one plan error changed behavior: #48's budget rollback. It left vestigial flags in `context/gather.py`. The second rounds of #49 and #52 changed no behavior. Mutation testing was most useful for finding tests that could not fail, and it missed #49's broken Docker smoke script.
+- **Alternatives:**
+  - Keep re-reviewing until no survivors remain. Rejected: mutation testing always finds another marginal survivor, so rounds never end.
+  - Drop mutation testing. Rejected: it found tests that could not fail, such as the swallowed respx errors in #48, a long-transcript test in #49 that passed with the wrong prompt, and the host-order test in #59.
+- **Consequences:**
+  - Claude Code may now commit small test and doc fixes directly in its review commit. That is a change from "Droid implements, Claude reviews", and the user approved it.
+  - The layering left by #48 (budget signals, vestigial flags), a quadratic lookup in `context/comments.py`, and the repeated poll steps in `Home.test.tsx` go to a low-priority cleanup issue, #60.
+  - #59 was the first change handled this way: no second Droid round. Claude added three review tests, and skipped two proposed items as patch on patch.
+

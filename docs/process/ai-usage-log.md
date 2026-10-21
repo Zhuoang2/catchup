@@ -1434,8 +1434,44 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - An ADDED `model-settings` requirement, with five scenarios. D-022 records the alternatives.
   - Tasks: a 16-case test matrix, with a configured model for the run case, named mutations for the accepted cases, and the Docker smoke script. The script is included because #49's review missed it.
 
-## 2026-10-20 — `refuse-cross-site-writes` (#59): implementation (Factory Droid, GPT-6 Sol)
+## 2026-10-20 — `refuse-cross-site-writes` (#59): implementation (Factory Droid, GPT-6 Sol; session `7290d852`)
 
 - **Prompt (faithful excerpt):** "Implement OpenSpec change refuse-cross-site-writes (issue #59) using the openspec-apply-change skill. Work through openspec/changes/refuse-cross-site-writes/tasks.md in order, completing each task test-first with the tdd skill: write the task's checks as failing tests and watch them fail, then implement until they pass; for checks that already pass, use the named temporary mutation as the red step and revert it. Check off each task only after its verification passes. Do not edit proposal.md, design.md, or the spec delta. Commit after each task group. Do not push, tag, or open a PR. If a task is blocked or the plan looks wrong, stop and report instead of improvising."
 - **Outcome:** Added a Host-ordered HTTP write guard for foreign Origin and Fetch Metadata, raised the FastAPI floor, and documented the browser/proxy rule. Before the guard, 10 new refusal assertions failed and 10 acceptance/order cases passed; all 20 passed with the guard. Each of the four named temporary mutations failed its target tests, then passed again after reversion. A stale-lock red check failed before `uv lock` updated the metadata. Full results: 579 backend tests at 96% coverage, 221 frontend tests, build, strict validation, and local image build/smoke passed. See `test-report-refuse-cross-site-writes.md`.
-- **Problems / adjustment:** The new worktree had no frontend packages, so the first build could not find `tsc`; `npm ci` installed locked dependencies, then build/tests passed. The first preview test's red phase hit the autouse DNS block instead of its mocked feed; injected only the test host's public DNS result, keeping the block for other hosts. With the guard, `respx` initially required the intentionally uncalled route to have been called; set `assert_all_called=False` and asserted `route.call_count == 0` explicitly. No live feed or provider call, browser-origin live check, push, tag, or PR.
+- **Problems / adjustment:** The new worktree had no frontend packages, so the first build could not find `tsc`; `npm ci` installed locked dependencies, then build/tests passed. The first preview test's red phase hit the autouse DNS block instead of its mocked feed; injected a public DNS answer for every host (the network stays blocked, because `socket.connect` is still patched; corrected at review). With the guard, `respx` initially required the intentionally uncalled route to have been called; set `assert_all_called=False` and asserted `route.call_count == 0` explicitly. No live feed or provider call, browser-origin live check, push, tag, or PR.
+
+## 2026-10-21 — `refuse-cross-site-writes` (#59): review, a meta-review of fix rounds, and new stop rules (Claude Code, Opus 5.5, with two sub-agents; Factory Droid session `7290d852`)
+
+- **Prompts** (translated from Chinese):
+  - The user asked for one more review first: "because I worry that with these round-after-round fixes we don't know if we're really fixing problems, or one patch is patching another patch, and the next patch patches that one, stacking up layer on layer".
+  - After the meta-review, the user chose these options:
+    - "I add the small changes, then merge (recommended)";
+    - "Write them into the process (recommended)";
+    - "Open a low-priority issue (recommended)".
+  - Finally: "As you recommend, approve auto-merge, and rebuild the container after merging".
+- **Review of Droid run 1:**
+  - `/code-review` found one low item: `request.headers["host"]` relies on the middleware order.
+  - The spec sub-agent ran 25 mutations. It found no high item. It found:
+    - the host-order test could not fail;
+    - own-origin POST and DELETE were untested;
+    - the `except` branch and the default-port rule were untested;
+    - three doc sentences.
+  - **Claude's live check:**
+    - Pages on another site and on another local port sent a form POST and a `no-cors` fetch. All four got 403, and no run started.
+    - The real UI's save, preview, confirm, Generate, and delete all worked.
+- **Meta-review.** A fresh sub-agent classified about 75 fix-round items across #48, #49, and #52:
+  - 18 real defects;
+  - 6 corrections of Claude's plan errors, plus 1 dropped task;
+  - about 45 test-only pins;
+  - 2 churn.
+
+  Its verdict: "partly justified". Real patch on patch was rare, but test code piled up under mutation pressure. It found vestigial flags left in `context/gather.py` by #48's rollback and revert, and Claude confirmed them in the code.
+
+  For #59: no second Droid round. Add the order test, the two Origin cases, and one method-parametrised test. Skip the `.get("host")` hardening and the 422 test, as patch on patch.
+- **Outcome:**
+  - Claude added those tests in its review commit. Each was proved by a named mutation, and all four were killed.
+  - It corrected README ("including its port"), one design sentence, and one log sentence.
+  - It wrote the stop rules into `AGENTS.md` as D-023.
+  - It opened #60 for the cleanup.
+  - Backend: 585 tests pass.
+

@@ -223,7 +223,7 @@ The facts from the research that shape the design. Line numbers are at main c4b7
   - the manifest's permission lists.
 - **CI.** A new `extension` job in `.github/workflows/ci.yml` runs `npm ci`, `npm test -- --run`, and `npm run build` in `extension/`.
 
-### D12. Fix round 1 (review findings, 2026-10-22)
+### D12. Fix round 1 (review findings, 2026-10-21)
 
 The review of Droid's first run found these. Each is classified under D-023, as (a) a real defect or (b) a plan error.
 
@@ -232,7 +232,7 @@ The review of Droid's first run found these. Each is classified under D-023, as 
   - **The fix:** skip that item (`continue`), and keep going, so that every capture with replies still gets its `A1`.
 - **(a) Generic pages: find the main content with Mozilla Readability.**
   - **The bug:** on a page with no `<article>` or `<main>`, such as Simon Willison's post pages, the generic extractor read all of `<body>`. Its links were not filtered by region. The saved text then held the sidebar, a sponsor block, and a year list, and the "related" links read were the home page, the newsletter page, a sponsor ad, and an index page.
-  - **The user's choice:** use `@mozilla/readability`, version `0.6.0` pinned exactly (Apache-2.0), the reader-view library Firefox uses (user decision, 2026-10-22).
+  - **The user's choice:** use `@mozilla/readability`, version `0.6.0` pinned exactly (Apache-2.0), the reader-view library Firefox uses (user decision, 2026-10-21).
   - **How it runs:** the build copies its `Readability.js` and its license into `dist/`. The popup injects it with `chrome.scripting.executeScript({files: ['readability.js']})`, then runs a new self-contained function, `extractReadable`. Files and functions that one extension injects into a tab share that extension's isolated world, so the function can use the global `Readability`. That is verified in the manual check.
   - **What `extractReadable` returns:** it runs `new Readability(document.cloneNode(true)).parse()`. It returns `null` when `Readability` is missing, when the parse returns `null`, or when the parsed text is shorter than 200 characters. A probe showed that Readability returns a result even for a page of navigation and lists, so the length rule is what lets the generic extractor run on such pages. Otherwise:
     - the text comes from the parsed `content` HTML, with the same block-aware text walk;
@@ -255,14 +255,14 @@ The review of Droid's first run found these. Each is classified under D-023, as 
     - the count reads "1 page waiting" or "N pages waiting".
   - **Settings:** the first-run lede no longer counts the extension as a required step.
 - **(b) Bearer tokens from proxies.** Only `Authorization: Bearer cu_…` is treated as an extension token. Any other Bearer value passes through as in D-022, so an OIDC proxy that adds its own Bearer header keeps working.
-- **Styling (the user's choice, 2026-10-22).**
+- **Styling (the user's choice, 2026-10-21).**
   - `popup.css` and `options.css` reuse the token values of `frontend/src/styles/tokens.css`, copied with a comment naming that file, in light and dark (`prefers-color-scheme`).
   - The popup is about 340 px wide, with buttons styled like CatchUp's.
   - The axe checks cover the styled states.
   - **Settings' first-run lede** becomes "Three quick steps, and an optional browser extension. Your key stays on this computer, encrypted."
 - **Known limit, recorded and not fixed:** a page saved while a run is in its context pass may be summarized in that run without context. The window is short, and the effect is a summary without links.
 
-### D13. Fix round 2 (review findings, 2026-10-22)
+### D13. Fix round 2 (review findings, 2026-10-21)
 
 The review of fix round 1 found two real defects (a). Under D-023 this is the last Droid round for this change.
 

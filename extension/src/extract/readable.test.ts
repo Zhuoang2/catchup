@@ -23,6 +23,7 @@ afterEach(() => {
 for (const [index, run] of execute.entries()) {
   it(`${index ? 'serialized' : 'direct'}: saves the short post instead of the longer sponsor banner`, () => {
     document.documentElement.innerHTML = shortFixture
+    const original = document.body.outerHTML
     const page = run()
     expect(page?.content_text).toContain('My tiny garden is ready. Start with seeds, then check watering. I will share the first results next week.')
     expect(page?.links).toEqual([
@@ -30,6 +31,7 @@ for (const [index, run] of execute.entries()) {
       { url: 'https://garden.example/water', text: 'check watering' },
     ])
     expect(page?.content_text).not.toMatch(/Support our imaginary|Recent articles|Support promo|Archive 202[45]/)
+    expect(document.body.outerHTML).toBe(original)
   })
 
   it(`${index ? 'serialized' : 'direct'}: keeps only post text, links and images from a page without article`, () => {

@@ -99,9 +99,40 @@ For 10.2, the two focused backend tests **both failed before the code change**: 
 
 | Command | Result |
 | --- | --- |
-| `cd backend && uv run pytest --cov=catchup --cov-report=term` | **634 passed**, **96%** statement coverage (2,494/2,586 statements covered, 92 missed). |
+| `cd backend && uv run pytest --cov=catchup --cov-report=term` | **634 passed**, **96%** statement coverage (2,494/2,586 statements covered, 92 missed), with `frontend/dist` already built in fix round 1. Without it, 93 statements are missed. |
 | `cd extension && npm test -- --run` | **86 passed** in 8 files. |
 | `cd extension && npm run build` | Passed: TypeScript, Vite build (11 modules transformed), and packaged-file check. |
 | `openspec validate add-browser-extension --strict` | Passed. |
 
 Frontend was unchanged and not retested in this round. Docker build and smoke were **not run** in this round; Claude Code will run them in review. The real unpacked-extension and authenticated-X checks above remain unperformed.
+
+### Claude Code's review of fix round 2
+
+- **Reviews:** `/code-review` of `192da37..HEAD`, and a spec sub-agent that re-checked the delta. Neither found a defect in behavior.
+- **The fixture, measured by the sub-agent:** Readability's default parse returns the banner (275 characters). At `charThreshold: 100` it returns the entry (121 characters). The paragraph has exactly two links.
+- **Mutations on the changed lines:**
+
+  | Mutation | Result |
+  | --- | --- |
+  | Second-parse trigger `< 500` → `< 0` | killed |
+  | `charThreshold: 100` → `500` | killed |
+  | Drop the `>= 100` check on the second result | survived, equivalent (see below) |
+  | Final minimum `< 100` → `< 200` | killed |
+  | Remove `article = shortArticle` | killed |
+  | Store only `url` and `alt` for images | killed (both backend tests) |
+  | Drop the alt's `[:500]` | killed |
+  | Second parse on `document` instead of a clone | survived; killed after Claude's change below |
+
+  - **Why the `>= 100` mutation is equivalent:** Readability's attempts at threshold 100 are a prefix of its default attempts. Its own length check uses whitespace-collapsed text, which is never longer than `textContent.trim()`.
+  - **Claude's change:** the short-post test now also checks that the page's own document is unchanged. Under the clone mutation, both the direct and the serialized test fail on that check. Without the new check, all 8 readable tests pass.
+- **Live checks:**
+  - **The seven real pages from fix round 1,** saved locally from three sites: each gives its main text and links. The short note gives its 197-character body, with its two links and no sponsor text.
+  - **A local instance:** a saved page with an image stores `origin: "html"`, `caption`, `width`, and `height`.
+  - **Docker:** `docker build` and `scripts/docker-smoke.sh` passed.
+  - **Re-run by Claude:** extension 86 tests and backend 634 tests.
+- **Recorded, not fixed (D-023):**
+  - **The length checks** count `textContent.trim()`, markup whitespace included, while Readability counts collapsed text. A fallback result padded past 500 characters by whitespace skips the second parse.
+  - **The 10.1 note** "Without the inner `div`, Readability already returns the post" held for the planning probe's page, but not for this fixture.
+  - **The 10.2 runner test** reads `model.calls[0]` as the summary call.
+  - **Short pages** get a second Readability parse, only when the user clicks.
+

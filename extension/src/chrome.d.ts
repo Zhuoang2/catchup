@@ -9,7 +9,8 @@ interface CatchUpChrome {
     create(details: { url: string }): Promise<unknown>
   }
   scripting: {
-    executeScript<T>(details: { target: { tabId: number }; func: () => T }): Promise<{ result?: T }[]>
+    executeScript<T>(details: { target: { tabId: number }; func: () => T }
+      | { target: { tabId: number }; files: string[] }): Promise<{ result?: T }[]>
   }
   runtime: { openOptionsPage(): void }
 }

@@ -1,6 +1,9 @@
 import { fireEvent, screen, waitFor } from '@testing-library/dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { axe } from 'vitest-axe'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { JSDOM } from 'jsdom'
 import { initPopup } from '../popup'
 
 const fetchMock = vi.fn()
@@ -39,6 +42,10 @@ const captured = {
   author: 'Sam', published_at: null, content_text: 'The page text.',
   images: [{ url: 'https://site.example/image.png', alt: 'Photo' }],
   links: [{ url: 'https://site.example/more', text: 'Read more' }], replies: [],
+}
+const genericResult = (page: unknown) => {
+  chromeMock.scripting.executeScript.mockImplementation(async (details: { files?: string[]; func?: () => unknown }) =>
+    details.files ? [] : [{ result: details.func?.name === 'extractReadable' ? null : page }])
 }
 const saves = () => fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/api/captures'))
 
@@ -126,7 +133,7 @@ it('does not offer Follow this site or preview on X tabs', async () => {
 
 it('injects the generic extractor and saves a checked page, then removes it', async () => {
   connect()
-  chromeMock.scripting.executeScript.mockResolvedValue([{ result: captured }])
+  genericResult(captured)
   fetchMock.mockImplementation(async (url: string, init?: RequestInit) => url.endsWith('/captures')
     ? init?.method === 'DELETE' ? { ok: true, status: 204 } : response(201, { id: 42, waiting: 4 })
     : response(200, { name: 'My browser', waiting: 3 }))
@@ -136,7 +143,9 @@ it('injects the generic extractor and saves a checked page, then removes it', as
   expect(chromeMock.scripting.executeScript).toHaveBeenCalledWith({
     target: { tabId: 1 }, func: expect.any(Function),
   })
-  expect(chromeMock.scripting.executeScript.mock.calls[0][0].func.name).toBe('extractGeneric')
+  expect(chromeMock.scripting.executeScript.mock.calls.map(([details]) =>
+    details.files ? 'readability.js' : details.func.name))
+    .toEqual(['readability.js', 'extractReadable', 'extractGeneric'])
   expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:8000/api/captures',
     expect.objectContaining({
       method: 'POST', headers: expect.objectContaining({ Authorization: 'Bearer fake-browser-token' }),
@@ -170,7 +179,7 @@ it.each(['reject', 'empty', 'missing'])('does not save an unreadable tab (%s)', 
 
 it('disables Add while saving and shows a run_active conflict', async () => {
   connect()
-  chromeMock.scripting.executeScript.mockResolvedValue([{ result: captured }])
+  genericResult(captured)
   let complete!: (value: unknown) => void
   fetchMock.mockImplementation((url: string) => url.endsWith('/captures')
     ? new Promise(resolve => { complete = resolve })
@@ -178,7 +187,8 @@ it('disables Add while saving and shows a run_active conflict', async () => {
   initPopup()
   const add = await screen.findByRole('button', { name: 'Add this page to my next digest' })
   fireEvent.click(add)
-  await waitFor(() => expect(add).toBeDisabled())
+  await waitFor(() => expect(saves()).toHaveLength(1))
+  expect(add).toBeDisabled()
   fireEvent.click(add)
   expect(saves()).toHaveLength(1)
   complete(response(409, { error: { code: 'run_active', message: 'A digest is being made.' } }))
@@ -189,7 +199,7 @@ it('disables Add while saving and shows a run_active conflict', async () => {
 it('offers Add instead of Follow for X profiles, and saves the generic page', async () => {
   connect()
   chromeMock.tabs.query.mockResolvedValue([{ id: 8, url: 'https://x.com/someone', title: 'Someone' }])
-  chromeMock.scripting.executeScript.mockResolvedValue([{ result: { ...captured, url: 'https://x.com/someone' } }])
+  genericResult({ ...captured, url: 'https://x.com/someone' })
   fetchMock.mockImplementation(async (url: string) => url.endsWith('/captures')
     ? response(201, { id: 43, waiting: 4 })
     : response(200, { name: 'My browser', waiting: 3 }))
@@ -200,13 +210,15 @@ it('offers Add instead of Follow for X profiles, and saves the generic page', as
   expect(chromeMock.scripting.executeScript).toHaveBeenCalledWith({
     target: { tabId: 8 }, func: expect.any(Function),
   })
-  expect(chromeMock.scripting.executeScript.mock.calls[0][0].func.name).toBe('extractGeneric')
+  expect(chromeMock.scripting.executeScript.mock.calls.map(([details]) =>
+    details.files ? 'readability.js' : details.func.name))
+    .toEqual(['readability.js', 'extractReadable', 'extractGeneric'])
   expect(saves()).toHaveLength(1)
 })
 
 it('rejects wrong result types and clamps long text, images and links before posting', async () => {
   connect()
-  chromeMock.scripting.executeScript.mockResolvedValue([{ result: { ...captured, images: 'wrong type' } }])
+  genericResult({ ...captured, images: 'wrong type' })
   initPopup()
   const add = await screen.findByRole('button', { name: 'Add this page to my next digest' })
   fireEvent.click(add)
@@ -215,12 +227,12 @@ it('rejects wrong result types and clamps long text, images and links before pos
   fetchMock.mockImplementation(async (url: string) => url.endsWith('/captures')
     ? response(201, { id: 44, waiting: 4 })
     : response(200, { name: 'My browser', waiting: 3 }))
-  chromeMock.scripting.executeScript.mockResolvedValue([{ result: {
+  genericResult({
     ...captured, title: 'T'.repeat(400), content_text: 'C'.repeat(17000),
     images: Array.from({ length: 12 }, () => captured.images[0]),
     links: Array.from({ length: 60 }, () => captured.links[0]),
     replies: Array.from({ length: 15 }, () => 'R'.repeat(500)),
-  } }])
+  })
   fireEvent.click(add)
   await waitFor(() => expect(saves()).toHaveLength(1))
   const body = JSON.parse(String((saves()[0][1] as RequestInit).body))
@@ -264,4 +276,76 @@ it('falls back to generic after the X extractor returns null', async () => {
   expect(chromeMock.scripting.executeScript.mock.calls.map(([details]) => details.func.name))
     .toEqual(['extractX', 'extractGeneric'])
   expect(saves()).toHaveLength(1)
+})
+
+it('saves only reader-view post content on a page without an article element', async () => {
+  connect()
+  const tab = new JSDOM(
+    readFileSync(resolve('src/extract/fixtures/blog-no-article.html'), 'utf8'),
+    { url: 'https://garden.example/post', runScripts: 'outside-only' },
+  )
+  const original = tab.window.document.body.outerHTML
+  const library = readFileSync(resolve('node_modules/@mozilla/readability/Readability.js'), 'utf8')
+  chromeMock.scripting.executeScript.mockImplementation(async (details: {
+    files?: string[]; func?: () => unknown;
+  }) => {
+    if (details.files) {
+      expect(details.files).toEqual(['readability.js'])
+      tab.window.eval(library)
+      return []
+    }
+    return [{ result: tab.window.eval(`(${details.func!.toString()})()`) }]
+  })
+  fetchMock.mockImplementation(async (url: string) => url.endsWith('/captures')
+    ? response(201, { id: 48, waiting: 4 })
+    : response(200, { name: 'My browser', waiting: 3 }))
+  try {
+    initPopup()
+    fireEvent.click(await screen.findByRole('button', { name: 'Add this page to my next digest' }))
+    await screen.findByText('Saved. It will be in your next digest.')
+    const body = JSON.parse(String((saves()[0][1] as RequestInit).body))
+    expect(body.text).toContain('Tiny gardens thrive')
+    expect(body.text).not.toMatch(/Recent articles|Unrelated recent story|Sponsored|Archive 2023/)
+    expect(body.links).toEqual([{ url: 'https://garden.example/soil-guide', text: 'the soil guide' }])
+    expect(body.images).toEqual([{ url: 'https://garden.example/pot.png', alt: 'A garden pot' }])
+    expect(chromeMock.scripting.executeScript.mock.calls.map(([details]) =>
+      details.files ? 'readability.js' : details.func.name)).toEqual(['readability.js', 'extractReadable'])
+    expect(tab.window.document.body.outerHTML).toBe(original)
+  } finally {
+    tab.window.close()
+  }
+})
+
+it.each(['https://garden.example/post', 'https://x.com/someone'])(
+  'falls back to generic after Readability returns null for %s', async url => {
+    connect()
+    chromeMock.tabs.query.mockResolvedValue([{ id: 8, url, title: 'A page' }])
+    chromeMock.scripting.executeScript.mockImplementation(async (details: { files?: string[]; func?: () => unknown }) =>
+      details.files ? [] : [{ result: details.func?.name === 'extractReadable' ? null : captured }])
+    fetchMock.mockImplementation(async (path: string) => path.endsWith('/captures')
+      ? response(201, { id: 49, waiting: 4 })
+      : response(200, { name: 'My browser', waiting: 3 }))
+    initPopup()
+    fireEvent.click(await screen.findByRole('button', { name: 'Add this page to my next digest' }))
+    await screen.findByText('Saved. It will be in your next digest.')
+    expect(chromeMock.scripting.executeScript.mock.calls.map(([details]) =>
+      details.files ? 'readability.js' : details.func.name))
+      .toEqual(['readability.js', 'extractReadable', 'extractGeneric'])
+  },
+)
+
+it('falls back to generic when injecting readability.js rejects', async () => {
+  connect()
+  chromeMock.scripting.executeScript.mockImplementation(async (details: { files?: string[]; func?: () => unknown }) => {
+    if (details.files) throw new Error('Cannot inject library')
+    return [{ result: captured }]
+  })
+  fetchMock.mockImplementation(async (url: string) => url.endsWith('/captures')
+    ? response(201, { id: 50, waiting: 4 })
+    : response(200, { name: 'My browser', waiting: 3 }))
+  initPopup()
+  fireEvent.click(await screen.findByRole('button', { name: 'Add this page to my next digest' }))
+  await screen.findByText('Saved. It will be in your next digest.')
+  expect(chromeMock.scripting.executeScript.mock.calls.map(([details]) =>
+    details.files ? 'readability.js' : details.func.name)).toEqual(['readability.js', 'extractGeneric'])
 })

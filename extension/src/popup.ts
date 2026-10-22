@@ -1,5 +1,6 @@
 import { DEFAULT_SERVER, validServer } from './options'
 import { extractGeneric, type CapturedPage } from './extract/generic'
+import { extractReadable } from './extract/readable'
 import { extractX } from './extract/x'
 
 type Tab = { id?: number; url?: string; title?: string }
@@ -160,8 +161,18 @@ export async function initPopup(): Promise<void> {
         const injections = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: extractX })
         if (!injections.length || !('result' in injections[0])) throw new Error('unreadable')
         page = injections[0].result
+      } else {
+        try {
+          await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['readability.js'] })
+          const injections = await chrome.scripting.executeScript({
+            target: { tabId: tab.id }, func: extractReadable,
+          })
+          page = injections[0]?.result ?? null
+        } catch {
+          page = null
+        }
       }
-      if (!xPost || page === null) {
+      if (page === null) {
         const injections = await chrome.scripting.executeScript({
           target: { tabId: tab.id }, func: extractGeneric,
         })

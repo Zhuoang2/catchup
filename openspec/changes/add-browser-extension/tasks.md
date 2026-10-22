@@ -247,7 +247,7 @@ Read design D12. Each item below is a real defect (a), a plan error (b), or a te
   - Link texts and image alts over 500 characters are cut to 500.
 
   Verify: the new behavior checks fail before the fix. The rule checks that already pass (DELETE on sources; the token on the capture routes) fail under named mutations: widen the DELETE branch to `/api/`, and remove `require_connection` from each capture route.
-- [ ] 9.4 **Readability for generic pages** (D12), in `extension/`.
+- [x] 9.4 **Readability for generic pages** (D12), in `extension/`.
   - Add `@mozilla/readability` `0.6.0` with `npm install --save-exact`, so that `package-lock.json` is updated for CI's `npm ci`.
   - The build copies `node_modules/@mozilla/readability/Readability.js` to `dist/readability.js`, and its `LICENSE.md` to `dist/readability-LICENSE.md`, in the existing plugin in `vite.config.ts`.
   - **The build check** (`scripts/check-build.mjs` and `src/test/build.test.ts`) also requires these two files. It also requires every `/assets/…` file that `popup.html` and `options.html` link (the hashed CSS and JS). Update `build.test.ts`'s dummy files to match.

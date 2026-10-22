@@ -18,6 +18,15 @@ export default defineConfig({
         type: 'asset', fileName: 'icon-192.png',
         source: await readFile(resolve(import.meta.dirname, '../frontend/public/icon-192.png')),
       })
+      for (const [fileName, name] of [
+        ['readability.js', 'Readability.js'],
+        ['readability-LICENSE.md', 'LICENSE.md'],
+      ]) {
+        this.emitFile({
+          type: 'asset', fileName,
+          source: await readFile(resolve(import.meta.dirname, 'node_modules/@mozilla/readability', name)),
+        })
+      }
     },
   }],
   test: {

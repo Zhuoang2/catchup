@@ -57,4 +57,26 @@ for (const [index, run] of cases.entries()) {
     expect(result.links.every(link => link.url.startsWith('https://'))).toBe(true)
     expect(document.body.outerHTML).toBe(original)
   })
+
+  it(`${mode}: reads a main region inside a form without its outside form ancestor excluding it`, () => {
+    document.body.innerHTML = '<form><main><p>Main text</p></main></form>'
+    expect(run().content_text).toBe('Main text')
+  })
+
+  it(`${mode}: excludes nav text, links and images strictly inside the selected root`, () => {
+    document.body.innerHTML = `<main>
+      <nav><a href="https://garden.example/nav">Navigation</a>
+        <img src="https://garden.example/nav.png"></nav>
+      <p>Main text</p><a href="https://garden.example/post">Post link</a>
+      <img src="https://garden.example/post.png"></main>`
+    const result = run()
+    expect(result.content_text).toBe('Main text\nPost link')
+    expect(result.links).toEqual([{ url: 'https://garden.example/post', text: 'Post link' }])
+    expect(result.images).toEqual([{ url: 'https://garden.example/post.png', alt: '' }])
+  })
+
+  it(`${mode}: does not exclude the selected root even if it is a form`, () => {
+    document.body.innerHTML = '<form role="main"><p>Main text</p></form>'
+    expect(run().content_text).toBe('Main text')
+  })
 }

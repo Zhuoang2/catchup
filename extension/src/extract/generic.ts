@@ -26,13 +26,19 @@ export function extractGeneric(): CapturedPage {
     ?? httpUrl(meta('meta[property="og:url"]')) ?? httpUrl(location.href) ?? ''
   const root = document.querySelector('article') ?? document.querySelector('main')
     ?? document.querySelector('[role="main"]') ?? document.body
+  function excluded(element: Element): boolean {
+    for (let current: Element | null = element; current && current !== root; current = current.parentElement) {
+      if (current.matches('nav,aside,footer,header,form,script,style,noscript')) return true
+    }
+    return false
+  }
   let text = ''
   let previousBlock: Element | null = null
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
   while (walker.nextNode()) {
     const node = walker.currentNode
     const parent = node.parentElement
-    if (!parent || parent.closest('nav,aside,footer,script,style,noscript,form')) continue
+    if (!parent || excluded(parent)) continue
     const value = (node.nodeValue ?? '').replace(/\s+/g, ' ').trim()
     if (!value) continue
     const block = parent.closest('p,h1,h2,h3,h4,h5,h6,li,blockquote,pre,div,section,article,main,body')
@@ -44,12 +50,14 @@ export function extractGeneric(): CapturedPage {
   }
   const images: CapturedPage['images'] = []
   for (const image of root.querySelectorAll('img')) {
+    if (excluded(image)) continue
     const src = httpUrl(image.currentSrc || image.src)
     if (src) images.push({ url: src, alt: image.alt.slice(0, 500) })
     if (images.length >= 8) break
   }
   const links: CapturedPage['links'] = []
   for (const anchor of root.querySelectorAll<HTMLAnchorElement>('a[href]')) {
+    if (excluded(anchor)) continue
     const href = httpUrl(anchor.href)
     if (href) links.push({ url: href, text: (anchor.textContent ?? '').trim().slice(0, 500) })
     if (links.length >= 50) break

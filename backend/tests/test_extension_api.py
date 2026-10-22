@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import OperationalError
 
 from catchup.main import create_app
-from catchup.models import DigestRun, ExtensionToken, Source
+from catchup.models import Digest, DigestItem, DigestRun, DigestTopic, ExtensionToken, Item, ItemContext, Source
 
 FEED = "https://site.example/feed"
 ORIGIN = {"Origin": "chrome-extension://abcdefghijklmnop"}
@@ -152,3 +152,247 @@ def test_last_used_failure_does_not_fail_valid_request(client, connected, monkey
         raise OperationalError("UPDATE extension_tokens", {}, Exception("database is locked"))
     monkeypatch.setattr("catchup.main._touch_extension_token", locked)
     assert client.get("/api/extension/status", headers=connected).json() == {"name": "Chrome", "waiting": 0}
+
+
+def save_page(client, connected, **changes):
+    body = {"url": "https://example.com/post", "title": "A post", "text": "The post text", **changes}
+    return client.post("/api/captures", json=body, headers=connected)
+
+
+def test_first_capture_creates_source_and_item(client, connected):
+    response = save_page(
+        client, connected, site_name="Example", author="Writer", published_at="2026-10-01T12:00:00Z",
+        replies=["Author's reply"], links=[{"url": "https://other.example/article", "text": "Read"}],
+        images=[{"url": "https://example.com/photo.png", "alt": "Photo"}],
+    )
+    assert response.status_code == 201
+    assert response.json()["waiting"] == 1
+    with client.app.state.session_factory() as session:
+        source = session.scalar(select(Source))
+        item = session.scalar(select(Item))
+        assert (source.kind, source.title, source.feed_url, source.input_url, source.site_url) == (
+            "capture", "Saved from browser", "catchup:captures", "catchup:captures", "",
+        )
+        assert (item.source_id, item.identity_key, item.link, item.title, item.content_text) == (
+            source.id, "https://example.com/post", "https://example.com/post", "A post", "The post text",
+        )
+        assert (item.content_origin, item.state, item.entry_author, item.site_name) == (
+            "capture", "pending", "Writer", "Example",
+        )
+        assert item.published_at.isoformat() == "2026-10-01T12:00:00+00:00"
+        assert item.captured_replies == ["Author's reply"]
+        assert item.entry_links == [{"url": "https://other.example/article", "text": "Read"}]
+        assert item.image_candidates[0]["url"] == "https://example.com/photo.png"
+        assert item.image_candidates[0]["alt"] == "Photo"
+
+
+def test_capture_caps_and_filters(client, connected):
+    response = save_page(
+        client, connected, title="T" * 310, text="t" * 17000, site_name="S" * 210,
+        author="A" * 210, replies=["r" * 500] * 12,
+        images=[{"url": f"https://example.com/{i}.png", "alt": "Image"} for i in range(10)]
+        + [{"url": "data:image/png;base64,not-an-image", "alt": ""}, {"url": "https://example.com/avatar/u", "alt": ""}],
+        links=[{"url": f"https://other.example/{i}", "text": "Link"} for i in range(55)]
+        + [{"url": "javascript:alert(1)", "text": "Bad"}],
+    )
+    assert response.status_code == 201
+    with client.app.state.session_factory() as session:
+        item = session.scalar(select(Item))
+        assert (len(item.title), len(item.content_text), len(item.site_name), len(item.entry_author)) == (
+            300, 16000, 200, 200,
+        )
+        assert len(item.captured_replies) == 8
+        assert len("\n\n".join(item.captured_replies)) == 4000
+        assert len(item.image_candidates) == 8
+        assert len(item.entry_links) == 50
+        assert all(link["url"].startswith("https://") for link in item.entry_links)
+
+
+def test_capture_limits_replies_by_count(client, connected):
+    assert save_page(client, connected, replies=["Short"] * 12).status_code == 201
+    with client.app.state.session_factory() as session:
+        assert session.scalar(select(Item)).captured_replies == ["Short"] * 10
+
+
+def test_capture_drops_unsafe_links_and_images_before_caps(client, connected):
+    assert save_page(
+        client, connected,
+        links=[{"url": "javascript:alert(1)", "text": "Bad"},
+               {"url": "https://other.example/post", "text": "Good"}],
+        images=[{"url": "data:image/png;base64,abc", "alt": "Inline"},
+                {"url": "https://example.com/avatar/u.png", "alt": "Avatar"},
+                {"url": "https://example.com/photo.png", "alt": "Photo"},
+                {"url": "https://example.com/photo.png#duplicate", "alt": "Duplicate"}],
+    ).status_code == 201
+    with client.app.state.session_factory() as session:
+        item = session.scalar(select(Item))
+        assert item.entry_links == [{"url": "https://other.example/post", "text": "Good"}]
+        assert [image["url"] for image in item.image_candidates] == ["https://example.com/photo.png"]
+
+
+def test_capture_normalizes_url_and_uses_host_for_missing_site_name(client, connected):
+    response = save_page(client, connected, url="HTTPS://Example.COM/a#x", site_name="  ")
+    assert response.status_code == 201
+    with client.app.state.session_factory() as session:
+        item = session.scalar(select(Item))
+        assert item.identity_key == "https://example.com/a"
+        assert item.site_name == "example.com"
+
+
+def test_recapture_replaces_waiting_item_and_clears_cached_context(client, connected):
+    created = save_page(client, connected).json()
+    with client.app.state.session_factory() as session:
+        item = session.get(Item, created["id"])
+        item.summary, item.summary_language, item.summary_images, item.context_status = (
+            "Old", "en", [{"url": "https://example.com/old.png"}], "gathered",
+        )
+        item.contexts.append(ItemContext(ref="L1", kind="link", url="https://other.example/",
+                                         title="Old", text="Old", position=1))
+        session.commit()
+    response = save_page(client, connected, title="New", text="Updated")
+    assert response.status_code == 201
+    assert response.json()["id"] == created["id"]
+    assert response.json()["waiting"] == 1
+    with client.app.state.session_factory() as session:
+        item = session.get(Item, created["id"])
+        assert (item.title, item.content_text) == ("New", "Updated")
+        assert (item.summary, item.summary_language, item.summary_images, item.context_status) == (
+            None, None, None, None,
+        )
+        assert item.contexts == []
+
+
+def test_recapture_after_delivery_adds_one_waiting_item_and_escapes_like(client, connected):
+    url = "https://example.com/a%_b"
+    first = save_page(client, connected, url=url).json()
+    other = save_page(client, connected, url="https://example.com/axxb").json()
+    with client.app.state.session_factory() as session:
+        session.get(Item, first["id"]).state = "delivered"
+        session.commit()
+    second = save_page(client, connected, url=url, title="Second").json()
+    assert second["id"] != first["id"]
+    with client.app.state.session_factory() as session:
+        item = session.get(Item, second["id"])
+        assert item.identity_key.startswith(url + "#")
+        assert session.get(Item, other["id"]).title == "A post"
+    third = save_page(client, connected, url=url, title="Third").json()
+    assert third["id"] == second["id"]
+    with client.app.state.session_factory() as session:
+        waiting = session.scalars(select(Item).where(Item.state == "pending")).all()
+        assert len([item for item in waiting if item.link == url]) == 1
+        assert session.get(Item, second["id"]).title == "Third"
+        assert session.get(Item, first["id"]).state == "delivered"
+
+
+def test_active_run_refuses_replacing_waiting_but_accepts_new_page(client, connected):
+    first = save_page(client, connected).json()
+    with client.app.state.session_factory() as session:
+        session.add(DigestRun(status="collecting"))
+        session.commit()
+    response = save_page(client, connected, text="changed")
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "run_active"
+    with client.app.state.session_factory() as session:
+        assert session.get(Item, first["id"]).content_text == "The post text"
+    assert save_page(client, connected, url="https://example.com/new").status_code == 201
+
+
+def test_first_capture_recovers_after_source_creation_race(client, connected, monkeypatch):
+    from sqlalchemy.exc import IntegrityError
+    from sqlalchemy.orm import Session
+
+    real_flush = Session.flush
+    raced = False
+
+    def flush(self, *args, **kwargs):
+        nonlocal raced
+        if not raced and any(isinstance(obj, Source) and obj.kind == "capture" for obj in self.new):
+            raced = True
+            with client.app.state.session_factory() as other:
+                other.add(Source(kind="capture", title="Saved from browser", site_url="",
+                                 feed_url="catchup:captures", input_url="catchup:captures"))
+                other.commit()
+            raise IntegrityError("INSERT sources", {}, Exception("unique feed_url"))
+        return real_flush(self, *args, **kwargs)
+
+    monkeypatch.setattr(Session, "flush", flush)
+    response = save_page(client, connected)
+    assert response.status_code == 201
+    assert raced
+    with client.app.state.session_factory() as session:
+        assert session.scalar(select(func.count()).select_from(Source)) == 1
+        assert session.scalar(select(Item)).source_id == session.scalar(select(Source.id))
+
+
+@pytest.mark.parametrize("body", [
+    {"url": "file:///tmp/post", "title": "Title", "text": "Text"},
+    {"url": "https://example.com/post", "title": "", "text": ""},
+])
+def test_capture_rejects_invalid_body(client, connected, body):
+    response = client.post("/api/captures", json=body, headers=connected)
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_request"
+
+
+def test_list_captures_is_pending_only_newest_first(client, connected):
+    first = save_page(client, connected, url="https://example.com/one").json()
+    delivered = save_page(client, connected, url="https://example.com/done").json()
+    second = save_page(client, connected, url="https://example.com/two").json()
+    with client.app.state.session_factory() as session:
+        session.get(Item, delivered["id"]).state = "delivered"
+        session.commit()
+    response = client.get("/api/captures", headers=connected)
+    assert response.status_code == 200
+    assert [row["id"] for row in response.json()] == [second["id"], first["id"]]
+    assert set(response.json()[0]) == {"id", "url", "title", "site_name", "saved_at"}
+
+
+def test_remove_only_pending_captures(client, connected):
+    pending = save_page(client, connected).json()
+    delivered = save_page(client, connected, url="https://example.com/done").json()
+    with client.app.state.session_factory() as session:
+        session.get(Item, delivered["id"]).state = "delivered"
+        other = Source(title="Other", site_url="https://feed.example", input_url="https://feed.example/rss",
+                       feed_url="https://feed.example/rss")
+        session.add(other)
+        session.flush()
+        item = Item(source_id=other.id, identity_key="feed", link="https://feed.example/one",
+                    title="Feed item", content_text="text", content_origin="feed", state="pending")
+        session.add(item)
+        session.commit()
+        other_id = item.id
+    assert client.delete(f"/api/captures/{delivered['id']}", headers=connected).status_code == 404
+    assert client.delete(f"/api/captures/{other_id}", headers=connected).status_code == 404
+    assert client.delete(f"/api/captures/{pending['id']}", headers=connected).status_code == 204
+    assert client.get("/api/extension/status", headers=connected).json()["waiting"] == 0
+
+
+def test_capture_source_waiting_count_and_delete_keeps_digest_snapshot(client, connected):
+    first = save_page(client, connected).json()
+    save_page(client, connected, url="https://example.com/two")
+    sources = client.get("/api/sources").json()
+    assert len(sources) == 1
+    assert sources[0]["title"] == "Saved from browser"
+    assert sources[0]["waiting_count"] == 2
+    with client.app.state.session_factory() as session:
+        run = DigestRun(status="succeeded")
+        session.add(run)
+        session.flush()
+        digest = Digest(run_id=run.id, model_id="test", item_count=1, source_count=0)
+        session.add(digest)
+        session.flush()
+        topic = DigestTopic(digest_id=digest.id, position=0, title="Saved", overview="Summary")
+        session.add(topic)
+        session.flush()
+        item = DigestItem(digest_id=digest.id, topic_id=topic.id, position=0, item_id=first["id"],
+                          title="A post", link="https://example.com/post", source_name="Example",
+                          source_kind="capture", summary_unavailable=False)
+        session.add(item)
+        session.commit()
+    assert client.delete(f"/api/sources/{sources[0]['id']}").status_code == 204
+    with client.app.state.session_factory() as session:
+        assert session.scalar(select(func.count()).select_from(Item)) == 0
+        snapshot = session.scalar(select(DigestItem))
+        assert (snapshot.title, snapshot.link, snapshot.source_name, snapshot.item_id) == (
+            "A post", "https://example.com/post", "Example", None,
+        )

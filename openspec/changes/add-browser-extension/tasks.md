@@ -65,7 +65,7 @@ Implementer notes:
 
 ## 2. Saved pages: the API and the built-in source
 
-- [ ] 2.1 **`POST /api/captures`** (D4, D5), in `api/extension.py`. Move the image URL filter out of `_entry_images` into a shared helper in `backend/src/catchup/sources/feeds.py`, used by both. Tests first, in `test_extension_api.py`:
+- [x] 2.1 **`POST /api/captures`** (D4, D5), in `api/extension.py`. Move the image URL filter out of `_entry_images` into a shared helper in `backend/src/catchup/sources/feeds.py`, used by both. Tests first, in `test_extension_api.py`:
   - **The first capture** creates the built-in source: kind `capture`, title "Saved from browser", `feed_url` `catchup:captures`. It also creates a pending item with all D4 fields.
   - **Caps:** values over a cap are cut. Text over 16,000 characters is cut to 16,000. Replies over 10, or over 4,000 characters in all, are cut. More than 8 images, or more than 50 links, are cut.
   - **Filters:** `javascript:` links are dropped, and `data:` and avatar images are dropped by the shared filter.
@@ -80,7 +80,7 @@ Implementer notes:
   - **Feed parsing** is unchanged: `tests/test_discovery.py` passes unchanged.
 
   Verify: the tests fail before, and pass after.
-- [ ] 2.2 **Listing and removing** (D5), plus the source list. Tests first:
+- [x] 2.2 **Listing and removing** (D5), plus the source list. Tests first:
   - `GET /api/captures` lists only pending captures, newest first.
   - `DELETE /api/captures/{id}` returns 204 for a pending capture, and 404 for a delivered one or another source's item.
   - `GET /api/sources` includes the captures source, with `waiting_count`.

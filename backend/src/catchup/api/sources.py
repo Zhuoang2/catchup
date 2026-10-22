@@ -5,7 +5,7 @@ from dataclasses import asdict
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -191,6 +191,11 @@ def list_sources(session: Session = Depends(get_session)) -> list[dict]:
             "possible_gap": last.possible_gap if last else False,
             "http_status": last.http_status if last else None,
             "rate_limited": is_rate_limited(last),
+            **({"waiting_count": session.scalar(
+                select(func.count()).select_from(Item).where(
+                    Item.source_id == source.id, Item.state == "pending",
+                )
+            )} if source.kind == "capture" else {}),
         })
     return result
 

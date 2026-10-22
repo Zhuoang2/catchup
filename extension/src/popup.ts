@@ -1,5 +1,6 @@
 import { DEFAULT_SERVER, validServer } from './options'
 import { extractGeneric, type CapturedPage } from './extract/generic'
+import { extractX } from './extract/x'
 
 type Tab = { id?: number; url?: string; title?: string }
 type Preview = {
@@ -128,6 +129,9 @@ export async function initPopup(): Promise<void> {
   statusText.setAttribute('aria-live', 'polite')
   const host = (() => { try { return new URL(tab.url ?? '').hostname } catch { return '' } })()
   const isX = host === 'x.com' || host === 'twitter.com'
+  const xPost = isX && /^\/[^/]+\/status\/\d+(?:\/|$)/.test((() => {
+    try { return new URL(tab.url ?? '').pathname } catch { return '' }
+  })())
 
   function connected() {
     const follow = button('Follow this site', () => { void previewSite() })
@@ -151,10 +155,19 @@ export async function initPopup(): Promise<void> {
     statusText.textContent = ''
     try {
       if (tab.id === undefined) throw new Error('unreadable')
-      const injections = await chrome.scripting.executeScript({
-        target: { tabId: tab.id }, func: extractGeneric,
-      })
-      const capture = checkedCapture(injections[0]?.result)
+      let page: unknown
+      if (xPost) {
+        const injections = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: extractX })
+        if (!injections.length || !('result' in injections[0])) throw new Error('unreadable')
+        page = injections[0].result
+      }
+      if (!xPost || page === null) {
+        const injections = await chrome.scripting.executeScript({
+          target: { tabId: tab.id }, func: extractGeneric,
+        })
+        page = injections[0]?.result
+      }
+      const capture = checkedCapture(page)
       if (!capture) throw new Error('unreadable')
       const saved = await api<{ id: number; waiting: number }>('/captures', capture)
       waiting = saved.waiting

@@ -188,7 +188,7 @@ Implementer notes:
 
 ## 7. The extension: X posts
 
-- [ ] 7.1 **The X extractor** (D9), in `extension/src/extract/x.ts`, selected by the popup for `x.com` and `twitter.com` at `/<user>/status/<id>`. It is one self-contained function, like 6.1, and returns `null` when no matching post is found. Tests first, on invented fixtures shaped like X's markup (`article[data-testid="tweet"]`, `tweetText`, `User-Name`, `time[datetime]`, `tweetPhoto`):
+- [x] 7.1 **The X extractor** (D9), in `extension/src/extract/x.ts`, selected by the popup for `x.com` and `twitter.com` at `/<user>/status/<id>`. It is one self-contained function, like 6.1, and returns `null` when no matching post is found. Tests first, on invented fixtures shaped like X's markup (`article[data-testid="tweet"]`, `tweetText`, `User-Name`, `time[datetime]`, `tweetPhoto`):
   - **The author's replies only.** A post with two replies by its author, and two by others, gives the post's text, author, time, and images, plus exactly the author's two replies, in order.
   - **Links:**
     - a `t.co` link whose text is a full URL is recorded with that URL;

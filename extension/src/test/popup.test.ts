@@ -231,3 +231,37 @@ it('rejects wrong result types and clamps long text, images and links before pos
   expect(body.replies.length).toBeLessThanOrEqual(10)
   expect(body.replies.join('\n\n').length).toBeLessThanOrEqual(4000)
 })
+
+it.each(['x.com', 'twitter.com'])('uses the X extractor for a %s post URL', async host => {
+  connect()
+  chromeMock.tabs.query.mockResolvedValue([{
+    id: 9, url: `https://${host}/alice/status/123`, title: 'Alice on X',
+  }])
+  chromeMock.scripting.executeScript.mockResolvedValue([{ result: {
+    ...captured, url: `https://${host}/alice/status/123`, replies: ['Author reply'],
+  } }])
+  fetchMock.mockImplementation(async (url: string) => url.endsWith('/captures')
+    ? response(201, { id: 46, waiting: 4 })
+    : response(200, { name: 'My browser', waiting: 3 }))
+  initPopup()
+  fireEvent.click(await screen.findByRole('button', { name: 'Add this page to my next digest' }))
+  await screen.findByText('Saved. It will be in your next digest.')
+  expect(chromeMock.scripting.executeScript.mock.calls[0][0].func.name).toBe('extractX')
+  expect(JSON.parse(String((saves()[0][1] as RequestInit).body)).replies).toEqual(['Author reply'])
+})
+
+it('falls back to generic after the X extractor returns null', async () => {
+  connect()
+  chromeMock.tabs.query.mockResolvedValue([{ id: 10, url: 'https://x.com/alice/status/123', title: 'Alice on X' }])
+  chromeMock.scripting.executeScript.mockResolvedValueOnce([{ result: null }])
+    .mockResolvedValueOnce([{ result: captured }])
+  fetchMock.mockImplementation(async (url: string) => url.endsWith('/captures')
+    ? response(201, { id: 47, waiting: 4 })
+    : response(200, { name: 'My browser', waiting: 3 }))
+  initPopup()
+  fireEvent.click(await screen.findByRole('button', { name: 'Add this page to my next digest' }))
+  await screen.findByText('Saved. It will be in your next digest.')
+  expect(chromeMock.scripting.executeScript.mock.calls.map(([details]) => details.func.name))
+    .toEqual(['extractX', 'extractGeneric'])
+  expect(saves()).toHaveLength(1)
+})

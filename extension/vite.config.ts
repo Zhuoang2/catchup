@@ -20,5 +20,8 @@ export default defineConfig({
       })
     },
   }],
-  test: { environment: 'jsdom', setupFiles: ['./src/test/setup.ts'] },
+  test: {
+    environment: 'jsdom', setupFiles: ['./src/test/setup.ts'],
+    environmentOptions: { jsdom: { url: 'https://x.com/alice/status/123' } },
+  },
 })

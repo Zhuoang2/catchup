@@ -77,7 +77,7 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
 
     for item_id, site_url, links, comments, captured_replies in plan:
         if budget[0] <= 0 and not captured_replies:
-            break
+            continue
         with factory() as session:
             item = session.get(Item, item_id)
             if item is None:

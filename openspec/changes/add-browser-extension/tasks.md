@@ -231,7 +231,7 @@ Implementer notes:
 
 Read design D12. Each item below is a real defect (a), a plan error (b), or a test that cannot fail. Use `diagnosing-bugs` for 9.1, 9.3 and 9.4, and `tdd` for the rest. Every check is red first, either as a failing test before the fix, or as a named temporary mutation, applied and then reverted, where the behavior is already right. Commit after each task.
 
-- [ ] 9.1 **Replies beyond the budget** (`backend/src/catchup/context/gather.py`). Test first, in `backend/tests/test_context_gather.py`, with items in this order: a feed item whose links spend the budget, a feed item with no replies, a capture with no replies, then a capture with replies. The last capture gets its `A1` part, and is `gathered`.
+- [x] 9.1 **Replies beyond the budget** (`backend/src/catchup/context/gather.py`). Test first, in `backend/tests/test_context_gather.py`, with items in this order: a feed item whose links spend the budget, a feed item with no replies, a capture with no replies, then a capture with replies. The last capture gets its `A1` part, and is `gathered`.
 
   Verify: the test fails on the current code (`break`), and passes with `continue`.
 - [ ] 9.2 **Exact address matching** (`backend/src/catchup/api/extension.py`). Tests first, in `backend/tests/test_extension_api.py`:

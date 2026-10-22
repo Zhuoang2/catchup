@@ -116,6 +116,45 @@ def test_capture_replies_survive_prior_feed_spending_fetch_budget(environment, m
         assert [(part.ref, part.text) for part in capture.contexts] == [("A1", "Author's note")]
 
 
+def test_capture_replies_survive_intervening_items_after_budget_exhaustion(
+    environment, monkeypatch, public_dns,
+):
+    seed(environment)
+    with environment.app.state.session_factory() as session:
+        first = session.scalar(select(Item))
+        first.entry_links = [{"url": "https://docs.example/article", "text": "Article"}]
+        session.add(Item(
+            source_id=first.source_id, identity_key="feed-no-replies",
+            link="https://s0.example/second", title="Second feed item",
+            content_text="No replies", content_origin="feed", state="pending",
+        ))
+        session.commit()
+    token = environment.post("/api/settings/extension-tokens", json={"name": "Chrome"}).json()["token"]
+    headers = {"Authorization": f"Bearer {token}", "Origin": "chrome-extension://abcdefghijklmnop"}
+    for path, replies in (("no-replies", []), ("with-replies", ["Captured author reply"])):
+        response = environment.post("/api/captures", json={
+            "url": f"https://blog.example/{path}", "title": path, "text": "Saved page",
+            "replies": replies,
+        }, headers=headers)
+        assert response.status_code == 201
+    last_capture_id = response.json()["id"]
+    stub_collection(monkeypatch)
+    environment.app.state.settings = replace(environment.app.state.settings, context_fetches_per_run=2)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        route = router.get("https://docs.example/article").mock(return_value=httpx.Response(
+            200, text=html("Article", "Related context " * 30),
+        ))
+        assert execute(environment)["status"] == "succeeded"
+        assert route.call_count == 1
+    with environment.app.state.session_factory() as session:
+        capture = session.get(Item, last_capture_id)
+        assert capture.context_status == "gathered"
+        assert [(part.ref, part.text) for part in capture.contexts] == [
+            ("A1", "Captured author reply"),
+        ]
+
+
 def test_capture_redirect_to_own_tag_is_excluded(environment, public_dns):
     capture_with_context(environment, links=[("https://docs.example/redirect", "Redirect")])
     with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:

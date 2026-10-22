@@ -290,6 +290,27 @@ def test_capture_migration_preserves_rows_and_removes_capture_sources_on_downgra
                 "(2, 2, 'saved', 'https://site.example/saved', 'Saved', '2026-10-04', "
                 "'Text', 'capture', 'pending')"
             ))
+            connection.execute(text(
+                "INSERT INTO item_contexts (id, item_id, ref, kind, url, title, text, position) "
+                "VALUES (1, 1, 'L1', 'link', 'https://other.example/page', 'Context', 'Text', 1)"
+            ))
+            connection.execute(text(
+                "INSERT INTO digest_runs (id, status, items_total, items_done, started_at) "
+                "VALUES (1, 'succeeded', 1, 1, '2026-10-04')"
+            ))
+            connection.execute(text(
+                "INSERT INTO digests (id, run_id, created_at, model_id, item_count, source_count) "
+                "VALUES (1, 1, '2026-10-04', 'model', 1, 1)"
+            ))
+            connection.execute(text(
+                "INSERT INTO digest_topics (id, digest_id, position, title, overview) "
+                "VALUES (1, 1, 0, 'Topic', 'Overview')"
+            ))
+            connection.execute(text(
+                "INSERT INTO digest_items (id, digest_id, topic_id, position, item_id, title, "
+                "link, source_name, summary_unavailable) VALUES "
+                "(1, 1, 1, 0, 1, 'Post', 'https://site.example/post', 'News', 0)"
+            ))
         command.downgrade(config, "0005_item_images")
         assert "extension_tokens" not in inspect(engine).get_table_names()
         assert {"site_name", "captured_replies"}.isdisjoint(
@@ -298,5 +319,7 @@ def test_capture_migration_preserves_rows_and_removes_capture_sources_on_downgra
         with engine.connect() as connection:
             assert connection.execute(text("SELECT id FROM sources")).scalars().all() == [1]
             assert connection.execute(text("SELECT id, title FROM items")).all() == [(1, "Post")]
+            assert connection.execute(text("SELECT item_id, ref FROM item_contexts")).all() == [(1, "L1")]
+            assert connection.execute(text("SELECT item_id FROM digest_items")).scalar_one() == 1
     finally:
         engine.dispose()

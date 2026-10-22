@@ -29,6 +29,18 @@ afterEach(() => {
 })
 
 describe('model settings', () => {
+  it('describes the extension as optional for a first-run model', async () => {
+    const original = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (url: string) => url === '/api/settings/model'
+      ? respond({ base_url: 'https://api.deepseek.com', model_id: '', key_set: false, api_key_last4: null })
+      : original(url))
+    const { container } = render(<Settings/>)
+    await screen.findByLabelText('API key')
+    expect(container.querySelector('.lede')?.textContent)
+      .toBe('Three quick steps, and an optional browser extension. Your key stays on this computer, encrypted.')
+    await expectAccessible(container)
+  })
+
   it('connects by Enter without saving the model and shows a token only until reload', async () => {
     const original = fetchMock.getMockImplementation()!
     fetchMock.mockImplementation(async (url: string, options?: RequestInit) => {

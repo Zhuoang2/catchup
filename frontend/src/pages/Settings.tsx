@@ -180,7 +180,7 @@ export default function Settings() {
   return <section className="page page-settings">
     <PageHead title="Settings" lede={last4
       ? 'Your model, digest language, YouTube options, and browser extension.'
-      : 'Four quick steps. Your key stays on this computer, encrypted.'}/>
+      : 'Three quick steps, and an optional browser extension. Your key stays on this computer, encrypted.'}/>
     {loading ? <p>Loading settings…</p> : <form className="settings-form" onSubmit={event => void save(event)}>
       <SettingsSection number={1} title="Model provider">
         <p className="note"><Icon name="info"/>Content will be sent to your configured model provider.</p>

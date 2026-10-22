@@ -60,6 +60,26 @@ it('keeps saved pages out of visible source counts but allows capture-only runs'
   await expectAccessible(container)
 })
 
+it('enables Generate with only saved pages and no existing run', async () => {
+  const { container } = mockPage({ sources: [captures] })
+  await screen.findByRole('heading', { name: 'Generate digest' })
+  expect(screen.getByRole('button', { name: 'Generate digest' })).toBeEnabled()
+  expect(screen.queryByRole('link', { name: 'Add sources' })).toBeNull()
+  await expectAccessible(container)
+})
+
+it('excludes saved pages from the digest hero source count', async () => {
+  const { container } = mockPage({ sources: [sources[0], captures], latest: digest })
+  await screen.findByRole('heading', { name: 'Technology' })
+  expect(container.querySelector('.run-bar .hero-meta')?.textContent).toBe('1 source · Manage sources')
+})
+
+it('excludes saved pages from the no-digest rail source count', async () => {
+  const { container } = mockPage({ sources: [sources[0], captures] })
+  await screen.findByRole('heading', { name: 'Generate digest' })
+  expect(container.querySelector('.rail .rail-big')?.textContent).toBe('1')
+})
+
 it('enables Generate with saved pages alone and omits zero-source run result', async () => {
   const { container } = mockPage({ sources: [captures], run: {
     ...run, status: 'succeeded', sources_total: 0, source_checks: [],

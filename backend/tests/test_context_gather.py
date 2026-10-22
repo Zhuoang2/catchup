@@ -73,6 +73,33 @@ def test_capture_reads_public_links_not_saved_page_or_own_tags(environment, publ
         ]
         assert contexts[1].text == "First reply\n\nSecond reply"
 
+def test_capture_excludes_taxonomy_links_on_its_own_site(environment, public_dns):
+    seed(environment, sources=0)
+    token = environment.post("/api/settings/extension-tokens", json={"name": "Chrome"}).json()["token"]
+    response = environment.post("/api/captures", json={
+        "url": "https://blog.example/post", "title": "Saved post", "text": "The post",
+        "links": [
+            {"url": "https://blog.example/tag/x", "text": "Own tag"},
+            {"url": "https://other.example/a", "text": "Related article"},
+        ],
+    }, headers={"Authorization": f"Bearer {token}", "Origin": "chrome-extension://abcdefghijklmnop"})
+    assert response.status_code == 201
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://blog.example/robots.txt").mock(return_value=httpx.Response(200, text=""))
+        tag = router.get("https://blog.example/tag/x").mock(
+            return_value=httpx.Response(200, text=html("Tag", "Taxonomy page " * 40)),
+        )
+        router.get("https://other.example/robots.txt").mock(return_value=httpx.Response(404))
+        other = router.get("https://other.example/a").mock(
+            return_value=httpx.Response(200, text=html("Article", "Useful related context " * 40)),
+        )
+        assert execute(environment)["status"] == "succeeded"
+    assert tag.call_count == 0
+    assert other.call_count == 1
+    with environment.app.state.session_factory() as session:
+        contexts = session.scalars(select(ItemContext).order_by(ItemContext.position)).all()
+        assert [(row.ref, row.url) for row in contexts] == [("L1", "https://other.example/a")]
+
 
 @pytest.mark.parametrize("replies,expected", [
     (["A reply"], "gathered"), ([], "none"),

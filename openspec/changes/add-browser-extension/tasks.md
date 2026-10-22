@@ -287,7 +287,7 @@ Read design D12. Each item below is a real defect (a), a plan error (b), or a te
   Then add `popup.css` and `options.css` (D12), linked from both HTML files, with light and dark tokens. Re-run axe on every popup and options state.
 
   Verify: the tests fail before the fix, and pass after; axe passes; the build check sees the CSS emitted.
-- [ ] 9.7 **Frontend and backend tests that cannot fail.** Make each one able to fail, and show it with its named mutation:
+- [x] 9.7 **Frontend and backend tests that cannot fail.** Make each one able to fail, and show it with its named mutation:
   - **Home's `noSources`** (`frontend/src/pages/Home.test.tsx`): with only the captures source and **no** run, Generate is enabled. Mutation: exclude captures from `noSources`.
   - **Home's hero and rail counts.** Use two renders: with a digest, the hero's `.hero-meta` reads exactly "1 source · Manage sources"; with no digest, the rail's `.rail-big` reads exactly "1". Mutations: count captures in the hero; count captures in the rail.
   - **The item's own site** (`backend/tests/test_context_gather.py`). Use a saved page on `https://blog.example/post`, with links to `https://blog.example/tag/x` and `https://other.example/a`. Mock `https://blog.example/robots.txt` and `/tag/x` with 200 pages, because `fetch()` swallows respx's unmocked-request error. Assert that the tag route has `call_count == 0`, and that `other.example/a` is stored. Mutation: use `source.site_url`.

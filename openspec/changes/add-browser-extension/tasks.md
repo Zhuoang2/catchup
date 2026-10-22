@@ -305,3 +305,34 @@ Read design D12. Each item below is a real defect (a), a plan error (b), or a te
   - **The coverage summary and the AI usage log:** add the fix-round line, and your entry, with a faithful excerpt of the prompt you received. Leave out the session id.
 
   Verify: every command passes, and the report has the actual numbers.
+
+## 10. Fix round 2 (review findings)
+
+Read design D13. Both items are real defects (a). This is the last Droid round for this change: change only what these tasks name. Each check is red first. Commit after each task.
+
+- [ ] 10.1 **A short post next to a longer sponsor block** (`extension/src/extract/readable.ts`). Use `diagnosing-bugs`; the cause is confirmed in D13.
+  - **The fixture:** add `extension/src/extract/fixtures/blog-short-post.html`, invented, and shaped like the problem page:
+    - no `<article>` or `<main>`;
+    - a site header with a home link and a newsletter link;
+    - **above** the post, a banner `<div id="banner" class="sponsor"><div class="inner">…</div></div>`, with the sponsor link and about 250 characters of ad text inside the inner `div`. Without the inner `div`, Readability already returns the post, and the current code returns `null` instead of the banner;
+    - the post in `<div class="entry">`: a date line, and one paragraph with exactly two links. The value `readable.ts` checks is Readability's `textContent.trim().length`, which includes the HTML's line breaks and indentation, so it is longer than `content_text`. Keep that value **between 100 and 199**, with the visible text near 130 characters, and write the post's HTML with little indentation;
+    - a "Recent articles" list, a side box with a tag link and a support promo, and a footer year list.
+  - **Tests first,** in `extension/src/extract/readable.test.ts`, run both direct and serialized, like the existing ones, on the new fixture: `extractReadable` returns the post's paragraph text; its `links` are exactly the paragraph's two links; and the text contains none of the banner, the list, the promo, or the years.
+  - **Then the rule from D13:** parse with the defaults; when the text is shorter than 500 characters, parse a fresh clone with `{charThreshold: 100}`, and use that result when it has content and at least 100 characters of text; return `null` below 100 characters. Type the `Readability` constructor's options argument.
+
+  Verify: the new tests fail on the current code, where the text is the banner's. They pass after the change. Under the named mutation "set both 100-character checks back to 200", they fail again, and the mutation is reverted. The existing readable, generic, and popup tests pass unchanged.
+- [ ] 10.2 **Saved images keep their origin** (`backend/src/catchup/api/extension.py`). Tests first:
+  - in `backend/tests/test_extension_api.py`, `test_capture_cuts_long_link_text_and_image_alt` expects the whole stored candidate: `{"url": "https://example.com/photo.png", "alt": "I" * 500, "caption": "", "width": None, "height": None, "origin": "html"}`;
+  - in `backend/tests/test_digest_runner.py`, `test_capture_only_run_succeeds_without_checks_and_uses_image_site_fallback` also asserts that the summary request's user message contains `"Images:\nI1 — in the post, position 1;"`.
+
+  - read the summary request's user message as `model.calls[0][0][1]["content"]`; the first call is the summary call.
+
+  Then import `asdict` from `dataclasses`, and store `{**asdict(image), "alt": image.alt[:500]}` for each filtered image.
+
+  Verify: both tests fail on the current code, and pass after the change.
+- [ ] 10.3 **Docs and checks.**
+  - **`docs/process/test-report-add-browser-extension.md`:** add a "Fix round 2 (D13)" section with each check's red result, the mutation, and the actual numbers below.
+  - **The checks:** `uv run pytest --cov=catchup --cov-report=term` in `backend/`; `npm test -- --run` and `npm run build` (which runs the build check) in `extension/`; and `openspec validate add-browser-extension --strict`. The frontend is not changed in this round. Claude Code runs `docker build` and `scripts/docker-smoke.sh` in its review.
+  - **The coverage summary and the AI usage log:** add the fix-round-2 line, and your entry, with a faithful excerpt of the prompt you received. Leave out the session id.
+
+  Verify: every command passes, and the report has the actual numbers.

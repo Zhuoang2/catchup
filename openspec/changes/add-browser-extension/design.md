@@ -262,6 +262,23 @@ The review of Droid's first run found these. Each is classified under D-023, as 
   - **Settings' first-run lede** becomes "Three quick steps, and an optional browser extension. Your key stays on this computer, encrypted."
 - **Known limit, recorded and not fixed:** a page saved while a run is in its context pass may be summarized in that run without context. The window is short, and the effect is a summary without links.
 
+### D13. Fix round 2 (review findings, 2026-10-22)
+
+The review of fix round 1 found two real defects (a). Under D-023 this is the last Droid round for this change.
+
+- **(a) A short post loses to a longer sponsor block** (`extension/src/extract/readable.ts`).
+  - **The bug:** on a short post, such as a 200-character note on Simon Willison's blog, `extractReadable` returned the site's sponsor banner as the page text, with the sponsor's link. The live check on real pages showed it.
+  - **The cause:** Readability's `charThreshold` (default 500) is the shortest text it accepts. When no candidate reaches it, Readability retries with looser rules, keeping every attempt, and at the end returns the longest one (`Readability.js:1545-1573`). The first, strict attempt drops elements whose class looks like a sponsor or a banner, so it finds the post, but the post is short. A later, loose attempt keeps the banner; when the banner's text sits in an inner wrapper, as on that blog, the banner is longer, and wins.
+  - **The rule, re-derived from what the function must return** (the page's main text, or `null` so that the generic extractor runs):
+    1. Parse with the defaults.
+    2. When that result's text is shorter than 500 characters, Readability fell back to its longest attempt. Parse again with `{charThreshold: 100}`. When that second result has content and at least 100 characters of text, use it.
+    3. Return `null` when the chosen result has no content, or less than 100 characters of text. This replaces the 200-character rule of D12.
+  - **Checked on real pages:** seven saved pages from three sites (short notes, long posts, a release note, and a blog's home page). With this rule, each gives its main text and links. The short notes keep their own links, and the release note keeps its release link.
+  - **Unchanged:** the text, link, and image walk over the parsed content, and the order in which the popup runs the extractors.
+- **(a) Saved images lose their origin** (`backend/src/catchup/api/extension.py`).
+  - **The bug:** fix round 1 cut image alt texts to 500 characters by writing a new dict with only `url` and `alt`. The stored candidates lost `origin`, `caption`, `width`, and `height`. The summary prompt names each image by its origin, so saved pages' images are described as "image" instead of "in the post", unlike feed items.
+  - **The fix:** store every field of the filtered `EntryImage`, as `collection.py` does with `asdict`, with only `alt` cut to 500 characters.
+
 ### D11. Alternatives considered
 - **Proposal 2: the extension as a logged-in collector for followed accounts.** On each run it would open followed pages in background tabs, scroll, and read new posts. Rejected:
   - X's automation rules list scripting the website among practices that may lead to suspension, and its terms prohibit scraping;

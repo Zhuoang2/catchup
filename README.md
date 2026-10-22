@@ -128,9 +128,19 @@ background reading and does not scroll, click, or open pages on your behalf.
 Generic page extraction uses Mozilla Readability 0.6.0 (Apache-2.0); its
 license is bundled in `extension/dist/readability-LICENSE.md`.
 
-A page saved while a digest run is in its context pass may be summarized
-in that run without linked context. This short window can produce a
-summary without links.
+In the next digest run, the CatchUp server reads up to
+`CATCHUP_LINKS_PER_ITEM` links recorded on each saved page, as it does for
+website items. It requests them itself, without your cookies. A link that
+carries a private token, such as an email-confirmation or unsubscribe link,
+may act when it is requested, so do not save pages that show such links.
+
+Known limits:
+
+- A page saved while a digest run is in its context pass may be summarized
+  in that run without linked context. This short window can produce a
+  summary without links.
+- On a short page beside a longer sponsor block, the saved text can include
+  the sponsor text, or hold only that text.
 
 **X's terms prohibit scraping in any form.** Saving an X page is at your
 own risk and only reads what your browser currently displays after you press

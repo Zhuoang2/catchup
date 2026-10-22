@@ -26,7 +26,7 @@ it('documents collection boundaries, reader license and the context-pass limit',
   const extension = readme.split('## Browser extension')[1]?.split(/^## /m)[0]
   for (const text of ['cookies', 'saved passwords', 'site storage', 'background reading',
     'scroll', 'click', 'open pages', 'Mozilla Readability', 'Apache-2.0',
-    'context pass', 'summary without links']) {
+    'context pass', 'summary without links', 'without your cookies', 'sponsor text']) {
     expect(extension, text).toContain(text)
   }
 })

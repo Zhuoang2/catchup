@@ -136,3 +136,22 @@ Frontend was unchanged and not retested in this round. Docker build and smoke we
   - **The 10.2 runner test** reads `model.calls[0]` as the summary call.
   - **Short pages** get a second Readability parse, only when the user clicks.
 
+
+### Independent review before the manual check
+
+A fresh sub-agent, the one that proposed the D-023 stop rules, reviewed the whole change (`c4b7251..751f972`) without the design discussion. Claude reproduced its findings.
+
+- **Security: no defect.** Probes against the branch backend:
+  - with a valid token, the digest, settings, run, token, and source-delete routes answer 403, and so do trailing-slash and `HEAD` variants of the extension routes;
+  - an unknown `cu_` token gets 401;
+  - a cross-origin preflight gets 405 with no CORS headers;
+  - a lowercase `bearer` falls back to the cross-site rule.
+- **Fix rounds:** round 1 held real defects, plan errors, and tests that could not fail. Round 2 held two real defects. Two items patched an earlier round:
+  - saving images' fields undid round 1's narrowing of them;
+  - round 2's second Readability parse tuned round 1's thresholds, rather than removing their cause.
+- **Recorded, with the user's decision (2026-10-21), for a follow-up issue:**
+  - **Sponsor text on short pages (a).** A 60-character note beside a 275-character banner saves only the banner. A 330-character post beside an indented, 380-character sponsor block saves the sponsor text first: the default parse counts 655 characters, so the second parse does not run.
+    - Claude probed one rule: always take Readability's first, strict attempt (`charThreshold: 1`). It fixes these cases and keeps the seven real pages' text, but drops the release link from the release-note page's title.
+    - A real fix needs one extractor in place of `readable.ts` and `generic.ts`, which share 39 near-identical lines, checked against a set of real pages. README lists the limit.
+  - **Linked pages of saved pages (by design; now documented).** In the next run, the server requests up to `CATCHUP_LINKS_PER_ITEM` links recorded on a saved page, without cookies. README now says so, and warns against saving pages whose links carry private tokens. The README contract test checks both new sentences: it failed without the README change, and passed with it.
+  - **Hidden text (a, low).** `generic.ts` has no visibility check, so it reads, for example, a `hidden` menu inside `<main>`.

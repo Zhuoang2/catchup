@@ -236,38 +236,51 @@ Read design D12. Each item below is a real defect (a), a plan error (b), or a te
   Verify: the test fails on the current code (`break`), and passes with `continue`.
 - [ ] 9.2 **Exact address matching** (`backend/src/catchup/api/extension.py`). Tests first, in `backend/tests/test_extension_api.py`:
   - deliver `https://example.com/a`, save it again (so that `…/a#<time>` waits), then save `https://example.com/A`. Two different items wait, and the `/a` item is unchanged;
-  - replace the `%`/`_` test with one that can fail: a waiting `https://example.com/a_b#<time>`, and a new save of `https://example.com/axb`, must add a new item.
+  - replace the `%`/`_` test with one that can fail: a waiting `https://example.com/axb#<time>`, and a new save of `https://example.com/a_b`, must add a new item.
 
-  Verify: both fail on the current code, and pass with a `substr` comparison.
+  Verify: the case test fails on the current code, and passes with a `substr` comparison. The `%`/`_` test passes on the current code, because `autoescape=True` is there; its red step is the named mutation "remove `autoescape=True`", applied before the `substr` change, and then reverted.
 - [ ] 9.3 **The server's capture and token rules** (`backend/src/catchup/main.py`, `api/extension.py`). Tests first:
   - `Authorization: Bearer some-proxy-token` without the `cu_` prefix, with the instance's own `Origin`, on `PUT /api/settings/preferences`, gets 200. With a foreign `Origin`, it gets 403 `cross_site_request`.
   - A valid token on `DELETE /api/sources/1` gets 403, and the source still exists.
-  - `POST /api/captures` and `DELETE /api/captures/{id}` without a token get 401 `invalid_token`, with no effect.
-  - A capture with an empty title gets the first 80 characters of its text as its title, or, with no text, the host.
+  - `POST /api/captures` and `DELETE /api/captures/{id}` without a token get 401 `invalid_token`, with no effect. Send these without an `Origin` header, as a tool would, so that the route answers and not the cross-site rule.
+  - A capture with an empty title, and text whose first 81 characters contain no space, gets exactly the first 80 characters of its text as its title.
   - Link texts and image alts over 500 characters are cut to 500.
 
   Verify: the new behavior checks fail before the fix. The rule checks that already pass (DELETE on sources; the token on the capture routes) fail under named mutations: widen the DELETE branch to `/api/`, and remove `require_connection` from each capture route.
 - [ ] 9.4 **Readability for generic pages** (D12), in `extension/`.
-  - Add `@mozilla/readability` `0.6.0` (an exact version) to `package.json`.
-  - The build copies `node_modules/@mozilla/readability/Readability.js` to `dist/readability.js`, and its `LICENSE.md` to `dist/readability-LICENSE.md`. The build check also requires these two files.
+  - Add `@mozilla/readability` `0.6.0` with `npm install --save-exact`, so that `package-lock.json` is updated for CI's `npm ci`.
+  - The build copies `node_modules/@mozilla/readability/Readability.js` to `dist/readability.js`, and its `LICENSE.md` to `dist/readability-LICENSE.md`, in the existing plugin in `vite.config.ts`.
+  - **The build check** (`scripts/check-build.mjs` and `src/test/build.test.ts`) also requires these two files. It also requires every `/assets/…` file that `popup.html` and `options.html` link (the hashed CSS and JS). Update `build.test.ts`'s dummy files to match.
   - Add `extension/src/extract/readable.ts`, with `extractReadable`, which is self-contained and uses the global `Readability`.
   - Fix the generic extractor's exclusion (only between the node and the root), for text, links and images.
 
-  Tests first, on a new invented fixture shaped like the problem page: no `<article>`, a post body, a sidebar of recent posts, a sponsor block, and a footer year list.
-  - **Readability:** with `Readability` loaded into the jsdom window, `extractReadable` returns the post's text, and only the post's links, with no sidebar, sponsor, or year text or links.
-  - **Serialization:** it passes the `new Function` round trip.
+  Tests first, on a new invented fixture shaped like the problem page: no `<article>`, a post body, a "Recent articles" sidebar, a sponsor block with `class="sponsor"` **outside** the post body, and a footer year list.
+  - **Readability:** load it into the jsdom window with `window.eval` of the file's source, and remove it with `delete` afterwards. `extractReadable` returns the post's text, and only the post's links, with no sidebar, sponsor, or year text or links. The original document is unchanged.
+  - **Short results:** on a page of navigation and lists only, the parsed text is under 200 characters, so it returns `null`.
+  - **Serialization:** it passes the `new Function` round trip, with `Readability` loaded.
   - **Missing library:** without `Readability`, it returns `null`.
-  - **The generic extractor:** on a page wrapped in one `<form>`, it returns the text, and it skips links inside a `nav` within the root.
-  - **The popup:** on a non-X page, it injects `readability.js`, then `extractReadable`, and falls back to the generic extractor when that returns `null`. On an X post, it keeps the X extractor first.
+  - **The generic extractor:**
+    - on `<body><form><main><p>Main text</p></main></form></body>`, it returns "Main text";
+    - on a root with a `nav` inside, it skips that nav's text, links, and images;
+    - the root element itself is never treated as excluded, even when it is a `<form role="main">`.
+  - **The popup:**
+    - On a non-X page, and on an X profile page, it injects `readability.js` (`{files}`), then `extractReadable` (`{func}`). It falls back to the generic extractor when that returns `null`, or when the `files` injection rejects.
+    - On an X post, it keeps the X extractor first.
+    - Update the existing tests that expect the first call to be `extractGeneric` (`popup.test.ts:136-139` and `:199-201`). Make the `executeScript` mock answer by `details.files` or `details.func.name`, instead of one `mockResolvedValue`.
 
   Verify: the fixture tests fail before the change, and the full extension suite and build pass.
-- [ ] 9.5 **X: the author's handle** (`extension/src/extract/x.ts`). Tests first, on the X fixture:
-  - a reply whose display name contains "@alice", but whose profile link is `/mallory`, is not saved as an author reply;
-  - an article above the post, written by the author, is not saved as a reply.
+- [ ] 9.5 **X: the author's handle** (`extension/src/extract/x.ts`). First update the fixture `extension/src/extract/fixtures/x-post.html`: in every `User-Name`, add a display-name link and an `@handle` link to `/<handle>`, and, on non-focal articles, a time link to `/<handle>/status/<id>`. Keep the existing tests passing, with links inside `User-Name` left out of `links`. Then, tests first:
+  - a reply whose display name is "Fan of @alice", but whose links go to `/mallory`, is not saved as an author reply;
+  - an article above the post, written by the author, is not saved as a reply. This already passes (`x.ts:30` loops over the articles after the post); its red step is the named mutation "take replies from every article except the post" (`articles.filter(a => a !== article)`).
 
-  Verify: both fail before the fix.
+  Verify: the first test fails before the fix, and the second fails under its mutation.
 - [ ] 9.6 **Popup fixes and styling** (D12). Tests first, in the popup tests:
-  - a rejected `fetch`, or a non-JSON 502, shows "Could not connect to CatchUp.";
+  - a rejected `fetch`, or a non-JSON 502, **after the popup has connected**, shows "Could not connect to CatchUp." in these actions, which today show other text:
+    - "Add this page" (today: "This page can't be read by extensions.");
+    - "Follow this site" and "Confirm" (today: the raw "Failed to fetch");
+    - "Remove" (today: the raw error).
+
+    The first status check already shows the right text, so it does not count as a red step;
   - the preview shows "Website feed" for `feed`;
   - the count shows "1 page waiting" and "2 pages waiting".
 
@@ -276,10 +289,10 @@ Read design D12. Each item below is a real defect (a), a plan error (b), or a te
   Verify: the tests fail before the fix, and pass after; axe passes; the build check sees the CSS emitted.
 - [ ] 9.7 **Frontend and backend tests that cannot fail.** Make each one able to fail, and show it with its named mutation:
   - **Home's `noSources`** (`frontend/src/pages/Home.test.tsx`): with only the captures source and **no** run, Generate is enabled. Mutation: exclude captures from `noSources`.
-  - **Home's hero and rail counts:** assert the exact texts "1 source" and the rail's number. Mutations: count captures in the hero; count captures in the rail.
-  - **The item's own site** (`backend/tests/test_context_gather.py`): use a saved page on `https://blog.example/post`. Its link `https://blog.example/tag/x` is dropped, and `https://other.example/a` is kept. Mutation: use `source.site_url`.
-  - **The downgrade** (`backend/tests/test_db.py`): add an `item_contexts` row and a `digest_items` row before the downgrade. Afterwards, the digest item's row still exists, and other items' contexts are kept. Mutation: remove `recreate="never"`.
-  - **The first-run lede** in `frontend/src/pages/Settings.tsx`: it no longer says "Four quick steps". Update its test.
+  - **Home's hero and rail counts.** Use two renders: with a digest, the hero's `.hero-meta` reads exactly "1 source · Manage sources"; with no digest, the rail's `.rail-big` reads exactly "1". Mutations: count captures in the hero; count captures in the rail.
+  - **The item's own site** (`backend/tests/test_context_gather.py`). Use a saved page on `https://blog.example/post`, with links to `https://blog.example/tag/x` and `https://other.example/a`. Mock `https://blog.example/robots.txt` and `/tag/x` with 200 pages, because `fetch()` swallows respx's unmocked-request error. Assert that the tag route has `call_count == 0`, and that `other.example/a` is stored. Mutation: use `source.site_url`.
+  - **The downgrade** (`backend/tests/test_db.py`): before the downgrade, add an `item_contexts` row and a `digest_items` row for a feed item. Afterwards, the digest item's `item_id` is still that feed item's id, and the feed item's context row is kept. Mutation: remove `recreate="never"`. Both assertions fail under it: the contexts are deleted, and `item_id` becomes null.
+  - **The first-run lede** in `frontend/src/pages/Settings.tsx`. Add a test, since none asserts it today: with no saved key, the lede reads exactly "Three quick steps, and an optional browser extension. Your key stays on this computer, encrypted."
 
   Verify: each mutation fails its check, and is reverted.
 - [ ] 9.8 **Docs and checks.**

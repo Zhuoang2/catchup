@@ -234,20 +234,20 @@ The review of Droid's first run found these. Each is classified under D-023, as 
   - **The bug:** on a page with no `<article>` or `<main>`, such as Simon Willison's post pages, the generic extractor read all of `<body>`. Its links were not filtered by region. The saved text then held the sidebar, a sponsor block, and a year list, and the "related" links read were the home page, the newsletter page, a sponsor ad, and an index page.
   - **The user's choice:** use `@mozilla/readability`, version `0.6.0` pinned exactly (Apache-2.0), the reader-view library Firefox uses (user decision, 2026-10-22).
   - **How it runs:** the build copies its `Readability.js` and its license into `dist/`. The popup injects it with `chrome.scripting.executeScript({files: ['readability.js']})`, then runs a new self-contained function, `extractReadable`. Files and functions that one extension injects into a tab share that extension's isolated world, so the function can use the global `Readability`. That is verified in the manual check.
-  - **What `extractReadable` returns:** it runs `new Readability(document.cloneNode(true)).parse()`, and returns `null` when `Readability` is missing or the parse returns `null`. Otherwise:
+  - **What `extractReadable` returns:** it runs `new Readability(document.cloneNode(true)).parse()`. It returns `null` when `Readability` is missing, when the parse returns `null`, or when the parsed text is shorter than 200 characters. A probe showed that Readability returns a result even for a page of navigation and lists, so the length rule is what lets the generic extractor run on such pages. Otherwise:
     - the text comes from the parsed `content` HTML, with the same block-aware text walk;
     - the images and links come from that content only;
     - the title, author, site name, and time come from Readability's fields, falling back to the page's meta tags.
-  - **The order:** on an X post, the X extractor runs first. On other pages, `extractReadable` runs first. The fixed generic extractor runs when either returns `null`.
-  - **The generic extractor's own fix (b):** a text node or anchor is excluded only when a `nav`, `aside`, `footer`, `header`, `form`, `script`, `style`, or `noscript` element lies **between it and the root**, not anywhere above the root. A site wrapped in one big `<form>` therefore keeps its text. Links and images get the same exclusion as text.
+  - **The order:** on an X post, the X extractor runs first. On every other page, X profile pages included, `extractReadable` runs first. The fixed generic extractor runs when either returns `null`, and also when injecting `readability.js` fails.
+  - **The generic extractor's own fix (b):** a text node, anchor, or image is excluded only when a `nav`, `aside`, `footer`, `header`, `form`, `script`, `style`, or `noscript` element lies **strictly inside the root** and above it. Excluding elements above the root, or the root itself, is the bug. A form outside the main region, as in `<form><main>…</main></form>`, therefore keeps the main text. Links and images get the same exclusion as text. A page whose root is `body` and whose content sits inside one `<form>` stays empty; Readability handles most such pages first.
   - **No server change:** page HTML is never sent to the server.
 - **(a) X: the author's handle.**
   - **The bug:** the handle was the first `@word` anywhere in `User-Name`, display names included, so a reply by someone named "Fan of @alice" counted as Alice's.
-  - **The fix:** the handle comes from the path of the profile link inside `User-Name` (`/alice` gives `@alice`). Replies are taken only from articles after the post.
+  - **The fix:** the handle comes from the first link inside `User-Name` whose path has exactly one segment (`/alice` gives `@alice`). On X, `User-Name` holds a display-name link and an `@handle` link, both to `/alice`, and on other tweets also a time link to `/alice/status/<id>` (general knowledge, unverified, so it is also in the manual check). Links inside `User-Name` are not recorded in `links`. Replies are taken only from articles after the post, as today.
 - **(a) Exact address matching.** SQLite's `LIKE`, used by `startswith`, ignores ASCII case, so `/A` could replace a waiting `/a#t`. The waiting-item lookup compares `substr(identity_key, 1, n)` with the key plus `#`, which is case-sensitive.
 - **(a) Smaller defects:**
   - **Captures:**
-    - a capture with an empty title gets the first 80 characters of its text, or else the URL's host, like `_entry_title`;
+    - a capture with an empty title gets the first 80 characters of its text (D5 already refuses a capture with neither title nor text);
     - link texts and image alt texts are cut to 500 characters on the server too.
   - **The popup:**
     - a failed `fetch`, or an error response that is not JSON, shows "Could not connect to CatchUp.";
@@ -259,6 +259,7 @@ The review of Droid's first run found these. Each is classified under D-023, as 
   - `popup.css` and `options.css` reuse the token values of `frontend/src/styles/tokens.css`, copied with a comment naming that file, in light and dark (`prefers-color-scheme`).
   - The popup is about 340 px wide, with buttons styled like CatchUp's.
   - The axe checks cover the styled states.
+  - **Settings' first-run lede** becomes "Three quick steps, and an optional browser extension. Your key stays on this computer, encrypted."
 - **Known limit, recorded and not fixed:** a page saved while a run is in its context pass may be summarized in that run without context. The window is short, and the effect is a summary without links.
 
 ### D11. Alternatives considered

@@ -135,7 +135,7 @@ Implementer notes:
 
 ## 5. The extension: package, options, and Follow this site
 
-- [ ] 5.1 **The package** (D1), in a new folder `extension/`:
+- [x] 5.1 **The package** (D1), in a new folder `extension/`:
   - **Files:**
     - `package.json`, with its lock file;
     - `tsconfig.json`;
@@ -155,7 +155,7 @@ Implementer notes:
   - **A build check** (a script or test run after `npm run build`) reads `dist/manifest.json`, and fails when the popup, the options page, or an icon it names is missing from `dist/`.
 
   Verify: `npm test -- --run` and `npm run build` pass in `extension/`, and `dist/manifest.json` exists.
-- [ ] 5.2 **Follow this site** (D8). Tests first, in the popup tests:
+- [x] 5.2 **Follow this site** (D8). Tests first, in the popup tests:
   - **Preview, then confirm.** Preview posts the active tab's URL with the token, and renders title, kind, feed URL, notice, and entries. "Confirm" posts `/api/sources`, and "Cancel" sends nothing.
   - **Errors:** `duplicate` shows the server's message; `no_feed` and the `fetch_failed` statuses show the same texts as `frontend/src/pages/Sources.tsx`; a 401 shows the not-connected state.
   - **X tabs:** on `https://x.com/someone`, it shows the cannot-follow message, with no request. That it offers "Add this page" instead is tested in 6.2, once that button exists.

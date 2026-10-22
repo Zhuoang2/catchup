@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "CatchUp",
+  "version": "0.1.0",
+  "description": "Follow sites and save the page you are reading to your local CatchUp digest.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "action": { "default_popup": "popup.html" },
+  "options_ui": { "page": "options.html", "open_in_tab": true },
+  "icons": { "192": "icon-192.png" }
+}

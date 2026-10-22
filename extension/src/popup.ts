@@ -93,15 +93,23 @@ export async function initPopup(): Promise<void> {
   root.textContent = 'Connecting to CatchUp…'
 
   async function api<T>(path: string, body?: object, method?: 'DELETE'): Promise<T> {
-    const response = await fetch(`${server}/api${path}`, {
-      ...(body ? { method: 'POST', body: JSON.stringify(body) } : method ? { method } : {}),
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(body ? { 'Content-Type': 'application/json' } : {}),
-      },
-    })
+    const connectionError: ApiError = {
+      status: 0, code: 'connection_failed', message: 'Could not connect to CatchUp.', http_status: null,
+    }
+    let response: Response
+    try {
+      response = await fetch(`${server}/api${path}`, {
+        ...(body ? { method: 'POST', body: JSON.stringify(body) } : method ? { method } : {}),
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(body ? { 'Content-Type': 'application/json' } : {}),
+        },
+      })
+    } catch { throw connectionError }
     if (response.ok && response.status === 204) return undefined as T
-    const result = await response.json() as T & { error?: Partial<ApiError> }
+    let result: T & { error?: Partial<ApiError> }
+    try { result = await response.json() as T & { error?: Partial<ApiError> } }
+    catch { throw connectionError }
     if (!response.ok) {
       throw {
         status: response.status, code: result.error?.code ?? '',
@@ -140,7 +148,7 @@ export async function initPopup(): Promise<void> {
     root.replaceChildren(
       element('h2', tab.title || 'Current tab'),
       element('p', host),
-      element('p', `${waiting} pages waiting`),
+      element('p', `${waiting} ${waiting === 1 ? 'page' : 'pages'} waiting`),
       ...(isX
         ? [element('p', 'X accounts cannot be followed. You can save an individual post instead.')]
         : tab.url?.startsWith('http') ? [follow] : []),
@@ -148,6 +156,7 @@ export async function initPopup(): Promise<void> {
       button('Open CatchUp', () => { void chrome.tabs.create({ url: server }) }),
       statusText,
     )
+    add.className = 'primary'
   }
 
   async function savePage(add: HTMLButtonElement) {
@@ -216,9 +225,12 @@ export async function initPopup(): Promise<void> {
       section.setAttribute('aria-label', 'Source preview')
       const entries = element('ul')
       for (const entry of preview.entries.slice(0, 5)) entries.append(element('li', entry.title))
+      const kindLabels: Record<string, string> = {
+        feed: 'Website feed', podcast: 'Podcast', youtube: 'YouTube channel',
+      }
       section.append(
         element('h2', preview.title),
-        element('p', preview.kind),
+        element('p', kindLabels[preview.kind] ?? preview.kind),
         element('p', preview.feed_url),
         ...(preview.follows_site_feed_notice
           ? [element('p', preview.kind === 'podcast'
@@ -229,6 +241,7 @@ export async function initPopup(): Promise<void> {
         button('Cancel', connected),
       )
       root.replaceChildren(section, statusText)
+      section.querySelector('button')!.className = 'primary'
     } catch (error) {
       if ((error as ApiError).status === 401) disconnected()
       else statusText.textContent = sourceError(error as ApiError)

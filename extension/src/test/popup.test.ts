@@ -33,7 +33,7 @@ const connect = () => {
   fetchMock.mockResolvedValue(response(200, { name: 'My browser', waiting: 3 }))
 }
 const preview = {
-  title: 'Example Site', kind: 'rss', feed_url: 'https://site.example/feed',
+  title: 'Example Site', kind: 'feed', feed_url: 'https://site.example/feed',
   site_url: 'https://site.example', follows_site_feed_notice: true,
   entries: [{ title: 'Latest', link: 'https://site.example/latest', published_at: null }],
 }
@@ -77,7 +77,7 @@ it('previews a site, cancels without posting, then confirms only its feed URL', 
   fireEvent.click(await screen.findByRole('button', { name: 'Follow this site' }))
   await screen.findByText('Latest')
   expect(screen.getByText('Example Site')).toBeInTheDocument()
-  expect(screen.getByText('rss')).toBeInTheDocument()
+  expect(screen.getByText('Website feed')).toBeInTheDocument()
   expect(screen.getByText('https://site.example/feed')).toBeInTheDocument()
   expect(screen.getByText(/whole site's feed/)).toBeInTheDocument()
   expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:8000/api/sources/preview',
@@ -92,6 +92,66 @@ it('previews a site, cancels without posting, then confirms only its feed URL', 
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:8000/api/sources',
     expect.objectContaining({ method: 'POST', body: JSON.stringify({ feed_url: preview.feed_url }) })))
   expect(await axe(document.body, { rules: { 'color-contrast': { enabled: false } } }).then(r => r.violations)).toEqual([])
+})
+
+it.each([
+  ['podcast', 'Podcast'], ['youtube', 'YouTube channel'],
+])('labels a %s preview as %s', async (kind, label) => {
+  connect()
+  fetchMock.mockImplementation(async (url: string) => url.endsWith('/preview')
+    ? response(200, { ...preview, kind })
+    : response(200, { name: 'My browser', waiting: 3 }))
+  initPopup()
+  fireEvent.click(await screen.findByRole('button', { name: 'Follow this site' }))
+  await screen.findByText(label)
+  expect((await axe(document.body, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([])
+})
+
+it.each([1, 2])('shows the correct waiting-page wording for %i', async waiting => {
+  connect()
+  fetchMock.mockResolvedValue(response(200, { name: 'My browser', waiting }))
+  initPopup()
+  expect(await screen.findByText(`${waiting} ${waiting === 1 ? 'page' : 'pages'} waiting`)).toBeInTheDocument()
+  expect((await axe(document.body, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([])
+})
+
+it.each(
+  ['Add this page to my next digest', 'Follow this site', 'Confirm', 'Remove']
+    .flatMap(action => ['rejected fetch', 'non-JSON 502'].map(failure => [action, failure])),
+)('reports %s failure (%s) after connecting', async (action, failure) => {
+  connect()
+  genericResult(captured)
+  fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+    if (url.endsWith('/status')) return response(200, { name: 'My browser', waiting: 3 })
+    if (action === 'Confirm' && url.endsWith('/preview')) return response(200, preview)
+    if (action === 'Remove' && url.endsWith('/captures') && init?.method === 'POST')
+      return response(201, { id: 42, waiting: 4 })
+    if (failure === 'rejected fetch') throw new Error('Failed to fetch')
+    return { ok: false, status: 502, json: async () => { throw new SyntaxError('Unexpected HTML') } }
+  })
+  initPopup()
+  if (action === 'Confirm') {
+    fireEvent.click(await screen.findByRole('button', { name: 'Follow this site' }))
+    await screen.findByText('Latest')
+  }
+  if (action === 'Remove') {
+    fireEvent.click(await screen.findByRole('button', { name: 'Add this page to my next digest' }))
+    await screen.findByText('Saved. It will be in your next digest.')
+  }
+  fireEvent.click(await screen.findByRole('button', { name: action }))
+  await waitFor(() => expect(screen.getByRole('status'))
+    .toHaveTextContent('Could not connect to CatchUp.'))
+  expect((await axe(document.body, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([])
+  },
+)
+
+it.each(['popup', 'options'])('links the styled %s page', page => {
+  const html = readFileSync(resolve(`${page}.html`), 'utf8')
+  const css = readFileSync(resolve(`src/${page}.css`), 'utf8')
+  expect(html).toContain(`href="/src/${page}.css"`)
+  expect(css).toContain('frontend/src/styles/tokens.css')
+  expect(css).toContain('prefers-color-scheme: dark')
+  expect(css).toContain('var(--fg)')
 })
 
 it.each([
@@ -110,6 +170,7 @@ it.each([
   initPopup()
   fireEvent.click(await screen.findByRole('button', { name: 'Follow this site' }))
   await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(expected))
+  expect((await axe(document.body, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([])
 })
 
 it('treats a revoked token as disconnected and does not make other requests', async () => {
@@ -175,6 +236,7 @@ it.each(['reject', 'empty', 'missing'])('does not save an unreadable tab (%s)', 
   fireEvent.click(await screen.findByRole('button', { name: 'Add this page to my next digest' }))
   await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent("This page can't be read by extensions."))
   expect(saves()).toHaveLength(0)
+  expect((await axe(document.body, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([])
 })
 
 it('disables Add while saving and shows a run_active conflict', async () => {
@@ -194,6 +256,7 @@ it('disables Add while saving and shows a run_active conflict', async () => {
   complete(response(409, { error: { code: 'run_active', message: 'A digest is being made.' } }))
   await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('A digest is being made.'))
   expect(add).toBeEnabled()
+  expect((await axe(document.body, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([])
 })
 
 it('offers Add instead of Follow for X profiles, and saves the generic page', async () => {
@@ -214,6 +277,7 @@ it('offers Add instead of Follow for X profiles, and saves the generic page', as
     details.files ? 'readability.js' : details.func.name))
     .toEqual(['readability.js', 'extractReadable', 'extractGeneric'])
   expect(saves()).toHaveLength(1)
+  expect((await axe(document.body, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([])
 })
 
 it('rejects wrong result types and clamps long text, images and links before posting', async () => {

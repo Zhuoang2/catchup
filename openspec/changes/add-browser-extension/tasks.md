@@ -274,7 +274,7 @@ Read design D12. Each item below is a real defect (a), a plan error (b), or a te
   - an article above the post, written by the author, is not saved as a reply. This already passes (`x.ts:30` loops over the articles after the post); its red step is the named mutation "take replies from every article except the post" (`articles.filter(a => a !== article)`).
 
   Verify: the first test fails before the fix, and the second fails under its mutation.
-- [ ] 9.6 **Popup fixes and styling** (D12). Tests first, in the popup tests:
+- [x] 9.6 **Popup fixes and styling** (D12). Tests first, in the popup tests:
   - a rejected `fetch`, or a non-JSON 502, **after the popup has connected**, shows "Could not connect to CatchUp." in these actions, which today show other text:
     - "Add this page" (today: "This page can't be read by extensions.");
     - "Follow this site" and "Confirm" (today: the raw "Failed to fetch");

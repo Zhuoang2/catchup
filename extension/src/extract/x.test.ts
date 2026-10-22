@@ -39,4 +39,22 @@ for (const [index, run] of runs.entries()) {
     </article>`
     expect(run()?.content_text).toBe('Quoted a post')
   })
+  it(`${mode}: does not mistake an @mention in a reply's display name for the author's handle`, () => {
+    const fixture = readFileSync(resolve('src/extract/fixtures/x-post.html'), 'utf8')
+    document.body.innerHTML = fixture.replace(
+      '<div data-testid="tweetText">Unrelated reply</div>',
+      `<div data-testid="tweetText">Unrelated reply</div>
+      </article><article data-testid="tweet">
+        <div data-testid="User-Name"><a href="/mallory">Fan of @alice</a>
+          <a href="/mallory">@mallory</a>
+          <a href="/mallory/status/204"><time>Later</time></a></div>
+        <div data-testid="tweetText">Impersonator reply</div>`,
+    )
+    expect(run()?.replies).toEqual(['First author reply', 'Second author reply'])
+  })
+  it(`${mode}: does not collect an author's article above the focal post as a reply`, () => {
+    document.body.innerHTML = readFileSync(resolve('src/extract/fixtures/x-post.html'), 'utf8')
+    expect(run()?.replies).toEqual(['First author reply', 'Second author reply'])
+    expect(run()?.replies).not.toContain('A prior post')
+  })
 }

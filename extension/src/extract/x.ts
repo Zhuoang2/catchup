@@ -15,10 +15,19 @@ export function extractX() {
     return false
   }
   function identity(article: Element): { name: string; handle: string } {
-    const label = article.querySelector('[data-testid="User-Name"]')?.textContent?.replace(/\s+/g, ' ').trim() ?? ''
-    const handle = /@[\w_]+/.exec(label)?.[0] ?? ''
-    const name = label.split(handle)[0].trim() || handle
-    return { name, handle }
+    const user = article.querySelector('[data-testid="User-Name"]')
+    for (const link of user?.querySelectorAll<HTMLAnchorElement>('a[href]') ?? []) {
+      try {
+        const url = new URL(link.href)
+        if (!['x.com', 'twitter.com'].includes(url.hostname)) continue
+        const profile = /^\/([\w]+)\/?$/.exec(url.pathname)
+        if (profile) {
+          const handle = `@${profile[1]}`
+          return { name: link.textContent?.replace(/\s+/g, ' ').trim() || handle, handle }
+        }
+      } catch { /* Ignore invalid profile links. */ }
+    }
+    return { name: user?.textContent?.replace(/\s+/g, ' ').trim() ?? '', handle: '' }
   }
   const articles = Array.from(document.querySelectorAll('article[data-testid="tweet"]'))
   const index = articles.findIndex(article => hasStatusId(article, path[1]))
@@ -45,6 +54,7 @@ export function extractX() {
   }
   const links: { url: string; text: string }[] = []
   for (const anchor of article.querySelectorAll<HTMLAnchorElement>('a[href]')) {
+    if (anchor.closest('[data-testid="User-Name"]')) continue
     try {
       let url = new URL(anchor.href)
       const label = (anchor.textContent ?? '').trim()

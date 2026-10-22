@@ -269,7 +269,7 @@ Read design D12. Each item below is a real defect (a), a plan error (b), or a te
     - Update the existing tests that expect the first call to be `extractGeneric` (`popup.test.ts:136-139` and `:199-201`). Make the `executeScript` mock answer by `details.files` or `details.func.name`, instead of one `mockResolvedValue`.
 
   Verify: the fixture tests fail before the change, and the full extension suite and build pass.
-- [ ] 9.5 **X: the author's handle** (`extension/src/extract/x.ts`). First update the fixture `extension/src/extract/fixtures/x-post.html`: in every `User-Name`, add a display-name link and an `@handle` link to `/<handle>`, and, on non-focal articles, a time link to `/<handle>/status/<id>`. Keep the existing tests passing, with links inside `User-Name` left out of `links`. Then, tests first:
+- [x] 9.5 **X: the author's handle** (`extension/src/extract/x.ts`). First update the fixture `extension/src/extract/fixtures/x-post.html`: in every `User-Name`, add a display-name link and an `@handle` link to `/<handle>`, and, on non-focal articles, a time link to `/<handle>/status/<id>`. Keep the existing tests passing, with links inside `User-Name` left out of `links`. Then, tests first:
   - a reply whose display name is "Fan of @alice", but whose links go to `/mallory`, is not saved as an author reply;
   - an article above the post, written by the author, is not saved as a reply. This already passes (`x.ts:30` loops over the articles after the post); its red step is the named mutation "take replies from every article except the post" (`articles.filter(a => a !== article)`).
 

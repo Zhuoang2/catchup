@@ -321,7 +321,7 @@ Read design D13. Both items are real defects (a). This is the last Droid round f
   - **Then the rule from D13:** parse with the defaults; when the text is shorter than 500 characters, parse a fresh clone with `{charThreshold: 100}`, and use that result when it has content and at least 100 characters of text; return `null` below 100 characters. Type the `Readability` constructor's options argument.
 
   Verify: the new tests fail on the current code, where the text is the banner's. They pass after the change. Under the named mutation "set both 100-character checks back to 200", they fail again, and the mutation is reverted. The existing readable, generic, and popup tests pass unchanged.
-- [ ] 10.2 **Saved images keep their origin** (`backend/src/catchup/api/extension.py`). Tests first:
+- [x] 10.2 **Saved images keep their origin** (`backend/src/catchup/api/extension.py`). Tests first:
   - in `backend/tests/test_extension_api.py`, `test_capture_cuts_long_link_text_and_image_alt` expects the whole stored candidate: `{"url": "https://example.com/photo.png", "alt": "I" * 500, "caption": "", "width": None, "height": None, "origin": "html"}`;
   - in `backend/tests/test_digest_runner.py`, `test_capture_only_run_succeeds_without_checks_and_uses_image_site_fallback` also asserts that the summary request's user message contains `"Images:\nI1 — in the post, position 1;"`.
 

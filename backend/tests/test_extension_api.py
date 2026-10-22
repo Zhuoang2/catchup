@@ -240,7 +240,10 @@ def test_capture_cuts_long_link_text_and_image_alt(client, connected):
     with client.app.state.session_factory() as session:
         item = session.get(Item, response.json()["id"])
         assert item.entry_links == [{"url": "https://other.example/a", "text": "L" * 500}]
-        assert item.image_candidates == [{"url": "https://example.com/photo.png", "alt": "I" * 500}]
+        assert item.image_candidates == [{
+            "url": "https://example.com/photo.png", "alt": "I" * 500,
+            "caption": "", "width": None, "height": None, "origin": "html",
+        }]
 
 
 def test_capture_limits_replies_by_count(client, connected):

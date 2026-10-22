@@ -2,6 +2,7 @@
 
 import hashlib
 import secrets
+from dataclasses import asdict
 from datetime import datetime
 from urllib.parse import urlsplit, urlunsplit
 
@@ -179,7 +180,7 @@ def save_capture(
         for link in data.links if _web_url(link.url)
     ][:50]
     waiting.image_candidates = [
-        {"url": image.url, "alt": image.alt[:500]} for image in filter_image_urls(
+        {**asdict(image), "alt": image.alt[:500]} for image in filter_image_urls(
             [EntryImage(url=image.url, alt=image.alt) for image in data.images], url,
         )
     ]

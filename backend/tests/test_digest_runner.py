@@ -164,6 +164,7 @@ def test_capture_only_run_succeeds_without_checks_and_uses_image_site_fallback(e
     assert result["status"] == "succeeded"
     assert result["sources_total"] == 0
     assert result["source_checks"] == []
+    assert "Images:\nI1 — in the post, position 1;" in model.calls[0][0][1]["content"]
     with environment.app.state.session_factory() as session:
         row = session.scalar(select(DigestItem))
         assert row.source_kind == "capture"

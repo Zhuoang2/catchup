@@ -28,6 +28,17 @@ it('places the before slot first, headEnd after metadata, and appends its sectio
   await expectAccessible(container)
 })
 
+it('shows the captured page kind and its own site name', async () => {
+  const withCapture = { ...digest, topics: [{ ...digest.topics[0], items: [{
+    ...digest.topics[0].items[0], source_kind: 'capture' as const, source_name: 'X · Name',
+  }] }] }
+  const { container } = render(<MemoryRouter><DigestArticle digest={withCapture}/></MemoryRouter>)
+  const source = container.querySelector('.item-meta')!
+  expect(source).toHaveTextContent('Saved from browser: X · Name')
+  expect(source.querySelector('svg')).toBeInTheDocument()
+  await expectAccessible(container)
+})
+
 it('shows used context links after the summary, safely opening originals', async () => {
   const withLinks = { ...digest, topics: [{ ...digest.topics[0], items: [{
     ...digest.topics[0].items[0], also_read: [

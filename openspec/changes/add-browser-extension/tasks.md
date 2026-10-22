@@ -112,7 +112,7 @@ Implementer notes:
 
 ## 4. The CatchUp frontend
 
-- [ ] 4.1 **The fourth kind on Sources and Home** (D7), in `frontend/src/components/ui.tsx`, `pages/Sources.tsx`, `pages/Home.tsx`, and `components/DigestArticle.tsx`. Tests first:
+- [x] 4.1 **The fourth kind on Sources and Home** (D7), in `frontend/src/components/ui.tsx`, `pages/Sources.tsx`, `pages/Home.tsx`, and `components/DigestArticle.tsx`. Tests first:
   - The captures row shows "Saved from browser" and "2 pages waiting", with no feed URL and no check chip, and its delete confirmation works.
   - Home's counts and rail leave the captures source out: one feed source plus captures reads "1 source".
   - `noSources` (`Home.tsx:216`) still counts the captures source: with only saved pages, Generate is enabled.
@@ -121,7 +121,7 @@ Implementer notes:
   - axe passes.
 
   Verify: the tests fail before, and pass after; `npm test -- --run` and `npm run build` pass.
-- [ ] 4.2 **The Settings group** (D7), in `frontend/src/pages/Settings.tsx`, as section 4, "Browser extension". It goes **after and outside** the model-settings `<form>`, with its own form, message, and error state. Update the lede at `:126` for four sections. Tests first, in `Settings.test.tsx`:
+- [x] 4.2 **The Settings group** (D7), in `frontend/src/pages/Settings.tsx`, as section 4, "Browser extension". It goes **after and outside** the model-settings `<form>`, with its own form, message, and error state. Update the lede at `:126` for four sections. Tests first, in `Settings.test.tsx`:
   - **Connecting** with the default name "Chrome" shows the token once, in a read-only field that is `aria-describedby` the note.
   - **Connecting sends no `PUT /api/settings/model`**, and pressing Enter in the name field connects. It does not save the model form.
   - **Copy** writes the token to a mocked `navigator.clipboard.writeText`, and announces "Copied." in a status region.

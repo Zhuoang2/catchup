@@ -1,5 +1,5 @@
 type Name = 'generate' | 'sources' | 'history' | 'settings' | 'podcast' | 'youtube'
-  | 'feed' | 'external' | 'check' | 'alert' | 'info' | 'clock'
+  | 'feed' | 'capture' | 'external' | 'check' | 'alert' | 'info' | 'clock'
 
 const shapes: Record<Name, React.ReactNode> = {
   generate: <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>,
@@ -9,6 +9,7 @@ const shapes: Record<Name, React.ReactNode> = {
   podcast: <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zM19 11a7 7 0 0 1-14 0M12 18v3"/>,
   youtube: <><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M10 9.5v5l4-2.5z"/></>,
   feed: <path d="M4 6h16M4 12h16M4 18h10"/>,
+  capture: <path d="M6 3h9l4 4v14H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM15 3v5h5M8 12h8M8 16h6"/>,
   external: <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>,
   check: <path d="M5 12l4 4 10-10"/>,
   alert: <path d="M12 9v4M12 17h.01M10.3 3.9L2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>,

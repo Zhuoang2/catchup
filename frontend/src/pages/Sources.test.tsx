@@ -35,6 +35,27 @@ afterEach(() => {
 })
 
 describe('sources', () => {
+  it('shows captures as pages waiting without feed or check and confirms deletion', async () => {
+    const capture = { ...saved, id: 8, title: 'Saved from browser', kind: 'capture',
+      feed_url: 'catchup:captures', waiting_count: 2, last_check_status: null, last_check_at: null }
+    fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+      if (path === '/api/sources/8' && options?.method === 'DELETE') return respond(null, 204)
+      if (path === '/api/sources') return respond([capture])
+      throw Error(path)
+    })
+    const { container } = page()
+    const row = (await screen.findByText('Saved from browser', { selector: '.badge' })).closest('li')!
+    expect(row).toHaveTextContent('2 pages waiting')
+    expect(row).not.toHaveTextContent('catchup:captures')
+    expect(row.querySelector('.source-status')).toBeNull()
+    await expectAccessible(container)
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Saved from browser' }))
+    expect(screen.getByText(/Delete Saved from browser\?/).closest('p'))
+      .toHaveTextContent('Saved digests will remain available.')
+    fireEvent.click(screen.getByRole('button', { name: /^Delete$/ }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/sources/8', { method: 'DELETE' }))
+  })
+
   it.each([
     ['podcast', false, 'Transcripts published by the show'],
     ['youtube', false, 'Caption fetching is off; videos will be listed without summaries'],

@@ -203,7 +203,7 @@ Implementer notes:
 
 ## 8. Docs, CI, and checks
 
-- [ ] 8.1 **CI and README.**
+- [x] 8.1 **CI and README.**
   - **CI:** add an `extension` job to `.github/workflows/ci.yml` that runs `npm ci`, `npm test -- --run`, and `npm run build` in `extension/`.
   - **README:** add an extension section:
     - building, and loading unpacked in Chrome (Developer mode, which Chrome 134 and later needs to keep it enabled) and in Edge;
@@ -213,7 +213,7 @@ Implementer notes:
     - that X's terms prohibit scraping in any form, so saving X pages is at the user's own risk.
 
   Verify: the CI file parses, and the README names the permissions and the X note.
-- [ ] 8.2 **Final checks and docs.**
+- [x] 8.2 **Final checks and docs.**
   - **Builds:** `npm run build` in `frontend/` first, then `uv run pytest --cov=catchup --cov-report=term` in `backend/`, `npm test -- --run` in `frontend/`, and `npm test -- --run` and `npm run build` in `extension/`.
   - **The image:** `docker build -t catchup:extension-local .`, then `scripts/docker-smoke.sh catchup:extension-local`.
   - **Validation:** `openspec validate add-browser-extension --strict`.

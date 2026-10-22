@@ -113,7 +113,7 @@ def create_app(settings: Settings | None = None, dist_dir: Path | None = None) -
     @app.middleware("http")
     async def cross_site_writes(request: Request, call_next):
         authorization = request.headers.get("authorization", "")
-        if authorization.startswith("Bearer "):
+        if authorization.startswith("Bearer cu_"):
             token_id = await run_in_threadpool(
                 _lookup_extension_token, request.app.state.session_factory, authorization[7:]
             )

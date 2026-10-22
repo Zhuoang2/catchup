@@ -239,7 +239,7 @@ Read design D12. Each item below is a real defect (a), a plan error (b), or a te
   - replace the `%`/`_` test with one that can fail: a waiting `https://example.com/axb#<time>`, and a new save of `https://example.com/a_b`, must add a new item.
 
   Verify: the case test fails on the current code, and passes with a `substr` comparison. The `%`/`_` test passes on the current code, because `autoescape=True` is there; its red step is the named mutation "remove `autoescape=True`", applied before the `substr` change, and then reverted.
-- [ ] 9.3 **The server's capture and token rules** (`backend/src/catchup/main.py`, `api/extension.py`). Tests first:
+- [x] 9.3 **The server's capture and token rules** (`backend/src/catchup/main.py`, `api/extension.py`). Tests first:
   - `Authorization: Bearer some-proxy-token` without the `cu_` prefix, with the instance's own `Origin`, on `PUT /api/settings/preferences`, gets 200. With a foreign `Origin`, it gets 403 `cross_site_request`.
   - A valid token on `DELETE /api/sources/1` gets 403, and the source still exists.
   - `POST /api/captures` and `DELETE /api/captures/{id}` without a token get 401 `invalid_token`, with no effect. Send these without an `Origin` header, as a tool would, so that the route answers and not the cross-site rule.

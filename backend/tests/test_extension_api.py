@@ -140,6 +140,19 @@ def test_other_auth_scheme_follows_existing_origin_policy(client):
     assert response.json()["digest_language"] == "fr"
 
 
+def test_proxy_bearer_without_extension_prefix_follows_origin_policy(client):
+    proxy = {"Authorization": "Bearer some-proxy-token"}
+    own = client.put("/api/settings/preferences", json={"digest_language": "fr"},
+                     headers={**proxy, "Origin": "http://localhost:8000"})
+    assert own.status_code == 200
+    assert own.json()["digest_language"] == "fr"
+    foreign = client.put("/api/settings/preferences", json={"digest_language": "de"},
+                         headers={**proxy, "Origin": "http://other.example"})
+    assert foreign.status_code == 403
+    assert foreign.json()["error"]["code"] == "cross_site_request"
+    assert client.get("/api/settings/preferences").json()["digest_language"] == "fr"
+
+
 def test_token_cannot_create_or_list_connections(client, connected):
     assert client.post("/api/settings/extension-tokens", json={"name": "Another"},
                        headers=connected).status_code == 403
@@ -206,6 +219,28 @@ def test_capture_caps_and_filters(client, connected):
         assert len(item.image_candidates) == 8
         assert len(item.entry_links) == 50
         assert all(link["url"].startswith("https://") for link in item.entry_links)
+
+
+def test_capture_without_title_uses_first_eighty_text_characters(client, connected):
+    text = "x" * 81 + " a later word"
+    response = save_page(client, connected, title="", text=text)
+    assert response.status_code == 201
+    assert response.json()["title"] == "x" * 80
+    with client.app.state.session_factory() as session:
+        assert session.get(Item, response.json()["id"]).title == "x" * 80
+
+
+def test_capture_cuts_long_link_text_and_image_alt(client, connected):
+    response = save_page(
+        client, connected,
+        links=[{"url": "https://other.example/a", "text": "L" * 501}],
+        images=[{"url": "https://example.com/photo.png", "alt": "I" * 501}],
+    )
+    assert response.status_code == 201
+    with client.app.state.session_factory() as session:
+        item = session.get(Item, response.json()["id"])
+        assert item.entry_links == [{"url": "https://other.example/a", "text": "L" * 500}]
+        assert item.image_candidates == [{"url": "https://example.com/photo.png", "alt": "I" * 500}]
 
 
 def test_capture_limits_replies_by_count(client, connected):
@@ -401,6 +436,34 @@ def test_remove_only_pending_captures(client, connected):
     assert client.delete(f"/api/captures/{other_id}", headers=connected).status_code == 404
     assert client.delete(f"/api/captures/{pending['id']}", headers=connected).status_code == 204
     assert client.get("/api/extension/status", headers=connected).json()["waiting"] == 0
+
+
+def test_token_cannot_delete_source(client, connected):
+    save_page(client, connected)
+    source_id = client.get("/api/sources").json()[0]["id"]
+    response = client.delete(f"/api/sources/{source_id}", headers=connected)
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "cross_site_request"
+    assert [row["id"] for row in client.get("/api/sources").json()] == [source_id]
+
+
+@pytest.mark.parametrize("method,path", [
+    ("post", "/api/captures"),
+    ("get", "/api/captures"),
+    ("delete", "/api/captures/{id}"),
+])
+def test_capture_routes_require_token_without_browser_origin(client, connected, method, path):
+    saved = save_page(client, connected).json()
+    request = getattr(client, method)
+    response = request(path.format(id=saved["id"]), **({
+        "json": {"url": "https://example.com/another", "title": "Another", "text": "Text"},
+    } if method == "post" else {}))
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "invalid_token"
+    with client.app.state.session_factory() as session:
+        assert [(item.id, item.state) for item in session.scalars(select(Item)).all()] == [
+            (saved["id"], "pending"),
+        ]
 
 
 def test_capture_source_waiting_count_and_delete_keeps_digest_snapshot(client, connected):

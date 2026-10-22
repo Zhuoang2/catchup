@@ -2,7 +2,6 @@
 
 import hashlib
 import secrets
-from dataclasses import asdict
 from datetime import datetime
 from urllib.parse import urlsplit, urlunsplit
 
@@ -167,7 +166,7 @@ def save_capture(
             break
         replies.append(reply[:remaining])
     waiting.link = url
-    waiting.title = data.title.strip()[:300]
+    waiting.title = data.title.strip()[:300] or data.text.strip()[:80]
     waiting.published_at = published
     waiting.discovered_at = now
     waiting.content_text = data.text.strip()[:16000]
@@ -176,11 +175,11 @@ def save_capture(
     waiting.site_name = (data.site_name or "").strip()[:200] or parts.hostname.lower()[:200]
     waiting.captured_replies = replies
     waiting.entry_links = [
-        {"url": link.url, "text": link.text}
+        {"url": link.url, "text": link.text[:500]}
         for link in data.links if _web_url(link.url)
     ][:50]
     waiting.image_candidates = [
-        asdict(image) for image in filter_image_urls(
+        {"url": image.url, "alt": image.alt[:500]} for image in filter_image_urls(
             [EntryImage(url=image.url, alt=image.alt) for image in data.images], url,
         )
     ]

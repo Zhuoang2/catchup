@@ -295,7 +295,7 @@ Read design D12. Each item below is a real defect (a), a plan error (b), or a te
   - **The first-run lede** in `frontend/src/pages/Settings.tsx`. Add a test, since none asserts it today: with no saved key, the lede reads exactly "Three quick steps, and an optional browser extension. Your key stays on this computer, encrypted."
 
   Verify: each mutation fails its check, and is reverted.
-- [ ] 9.8 **Docs and checks.**
+- [x] 9.8 **Docs and checks.**
   - **README:**
     - complete the "never does" list: cookies, saved passwords, site storage, background reading, and scrolling, clicking, or opening pages;
     - add a notice for Mozilla Readability (Apache-2.0);

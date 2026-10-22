@@ -123,6 +123,15 @@ automatically, follows an X account, schedules digest generation, or sends
 the page to any other server. CatchUp may send saved page content to your
 configured model provider during a later digest run.
 
+It never reads cookies, saved passwords, or site storage. It does no
+background reading and does not scroll, click, or open pages on your behalf.
+Generic page extraction uses Mozilla Readability 0.6.0 (Apache-2.0); its
+license is bundled in `extension/dist/readability-LICENSE.md`.
+
+A page saved while a digest run is in its context pass may be summarized
+in that run without linked context. This short window can produce a
+summary without links.
+
 **X's terms prohibit scraping in any form.** Saving an X page is at your
 own risk and only reads what your browser currently displays after you press
 Add. CatchUp does not follow X accounts or log in on your behalf.

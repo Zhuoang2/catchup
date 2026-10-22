@@ -1,4 +1,5 @@
 import { DEFAULT_SERVER, validServer } from './options'
+import { extractGeneric, type CapturedPage } from './extract/generic'
 
 type Tab = { id?: number; url?: string; title?: string }
 type Preview = {
@@ -43,6 +44,37 @@ function sourceError(error: ApiError): string {
   return messages[error.code] ?? error.message
 }
 
+function checkedCapture(value: unknown): object | null {
+  if (!value || typeof value !== 'object') return null
+  const page = value as Partial<CapturedPage>
+  const web = (value: unknown) => {
+    if (typeof value !== 'string') return false
+    try { return ['http:', 'https:'].includes(new URL(value).protocol) } catch { return false }
+  }
+  if (!web(page.url) || typeof page.title !== 'string' || typeof page.content_text !== 'string'
+      || (typeof page.site_name !== 'string' && page.site_name !== null && page.site_name !== undefined)
+      || (typeof page.author !== 'string' && page.author !== null && page.author !== undefined)
+      || (typeof page.published_at !== 'string' && page.published_at !== null && page.published_at !== undefined)
+      || !Array.isArray(page.images) || !Array.isArray(page.links) || !Array.isArray(page.replies)
+      || !page.images.every(image => image && web(image.url) && typeof image.alt === 'string')
+      || !page.links.every(link => link && web(link.url) && typeof link.text === 'string')
+      || !page.replies.every(reply => typeof reply === 'string')) return null
+  const replies: string[] = []
+  for (const reply of page.replies.slice(0, 10)) {
+    const remaining = 4000 - replies.join('\n\n').length - (replies.length ? 2 : 0)
+    if (remaining <= 0) break
+    replies.push(reply.slice(0, remaining))
+  }
+  return {
+    url: page.url, title: page.title.slice(0, 300), text: page.content_text.slice(0, 16000),
+    site_name: page.site_name?.slice(0, 200) ?? null, author: page.author?.slice(0, 200) ?? null,
+    published_at: page.published_at ?? null, images: page.images.slice(0, 8).map(image =>
+      ({ url: image.url, alt: image.alt.slice(0, 500) })),
+    links: page.links.slice(0, 50).map(link => ({ url: link.url, text: link.text.slice(0, 500) })),
+    replies,
+  }
+}
+
 export async function initPopup(): Promise<void> {
   const root = document.querySelector<HTMLElement>('#popup')!
   const saved = await chrome.storage.local.get(['server', 'token'])
@@ -58,14 +90,15 @@ export async function initPopup(): Promise<void> {
   if (!token || !validServer(server)) { disconnected(); return }
   root.textContent = 'Connecting to CatchUp…'
 
-  async function api<T>(path: string, body?: object): Promise<T> {
+  async function api<T>(path: string, body?: object, method?: 'DELETE'): Promise<T> {
     const response = await fetch(`${server}/api${path}`, {
-      ...(body ? { method: 'POST', body: JSON.stringify(body) } : {}),
+      ...(body ? { method: 'POST', body: JSON.stringify(body) } : method ? { method } : {}),
       headers: {
         Authorization: `Bearer ${token}`,
         ...(body ? { 'Content-Type': 'application/json' } : {}),
       },
     })
+    if (response.ok && response.status === 204) return undefined as T
     const result = await response.json() as T & { error?: Partial<ApiError> }
     if (!response.ok) {
       throw {
@@ -98,6 +131,7 @@ export async function initPopup(): Promise<void> {
 
   function connected() {
     const follow = button('Follow this site', () => { void previewSite() })
+    const add = button('Add this page to my next digest', () => { void savePage(add) })
     root.replaceChildren(
       element('h2', tab.title || 'Current tab'),
       element('p', host),
@@ -105,9 +139,49 @@ export async function initPopup(): Promise<void> {
       ...(isX
         ? [element('p', 'X accounts cannot be followed. You can save an individual post instead.')]
         : tab.url?.startsWith('http') ? [follow] : []),
+      add,
       button('Open CatchUp', () => { void chrome.tabs.create({ url: server }) }),
       statusText,
     )
+  }
+
+  async function savePage(add: HTMLButtonElement) {
+    if (add.disabled) return
+    add.disabled = true
+    statusText.textContent = ''
+    try {
+      if (tab.id === undefined) throw new Error('unreadable')
+      const injections = await chrome.scripting.executeScript({
+        target: { tabId: tab.id }, func: extractGeneric,
+      })
+      const capture = checkedCapture(injections[0]?.result)
+      if (!capture) throw new Error('unreadable')
+      const saved = await api<{ id: number; waiting: number }>('/captures', capture)
+      waiting = saved.waiting
+      const remove = button('Remove', () => { void removePage(saved.id, remove) })
+      connected()
+      statusText.textContent = 'Saved. It will be in your next digest.'
+      root.append(remove)
+    } catch (error) {
+      if ((error as ApiError).status === 401) disconnected()
+      else if ((error as ApiError).code) statusText.textContent = (error as ApiError).message
+      else statusText.textContent = "This page can't be read by extensions."
+    } finally {
+      add.disabled = false
+    }
+  }
+
+  async function removePage(id: number, remove: HTMLButtonElement) {
+    remove.disabled = true
+    try {
+      await api(`/captures/${id}`, undefined, 'DELETE')
+      waiting = Math.max(0, waiting - 1)
+      connected()
+      statusText.textContent = 'Removed.'
+    } catch (error) {
+      if ((error as ApiError).status === 401) disconnected()
+      else { statusText.textContent = (error as ApiError).message ?? 'Could not remove this page.'; remove.disabled = false }
+    }
   }
 
   async function previewSite() {

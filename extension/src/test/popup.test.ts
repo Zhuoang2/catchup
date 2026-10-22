@@ -34,6 +34,13 @@ const preview = {
   site_url: 'https://site.example', follows_site_feed_notice: true,
   entries: [{ title: 'Latest', link: 'https://site.example/latest', published_at: null }],
 }
+const captured = {
+  url: 'https://site.example/post', title: 'A post', site_name: 'Example Site',
+  author: 'Sam', published_at: null, content_text: 'The page text.',
+  images: [{ url: 'https://site.example/image.png', alt: 'Photo' }],
+  links: [{ url: 'https://site.example/more', text: 'Read more' }], replies: [],
+}
+const saves = () => fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/api/captures'))
 
 it('sends nothing before a browser is connected and links to options', async () => {
   initPopup()
@@ -115,4 +122,112 @@ it('does not offer Follow this site or preview on X tabs', async () => {
   expect(screen.queryByRole('button', { name: 'Follow this site' })).not.toBeInTheDocument()
   expect(fetchMock).toHaveBeenCalledTimes(1)
   expect(await axe(document.body, { rules: { 'color-contrast': { enabled: false } } }).then(r => r.violations)).toEqual([])
+})
+
+it('injects the generic extractor and saves a checked page, then removes it', async () => {
+  connect()
+  chromeMock.scripting.executeScript.mockResolvedValue([{ result: captured }])
+  fetchMock.mockImplementation(async (url: string, init?: RequestInit) => url.endsWith('/captures')
+    ? init?.method === 'DELETE' ? { ok: true, status: 204 } : response(201, { id: 42, waiting: 4 })
+    : response(200, { name: 'My browser', waiting: 3 }))
+  initPopup()
+  fireEvent.click(await screen.findByRole('button', { name: 'Add this page to my next digest' }))
+  await screen.findByText('Saved. It will be in your next digest.')
+  expect(chromeMock.scripting.executeScript).toHaveBeenCalledWith({
+    target: { tabId: 1 }, func: expect.any(Function),
+  })
+  expect(chromeMock.scripting.executeScript.mock.calls[0][0].func.name).toBe('extractGeneric')
+  expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:8000/api/captures',
+    expect.objectContaining({
+      method: 'POST', headers: expect.objectContaining({ Authorization: 'Bearer fake-browser-token' }),
+      body: JSON.stringify({
+        url: captured.url, title: captured.title, text: captured.content_text,
+        site_name: captured.site_name, author: captured.author, published_at: captured.published_at,
+        images: captured.images, links: captured.links, replies: [],
+      }),
+    }))
+  expect(screen.getByText(/4 pages waiting/)).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+    'http://127.0.0.1:8000/api/captures/42',
+    expect.objectContaining({ method: 'DELETE', headers: { Authorization: 'Bearer fake-browser-token' } }),
+  ))
+  await waitFor(() => expect(screen.getByText(/3 pages waiting/)).toBeInTheDocument())
+  expect(await axe(document.body, { rules: { 'color-contrast': { enabled: false } } }).then(r => r.violations)).toEqual([])
+})
+
+it.each(['reject', 'empty', 'missing'])('does not save an unreadable tab (%s)', async outcome => {
+  connect()
+  chromeMock.scripting.executeScript.mockImplementation(async () => {
+    if (outcome === 'reject') throw new Error('Cannot inject')
+    return outcome === 'empty' ? [] : [{}]
+  })
+  initPopup()
+  fireEvent.click(await screen.findByRole('button', { name: 'Add this page to my next digest' }))
+  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent("This page can't be read by extensions."))
+  expect(saves()).toHaveLength(0)
+})
+
+it('disables Add while saving and shows a run_active conflict', async () => {
+  connect()
+  chromeMock.scripting.executeScript.mockResolvedValue([{ result: captured }])
+  let complete!: (value: unknown) => void
+  fetchMock.mockImplementation((url: string) => url.endsWith('/captures')
+    ? new Promise(resolve => { complete = resolve })
+    : Promise.resolve(response(200, { name: 'My browser', waiting: 3 })))
+  initPopup()
+  const add = await screen.findByRole('button', { name: 'Add this page to my next digest' })
+  fireEvent.click(add)
+  await waitFor(() => expect(add).toBeDisabled())
+  fireEvent.click(add)
+  expect(saves()).toHaveLength(1)
+  complete(response(409, { error: { code: 'run_active', message: 'A digest is being made.' } }))
+  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('A digest is being made.'))
+  expect(add).toBeEnabled()
+})
+
+it('offers Add instead of Follow for X profiles, and saves the generic page', async () => {
+  connect()
+  chromeMock.tabs.query.mockResolvedValue([{ id: 8, url: 'https://x.com/someone', title: 'Someone' }])
+  chromeMock.scripting.executeScript.mockResolvedValue([{ result: { ...captured, url: 'https://x.com/someone' } }])
+  fetchMock.mockImplementation(async (url: string) => url.endsWith('/captures')
+    ? response(201, { id: 43, waiting: 4 })
+    : response(200, { name: 'My browser', waiting: 3 }))
+  initPopup()
+  await screen.findByText(/cannot be followed/i)
+  fireEvent.click(screen.getByRole('button', { name: 'Add this page to my next digest' }))
+  await screen.findByText('Saved. It will be in your next digest.')
+  expect(chromeMock.scripting.executeScript).toHaveBeenCalledWith({
+    target: { tabId: 8 }, func: expect.any(Function),
+  })
+  expect(chromeMock.scripting.executeScript.mock.calls[0][0].func.name).toBe('extractGeneric')
+  expect(saves()).toHaveLength(1)
+})
+
+it('rejects wrong result types and clamps long text, images and links before posting', async () => {
+  connect()
+  chromeMock.scripting.executeScript.mockResolvedValue([{ result: { ...captured, images: 'wrong type' } }])
+  initPopup()
+  const add = await screen.findByRole('button', { name: 'Add this page to my next digest' })
+  fireEvent.click(add)
+  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent("This page can't be read by extensions."))
+  expect(saves()).toHaveLength(0)
+  fetchMock.mockImplementation(async (url: string) => url.endsWith('/captures')
+    ? response(201, { id: 44, waiting: 4 })
+    : response(200, { name: 'My browser', waiting: 3 }))
+  chromeMock.scripting.executeScript.mockResolvedValue([{ result: {
+    ...captured, title: 'T'.repeat(400), content_text: 'C'.repeat(17000),
+    images: Array.from({ length: 12 }, () => captured.images[0]),
+    links: Array.from({ length: 60 }, () => captured.links[0]),
+    replies: Array.from({ length: 15 }, () => 'R'.repeat(500)),
+  } }])
+  fireEvent.click(add)
+  await waitFor(() => expect(saves()).toHaveLength(1))
+  const body = JSON.parse(String((saves()[0][1] as RequestInit).body))
+  expect(body.title).toHaveLength(300)
+  expect(body.text).toHaveLength(16000)
+  expect(body.images).toHaveLength(8)
+  expect(body.links).toHaveLength(50)
+  expect(body.replies.length).toBeLessThanOrEqual(10)
+  expect(body.replies.join('\n\n').length).toBeLessThanOrEqual(4000)
 })

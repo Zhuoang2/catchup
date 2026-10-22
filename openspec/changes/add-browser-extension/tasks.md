@@ -166,7 +166,7 @@ Implementer notes:
 
 ## 6. The extension: Add this page
 
-- [ ] 6.1 **The generic extractor** (D9), in `extension/src/extract/generic.ts`, as **one self-contained function**: every helper and cap inside its body, with no imports and no module-level constants. Chrome serializes it, and drops everything outside it. Build the text with a `TreeWalker`, use `currentSrc || src` for images, and never edit the DOM. Tests first, on invented fixtures in `extension/src/extract/fixtures/`:
+- [x] 6.1 **The generic extractor** (D9), in `extension/src/extract/generic.ts`, as **one self-contained function**: every helper and cap inside its body, with no imports and no module-level constants. Chrome serializes it, and drops everything outside it. Build the text with a `TreeWalker`, use `currentSrc || src` for images, and never edit the DOM. Tests first, on invented fixtures in `extension/src/extract/fixtures/`:
   - an article page with canonical URL, `og:` metadata, an author meta, `article:published_time`, two images, and a nav and footer whose text is left out;
   - a page with no metadata, which falls back to `document.title`, the host, and `body`;
   - **the caps:** 16,000 characters, 8 images, and 50 links;
@@ -176,7 +176,7 @@ Implementer notes:
   - **the page is unchanged:** `document.body.outerHTML` is the same after extraction.
 
   Verify: the tests fail before, and pass after.
-- [ ] 6.2 **The popup's add-page flow** (D8). Tests first:
+- [x] 6.2 **The popup's add-page flow** (D8). Tests first:
   - **Saving.** "Add this page" calls `chrome.scripting.executeScript` on the active tab with the generic extractor. Then it posts the checked result to `/api/captures`, and shows "Saved. It will be in your next digest." with the new waiting count.
   - **Unreadable pages.** When `executeScript` rejects, as on `chrome://` pages, or returns an empty array or no `result`, it shows "This page can't be read by extensions.", with no request.
   - **One save at a time.** "Add" is disabled while a save is in progress. A 409 `run_active` shows its message.

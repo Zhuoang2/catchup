@@ -1,14 +1,18 @@
 // Chrome serializes this function into the tab after readability.js is injected there.
 export function extractReadable() {
   const Reader = (globalThis as {
-    Readability?: new (doc: Document) => { parse(): {
+    Readability?: new (doc: Document, options?: { charThreshold: number }) => { parse(): {
       title?: string | null; content?: string | null; textContent?: string | null
       byline?: string | null; siteName?: string | null; publishedTime?: string | null
     } | null }
   }).Readability
   if (!Reader) return null
-  const article = new Reader(document.cloneNode(true) as Document).parse()
-  if (!article?.content || (article.textContent ?? '').trim().length < 200) return null
+  let article = new Reader(document.cloneNode(true) as Document).parse()
+  if ((article?.textContent ?? '').trim().length < 500) {
+    const shortArticle = new Reader(document.cloneNode(true) as Document, { charThreshold: 100 }).parse()
+    if (shortArticle?.content && (shortArticle.textContent ?? '').trim().length >= 100) article = shortArticle
+  }
+  if (!article?.content || (article.textContent ?? '').trim().length < 100) return null
 
   function httpUrl(value: string | null | undefined): string | null {
     if (!value) return null

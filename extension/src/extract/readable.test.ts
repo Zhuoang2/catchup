@@ -5,6 +5,7 @@ import { extractReadable } from './readable'
 
 const library = readFileSync(resolve('node_modules/@mozilla/readability/Readability.js'), 'utf8')
 const fixture = readFileSync(resolve('src/extract/fixtures/blog-no-article.html'), 'utf8')
+const shortFixture = readFileSync(resolve('src/extract/fixtures/blog-short-post.html'), 'utf8')
 const execute = [extractReadable, () =>
   new Function(`return (${extractReadable.toString()})()`)() as ReturnType<typeof extractReadable>]
 type ReadabilityWindow = Window & { Readability?: unknown }
@@ -20,6 +21,17 @@ afterEach(() => {
 })
 
 for (const [index, run] of execute.entries()) {
+  it(`${index ? 'serialized' : 'direct'}: saves the short post instead of the longer sponsor banner`, () => {
+    document.documentElement.innerHTML = shortFixture
+    const page = run()
+    expect(page?.content_text).toContain('My tiny garden is ready. Start with seeds, then check watering. I will share the first results next week.')
+    expect(page?.links).toEqual([
+      { url: 'https://garden.example/seeds', text: 'Start with seeds' },
+      { url: 'https://garden.example/water', text: 'check watering' },
+    ])
+    expect(page?.content_text).not.toMatch(/Support our imaginary|Recent articles|Support promo|Archive 202[45]/)
+  })
+
   it(`${index ? 'serialized' : 'direct'}: keeps only post text, links and images from a page without article`, () => {
     const original = document.body.outerHTML
     const page = run()

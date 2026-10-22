@@ -310,7 +310,7 @@ Read design D12. Each item below is a real defect (a), a plan error (b), or a te
 
 Read design D13. Both items are real defects (a). This is the last Droid round for this change: change only what these tasks name. Each check is red first. Commit after each task.
 
-- [ ] 10.1 **A short post next to a longer sponsor block** (`extension/src/extract/readable.ts`). Use `diagnosing-bugs`; the cause is confirmed in D13.
+- [x] 10.1 **A short post next to a longer sponsor block** (`extension/src/extract/readable.ts`). Use `diagnosing-bugs`; the cause is confirmed in D13.
   - **The fixture:** add `extension/src/extract/fixtures/blog-short-post.html`, invented, and shaped like the problem page:
     - no `<article>` or `<main>`;
     - a site header with a home link and a newsletter link;

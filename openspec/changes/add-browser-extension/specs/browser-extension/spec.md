@@ -34,11 +34,15 @@ The extension's popup SHALL offer "Follow this site" for the active tab. It MUST
 The popup SHALL offer "Add this page to my next digest". The extension MUST read the page only when the user chooses this, and only as it is rendered in the active tab at that moment. It reads:
 - the page's address and title;
 - its site name, author, and publication time, when the page states them;
-- its main text, up to 16,000 characters;
+- its main text, up to 16,000 characters, found with a reader-view method so that navigation, sidebars, and ads are left out where possible;
 - up to 8 images, with their alt text;
 - its links.
 
 The saved page MUST wait for the next digest run that the user starts. Saving the same address again, while the page is still waiting, MUST replace it, so that at most one page waits per address. While a digest is being made, saving an address that is already waiting MUST be refused, with a message to save it again when the digest is finished. After the page has been delivered in a digest, saving it again MUST add it again. The popup SHALL show how many pages are waiting, and MUST let the user remove the page just saved. Pages the browser does not let extensions read, such as browser settings pages and extension stores, MUST be reported as unreadable.
+
+#### Scenario: Page without an article element
+- **WHEN** the user saves a blog post whose page has a sidebar of recent posts, a sponsor block, and no `<article>` element
+- **THEN** the saved text and links come from the post itself, not from the sidebar or the sponsor block
 
 #### Scenario: Save an article
 - **WHEN** the user chooses "Add this page to my next digest" on an article

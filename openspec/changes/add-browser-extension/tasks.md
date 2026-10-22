@@ -226,3 +226,69 @@ Implementer notes:
   - **The AI usage log** (`docs/process/ai-usage-log.md`): add your entry after the latest entry, with a faithful excerpt of the prompt you actually received, and the tool and model. Leave out the session id.
 
   Verify: every command passes, and the report has the actual numbers.
+
+## 9. Fix round 1 (review findings)
+
+Read design D12. Each item below is a real defect (a), a plan error (b), or a test that cannot fail. Use `diagnosing-bugs` for 9.1, 9.3 and 9.4, and `tdd` for the rest. Every check is red first, either as a failing test before the fix, or as a named temporary mutation, applied and then reverted, where the behavior is already right. Commit after each task.
+
+- [ ] 9.1 **Replies beyond the budget** (`backend/src/catchup/context/gather.py`). Test first, in `backend/tests/test_context_gather.py`, with items in this order: a feed item whose links spend the budget, a feed item with no replies, a capture with no replies, then a capture with replies. The last capture gets its `A1` part, and is `gathered`.
+
+  Verify: the test fails on the current code (`break`), and passes with `continue`.
+- [ ] 9.2 **Exact address matching** (`backend/src/catchup/api/extension.py`). Tests first, in `backend/tests/test_extension_api.py`:
+  - deliver `https://example.com/a`, save it again (so that `…/a#<time>` waits), then save `https://example.com/A`. Two different items wait, and the `/a` item is unchanged;
+  - replace the `%`/`_` test with one that can fail: a waiting `https://example.com/a_b#<time>`, and a new save of `https://example.com/axb`, must add a new item.
+
+  Verify: both fail on the current code, and pass with a `substr` comparison.
+- [ ] 9.3 **The server's capture and token rules** (`backend/src/catchup/main.py`, `api/extension.py`). Tests first:
+  - `Authorization: Bearer some-proxy-token` without the `cu_` prefix, with the instance's own `Origin`, on `PUT /api/settings/preferences`, gets 200. With a foreign `Origin`, it gets 403 `cross_site_request`.
+  - A valid token on `DELETE /api/sources/1` gets 403, and the source still exists.
+  - `POST /api/captures` and `DELETE /api/captures/{id}` without a token get 401 `invalid_token`, with no effect.
+  - A capture with an empty title gets the first 80 characters of its text as its title, or, with no text, the host.
+  - Link texts and image alts over 500 characters are cut to 500.
+
+  Verify: the new behavior checks fail before the fix. The rule checks that already pass (DELETE on sources; the token on the capture routes) fail under named mutations: widen the DELETE branch to `/api/`, and remove `require_connection` from each capture route.
+- [ ] 9.4 **Readability for generic pages** (D12), in `extension/`.
+  - Add `@mozilla/readability` `0.6.0` (an exact version) to `package.json`.
+  - The build copies `node_modules/@mozilla/readability/Readability.js` to `dist/readability.js`, and its `LICENSE.md` to `dist/readability-LICENSE.md`. The build check also requires these two files.
+  - Add `extension/src/extract/readable.ts`, with `extractReadable`, which is self-contained and uses the global `Readability`.
+  - Fix the generic extractor's exclusion (only between the node and the root), for text, links and images.
+
+  Tests first, on a new invented fixture shaped like the problem page: no `<article>`, a post body, a sidebar of recent posts, a sponsor block, and a footer year list.
+  - **Readability:** with `Readability` loaded into the jsdom window, `extractReadable` returns the post's text, and only the post's links, with no sidebar, sponsor, or year text or links.
+  - **Serialization:** it passes the `new Function` round trip.
+  - **Missing library:** without `Readability`, it returns `null`.
+  - **The generic extractor:** on a page wrapped in one `<form>`, it returns the text, and it skips links inside a `nav` within the root.
+  - **The popup:** on a non-X page, it injects `readability.js`, then `extractReadable`, and falls back to the generic extractor when that returns `null`. On an X post, it keeps the X extractor first.
+
+  Verify: the fixture tests fail before the change, and the full extension suite and build pass.
+- [ ] 9.5 **X: the author's handle** (`extension/src/extract/x.ts`). Tests first, on the X fixture:
+  - a reply whose display name contains "@alice", but whose profile link is `/mallory`, is not saved as an author reply;
+  - an article above the post, written by the author, is not saved as a reply.
+
+  Verify: both fail before the fix.
+- [ ] 9.6 **Popup fixes and styling** (D12). Tests first, in the popup tests:
+  - a rejected `fetch`, or a non-JSON 502, shows "Could not connect to CatchUp.";
+  - the preview shows "Website feed" for `feed`;
+  - the count shows "1 page waiting" and "2 pages waiting".
+
+  Then add `popup.css` and `options.css` (D12), linked from both HTML files, with light and dark tokens. Re-run axe on every popup and options state.
+
+  Verify: the tests fail before the fix, and pass after; axe passes; the build check sees the CSS emitted.
+- [ ] 9.7 **Frontend and backend tests that cannot fail.** Make each one able to fail, and show it with its named mutation:
+  - **Home's `noSources`** (`frontend/src/pages/Home.test.tsx`): with only the captures source and **no** run, Generate is enabled. Mutation: exclude captures from `noSources`.
+  - **Home's hero and rail counts:** assert the exact texts "1 source" and the rail's number. Mutations: count captures in the hero; count captures in the rail.
+  - **The item's own site** (`backend/tests/test_context_gather.py`): use a saved page on `https://blog.example/post`. Its link `https://blog.example/tag/x` is dropped, and `https://other.example/a` is kept. Mutation: use `source.site_url`.
+  - **The downgrade** (`backend/tests/test_db.py`): add an `item_contexts` row and a `digest_items` row before the downgrade. Afterwards, the digest item's row still exists, and other items' contexts are kept. Mutation: remove `recreate="never"`.
+  - **The first-run lede** in `frontend/src/pages/Settings.tsx`: it no longer says "Four quick steps". Update its test.
+
+  Verify: each mutation fails its check, and is reverted.
+- [ ] 9.8 **Docs and checks.**
+  - **README:**
+    - complete the "never does" list: cookies, saved passwords, site storage, background reading, and scrolling, clicking, or opening pages;
+    - add a notice for Mozilla Readability (Apache-2.0);
+    - add the known limit from D12.
+  - **`docs/process/test-report-add-browser-extension.md`:** add a "Fix round 1" section, with each check's red result and the mutation table.
+  - **The checks:** run them all — `npm run build` in `frontend/` first, backend coverage, `npm test -- --run` in `frontend/`, the extension's tests and build, `docker build` and `scripts/docker-smoke.sh`, and `openspec validate add-browser-extension --strict`.
+  - **The coverage summary and the AI usage log:** add the fix-round line, and your entry, with a faithful excerpt of the prompt you received. Leave out the session id.
+
+  Verify: every command passes, and the report has the actual numbers.

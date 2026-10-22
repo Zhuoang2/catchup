@@ -262,10 +262,9 @@ def test_recapture_replaces_waiting_item_and_clears_cached_context(client, conne
         assert item.contexts == []
 
 
-def test_recapture_after_delivery_adds_one_waiting_item_and_escapes_like(client, connected):
-    url = "https://example.com/a%_b"
+def test_recapture_after_delivery_adds_one_waiting_item(client, connected):
+    url = "https://example.com/a"
     first = save_page(client, connected, url=url).json()
-    other = save_page(client, connected, url="https://example.com/axxb").json()
     with client.app.state.session_factory() as session:
         session.get(Item, first["id"]).state = "delivered"
         session.commit()
@@ -274,7 +273,6 @@ def test_recapture_after_delivery_adds_one_waiting_item_and_escapes_like(client,
     with client.app.state.session_factory() as session:
         item = session.get(Item, second["id"])
         assert item.identity_key.startswith(url + "#")
-        assert session.get(Item, other["id"]).title == "A post"
     third = save_page(client, connected, url=url, title="Third").json()
     assert third["id"] == second["id"]
     with client.app.state.session_factory() as session:
@@ -282,6 +280,44 @@ def test_recapture_after_delivery_adds_one_waiting_item_and_escapes_like(client,
         assert len([item for item in waiting if item.link == url]) == 1
         assert session.get(Item, second["id"]).title == "Third"
         assert session.get(Item, first["id"]).state == "delivered"
+
+
+def test_recapture_preserves_case_sensitive_addresses_after_delivery(client, connected):
+    lower = "https://example.com/a"
+    delivered = save_page(client, connected, url=lower).json()
+    with client.app.state.session_factory() as session:
+        session.get(Item, delivered["id"]).state = "delivered"
+        session.commit()
+    waiting_lower = save_page(client, connected, url=lower, title="Lower").json()
+    upper = save_page(client, connected, url="https://example.com/A", title="Upper").json()
+    assert upper["id"] != waiting_lower["id"]
+    with client.app.state.session_factory() as session:
+        lower_item = session.get(Item, waiting_lower["id"])
+        assert (lower_item.identity_key.startswith(lower + "#"), lower_item.title, lower_item.link) == (
+            True, "Lower", lower,
+        )
+        pending = session.scalars(select(Item).where(Item.state == "pending")).all()
+        assert {(item.link, item.title) for item in pending} == {
+            (lower, "Lower"), ("https://example.com/A", "Upper"),
+        }
+
+
+def test_recapture_treats_underscore_as_literal_in_waiting_address(client, connected):
+    other_url = "https://example.com/axb"
+    delivered = save_page(client, connected, url=other_url).json()
+    with client.app.state.session_factory() as session:
+        session.get(Item, delivered["id"]).state = "delivered"
+        session.commit()
+    waiting_other = save_page(client, connected, url=other_url, title="Other").json()
+    new = save_page(client, connected, url="https://example.com/a_b", title="Underscore").json()
+    assert new["id"] != waiting_other["id"]
+    with client.app.state.session_factory() as session:
+        assert session.get(Item, waiting_other["id"]).title == "Other"
+        assert {(item.link, item.title) for item in session.scalars(
+            select(Item).where(Item.state == "pending")
+        ).all()} == {
+            (other_url, "Other"), ("https://example.com/a_b", "Underscore"),
+        }
 
 
 def test_active_run_refuses_replacing_waiting_but_accepts_new_page(client, connected):

@@ -141,7 +141,8 @@ def save_capture(
     source = _capture_source(session)
     waiting = session.scalar(select(Item).where(
         Item.source_id == source.id, Item.state == "pending",
-        (Item.identity_key == identity) | Item.identity_key.startswith(identity + "#", autoescape=True),
+        (Item.identity_key == identity)
+        | (func.substr(Item.identity_key, 1, len(identity) + 1) == identity + "#"),
     ).order_by(Item.id.desc()).limit(1))
     if waiting and active_run(session):
         raise AppError("run_active", "A digest is being made. Save this page again when it finishes.", 409)

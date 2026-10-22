@@ -234,7 +234,7 @@ Read design D12. Each item below is a real defect (a), a plan error (b), or a te
 - [x] 9.1 **Replies beyond the budget** (`backend/src/catchup/context/gather.py`). Test first, in `backend/tests/test_context_gather.py`, with items in this order: a feed item whose links spend the budget, a feed item with no replies, a capture with no replies, then a capture with replies. The last capture gets its `A1` part, and is `gathered`.
 
   Verify: the test fails on the current code (`break`), and passes with `continue`.
-- [ ] 9.2 **Exact address matching** (`backend/src/catchup/api/extension.py`). Tests first, in `backend/tests/test_extension_api.py`:
+- [x] 9.2 **Exact address matching** (`backend/src/catchup/api/extension.py`). Tests first, in `backend/tests/test_extension_api.py`:
   - deliver `https://example.com/a`, save it again (so that `…/a#<time>` waits), then save `https://example.com/A`. Two different items wait, and the `/a` item is unchanged;
   - replace the `%`/`_` test with one that can fail: a waiting `https://example.com/axb#<time>`, and a new save of `https://example.com/a_b`, must add a new item.
 

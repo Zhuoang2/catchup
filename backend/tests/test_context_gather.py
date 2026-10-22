@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from catchup.models import DigestRun, Item, ItemContext, Source
 from catchup.net.host_spacing import HostSpacer
-from test_digest_runner import FakeModel, environment, execute, seed, stub_collection
+from test_digest_runner import FakeModel, environment, execute, saved_capture, seed, stub_collection
 
 
 @pytest.fixture
@@ -36,6 +36,101 @@ def setup(client, links, *, comments=0, kind="feed", audio=False):
 
 def html(title, text):
     return f"<html><head><title>{title}</title></head><body><article><p>{text}</p></article></body></html>"
+
+
+def capture_with_context(client, *, links=(), replies=()):
+    seed(client, sources=0)
+    token = client.post("/api/settings/extension-tokens", json={"name": "Chrome"}).json()["token"]
+    response = client.post("/api/captures", json={
+        "url": "https://x.com/name/status/1", "title": "Name on X", "site_name": "X · Name",
+        "text": "Post text", "links": [{"url": url, "text": label} for url, label in links],
+        "replies": list(replies),
+    }, headers={"Authorization": f"Bearer {token}", "Origin": "chrome-extension://abcdefghijklmnop"})
+    assert response.status_code == 201
+    return response.json()["id"]
+
+
+def test_capture_reads_public_links_not_saved_page_or_own_tags(environment, public_dns):
+    capture_with_context(environment, links=[
+        ("https://x.com/tag/news", "Own tag"),
+        ("https://docs.example/article", "Public article"),
+    ], replies=["First reply", "Second reply"])
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        own = router.get("https://x.com/name/status/1").mock(return_value=httpx.Response(200))
+        tag = router.get("https://x.com/tag/news").mock(return_value=httpx.Response(200))
+        article = router.get("https://docs.example/article").mock(
+            return_value=httpx.Response(200, text=html("Article", "Related context " * 50)),
+        )
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert own.call_count == tag.call_count == 0
+    assert article.call_count == 1
+    with environment.app.state.session_factory() as session:
+        contexts = session.scalars(select(ItemContext).order_by(ItemContext.position)).all()
+        assert [(part.ref, part.title) for part in contexts] == [
+            ("L1", "Article"), ("A1", "Author replies (2)"),
+        ]
+        assert contexts[1].text == "First reply\n\nSecond reply"
+
+
+@pytest.mark.parametrize("replies,expected", [
+    (["A reply"], "gathered"), ([], "none"),
+])
+def test_capture_without_links_has_context_status(environment, public_dns, replies, expected):
+    capture_with_context(environment, replies=replies)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        saved = router.get("https://x.com/name/status/1").mock(return_value=httpx.Response(200))
+        assert execute(environment)["status"] == "succeeded"
+        assert saved.call_count == 0
+    with environment.app.state.session_factory() as session:
+        assert session.scalar(select(Item)).context_status == expected
+
+
+def test_capture_replies_survive_prior_feed_spending_fetch_budget(environment, monkeypatch, public_dns):
+    seed(environment)
+    with environment.app.state.session_factory() as session:
+        item = session.scalar(select(Item))
+        item.entry_links = [{"url": "https://docs.example/article", "text": "Article"}]
+        session.commit()
+    token = environment.post("/api/settings/extension-tokens", json={"name": "Chrome"}).json()["token"]
+    response = environment.post("/api/captures", json={
+        "url": "https://x.com/name/status/1", "title": "Name on X", "text": "Post",
+        "replies": ["Author's note"],
+    }, headers={"Authorization": f"Bearer {token}", "Origin": "chrome-extension://abcdefghijklmnop"})
+    assert response.status_code == 201
+    stub_collection(monkeypatch)
+    environment.app.state.settings = replace(environment.app.state.settings, context_fetches_per_run=2)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        router.get("https://docs.example/article").mock(
+            return_value=httpx.Response(200, text=html("Article", "Context " * 30)),
+        )
+        saved = router.get("https://x.com/name/status/1").mock(return_value=httpx.Response(200))
+        result = execute(environment)
+        assert saved.call_count == 0
+    assert result["status"] == "succeeded"
+    with environment.app.state.session_factory() as session:
+        capture = session.get(Item, response.json()["id"])
+        assert capture.context_status == "gathered"
+        assert [(part.ref, part.text) for part in capture.contexts] == [("A1", "Author's note")]
+
+
+def test_capture_redirect_to_own_tag_is_excluded(environment, public_dns):
+    capture_with_context(environment, links=[("https://docs.example/redirect", "Redirect")])
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        router.get("https://x.com/robots.txt").mock(return_value=httpx.Response(404))
+        router.get("https://docs.example/redirect").mock(
+            return_value=httpx.Response(302, headers={"location": "https://x.com/tag/news"}),
+        )
+        router.get("https://x.com/tag/news").mock(
+            return_value=httpx.Response(200, text=html("Tag", "Tag context " * 20)),
+        )
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    with environment.app.state.session_factory() as session:
+        assert not session.scalars(select(ItemContext)).all()
 
 
 def test_runner_stores_three_links_in_order_and_ignores_tags(environment, monkeypatch, public_dns):

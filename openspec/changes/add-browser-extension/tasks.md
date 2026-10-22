@@ -90,14 +90,14 @@ Implementer notes:
 
 ## 3. Saved pages in the run
 
-- [ ] 3.1 **Checks, pending selection, and the site name** (D6), in `backend/src/catchup/digest/runner.py`. Tests first, in `backend/tests/test_digest_runner.py`:
+- [x] 3.1 **Checks, pending selection, and the site name** (D6), in `backend/src/catchup/digest/runner.py`. Tests first, in `backend/tests/test_digest_runner.py`:
   - **No check for the built-in source.** With one feed source and one waiting capture, the run records one check, and `sources_total` is 1. There is no `SourceCheck` row for the captures source, and its `last_check_at` stays null. A respx route cannot test this, because `safe_fetch` refuses `catchup:captures` before any request.
   - **Captures are summarized.** The capture is summarized, and appears in the digest with `source_name` equal to its `site_name` and `source_kind` `capture`.
   - **The site name reaches the model.** The grouping call receives the site name, and the image alt fallback uses it.
   - **Only captures waiting.** The run succeeds with zero checks, and includes the capture.
 
   Verify: the tests fail before, and pass after.
-- [ ] 3.2 **The context pass for saved pages** (D6), in `backend/src/catchup/context/gather.py`. Tests first, in `backend/tests/test_context_gather.py`:
+- [x] 3.2 **The context pass for saved pages** (D6), in `backend/src/catchup/context/gather.py`. Tests first, in `backend/tests/test_context_gather.py`:
   - **Linked pages are read.** A capture whose links include a public article gets an `L1` part.
   - **The saved page is never fetched.** The route for `item.link` has `call_count == 0`.
   - **The item's own site.** A link on the captured page's own site with a `/tag/` path is dropped, by the item's origin. A link on another site is kept.

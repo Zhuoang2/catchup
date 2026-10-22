@@ -88,3 +88,20 @@ The 9.4 regression used the installed library's actual source via `window.eval`,
 | `openspec validate add-browser-extension --strict` | Passed. |
 
 A separate local browser check opened the throwaway Docker image on loopback with a fresh browser profile, observed the exact first-run optional-extension lede and fully loaded Settings form, and reported **0 axe WCAG 2 A/AA violations**. A text-based wait for the numbered browser-extension heading timed out, but a fresh snapshot showed the heading and form; the subsequent axe audit and direct lede read both passed. The browser and container were closed. Real unpacked Chrome/Edge extension permissions, cross-world injection, and an actual X post in the user's logged-in browser were **not** exercised; the manual checks listed above still remain for review.
+
+## Fix round 2 (D13, 2026-10-21)
+
+Tasks 10.1–10.3 were completed in order. The invented short-post fixture has no `<article>` or `<main>` and places a sponsor banner above a short entry. Readability 0.6.0 returns the banner (275 trimmed characters) by default, but the entry (121 trimmed characters) at `charThreshold: 100`. Direct and serialized tests both **failed on unchanged code**, receiving “Support our imaginary daily notes” instead of “My tiny garden is ready.” After parsing a fresh clone with the shorter threshold, all **8 readable tests passed**. The named temporary mutation setting both 100-character checks back to 200 made **both new tests fail again with the banner**; reverting it left the readable, generic and popup suites at **60 passed**.
+
+For 10.2, the two focused backend tests **both failed before the code change**: the stored candidate had only `url` and capped `alt` instead of the full `EntryImage` fields, and the summary request read `I1 — image, position 1;` rather than `I1 — in the post, position 1;`. Preserving the filtered image fields with a capped `alt` made **both pass**. No temporary mutation remains.
+
+### Final automated checks
+
+| Command | Result |
+| --- | --- |
+| `cd backend && uv run pytest --cov=catchup --cov-report=term` | **634 passed**, **96%** statement coverage (2,494/2,586 statements covered, 92 missed). |
+| `cd extension && npm test -- --run` | **86 passed** in 8 files. |
+| `cd extension && npm run build` | Passed: TypeScript, Vite build (11 modules transformed), and packaged-file check. |
+| `openspec validate add-browser-extension --strict` | Passed. |
+
+Frontend was unchanged and not retested in this round. Docker build and smoke were **not run** in this round; Claude Code will run them in review. The real unpacked-extension and authenticated-X checks above remain unperformed.

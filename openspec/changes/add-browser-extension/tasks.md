@@ -330,7 +330,7 @@ Read design D13. Both items are real defects (a). This is the last Droid round f
   Then import `asdict` from `dataclasses`, and store `{**asdict(image), "alt": image.alt[:500]}` for each filtered image.
 
   Verify: both tests fail on the current code, and pass after the change.
-- [ ] 10.3 **Docs and checks.**
+- [x] 10.3 **Docs and checks.**
   - **`docs/process/test-report-add-browser-extension.md`:** add a "Fix round 2 (D13)" section with each check's red result, the mutation, and the actual numbers below.
   - **The checks:** `uv run pytest --cov=catchup --cov-report=term` in `backend/`; `npm test -- --run` and `npm run build` (which runs the build check) in `extension/`; and `openspec validate add-browser-extension --strict`. The frontend is not changed in this round. Claude Code runs `docker build` and `scripts/docker-smoke.sh` in its review.
   - **The coverage summary and the AI usage log:** add the fix-round-2 line, and your entry, with a faithful excerpt of the prompt you received. Leave out the session id.

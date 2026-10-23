@@ -100,7 +100,9 @@ In Chrome, open `chrome://extensions`, turn on **Developer mode**, choose
 Chrome 134 and later require Developer mode to keep unpacked extensions
 enabled. In Edge, open `edge://extensions`, turn on Developer mode, and
 use **Load unpacked** on the same folder. Rebuild and reload the unpacked
-extension after updating it.
+extension after updating it. Pin CatchUp to the toolbar from the puzzle-piece
+menu. Unpinned, it is listed lower in that menu on sites it cannot read
+until you click it, and with many extensions it can be out of view.
 
 In CatchUp, go to **Settings → Browser extension** and create a connection.
 Copy its one-time token to the extension's **Options** page along with the

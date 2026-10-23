@@ -155,3 +155,24 @@ A fresh sub-agent, the one that proposed the D-023 stop rules, reviewed the whol
     - A real fix needs one extractor in place of `readable.ts` and `generic.ts`, which share 39 near-identical lines, checked against a set of real pages. README lists the limit.
   - **Linked pages of saved pages (by design; now documented).** In the next run, the server requests up to `CATCHUP_LINKS_PER_ITEM` links recorded on a saved page, without cookies. README now says so, and warns against saving pages whose links carry private tokens. The README contract test checks both new sentences: it failed without the README change, and passed with it.
   - **Hidden text (a, low).** `generic.ts` has no visibility check, so it reads, for example, a `hidden` menu inside `<main>`.
+
+## Manual check by the user (2026-10-22)
+
+The user ran the check in their own Chrome, against a local instance on port 8775 with a stub model. Claude checked the stored data afterwards. Every step passed:
+
+| Step | What the user did | Observed |
+| --- | --- | --- |
+| Load and connect | Loaded `extension/dist` unpacked; created a connection in Settings; pasted the token on the options page | The connection test passed, and the popup showed the waiting count. |
+| Follow this site | On `blog.python.org`, Follow this site, then Confirm | The preview showed "Website feed", and Python Insider was added as a feed source. |
+| Add this page | On a short Simon Willison post | Stored text: 197 characters, the post only, with its two links. Readability's path ran in the real tab, so `readability.js` and `extractReadable` share the extension's isolated world. |
+| X post | On a logged-in X post with an author reply | Stored: the post's text and the author's one reply. No other person's reply was stored. Shown in the digest as "X · Tibo". |
+| Digest run | Generate on Home | Both saved pages were summarized. The article got two "Also read" pages, and the X post an author-replies part. |
+| Disconnect | Disconnect in Settings | The connection row was deleted, and the popup asked to connect again. |
+
+- **`activeTab`:** Add worked on `blog.python.org`, `simonwillison.net`, and `x.com`, for which the extension has no host permission. So the popup's click grants access to the tab.
+- **The `Origin`:** not observed. It does not matter: every request from the extension carries its token, and the token step runs before the cross-site check (D3).
+- **Small findings, recorded:**
+  - The X post's stored links include X's own pages for the post: its profile, analytics, and quotes pages. They are on the post's own site, so the context pass did not request them.
+  - The user's X shows posts with an automatic translation, and the stored text joins the original and the translation with no break.
+  - On a site the extension cannot read before a click, Chrome lists it lower in the puzzle-piece menu. With many extensions it was out of view, so README now says to pin it.
+

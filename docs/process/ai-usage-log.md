@@ -1556,3 +1556,37 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 
   The extension was hard to find in Chrome's puzzle-piece menu on sites it cannot read before a click, so README now says to pin it.
 - **Not changed:** the extractor rewrite and hidden text (#62). Following X accounts with the user's own X API key (#41) is the next change, per the user's decision.
+
+## 2026-10-24 — `add-x-accounts` (#41): research, two proposals, and plan, with a fresh-eyes check (Claude Code, Opus 5.5, with five sub-agents)
+
+- **Prompts** (translated from Chinese):
+  - "Rebuild the 8800 container first, then start #41."
+  - "Start on the two proposals."
+  - The user answered four questions:
+    - "Proposal 1: paste an app token (recommended)";
+    - replies to other people's posts: "Skip (recommended)";
+    - "The extension asks you to paste it in place (recommended)";
+    - "200 posts, about $1 (recommended)".
+  - "Approve the plan; commit, then write the probe script."
+- **Research** (the `reppit-research` skill). Four sub-agents worked in parallel: the source pipeline and limits; key storage and the extension; specs and docs; and external X API facts from docs.x.com, the OpenAPI spec, and the policies.
+  - Claude checked the code facts.
+  - Claude also checked the policy clauses on credentials in the downloaded pages.
+  - One sub-agent claim was not in the source ("requiring users to register their own apps could result in enforcement"). It was written down as unaddressed.
+- **Proposals** (the `reppit-proposal` skill):
+  - Proposal 1: an app-only Bearer token, pasted once.
+  - Proposal 2: Sign in with X (OAuth 2.0 with PKCE), with a following-list picker.
+  - Claude checked the OpenAPI spec, and corrected one claim: the following list also accepts an app-only token.
+- **Plan** (the `reppit-plan` skill):
+  - `proposal.md`;
+  - a new `x-accounts` capability, and deltas to seven capabilities;
+  - `design.md`, D1–D12;
+  - `tasks.md`: a probe group run by Claude and the user, then five groups for Droid.
+- **The fresh-eyes check (D-023).** A sub-agent that saw only the code and the plan reported 15 issues. Claude verified them against the code, and folded in 14:
+  - a deferred account must keep its `last_check_at`, or it would be read last again;
+  - the migration's downgrade must use `recreate="never"`, which the sub-agent proved with a probe;
+  - the preview must not show `x:user:<id>`;
+  - tests that already pass are marked as guards;
+  - `CATCHUP_X_READS_PER_RUN` needs a parser that accepts 0.
+
+  One was not taken: the author's replies to commenters in their own thread are kept, as the user chose.
+- **Outcome.** The plan validates with `--strict`. Decision D-025 and a requirements row were added. The X field names will be settled by a probe that the user runs with their own token. Claude never handles it.

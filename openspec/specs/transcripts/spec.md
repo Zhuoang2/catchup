@@ -11,6 +11,8 @@ The system SHALL classify each saved source as a website feed, a podcast, or a Y
 - a podcast when more than half of its entries carry audio enclosures
 - otherwise a website feed
 
+The built-in source for pages saved from the browser is a fourth kind, "Saved from browser". It is never classified or reclassified, because it has no feed.
+
 The classification MUST be refreshed on every successful check, so sources saved before this capability existed are classified on their next check. Their pending items are then handled as podcast or YouTube items. A source classified as a podcast or YouTube channel MUST NOT be reclassified as a website feed by a later check.
 
 #### Scenario: Podcast feed
@@ -38,6 +40,10 @@ Within a podcast source, only entries that carry an audio enclosure are episodes
 #### Scenario: YouTube channel saved before this change
 - **WHEN** a YouTube channel saved earlier as a website feed is checked successfully
 - **THEN** it becomes a YouTube channel, and its pending videos follow the caption rules instead of being summarized from descriptions
+
+#### Scenario: Saved-from-browser source
+- **WHEN** the first page is saved from the browser
+- **THEN** its source has the kind "Saved from browser", and no check reclassifies it
 
 ### Requirement: Use published podcast transcripts
 For a podcast episode, the system SHALL use a transcript the feed publishes for that episode, and SHALL consider every transcript the episode lists:

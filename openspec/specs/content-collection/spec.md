@@ -6,7 +6,7 @@ Defines how CatchUp checks sources, decides what is new since each source's last
 ## Requirements
 
 ### Requirement: Check every source on each run
-Each digest run SHALL check every saved source once, and record for each source one outcome:
+Each digest run SHALL check every saved source once, except the built-in source for pages saved from the browser, which has no feed. It SHALL record for each checked source one outcome:
 - `new_items`: the run includes at least one item from this source, either summarized or under Creator updates. It does not matter whether the entry was first seen in this check, recorded when the source was added, or held from an earlier run.
 - `no_new_items`: the feed was fetched and parsed successfully, and the run includes nothing from this source.
 - `failed`: the feed could not be fetched or parsed, with an error description.
@@ -36,6 +36,10 @@ Items held for a transcript or captions, items deferred to a later run, and entr
 #### Scenario: Skipped Short
 - **WHEN** a YouTube channel's only new entry is a Short that is skipped
 - **THEN** that source's outcome is `no_new_items`
+
+#### Scenario: Only saved pages are waiting
+- **WHEN** a run starts while pages saved from the browser are waiting
+- **THEN** the run includes them, records no check for the built-in source, and does not count it among the sources checked
 
 ### Requirement: Record entries the first time they are seen
 The system SHALL identify each entry within a source by a stable key: the entry's feed identifier, else its link, else a hash of its title and date. An entry is new only the first time its key is seen for that source. An entry whose key is unknown but whose link matches an already recorded entry of the same source MUST be treated as already seen. Publish dates MUST NOT decide whether an entry is new. A link that more than one entry of the same feed document carries (for example, every episode linking to the show's home page) MUST NOT be used to identify, deduplicate, or match entries. An entry without a feed identifier whose link is shared in this way is identified by the hash of its title and date.
@@ -178,3 +182,18 @@ For each entry of a website feed, and for each YouTube video, the system SHALL k
 #### Scenario: Author avatar in the feed
 - **WHEN** a WordPress feed item's `media:content` holds the author's Gravatar avatar and one post image
 - **THEN** only the post image is kept
+
+### Requirement: Gather context for pages saved from the browser
+For a page saved from the browser, the system SHALL gather related context in the same pass as for website items:
+- **Linked pages:** from the links the page recorded, under the same rules for related links. "The same site" means the saved page's own site.
+- **Author replies:** the replies the extension read, kept as the page's author replies.
+
+The system MUST NOT fetch the saved page's own address, which may need a login.
+
+#### Scenario: Saved page linking an article
+- **WHEN** a saved X post recorded the full address of a public article
+- **THEN** the next run reads the article as related context for the post
+
+#### Scenario: Saved page never fetched
+- **WHEN** a run gathers context for a saved page
+- **THEN** no request is sent to the saved page's own address

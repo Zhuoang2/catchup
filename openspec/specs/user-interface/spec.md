@@ -117,11 +117,15 @@ When the main screen shows a digest, it SHALL show no side information, and the 
 - **THEN** the digest uses the full content width, no side information is shown, and the run bar shows the number of sources
 
 ### Requirement: Sources show their kind and confirm deletion inline
-Each saved source SHALL show its kind as visible text (Website feed, Podcast, or YouTube channel), its feed URL in full (wrapping when long), and its last check outcome and time. Deleting a source MUST ask for confirmation in place and say that saved digests remain available.
+Each saved source SHALL show its kind as visible text (Website feed, Podcast, YouTube channel, or Saved from browser), its feed URL in full (wrapping when long), and its last check outcome and time. The built-in "Saved from browser" source SHALL show how many pages are waiting, in place of a feed URL and check outcome. Deleting a source MUST ask for confirmation in place and say that saved digests remain available.
 
 #### Scenario: Delete confirmation
 - **WHEN** the user chooses Delete on a source
 - **THEN** that row asks "Delete <title>? Saved digests will remain available." with Delete and Cancel
+
+#### Scenario: Saved-from-browser row
+- **WHEN** two pages saved from the browser are waiting
+- **THEN** the Sources page shows "Saved from browser" with "2 pages waiting"
 
 ### Requirement: Settings explain risk and keep secrets out of view
 Settings SHALL group fields into Model provider, Digest, and YouTube.
@@ -230,3 +234,15 @@ An image that fails to load MUST be hidden without leaving an empty frame. Setti
 #### Scenario: Images turned off
 - **WHEN** the user turns off "Show images from source sites" and opens a digest whose items chose images
 - **THEN** no image is shown or requested
+
+### Requirement: Connect a browser in Settings
+Settings SHALL have a "Browser extension" group with:
+- "Connect a browser", which asks for the browser's name;
+- the new token, shown once in a read-only field with a Copy button, and a note that it is shown only once;
+- the list of connected browsers, each with its name, connection date, last use, and "Disconnect".
+
+The token field and the note MUST be associated for assistive technology, and copying MUST announce its result.
+
+#### Scenario: Copy the token
+- **WHEN** the user connects a browser and chooses Copy
+- **THEN** the token is copied, and the result is announced

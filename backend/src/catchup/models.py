@@ -57,6 +57,16 @@ class AppSettings(Base):
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
 
 
+class ExtensionToken(Base):
+    __tablename__ = "extension_tokens"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(60))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
+    last_used_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+
+
 class Source(Base):
     __tablename__ = "sources"
 
@@ -96,6 +106,8 @@ class Item(Base):
     comment_feed_url: Mapped[str | None] = mapped_column(Text)
     comment_count: Mapped[int | None] = mapped_column(Integer)
     entry_author: Mapped[str | None] = mapped_column(Text)
+    site_name: Mapped[str | None] = mapped_column(String(200))
+    captured_replies: Mapped[list[str] | None] = mapped_column(JSON)
     context_status: Mapped[str | None] = mapped_column(String(16))
     image_candidates: Mapped[list[dict] | None] = mapped_column(JSON)
     summary_images: Mapped[list[dict] | None] = mapped_column(JSON)

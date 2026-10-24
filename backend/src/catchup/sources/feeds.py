@@ -109,6 +109,13 @@ def _entry_images(entry, description: str, base: str, channel_images: set[str]) 
     for media in entry.get("enclosures", []):
         if str(media.get("type", "")).lower().startswith("image/"):
             candidates.append(EntryImage(media.get("href") or media.get("url", ""), origin="enclosure"))
+    return filter_image_urls(candidates, base, channel_images)
+
+
+def filter_image_urls(
+    candidates: list[EntryImage], base: str = "", excluded: set[str] | None = None,
+) -> tuple[EntryImage, ...]:
+    """Keep at most eight safe image addresses, preserving feed candidate order."""
     result: list[EntryImage] = []
     seen: set[str] = set()
     for image in candidates:
@@ -121,7 +128,7 @@ def _entry_images(entry, description: str, base: str, channel_images: set[str]) 
                 or "/avatar/" in parts.path.lower() or "/blavatar/" in parts.path.lower()
                 or (image.width is not None and image.height is not None
                     and image.width <= 1 and image.height <= 1)
-                or url in channel_images):
+                or url in (excluded or ())):
             continue
         key = parts._replace(fragment="").geturl()
         if key in seen:

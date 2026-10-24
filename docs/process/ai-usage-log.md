@@ -1475,3 +1475,84 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - It opened #60 for the cleanup.
   - Backend: 585 tests pass.
 
+## 2026-10-21 — `add-browser-extension` (#58): plan, with a fresh-eyes check (Claude Code, Opus 5.5, with one sub-agent)
+
+- **Prompts** (translated from Chinese):
+  - "Let's start on the browser extension first."
+  - The user answered four plan questions:
+    - "Chrome and Edge (recommended)";
+    - "Popup (recommended)";
+    - "Copy a connection token (recommended)";
+    - "Support it, reading only the author's own replies (recommended)".
+  - Then: "Approve the plan, commit, and start Droid".
+- **Plan** (the `reppit-plan` skill):
+  - `proposal.md`;
+  - a new `browser-extension` capability, and deltas to six existing capabilities;
+  - the final `design.md`, D1–D11, with Proposal 2 under Alternatives;
+  - `tasks.md`: 8 groups, 16 tasks, test-first, with named seams.
+- **The fresh-eyes check (D-023).** A sub-agent that had seen only the code and the plan found 12 real problems. Claude verified the most expensive ones in the code, or by running them, before correcting the plan:
+  - `chrome.scripting.executeScript` serializes its function, so helpers outside it are lost in the tab, while jsdom tests that call the function directly still pass;
+  - jsdom has no `innerText`, an empty `currentSrc`, and a `textContent` that runs paragraphs together (Claude ran a probe);
+  - the Settings page is one `<form>`, and `Button` sets no `type`, so a new section inside it would submit the model form;
+  - the token step must run before the middleware's check for write methods, or the extension's `GET` requests fail;
+  - the context pass stops when the fetch budget runs out, so captured replies would be lost;
+  - finding the waiting item by its key broke on a third save;
+  - Vite mirrors HTML source paths.
+- **Outcome:**
+  - All 12 were folded into the design (D1, D3, D4, D6–D9), the tasks, and two spec lines.
+  - The plan validates with `--strict`.
+  - D-024 and a requirements row were added.
+
+## 2026-10-21 — `add-browser-extension` (#58): implementation (Factory Droid, model not exposed in this session; session `c93671cc`)
+
+- **Prompt (faithful excerpt):** "Implement OpenSpec change `add-browser-extension` (issue #58) in `tasks.md` order, using the `openspec-apply-change` and `tdd` skills. Write failing checks before implementation; perform, observe, and revert named temporary mutations. Check off tasks only after verification, and commit after each task group. Do not edit the change's proposal, design, or spec deltas; do not push, tag, or open a PR. Stop and report rather than improvising if blocked or if the plan is wrong."
+- **Outcome:** Completed all eight task groups: scoped connection tokens, saved-page API and digest integration, app UI, separate MV3 popup/options package with Follow and Add flows, generic/X extractors, CI and guide. Group commits were made in order. Final checks: 623 backend tests at 96% coverage, 229 frontend tests, 43 extension tests, both builds, strict OpenSpec validation and local Docker build/smoke passed. Details and remaining live checks are in `test-report-add-browser-extension.md`.
+- **Problems / adjustment:** The first backend test run used Python 3.11 and could not collect an unchanged Python 3.12 f-string test; selected Python 3.12 for the worktree. npm's peer resolver crashed generating the extension lockfile, so generated it once with `--legacy-peer-deps` and confirmed plain `npm ci` works. The generic extractor's module-scope-helper mutation failed in serialized tests and was reverted. A new quoted-status fixture found that the X extractor was checking only the first status link, so matching any link fixed it. No live browser, real X post or remote publish was attempted.
+
+## 2026-10-21 — `add-browser-extension` (#58): fix round 1 (Factory Droid, model not exposed in this session; session `c93671cc`)
+
+- **Prompt (faithful excerpt):** "Implement OpenSpec `add-browser-extension` (#58) fix round 1 using the amended plan (`85e0625`, corrected `135d323`). Read D12, the new page-without-an-article spec scenario, and `tasks.md` group 9. Complete 9.1–9.8 in order, using `diagnosing-bugs` for 9.1, 9.3 and 9.4, and `tdd` for the others. Every check must go red first, through a failing test or a named temporary mutation that is reverted. Install `@mozilla/readability` using `npm install --save-exact`. Verify and commit each task; do not edit proposal, design or spec deltas; do not push, tag or open a PR."
+- **Outcome:** Fixed a budget-related lost-reply path, case-sensitive waiting-page lookup, proxy Bearer handling and capture field caps. Added Mozilla Readability reader view with generic fallback, X profile-link identity, clear popup errors and token-based light/dark styling; made Home, context and migration tests mutation-sensitive and corrected the Settings lede. Eight task commits and a fix-round test report. Final checks: 634 backend tests with 96% coverage, 233 frontend tests, 84 extension tests, both builds, local Docker build/smoke and strict OpenSpec validation passed. A fresh-profile local browser check observed the first-run lede and zero axe violations; the real unpacked extension and a logged-in X page remain for manual review.
+- **Problems / adjustment:** The first 9.4 build failed because the isolated jsdom tab test lacked `@types/jsdom`; installed the dev-only test types and confirmed `npm ci`. A first attempt at the kind-label expression failed TypeScript parsing, so simplified it before re-running the suite. Readability 0.6.0 was probed against an invented page before implementation: its result kept the article and omitted the sidebar/sponsor. Named mutations exposed tests that had previously passed without checking their claimed behavior; all were reverted. No remote publish or authenticated X test was attempted.
+
+## 2026-10-21 — `add-browser-extension` (#58): fix round 2 (Factory Droid, model not exposed in this session; session `c93671cc`)
+
+- **Prompt (faithful excerpt from the continuation request):** "Implement fix round 2 of OpenSpec `add-browser-extension` (#58), following amendment `192da37` (design D13 and tasks 10.1–10.3). This is the last Droid round for this change: change only what group 10 names. Complete tasks 10.1, 10.2, 10.3 in order, using `diagnosing-bugs` for 10.1 and `tdd` for 10.2. Observe every specified red test before fixing; for 10.1 also observe the named mutation fail and revert it. Check off each task only after verification and commit after each task. ... Do not run Docker; Claude Code will do that in review. Do not push, tag, or open a PR. Stop and report if blocked or if the plan proves wrong—particularly if the prescribed fixture does not make current code return the banner text."
+- **Outcome:** Reproduced the sponsor-banner selection on the invented 121-character short post; fixed it with a fresh Readability clone at the 100-character threshold. Preserved filtered image metadata in saved captures so the digest prompt describes an image as “in the post.” Two task commits preceded the final documentation commit. Backend 634 tests at 96% coverage, extension 86 tests, extension build and strict OpenSpec validation passed.
+- **Problems / adjustment:** The first patch for the extractor did not match the actual source context, so reread the file and applied the same planned rule to its existing type declaration. Both short-post tests failed with the banner before implementation, failed again under the named 200-character mutation, and passed after reversion. Both backend metadata checks failed first and passed after the fix. No Docker, frontend rerun, real X page, or remote publish in this round.
+
+## 2026-10-22 — `add-browser-extension` (#58): review, two fix rounds, an independent review, and the user's manual check (Claude Code, Opus 5.5, with sub-agents; Factory Droid session `c93671cc`)
+
+- **Prompts** (translated from Chinese):
+  - After the first review, the user answered: "Use Mozilla Readability (recommended)" and "Add simple styling this time (recommended)".
+  - After the fix-round-1 review: "One more small Droid round, then you test by hand (recommended)".
+  - Before testing: "Have the review conversation review it once; after the review I'll test". The user then chose "Record it as a known limit, and open an issue later (recommended)" and "Write it in the README (recommended)".
+  - During the check: "Step 4 can't find the extension", then "It doesn't load only on this page".
+  - After the check: "I did it all, and the flow you described works. But we still don't support following personal X accounts? I don't want users to only add one page or one post to a digest, because the user can read that post or page directly." The user then chose to follow X accounts with "a dedicated X adapter: when a user wants to follow an X creator, the extension asks for their API key", and "Merge as usual (recommended)".
+- **Process, after each of the three Droid runs:**
+  - `/code-review`;
+  - a spec sub-agent with mutations on the changed lines;
+  - Claude verified every finding, and ran live checks: real pages saved locally, a local instance with a stub model, and `scripts/docker-smoke.sh`.
+  - Before each fix round, a fresh-eyes sub-agent checked the new task group. Before fix round 1 it found 10 false assumptions, mostly tests that could not fail; before fix round 2 it found 4.
+- **The first review.** Nine `/code-review` findings, all confirmed, and fixed in round 1 (D12).
+  - The two most serious showed up only in the live check. The context pass stopped at the first item without replies once the fetch budget ran out, so a saved page lost its author replies. And on a page with no `<article>`, the generic extractor saved a blog's sidebar, sponsor block, and year list.
+- **Fix round 1 (D12, group 9).** The user chose Mozilla Readability and styling.
+  - The fix-round-1 review found two real defects:
+    - Readability chose a sponsor banner over a short post;
+    - round 1's own alt-text cap dropped saved images' origin, so the prompt called them "image" instead of "in the post".
+- **Fix round 2 (D13, group 10), declared the last round.** Both defects were fixed, and seven real pages extract correctly.
+  - Claude's review commit added one leftover check: the page's own document is unchanged.
+- **The independent review.** The sub-agent that proposed D-023 reviewed the whole change.
+  - **Security:** no defect.
+  - **Two cases of one round patching another:** round 2 put back what round 1 narrowed; round 2's second Readability parse tuned round 1's thresholds.
+  - **Short pages:** still save sponsor text. Claude reproduced it. A probed "strict attempt only" rule fixed it, but lost a release link, so it went to #62 with the user's decision, instead of a third round.
+  - **Linked pages of saved pages:** the server's later reads of them are now in README.
+- **The manual check (user, 2026-10-22).** All steps passed:
+  - follow;
+  - add an article;
+  - an X post with the author's reply;
+  - a digest run;
+  - disconnect.
+
+  The extension was hard to find in Chrome's puzzle-piece menu on sites it cannot read before a click, so README now says to pin it.
+- **Not changed:** the extractor rewrite and hidden text (#62). Following X accounts with the user's own X API key (#41) is the next change, per the user's decision.

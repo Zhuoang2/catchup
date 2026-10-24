@@ -15,7 +15,7 @@ type Preview = {
 type Source = {
   id: number; title: string; feed_url: string; site_url: string; kind: SourceKind
   last_check_at: string | null; last_check_status: string | null; possible_gap: boolean
-  http_status: number | null; rate_limited: boolean
+  http_status: number | null; rate_limited: boolean; waiting_count?: number
 }
 
 const messages: Record<string, string> = {
@@ -220,8 +220,9 @@ export default function Sources() {
         : <li className="source-row" key={source.id}>
           <span className="source-icon"><Icon name={source.kind}/></span>
           <div className="source-main"><p className="source-title">{source.title} <KindBadge kind={source.kind}/></p>
-            <p className="source-feed" title={source.feed_url}>{source.feed_url}</p></div>
-          <SourceStatus source={source}/>
+            {source.kind === 'capture' ? <p>{pluralPages(source.waiting_count ?? 0)}</p>
+              : <p className="source-feed" title={source.feed_url}>{source.feed_url}</p>}</div>
+          {source.kind !== 'capture' && <SourceStatus source={source}/>}
           <Button variant="ghost" size="sm" className="btn-danger" type="button"
             ref={node => { if (node) deleteRefs.current.set(source.id, node)
               else deleteRefs.current.delete(source.id) }}
@@ -241,4 +242,8 @@ export default function Sources() {
       </section>}
     </Rail>
   </section>
+}
+
+function pluralPages(count: number): string {
+  return `${count} ${count === 1 ? 'page' : 'pages'} waiting`
 }

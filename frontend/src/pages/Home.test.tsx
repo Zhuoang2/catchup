@@ -37,6 +37,7 @@ const fineChecks = attentionChecks.map(check => check.source_title === 'Docs' ? 
   ...check, status: 'new_items', possible_gap: false, error: null,
 })
 const sources = [{ kind: 'feed' }, { kind: 'podcast' }, { kind: 'youtube' }]
+const captures = { kind: 'capture' }
 const digest = {
   id: 4, created_at: '2026-10-03T10:00:00Z', model_id: 'test',
   item_count: 2, source_count: 2, topics: [
@@ -49,6 +50,47 @@ const digest = {
     reason: 'no_transcript',
   }] }],
 }
+
+it('keeps saved pages out of visible source counts but allows capture-only runs', async () => {
+  const { container } = mockPage({ sources: [sources[0], captures] })
+  expect(await screen.findByText('Check your 1 source and summarize everything new since your last digest.'))
+    .toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Your sources' }).closest('section')).toHaveTextContent('1')
+  expect(screen.getByRole('button', { name: 'Generate digest' })).toBeEnabled()
+  await expectAccessible(container)
+})
+
+it('enables Generate with only saved pages and no existing run', async () => {
+  const { container } = mockPage({ sources: [captures] })
+  await screen.findByRole('heading', { name: 'Generate digest' })
+  expect(screen.getByRole('button', { name: 'Generate digest' })).toBeEnabled()
+  expect(screen.queryByRole('link', { name: 'Add sources' })).toBeNull()
+  await expectAccessible(container)
+})
+
+it('excludes saved pages from the digest hero source count', async () => {
+  const { container } = mockPage({ sources: [sources[0], captures], latest: digest })
+  await screen.findByRole('heading', { name: 'Technology' })
+  expect(container.querySelector('.run-bar .hero-meta')?.textContent).toBe('1 source · Manage sources')
+})
+
+it('excludes saved pages from the no-digest rail source count', async () => {
+  const { container } = mockPage({ sources: [sources[0], captures] })
+  await screen.findByRole('heading', { name: 'Generate digest' })
+  expect(container.querySelector('.rail .rail-big')?.textContent).toBe('1')
+})
+
+it('enables Generate with saved pages alone and omits zero-source run result', async () => {
+  const { container } = mockPage({ sources: [captures], run: {
+    ...run, status: 'succeeded', sources_total: 0, source_checks: [],
+    items_total: 1, items_done: 1, digest_item_count: 1, digest_update_count: 0,
+  } })
+  expect(await screen.findByRole('heading', { name: 'Your digest is ready' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Generate digest' })).toBeEnabled()
+  expect(screen.getByRole('region', { name: 'Digest run' }).querySelector('.result-meta'))
+    .not.toHaveTextContent('0 sources')
+  await expectAccessible(container)
+})
 
 it.each([['off', false], ['read fails', true]] as const)(
   'respects image preference on Latest when %s', async (variant, shown) => {

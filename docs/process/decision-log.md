@@ -289,3 +289,35 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - The layering left by #48 (budget signals, vestigial flags), a quadratic lookup in `context/comments.py`, and the repeated poll steps in `Home.test.tsx` go to a low-priority cleanup issue, #60.
   - #59 was the first change handled this way: no second Droid round. Claude added three review tests, and skipped two proposed items as patch on patch.
 
+## D-024 A click-to-capture browser extension for Chrome and Edge — accepted (2026-10-21)
+
+- **Decision.** A Manifest V3 extension for Chrome and Edge, in `extension/`, with a popup and no background worker. It offers:
+  - **"Follow this site"**, through the existing preview and confirm;
+  - **"Add this page to my next digest"**, which reads the active tab only on the user's click: the page as rendered, and on an X post, the author's own visible replies;
+  - **"Open CatchUp"**.
+
+  Saved pages wait under a built-in "Saved from browser" source, a fourth kind that is never checked. The next manual run summarizes them under the page's site name. The server never fetches the saved page itself.
+
+  The extension authenticates with a token that is shown once in Settings, and revoked by "Disconnect". The token is accepted only on the extension's routes, as the one exception to D-022.
+
+  Planned as OpenSpec change `add-browser-extension` (issue #58), a full RePPIT change.
+- **Why.**
+  - Users want to follow the site they are reading in one click.
+  - They want content behind a login: F5 and F8, and an X post with the author's replies (#41).
+  - The server cannot read such content, by design.
+  - The user chose Proposal 1 on 2026-10-20 ("As you recommend, choose Proposal 1, fix the security issue first", translated). On 2026-10-21 they chose Chrome and Edge, a popup, copying a token, and X with the author's own replies.
+- **Alternatives:**
+  - **The extension as a logged-in collector of followed accounts** (Proposal 2). Rejected:
+    - X's automation rules list scripting the website among suspension risks, and its terms prohibit scraping;
+    - it needs broad host permissions;
+    - it depends on the browser being open.
+  - **The X API** for following accounts. Kept as a separate option (#41): pay-per-use, $0.005 per post read.
+  - **A side panel**, a pairing code, and a background service worker. The user chose otherwise, or they are unnecessary.
+  - **Recognizing the extension by its `Origin`.** Rejected: the value is undocumented, and any extension can send one.
+- **Consequences:**
+  - A new package, `extension/`, with its own CI job. It is not part of the Docker image.
+  - Migration `0006_captures`.
+  - Saving X pages is at the user's own risk, and the README says so.
+  - Firefox, Safari, and Web Store publishing come later.
+  - A fresh-eyes check (D-023) before Droid's run found 12 false assumptions in the first plan, all corrected. For example: extractor functions lose their module scope when Chrome injects them; jsdom has no `innerText`; the new Settings section would have submitted the model form.
+

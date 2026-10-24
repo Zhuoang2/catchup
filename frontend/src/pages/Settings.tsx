@@ -1,5 +1,6 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { ApiError, request } from '../api/client'
+import { shortDateTime } from '../components/format'
 import { Icon } from '../components/Icon'
 import { useDocumentTitle } from '../components/useDocumentTitle'
 import { Button, PageHead, Switch } from '../components/ui'
@@ -8,6 +9,8 @@ type ModelSettings = { base_url: string; model_id: string; key_set: boolean; api
 type Preferences = { digest_language: string; youtube_captions: boolean; youtube_skip_shorts: boolean;
   show_images: boolean }
 type TestResult = { ok: true; models: string[] }
+type Browser = { id: number; name: string; created_at: string; last_used_at: string | null }
+type ConnectedBrowser = Omit<Browser, 'last_used_at'> & { token: string }
 const languageOptions = ['en', 'zh-Hans', 'original']
 
 function errorMessage(error: unknown): string {
@@ -50,6 +53,13 @@ export default function Settings() {
   const [errorField, setErrorField] = useState<'key' | 'base' | null>(null)
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(true)
+  const [browserName, setBrowserName] = useState('Chrome')
+  const [browsers, setBrowsers] = useState<Browser[]>([])
+  const [connectedBrowser, setConnectedBrowser] = useState<ConnectedBrowser | null>(null)
+  const [browserError, setBrowserError] = useState('')
+  const [browserMessage, setBrowserMessage] = useState('')
+  const [copyMessage, setCopyMessage] = useState('')
+  const tokenRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     let mounted = true
@@ -72,6 +82,53 @@ export default function Settings() {
       .finally(() => { if (mounted) setLoading(false) })
     return () => { mounted = false }
   }, [])
+
+  useEffect(() => {
+    let mounted = true
+    request<Browser[]>('/settings/extension-tokens')
+      .then(rows => { if (mounted && Array.isArray(rows)) setBrowsers(rows) })
+      .catch((err: unknown) => { if (mounted) setBrowserError(errorMessage(err)) })
+    return () => { mounted = false }
+  }, [])
+
+  async function connectBrowser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setBrowserError(''); setBrowserMessage(''); setConnectedBrowser(null); setCopyMessage('')
+    try {
+      const created = await request<ConnectedBrowser>('/settings/extension-tokens', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: browserName }),
+      })
+      setConnectedBrowser(created)
+      setBrowsers(previous => [{ id: created.id, name: created.name,
+        created_at: created.created_at, last_used_at: null },
+      ...previous.filter(row => row.id !== created.id)])
+      setBrowserMessage(`${created.name} connected.`)
+    } catch (err) { setBrowserError(errorMessage(err)) }
+  }
+
+  async function copyToken() {
+    if (!connectedBrowser) return
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable')
+      await navigator.clipboard.writeText(connectedBrowser.token)
+      setCopyMessage('Copied.')
+    } catch {
+      tokenRef.current?.focus()
+      tokenRef.current?.select()
+      setCopyMessage('Copy failed. Select the token and copy it.')
+    }
+  }
+
+  async function disconnectBrowser(browser: Browser) {
+    setBrowserError(''); setBrowserMessage('')
+    try {
+      await request<void>(`/settings/extension-tokens/${browser.id}`, { method: 'DELETE' })
+      setBrowsers(previous => previous.filter(row => row.id !== browser.id))
+      if (connectedBrowser?.id === browser.id) setConnectedBrowser(null)
+      setBrowserMessage(`${browser.name} disconnected.`)
+    } catch (err) { setBrowserError(errorMessage(err)) }
+  }
 
   function showError(err: unknown) {
     setError(errorMessage(err))
@@ -122,8 +179,8 @@ export default function Settings() {
 
   return <section className="page page-settings">
     <PageHead title="Settings" lede={last4
-      ? 'Your model, digest language, and YouTube options.'
-      : 'Three quick steps. Your key stays on this computer, encrypted.'}/>
+      ? 'Your model, digest language, YouTube options, and browser extension.'
+      : 'Three quick steps, and an optional browser extension. Your key stays on this computer, encrypted.'}/>
     {loading ? <p>Loading settings…</p> : <form className="settings-form" onSubmit={event => void save(event)}>
       <SettingsSection number={1} title="Model provider">
         <p className="note"><Icon name="info"/>Content will be sent to your configured model provider.</p>
@@ -187,6 +244,35 @@ export default function Settings() {
         {message === 'Settings saved.' && <p className="inline-msg msg-ok" role="status">
           <Icon name="check"/>{message}</p>}</div>
     </form>}
+    {!loading && <SettingsSection number={4} title="Browser extension">
+      <form onSubmit={event => void connectBrowser(event)}>
+        <div className="field"><label className="field-label" htmlFor="browser-name">Browser name</label>
+          <input className="input" id="browser-name" value={browserName} maxLength={60} required
+            onChange={event => setBrowserName(event.target.value)}/></div>
+        <Button type="submit">Connect a browser</Button>
+      </form>
+      {connectedBrowser && <div className="field">
+        <label className="field-label" htmlFor="browser-token">Connection token</label>
+        <div className="input-row"><input ref={tokenRef} className="input" id="browser-token"
+          value={connectedBrowser.token} readOnly aria-describedby="browser-token-note"/>
+          <Button type="button" onClick={() => void copyToken()}>Copy</Button></div>
+        <p className="field-hint" id="browser-token-note">
+          Paste this into the CatchUp extension's options. It is shown only once.
+        </p>
+      </div>}
+      <p role="status" aria-label="Copy result">{copyMessage}</p>
+      {browserError && <p role="alert" className="field-error">{browserError}</p>}
+      {browserMessage && <p role="status">{browserMessage}</p>}
+      <h3 className="section-label">Connected browsers</h3>
+      <ul>{browsers.map(browser => <li key={browser.id}>
+        <strong>{browser.name}</strong>{' '}<span>Connected <time dateTime={browser.created_at}>
+          {shortDateTime(browser.created_at)}</time></span>{' '}<span>Last used:{' '}
+          {browser.last_used_at ? <time dateTime={browser.last_used_at}>
+            {shortDateTime(browser.last_used_at)}</time> : 'Never'}</span>{' '}
+        <Button type="button" variant="ghost" aria-label={`Disconnect ${browser.name}`}
+          onClick={() => void disconnectBrowser(browser)}>Disconnect</Button>
+      </li>)}</ul>
+    </SettingsSection>}
     {error && !errorField && <p className="field-error" role="alert"><Icon name="alert"/>{error}</p>}
   </section>
 }

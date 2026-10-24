@@ -1,5 +1,7 @@
 """HTTP application entry point."""
 
+import hashlib
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -7,18 +9,59 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
+from starlette.concurrency import run_in_threadpool
 
 from catchup.api.settings import router as settings_router
 from catchup.api.sources import router as sources_router
 from catchup.api.runs import router as runs_router
 from catchup.api.digests import router as digests_router
+from catchup.api.extension import router as extension_router
 from catchup.config import Settings, validate_user_agent_contact
 from catchup.db import make_engine, migrate
 from catchup.digest.runner import recover_runs
 from catchup.errors import register_error_handlers
 from catchup.llm.client import ModelClient
+from catchup.models import ExtensionToken, utc_now
 from catchup.net.feed_cache import FeedCache
+
+logger = logging.getLogger(__name__)
+
+
+def _lookup_extension_token(factory: sessionmaker, token: str) -> int | None:
+    with factory() as session:
+        return session.scalar(select(ExtensionToken.id).where(
+            ExtensionToken.token_hash == hashlib.sha256(token.encode()).hexdigest()
+        ))
+
+
+def _touch_extension_token(factory: sessionmaker, token_id: int) -> None:
+    with factory() as session:
+        row = session.get(ExtensionToken, token_id)
+        if row is not None:
+            row.last_used_at = utc_now()
+            session.commit()
+
+
+def _extension_operation(method: str, path: str) -> bool:
+    return (
+        (method == "POST" and path in {"/api/sources", "/api/sources/preview", "/api/captures"})
+        or (method == "GET" and path in {"/api/captures", "/api/extension/status"})
+        or (method == "DELETE" and path.startswith("/api/captures/") and path.count("/") == 3)
+    )
+
+
+def _cross_site_response() -> JSONResponse:
+    return JSONResponse(
+        status_code=403,
+        content={"error": {
+            "code": "cross_site_request",
+            "message": "This request came from another site and was refused.",
+        }},
+    )
+
 
 
 def _origin_matches_host(origin: str, host: str) -> bool:
@@ -64,23 +107,35 @@ def create_app(settings: Settings | None = None, dist_dir: Path | None = None) -
     app.include_router(sources_router)
     app.include_router(runs_router)
     app.include_router(digests_router)
+    app.include_router(extension_router)
 
     # Starlette runs the last registered middleware first; host validation must run before this check.
     @app.middleware("http")
     async def cross_site_writes(request: Request, call_next):
+        authorization = request.headers.get("authorization", "")
+        if authorization.startswith("Bearer cu_"):
+            token_id = await run_in_threadpool(
+                _lookup_extension_token, request.app.state.session_factory, authorization[7:]
+            )
+            if token_id is None:
+                return JSONResponse(status_code=401, content={"error": {
+                    "code": "invalid_token",
+                    "message": "This browser is not connected to CatchUp. Connect it in Settings.",
+                }})
+            if not _extension_operation(request.method, request.url.path):
+                return _cross_site_response()
+            request.state.extension_token_id = token_id
+            try:
+                await run_in_threadpool(_touch_extension_token, request.app.state.session_factory, token_id)
+            except OperationalError:
+                logger.warning("Could not update browser connection's last use", exc_info=True)
+            return await call_next(request)
         if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
             origin = request.headers.get("origin")
             fetch_site = request.headers.get("sec-fetch-site", "").lower()
-            # #58 will add the extension-token exception at this decision point.
             if ((origin is not None and not _origin_matches_host(origin, request.headers["host"]))
                     or fetch_site in {"cross-site", "same-site"}):
-                return JSONResponse(
-                    status_code=403,
-                    content={"error": {
-                        "code": "cross_site_request",
-                        "message": "This request came from another site and was refused.",
-                    }},
-                )
+                return _cross_site_response()
         return await call_next(request)
 
     @app.middleware("http")

@@ -1,0 +1,53 @@
+/* Colors and type copied from frontend/src/styles/tokens.css. */
+:root {
+  color-scheme: light;
+  --bg: #f4f0e6;
+  --surface: #f8f5ed;
+  --fg: #151412;
+  --muted: #4a4741;
+  --border-strong: #151412;
+  --hover: #ebe5d7;
+  --accent: #8a1c14;
+  --font-body: "Iowan Old Style", "Hoefler Text", Georgia, "Songti SC", serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #161513;
+    --surface: #1c1b18;
+    --fg: #ece7dc;
+    --muted: #b8b2a5;
+    --border-strong: #ece7dc;
+    --hover: #24221e;
+    --accent: #e0796d;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 var(--font-body); }
+main { max-width: 34rem; margin: 2rem auto; padding: 0 1.5rem; }
+h1 { font-size: 1.8rem; line-height: 1.25; }
+form { display: grid; gap: .6rem; }
+label { font-weight: 600; }
+input {
+  width: 100%;
+  padding: .6rem .75rem;
+  font: .95rem system-ui, sans-serif;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+}
+button {
+  width: fit-content;
+  font: 600 .94rem var(--font-body);
+  padding: .55rem 1rem;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  cursor: pointer;
+}
+button[type="submit"] { background: var(--fg); color: var(--bg); font-variant-caps: all-small-caps; letter-spacing: .12em; }
+button:not([type="submit"]):hover { background: var(--hover); }
+button[type="submit"]:hover { filter: brightness(1.15); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#test-connection { margin-top: .8rem; }
+#feedback { color: var(--muted); min-height: 1.5rem; overflow-wrap: anywhere; }

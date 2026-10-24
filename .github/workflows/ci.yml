@@ -45,6 +45,25 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+  extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+      - name: Install extension dependencies
+        working-directory: extension
+        run: npm ci
+      - name: Extension tests
+        working-directory: extension
+        run: npm test -- --run
+      - name: Extension build
+        working-directory: extension
+        run: npm run build
+
   docker:
     runs-on: ubuntu-latest
     steps:

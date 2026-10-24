@@ -25,22 +25,29 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
         rows = session.execute(
             select(Item, Source).join(Source, Item.source_id == Source.id)
             .where(Item.state == "pending", Item.context_status.is_(None),
-                   Source.kind.in_(("feed", "podcast")))
+                   Source.kind.in_(("feed", "podcast", "capture")))
             .order_by(Item.id)
         ).all()
         plan = []
         for item, source in rows:
             if source.kind == "podcast" and item.transcript_status != "text":
                 continue
+            site_url = (f"{urlsplit(item.link).scheme}://{urlsplit(item.link).netloc}"
+                        if source.kind == "capture" else source.site_url)
             links = related_links(
-                item.link, source.site_url,
+                item.link, site_url,
                 [EntryLink(**link) for link in (item.entry_links or [])],
                 settings.links_per_item,
             )
-            comments = bool(settings.author_replies and item.comment_count and item.comment_count > 0)
-            plan.append((item.id, source.site_url, links, comments))
+            comments = bool(source.kind != "capture" and settings.author_replies
+                            and item.comment_count and item.comment_count > 0)
+            captured_replies = item.captured_replies or [] if source.kind == "capture" else []
+            plan.append((item.id, site_url, links, comments, captured_replies))
         run = session.get(DigestRun, run_id)
-        run.context_total = sum(len(links) + int(comments) for _, _, links, comments in plan)
+        run.context_total = sum(
+            len(links) + int(comments) + int(bool(replies))
+            for _, _, links, comments, replies in plan
+        )
         session.commit()
 
     def fetch(url):
@@ -68,9 +75,9 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
             run.context_total += total
             session.commit()
 
-    for item_id, site_url, links, comments in plan:
-        if budget[0] <= 0:
-            break
+    for item_id, site_url, links, comments, captured_replies in plan:
+        if budget[0] <= 0 and not captured_replies:
+            continue
         with factory() as session:
             item = session.get(Item, item_id)
             if item is None:
@@ -146,6 +153,14 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
                             ))
                     except Exception as exc:
                         logger.warning("Comment extraction skipped (%s)", type(exc).__name__)
+            if captured_replies:
+                session.add(ItemContext(
+                    item_id=item.id, ref="A1", kind="author_replies", url=item.link,
+                    title=f"Author replies ({len(captured_replies)})",
+                    text="\n\n".join(captured_replies), position=position + 1,
+                ))
+                progress(done=1)
+                attempted = True
             with factory() as check_session:
                 if check_session.get(Item, item_id) is None:
                     session.rollback()

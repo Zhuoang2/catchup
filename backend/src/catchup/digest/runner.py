@@ -42,8 +42,8 @@ def select_pending(rows, now, transcript_wait_days: int, caption_wait_hours: int
     waiting = deferred = 0
     for item, source in rows:
         status = item.transcript_status
-        if status in ("found", "text") or (status is None and source.kind == "feed"):
-            summaries.append((item, source.title))
+        if status in ("found", "text") or (status is None and source.kind in ("feed", "capture")):
+            summaries.append((item, item.site_name or source.title))
         elif status in CREATOR_REASONS:
             updates.append((item.id, status))
         elif source.kind == "podcast" and status in (None, "to_fetch", "waiting"):
@@ -181,7 +181,9 @@ def run_digest(app: FastAPI, run_id: int) -> None:
             # Configuration and language are read once, before any source check.
             base_url, model_id = config.base_url, config.model_id
             key = decrypt_key(config.api_key_encrypted, app.state.settings.secret_key)
-            source_ids = session.scalars(select(Source.id).order_by(Source.id)).all()
+            source_ids = session.scalars(
+                select(Source.id).where(Source.kind != "capture").order_by(Source.id)
+            ).all()
             context_window = config.context_window
         if context_window is None:
             try:
@@ -314,7 +316,8 @@ def run_digest(app: FastAPI, run_id: int) -> None:
             items = {
                 item.id: (item, source_name, source_kind)
                 for item, source_name, source_kind in session.execute(
-                    select(Item, Source.title, Source.kind).join(Source, Item.source_id == Source.id)
+                    select(Item, func.coalesce(Item.site_name, Source.title), Source.kind)
+                    .join(Source, Item.source_id == Source.id)
                     .where(Item.id.in_([entry.id for entry in inputs] + [id for id, _ in creator_updates]))
                 )
             }
@@ -427,7 +430,7 @@ def run_detail(session, run: DigestRun) -> dict:
         "digest_item_count": digest.item_count if digest is not None else None,
         "digest_update_count": update_count,
         "started_at": run.started_at, "finished_at": run.finished_at,
-        "sources_total": session.scalar(select(func.count(Source.id))) or 0,
+        "sources_total": session.scalar(select(func.count(Source.id)).where(Source.kind != "capture")) or 0,
         "source_checks": [
             {"source_id": check.source_id, "source_title": title, "status": check.status,
              "possible_gap": check.possible_gap, "error": check.error,

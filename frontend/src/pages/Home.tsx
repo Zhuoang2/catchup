@@ -84,7 +84,7 @@ function RunStateContent({ run, compact, firstRun, loadingNewDigest, configurati
     const succeeded = run.status === 'succeeded'
     const title = succeeded ? 'Your digest is ready' : 'No new content'
     const details = succeeded
-      ? <>{savedItems(run)} · {plural(run.sources_total, 'source')}
+      ? <>{savedItems(run)}{run.sources_total > 0 && <> · {plural(run.sources_total, 'source')}</>}
         {' · '}{tokenTotals(run.prompt_tokens, run.completion_tokens)}</>
       : <>Nothing new since your last digest · {tokenTotals(run.prompt_tokens, run.completion_tokens)}</>
     const content = <>
@@ -214,6 +214,7 @@ export default function Home() {
   const firstRun = modelReady === false
   const running = !!run && active(run)
   const noSources = modelReady === true && sources?.length === 0 && !run
+  const checkedSources = sources?.filter(source => source.kind !== 'capture')
   const state = firstRun ? 'first-run' : run?.status ?? 'idle'
   const configurationError = state === 'failed' && configErrors.includes(run?.error_kind ?? '')
   const visibleNewDigestError = newDigestError && (!digest || newDigestError.id > digest.id) ? newDigestError : null
@@ -245,7 +246,7 @@ export default function Home() {
               {running ? 'Generating…' : state === 'failed' ? 'Try again' : 'Generate digest'}
             </Button>
           </>}
-          {sources !== null && <p className="hero-meta">{plural(sources.length, 'source')} ·{' '}
+          {checkedSources && <p className="hero-meta">{plural(checkedSources.length, 'source')} ·{' '}
             <Link to="/sources">Manage sources</Link></p>}
         </div>
         {pageDetailsError && <Alert tone="error" title="Could not load some page details">
@@ -262,7 +263,7 @@ export default function Home() {
     <PageHead title="Generate digest" lede={firstRun
       ? 'Check the sources you follow and summarize what is new since your last digest.'
       : sources === null ? 'Check your sources and summarize everything new since your last digest.'
-        : `Check your ${plural(sources.length, 'source')} and summarize everything new since your last digest.`}
+        : `Check your ${plural(checkedSources?.length ?? 0, 'source')} and summarize everything new since your last digest.`}
       className="hero">
       <div className="hero-actions">
         {firstRun ? <>
@@ -301,7 +302,7 @@ export default function Home() {
       </section>
     </> : <>
       {sources !== null && <section className="rail-box"><h2 className="rail-title">Your sources</h2>
-        <p className="rail-big">{sources.length}</p>
+        <p className="rail-big">{checkedSources?.length}</p>
         <p className="rail-meta">{plural(sources.filter(s => s.kind === 'podcast').length, 'podcast')} ·{' '}
           {sources.filter(s => s.kind === 'youtube').length} YouTube ·{' '}
           {plural(sources.filter(s => s.kind === 'feed').length, 'website')}</p>

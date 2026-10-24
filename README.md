@@ -79,6 +79,75 @@ go to Application (or Storage) → Service Workers, select CatchUp's origin,
 and choose **Unregister**. Reload the page afterwards. Unregister separately
 for `localhost` and `127.0.0.1` if you have used both.
 
+## Browser extension
+
+The optional Chrome and Edge extension lets you **Follow this site** when it
+has a supported feed, or **Add this page to my next digest** without a feed.
+Saved pages wait for your next manual digest run; the extension does not start
+one. This extension is separate from the installable web app above.
+
+Start the local CatchUp server, then build and load the extension:
+
+```sh
+cd extension
+npm ci
+npm test -- --run
+npm run build
+```
+
+In Chrome, open `chrome://extensions`, turn on **Developer mode**, choose
+**Load unpacked**, and select this repository's `extension/dist` folder.
+Chrome 134 and later require Developer mode to keep unpacked extensions
+enabled. In Edge, open `edge://extensions`, turn on Developer mode, and
+use **Load unpacked** on the same folder. Rebuild and reload the unpacked
+extension after updating it. Pin CatchUp to the toolbar from the puzzle-piece
+menu. Unpinned, it is listed lower in that menu on sites it cannot read
+until you click it, and with many extensions it can be out of view.
+
+In CatchUp, go to **Settings → Browser extension** and create a connection.
+Copy its one-time token to the extension's **Options** page along with the
+local server address (default `http://127.0.0.1:8000`). The options page
+stores both in `chrome.storage.local` and can test the connection. Keep the
+token private. To revoke access, disconnect the browser in CatchUp Settings.
+The extension accepts only `127.0.0.1` or `localhost` with an HTTP port; it
+cannot connect to a server on a remote host.
+
+The extension requests `activeTab` and `scripting` to read the current page's
+visible DOM **only when you press Add** in the popup. It collects the title,
+main text, selected metadata, images, and links; on a matching X post it can
+also capture visible replies by its author. Following a site sends the
+current tab's URL to CatchUp for feed preview, then follows the feed only
+after confirmation. `storage` keeps the local address and connection token.
+The only `host_permissions` are for `http://127.0.0.1/*` and
+`http://localhost/*`; they let the popup contact your local CatchUp API.
+The extension never runs a background worker or content script, reads pages
+automatically, follows an X account, schedules digest generation, or sends
+the page to any other server. CatchUp may send saved page content to your
+configured model provider during a later digest run.
+
+It never reads cookies, saved passwords, or site storage. It does no
+background reading and does not scroll, click, or open pages on your behalf.
+Generic page extraction uses Mozilla Readability 0.6.0 (Apache-2.0); its
+license is bundled in `extension/dist/readability-LICENSE.md`.
+
+In the next digest run, the CatchUp server reads up to
+`CATCHUP_LINKS_PER_ITEM` links recorded on each saved page, as it does for
+website items. It requests them itself, without your cookies. A link that
+carries a private token, such as an email-confirmation or unsubscribe link,
+may act when it is requested, so do not save pages that show such links.
+
+Known limits:
+
+- A page saved while a digest run is in its context pass may be summarized
+  in that run without linked context. This short window can produce a
+  summary without links.
+- On a short page beside a longer sponsor block, the saved text can include
+  the sponsor text, or hold only that text.
+
+**X's terms prohibit scraping in any form.** Saving an X page is at your
+own risk and only reads what your browser currently displays after you press
+Add. CatchUp does not follow X accounts or log in on your behalf.
+
 ## Privacy
 
 Collected content is sent to the configured model provider. Self-hosting
@@ -231,9 +300,10 @@ Source requests identify the client as
 `CATCHUP_USER_AGENT_CONTACT` to append a contact inside the parentheses,
 for example `CatchUp/0.1.0 (+https://github.com/Zhuoang2/catchup; by /u/example)`.
 The contact must be printable ASCII, no longer than 100 characters.
-X, pages without feeds, and content behind a login or paywall are not
-supported in this release. CatchUp does not transcribe audio or summarize
-video visuals.
+Following X accounts, automatically collecting pages without feeds, and
+fetching content behind a login or paywall are not supported. You can save
+an individual page through the optional browser extension. CatchUp does not
+transcribe audio or summarize video visuals.
 
 ## License
 

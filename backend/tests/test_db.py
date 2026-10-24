@@ -20,6 +20,7 @@ def test_startup_migrates_database_and_enables_wal(test_settings: Settings) -> N
         assert set(inspect(engine).get_table_names()) == {
             "alembic_version", "model_config", "app_settings", "sources", "items",
             "source_checks", "digest_runs", "digests", "digest_topics", "digest_items", "item_contexts",
+            "extension_tokens",
         }
         with engine.connect() as connection:
             assert connection.execute(text("PRAGMA journal_mode")).scalar() == "wal"
@@ -45,6 +46,7 @@ def test_migrations_live_inside_package() -> None:
     assert (migrations / "versions" / "0003_digest_snapshot.py").is_file()
     assert (migrations / "versions" / "0004_item_context.py").is_file()
     assert (migrations / "versions" / "0005_item_images.py").is_file()
+    assert (migrations / "versions" / "0006_captures.py").is_file()
 
 
 def test_existing_database_at_old_revision_is_unchanged(tmp_path) -> None:
@@ -62,7 +64,7 @@ def test_existing_database_at_old_revision_is_unchanged(tmp_path) -> None:
             ).scalars().all()
         migrate(engine)
         with engine.connect() as connection:
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0005_item_images"
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0006_captures"
             assert connection.execute(text("SELECT digest_language FROM app_settings WHERE id=1")).scalar_one() == "zh-Hans"
             assert connection.execute(
                 text("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -231,7 +233,7 @@ def test_image_migration_from_0004_preserves_rows_and_downgrades(tmp_path) -> No
             ))
         command.upgrade(config, "head")
         with engine.connect() as connection:
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0005_item_images"
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0006_captures"
             assert connection.execute(text(
                 "SELECT image_candidates, summary_images FROM items WHERE id=1"
             )).one() == (None, None)
@@ -246,5 +248,78 @@ def test_image_migration_from_0004_preserves_rows_and_downgrades(tmp_path) -> No
         assert "show_images" not in {c["name"] for c in inspect(engine).get_columns("app_settings")}
         with engine.connect() as connection:
             assert connection.execute(text("SELECT title FROM items WHERE id=1")).scalar_one() == "Post"
+    finally:
+        engine.dispose()
+
+
+def test_capture_migration_preserves_rows_and_removes_capture_sources_on_downgrade(tmp_path) -> None:
+    engine = make_engine(tmp_path)
+    config = Config()
+    config.set_main_option("script_location", str(Path(catchup.__file__).resolve().parent / "migrations"))
+    config.attributes["connection"] = engine
+    try:
+        command.upgrade(config, "0005_item_images")
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO sources (id, title, site_url, feed_url, input_url, kind, created_at) "
+                "VALUES (1, 'News', 'https://site.example', 'https://site.example/feed', "
+                "'https://site.example/feed', 'feed', '2026-10-04')"
+            ))
+            connection.execute(text(
+                "INSERT INTO items (id, source_id, identity_key, link, title, discovered_at, "
+                "content_text, content_origin, state) VALUES "
+                "(1, 1, 'one', 'https://site.example/one', 'Post', '2026-10-04', "
+                "'Text', 'feed', 'pending')"
+            ))
+        command.upgrade(config, "head")
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0006_captures"
+            assert connection.execute(text("SELECT title, site_name, captured_replies FROM items WHERE id=1")).one() == (
+                "Post", None, None,
+            )
+            assert "extension_tokens" in inspect(engine).get_table_names()
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO sources (id, title, site_url, feed_url, input_url, kind, created_at) "
+                "VALUES (2, 'Saved from browser', '', 'catchup:captures', "
+                "'catchup:captures', 'capture', '2026-10-04')"
+            ))
+            connection.execute(text(
+                "INSERT INTO items (id, source_id, identity_key, link, title, discovered_at, "
+                "content_text, content_origin, state) VALUES "
+                "(2, 2, 'saved', 'https://site.example/saved', 'Saved', '2026-10-04', "
+                "'Text', 'capture', 'pending')"
+            ))
+            connection.execute(text(
+                "INSERT INTO item_contexts (id, item_id, ref, kind, url, title, text, position) "
+                "VALUES (1, 1, 'L1', 'link', 'https://other.example/page', 'Context', 'Text', 1)"
+            ))
+            connection.execute(text(
+                "INSERT INTO digest_runs (id, status, items_total, items_done, started_at) "
+                "VALUES (1, 'succeeded', 1, 1, '2026-10-04')"
+            ))
+            connection.execute(text(
+                "INSERT INTO digests (id, run_id, created_at, model_id, item_count, source_count) "
+                "VALUES (1, 1, '2026-10-04', 'model', 1, 1)"
+            ))
+            connection.execute(text(
+                "INSERT INTO digest_topics (id, digest_id, position, title, overview) "
+                "VALUES (1, 1, 0, 'Topic', 'Overview')"
+            ))
+            connection.execute(text(
+                "INSERT INTO digest_items (id, digest_id, topic_id, position, item_id, title, "
+                "link, source_name, summary_unavailable) VALUES "
+                "(1, 1, 1, 0, 1, 'Post', 'https://site.example/post', 'News', 0)"
+            ))
+        command.downgrade(config, "0005_item_images")
+        assert "extension_tokens" not in inspect(engine).get_table_names()
+        assert {"site_name", "captured_replies"}.isdisjoint(
+            {col["name"] for col in inspect(engine).get_columns("items")}
+        )
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT id FROM sources")).scalars().all() == [1]
+            assert connection.execute(text("SELECT id, title FROM items")).all() == [(1, "Post")]
+            assert connection.execute(text("SELECT item_id, ref FROM item_contexts")).all() == [(1, "L1")]
+            assert connection.execute(text("SELECT item_id FROM digest_items")).scalar_one() == 1
     finally:
         engine.dispose()

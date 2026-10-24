@@ -121,6 +121,91 @@ def execute(client):
     return client.get(f"/api/digest-runs/{run.id}").json()
 
 
+def saved_capture(client, *, site_name="X · Name", image=False):
+    token = client.post("/api/settings/extension-tokens", json={"name": "Chrome"}).json()["token"]
+    response = client.post("/api/captures", json={
+        "url": "https://x.com/name/status/1", "title": "Name on X", "text": "A saved post",
+        "site_name": site_name,
+        "images": ([{"url": "https://images.example/post.png", "alt": ""}] if image else []),
+    }, headers={"Authorization": f"Bearer {token}", "Origin": "chrome-extension://abcdefghijklmnop"})
+    assert response.status_code == 201
+    return response.json()
+
+
+def test_capture_source_is_not_checked_and_uses_its_own_site_name(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    saved_capture(environment)
+    model = FakeModel()
+    environment.app.state.model_client_factory = lambda *_: model
+    result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert result["sources_total"] == len(result["source_checks"]) == 1
+    with environment.app.state.session_factory() as session:
+        source = session.scalar(select(Source).where(Source.kind == "capture"))
+        assert source.last_check_at is None
+        assert not session.scalars(select(SourceCheck).where(SourceCheck.source_id == source.id)).all()
+        row = session.scalar(select(DigestItem).where(DigestItem.source_kind == "capture"))
+        assert (row.source_name, row.link, row.summary) == (
+            "X · Name", "https://x.com/name/status/1", "English summary",
+        )
+    assert any("X · Name" in str(messages) for messages, _ in model.calls)
+
+
+def test_capture_only_run_succeeds_without_checks_and_uses_image_site_fallback(environment):
+    seed(environment, sources=0)
+    saved_capture(environment, image=True)
+    model = FakeModel([
+        {"summary": "Saved summary", "images": [{"ref": "I1"}]},
+        {"topics": [{"title": "Saved", "overview": "Post", "item_refs": ["i1"]}]},
+    ])
+    environment.app.state.model_client_factory = lambda *_: model
+    result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert result["sources_total"] == 0
+    assert result["source_checks"] == []
+    assert "Images:\nI1 — in the post, position 1;" in model.calls[0][0][1]["content"]
+    with environment.app.state.session_factory() as session:
+        row = session.scalar(select(DigestItem))
+        assert row.source_kind == "capture"
+        assert row.source_name == "X · Name"
+        assert row.images == [{"url": "https://images.example/post.png", "alt": "Image from X · Name"}]
+
+
+def test_saved_x_post_with_article_and_replies_reaches_digest(environment, monkeypatch):
+    seed(environment, sources=0)
+    token = environment.post("/api/settings/extension-tokens", json={"name": "Chrome"}).json()["token"]
+    response = environment.post("/api/captures", json={
+        "url": "https://x.com/name/status/1", "title": "Name on X", "site_name": "X · Name",
+        "text": "Post text", "links": [{"url": "https://docs.example/article", "text": "Article"}],
+        "replies": ["One", "Two"],
+    }, headers={"Authorization": f"Bearer {token}", "Origin": "chrome-extension://abcdefghijklmnop"})
+    assert response.status_code == 201
+    monkeypatch.setattr(socket, "getaddrinfo", lambda _host, port, *_a, **_kw: [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", port)),
+    ])
+    model = FakeModel([
+        {"summary": "A saved summary", "used": ["L1", "A1"]},
+        {"topics": [{"title": "Saved", "overview": "Post", "item_refs": ["i1"]}]},
+    ])
+    environment.app.state.model_client_factory = lambda *_: model
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        router.get("https://docs.example/article").mock(return_value=httpx.Response(
+            200, text="<html><title>Article</title><article><p>" + "Context " * 50 + "</p></article></html>",
+        ))
+        saved_url = router.get("https://x.com/name/status/1").mock(return_value=httpx.Response(200))
+        assert execute(environment)["status"] == "succeeded"
+        assert saved_url.call_count == 0
+    with environment.app.state.session_factory() as session:
+        item = session.scalar(select(DigestItem))
+        assert (item.source_name, item.link) == ("X · Name", "https://x.com/name/status/1")
+        assert item.context_links == [
+            {"title": "Article", "url": "https://docs.example/article", "kind": "link"},
+            {"title": "Author replies (2)", "url": "https://x.com/name/status/1", "kind": "author_replies"},
+        ]
+
+
 def test_long_gap_snapshots_every_item_once_and_delivers_atomically(environment, monkeypatch):
     seed(environment, count=140, sources=2)
     stub_collection(monkeypatch)

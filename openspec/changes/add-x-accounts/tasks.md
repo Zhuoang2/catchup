@@ -1,7 +1,7 @@
 # Tasks
 
 Implementer notes:
-- **Read first.** Read `proposal.md`, `design.md` (D1–D12, and D2a once Claude has added it), and the eight spec deltas under `specs/`. Line numbers in `design.md` are at main f1b76c0, so re-check them before editing. If something looks wrong or contradictory, stop and report instead of redesigning.
+- **Read first.** Read `proposal.md`, `design.md` (D1–D13, and D2a once Claude has added it), and the eight spec deltas under `specs/`. Line numbers in `design.md` are at main f1b76c0, so re-check them before editing. If something looks wrong or contradictory, stop and report instead of redesigning.
 - **Work test-first with the `tdd` skill** (D-016). For each task, write its checks as failing tests, watch them fail, then implement. The seams named in each task count as agreed.
 - **Test rules:**
   - **Backend.** Use `TestClient`, `respx` for `https://api.x.com`, the autouse network block (`backend/tests/conftest.py:8-20`), and `FakeModel` for runs.
@@ -208,19 +208,22 @@ Implementer notes:
 
   Verify: the tests fail before the change, and pass after; `npm run build` passes.
 
-- [ ] 3.6 **Delete all X data** (D13), in `backend/src/catchup/api/settings.py`, `frontend/src/pages/Settings.tsx`, and `components/DigestArticle.tsx`. Tests first, in `backend/tests/test_x_settings_api.py`, with digests built by a run or seeded directly:
-  - **Mixed topic.** A digest with one X item and one feed item in one topic: after `POST /api/settings/x/delete-all`, the digest has only the feed item, `item_count` 1, and the topic's `overview` `""`.
+- [ ] 3.6 **Delete all X data** (D13), in `backend/src/catchup/api/settings.py` and `frontend/src/pages/Settings.tsx`. Tests first, in `backend/tests/test_x_settings_api.py`, with digests built by a run or seeded directly:
+  - **Mixed topic.** A digest with one X item and one feed item, from two sources, in one topic: after `POST /api/settings/x/delete-all`, the digest has only the feed item, `item_count` 1, `source_count` 1, and the topic's `overview` `""` and title "Other" ("其他" for a `zh-Hans` digest).
+  - **An orphaned X digest item,** whose source was deleted earlier (`item_id` `NULL`), is also removed.
+  - **A page saved from x.com with the extension** (kind `capture`) and its digest item remain.
   - **Digest with only X items:** the digest and its topics are removed, and its run's `digest_id` is `None`; `GET /api/digests` no longer lists it.
   - **Sources and the token.** X sources, their items, their contexts, `x_accounts`, and the token are removed. A feed source, its items, and a podcast digest item remain.
   - **The answer:** the removed counts.
-  - **During a run:** 409 `run_active`, and nothing is deleted.
+  - **During a run:** 409 `run_active`, with "A digest is being made. Try again when it finishes.", and nothing is deleted. The check holds `_start_lock` (`runner.py:33`).
   - **From the extension:** guard (already green after 1.3): a connection token gets 403.
 
   Frontend tests, in `Settings.test.tsx` and `DigestArticle.test.tsx`:
   - "Delete all X data" asks for confirmation in place, with the D13 wording;
   - confirming sends the request, and announces the counts;
   - Cancel sends nothing;
-  - a topic with an empty overview renders no overview paragraph;
+  - a 409 shows "A digest is being made. Try again when it finishes.", and the group is unchanged;
+  - guard (already green): a topic with an empty overview renders no overview paragraph (`components/ui.tsx:20`);
   - `expectAccessible` passes for the confirmation.
 
   Verify: the tests fail before the change, and pass after. Then the named mutation "delete every topic that held an X item" fails the mixed-topic test, and is reverted.
@@ -255,7 +258,7 @@ Implementer notes:
   - setting a spending limit in the X console;
   - `CATCHUP_X_READS_PER_RUN`, and what "Waits for the next run" means;
   - the three Developer Policy quotes, and the owner-held-token reading;
-  - the 24-hour deletion rule, and what CatchUp clears after delivery;
+  - the 24-hour deletion rule, what CatchUp clears after delivery, and what "Delete all X data" removes, and that it is how to comply when access ends or on request;
   - post text going to the user's model provider.
 
   Keep the saved-pages scraping note. Extend `extension/src/test/docs.test.ts` to require a `## X accounts` heading, "spending limit", and "CATCHUP_X_READS_PER_RUN", and the absence of "CatchUp does not follow X accounts".

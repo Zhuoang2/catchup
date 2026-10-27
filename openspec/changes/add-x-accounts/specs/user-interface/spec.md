@@ -26,7 +26,7 @@ Settings SHALL group fields into Model provider, Digest, and YouTube, with separ
 ### Requirement: Ask for the X token where it is needed
 When a preview on the Sources page reports that an X token is needed, the page SHALL show, in place, a password field for the token, a link to how to get one, and "Save and preview". Saving MUST store the token as Settings does, then preview the same address again. The field and its explanation MUST be associated for assistive technology, and the result MUST be announced.
 
-Settings SHALL have an "X accounts" group with the token field, "Test", "Remove", and "Delete all X data". "Delete all X data" MUST ask for confirmation in place, and say that it also removes X items from saved digests. The group SHALL say that reads are billed to the user's X developer account, and that a spending limit can be set in the X console.
+Settings SHALL have an "X accounts" group with the token field, "Test", "Remove", and "Delete all X data". "Delete all X data" MUST ask for confirmation in place, say that it also removes followed accounts' items from saved digests, and say that pages saved from X with the extension stay. The group SHALL say that reads are billed to the user's X developer account, and that a spending limit can be set in the X console.
 
 #### Scenario: Token asked in place
 - **WHEN** no X token is saved and the user previews `https://x.com/simonw` on the Sources page

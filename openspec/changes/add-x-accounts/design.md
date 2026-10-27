@@ -287,21 +287,23 @@ The facts from the research that shape the design. Line numbers are at main f1b7
 ### D13. Delete all X data (capabilities `x-accounts`, `user-interface`)
 
 - **Why.** X's Developer Agreement (last updated 2026-04-27) counts copies and derivative works as X Content, and requires that all of it be deleted permanently when the agreement ends. Its Developer Policy requires deleting stored content that was deleted on X within 24 hours of a request. Digest summaries, item titles, and topic overviews are derived from posts, so they count. CatchUp has no way to delete a digest today.
-- **The route.** `POST /api/settings/x/delete-all`. It is not on the extension's allow-list, so a token gets 403. It answers 409 `run_active` while a run is active (`active_run`, `digest/runner.py`). In one transaction it:
-  1. finds every `DigestItem` with `source_kind == "x"`, and the topics that hold them;
+- **The route.** `POST /api/settings/x/delete-all`. It is not on the extension's allow-list, so a token gets 403. It checks `active_run` and deletes while holding `_start_lock`, as `start_run` does (`runner.py:33,128`), so a run cannot start in between; during a run it answers 409 `run_active` with "A digest is being made. Try again when it finishes." In one transaction, with `PRAGMA secure_delete=ON` on its connection, it:
+  1. finds every `DigestItem` with `source_kind == "x"`, whether or not its `item_id` is still set (it is `NULL` when the source was deleted earlier, `models.py:197`), and the topics that hold them;
   2. deletes those digest items;
-  3. for each of those topics: deletes it when it has no items left; otherwise sets `overview = ""`;
-  4. for each affected digest: deletes it when it has no items left, and sets `digest_id = None` on its `DigestRun`; otherwise sets `item_count` to its remaining items;
+  3. for each of those topics: deletes it when it has no items left; otherwise sets `overview = ""`, and sets `title` to "其他" when the digest's `language` is `zh-Hans`, otherwise "Other", the rule of `digest/group.py:47`, because the model wrote both from the X items too;
+  4. for each affected digest: deletes it when it has no items left, and sets `digest_id = None` on its `DigestRun`; otherwise sets `item_count` to its remaining items, and lowers `source_count` by the number of distinct X sources among the removed items (by `Item.source_id`, or by `source_name` when `item_id` is `NULL`);
   5. deletes every `Source` of kind `x`, which cascades to its items, their contexts, and `x_accounts`;
   6. deletes the `x_credentials` row.
 
-  It answers `{digest_items, digests, accounts}`, the counts removed.
+  After the commit it runs `PRAGMA wal_checkpoint(TRUNCATE)`, so the deleted text does not linger in the write-ahead log. It answers `{digest_items, digests, accounts}`, the counts removed.
+- **Not deleted:** pages saved from x.com with the extension's "Add this page" (kind `capture`). They were not obtained through the X API, and the user chose to keep them (2026-10-26); the confirmation says so.
 - **Readers of what it changes:**
-  - `Digest.item_count` is read by `api/digests.py:34,95` and `run_detail` (`runner.py:430`);
-  - `DigestRun.digest_id` is read by `run_detail`, and Home's link to the run's digest;
-  - topics with an empty overview are still rendered by title (`frontend/src/components/DigestArticle.tsx`), so an empty overview must render as nothing, not as an empty paragraph.
-- **Unchanged.** `Digest.source_count`, which is a count, not content; items and digest items of other kinds.
-- **The UI.** Settings' "X accounts" group gets "Delete all X data", with an inline confirmation, like source deletion (`Sources.tsx`): "Delete all X data? This removes your X token, followed X accounts, and X items in saved digests." Afterwards, it announces the counts.
+  - `Digest.item_count` and `source_count` are read by `api/digests.py:34,95`, `run_detail` (`runner.py:430`), and shown as "N items · M sources" (`History.tsx:62`, `DigestArticle.tsx:59`);
+  - `DigestRun.digest_id` is read by `run_detail`, which already tolerates a missing digest (`runner.py:418`). Home loads only the active run (`Home.tsx:146-150`), and deletion is refused during a run;
+  - an empty overview already renders as nothing (`components/ui.tsx:20`);
+  - a digest left with only Creator updates shows "Nothing could be summarized this time" (`DigestArticle.tsx:61-63`). This is accepted.
+- **Unchanged.** Items and digest items of other kinds. `SourceCheck` rows go with their sources (`models.py:136`), and run error messages are fixed wording (`runner.py:398-410`).
+- **The UI.** Settings' "X accounts" group gets "Delete all X data", with an inline confirmation, like source deletion (`Sources.tsx`): "Delete all X data? This removes your X token, followed X accounts, and their items in saved digests. Pages saved from X with the extension stay." Afterwards, it announces the counts. A 409 shows the route's message, and nothing changes.
 
 ### D12. Alternatives considered
 

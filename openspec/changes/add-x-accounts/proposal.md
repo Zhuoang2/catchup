@@ -20,6 +20,7 @@ The user decided (2026-10-22) that CatchUp follows X accounts through the offici
   - The author's replies in their own thread, when the thread's first post is in the same run, are kept as that post's author replies.
 - **A per-run read limit,** `CATCHUP_X_READS_PER_RUN` (default 200 posts, about $1). Posts that do not fit wait for the next run, and the run reports how many X posts it read and how many accounts have posts waiting.
 - **After an X post is delivered** in a digest, its stored text and replies are cleared. The digest keeps its summary, title, and link.
+- **"Delete all X data" in Settings** removes the token, the followed accounts, their stored posts, and every X item, with the overviews written from them, from saved digests. X's terms count summaries as derived X content, which must be deleted when access ends or on request.
 - **X API errors are reported in the source's status:** rate limits, a rejected token, a missing or protected account.
 - **README** replaces "CatchUp does not follow X accounts" with how to get a token, how to set a spending limit in the X console, and X's policy points.
 
@@ -33,7 +34,8 @@ The user decided (2026-10-22) that CatchUp follows X accounts through the offici
   - reading new posts on each run, with threads;
   - the per-run read limit and waiting posts;
   - X API errors;
-  - clearing delivered posts' text.
+  - clearing delivered posts' text;
+  - deleting all X data.
 
 ### Modified Capabilities
 

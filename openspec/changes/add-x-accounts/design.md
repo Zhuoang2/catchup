@@ -271,7 +271,7 @@ The facts from the research that shape the design. Line numbers are at main f1b7
   - no requesting "developer application information … to you directly".
 
   README states the reading: the token belongs to the instance's owner, and stays on their computer; CatchUp's authors never receive it.
-- **Deleted posts.** The 24-hour rule is stated. CatchUp clears post text after delivery, and does not watch for later deletions, so the user should delete a digest if asked.
+- **Deleted posts.** The 24-hour rule is stated. CatchUp clears post text after delivery, and does not watch for later deletions. CatchUp cannot delete a single digest (`api/digests.py` has only `GET` routes), so the way to comply with a request, or with the end of the user's access, is "Delete all X data" (D13).
 - **Models.** Post text is sent to the user's chosen model provider, as for all content. X does not address whether that is a "third party".
 - **The extension's README note on scraping** (`README.md:147`) stays for saved pages.
 
@@ -283,6 +283,25 @@ The facts from the research that shape the design. Line numbers are at main f1b7
   - it never prints the token, or any request header.
 - **The user's part.** They run it in their own shell with their own token. Then they paste the output, or save it under `work/`. Claude never sees or handles the token.
 - **Afterwards.** Claude records the field names, the long-post field, and whether the usage endpoint answers, as D2a in this file. Then Droid starts. The test fixtures are invented, and shaped like the probe's output.
+
+### D13. Delete all X data (capabilities `x-accounts`, `user-interface`)
+
+- **Why.** X's Developer Agreement (last updated 2026-04-27) counts copies and derivative works as X Content, and requires that all of it be deleted permanently when the agreement ends. Its Developer Policy requires deleting stored content that was deleted on X within 24 hours of a request. Digest summaries, item titles, and topic overviews are derived from posts, so they count. CatchUp has no way to delete a digest today.
+- **The route.** `POST /api/settings/x/delete-all`. It is not on the extension's allow-list, so a token gets 403. It answers 409 `run_active` while a run is active (`active_run`, `digest/runner.py`). In one transaction it:
+  1. finds every `DigestItem` with `source_kind == "x"`, and the topics that hold them;
+  2. deletes those digest items;
+  3. for each of those topics: deletes it when it has no items left; otherwise sets `overview = ""`;
+  4. for each affected digest: deletes it when it has no items left, and sets `digest_id = None` on its `DigestRun`; otherwise sets `item_count` to its remaining items;
+  5. deletes every `Source` of kind `x`, which cascades to its items, their contexts, and `x_accounts`;
+  6. deletes the `x_credentials` row.
+
+  It answers `{digest_items, digests, accounts}`, the counts removed.
+- **Readers of what it changes:**
+  - `Digest.item_count` is read by `api/digests.py:34,95` and `run_detail` (`runner.py:430`);
+  - `DigestRun.digest_id` is read by `run_detail`, and Home's link to the run's digest;
+  - topics with an empty overview are still rendered by title (`frontend/src/components/DigestArticle.tsx`), so an empty overview must render as nothing, not as an empty paragraph.
+- **Unchanged.** `Digest.source_count`, which is a count, not content; items and digest items of other kinds.
+- **The UI.** Settings' "X accounts" group gets "Delete all X data", with an inline confirmation, like source deletion (`Sources.tsx`): "Delete all X data? This removes your X token, followed X accounts, and X items in saved digests." Afterwards, it announces the counts.
 
 ### D12. Alternatives considered
 
@@ -299,6 +318,7 @@ The facts from the research that shape the design. Line numbers are at main f1b7
   - the extension would need access to `api.x.com`, against "What the extension never does".
 - **Scraping x.com, or a logged-in collector.** Rejected under X's terms and automation rules (D-024).
 - **Dropping posts beyond the limit.** Rejected by the user: posts wait.
+- **Deleting digest items when one X account is deleted.** Not chosen by the user (2026-10-26); "Delete all X data" covers the terms' cases in one step.
 - **Storing baseline posts at confirm,** as feeds do. Unneeded: `newest_id` marks where reading starts, and avoids paying for old posts.
 - **Recent search for the author's replies** (`conversation_id:` with `from:`). Not needed: the timeline already returns the author's replies, and search would cost extra reads.
 

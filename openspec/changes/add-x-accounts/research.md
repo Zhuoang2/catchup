@@ -300,6 +300,17 @@ Sources were read from docs.x.com, the OpenAPI spec (v2.172), DevCommunity posts
   - **AI:** X content must not be used to train or fine-tune foundation models. Sending content to an LLM for a summary is not addressed. The agreement forbids providing X content "to any third party" except as permitted; whether a model provider counts as one is not addressed.
   - **Terms of Service** (https://x.com/en/tos): access only through "currently available, published interfaces"; scraping "in any form" is prohibited.
 
+### 12. X's terms on storage, derived data, deletion, and exceptions
+
+Read from the pages downloaded on 2026-10-24. The Developer Agreement (https://docs.x.com/developer-terms/agreement) was last updated 2026-04-27. The pay-per-use agreement (https://docs.x.com/developer-terms/ppu-agreement) and the Developer Policy (https://docs.x.com/developer-terms/policy) show no date.
+
+- **Local storage.** Allowed. Section II.A.2 of the Developer Agreement (and section 2 of the pay-per-use agreement) licenses copying "a reasonable amount" of X Content for display in the developer's services. The Developer Policy ("Content compliance") requires that content stored offline match its current state on X. The Agreement's section IV.B ("Removals") also covers content that is deleted, becomes protected, or is otherwise removed. Content deleted or changed on X must be deleted or changed as soon as reasonably possible, or within 24 hours of a request from X or the account owner.
+- **Derived results.** They count as X Content. The Agreement's definitions (section I.12) include "any copies and derivative works thereof", so summaries and titles written from posts fall under the same rules.
+- **After cancelling.** Everything must be deleted. The Agreement's termination clause (section VII.I, and the same clause in the pay-per-use agreement) says the developer may cancel. On termination, all licenses expire, and the developer must permanently delete all Licensed Material in every form and copy. X may ask for evidence of deletion within ten business days.
+- **Personal or research exceptions.** None from these rules.
+  - The self-serve plans are described as designed for hobbyists, prototyping, and apps with a limited number of end users (Agreement III.L; Policy, "Set yourself up for success").
+  - The only research carve-out is for academic researchers distributing Post IDs or User IDs, with X's written approval (Policy, "Content redistribution").
+
 ## Code References
 
 - `backend/src/catchup/models.py:37-46,60-67,70-114,201` — model config, extension tokens, Source, Item, DigestItem.

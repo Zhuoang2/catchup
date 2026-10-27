@@ -208,6 +208,23 @@ Implementer notes:
 
   Verify: the tests fail before the change, and pass after; `npm run build` passes.
 
+- [ ] 3.6 **Delete all X data** (D13), in `backend/src/catchup/api/settings.py`, `frontend/src/pages/Settings.tsx`, and `components/DigestArticle.tsx`. Tests first, in `backend/tests/test_x_settings_api.py`, with digests built by a run or seeded directly:
+  - **Mixed topic.** A digest with one X item and one feed item in one topic: after `POST /api/settings/x/delete-all`, the digest has only the feed item, `item_count` 1, and the topic's `overview` `""`.
+  - **Digest with only X items:** the digest and its topics are removed, and its run's `digest_id` is `None`; `GET /api/digests` no longer lists it.
+  - **Sources and the token.** X sources, their items, their contexts, `x_accounts`, and the token are removed. A feed source, its items, and a podcast digest item remain.
+  - **The answer:** the removed counts.
+  - **During a run:** 409 `run_active`, and nothing is deleted.
+  - **From the extension:** guard (already green after 1.3): a connection token gets 403.
+
+  Frontend tests, in `Settings.test.tsx` and `DigestArticle.test.tsx`:
+  - "Delete all X data" asks for confirmation in place, with the D13 wording;
+  - confirming sends the request, and announces the counts;
+  - Cancel sends nothing;
+  - a topic with an empty overview renders no overview paragraph;
+  - `expectAccessible` passes for the confirmation.
+
+  Verify: the tests fail before the change, and pass after. Then the named mutation "delete every topic that held an X item" fails the mixed-topic test, and is reverted.
+
 ## 4. The extension
 
 - [ ] 4.1 **"Follow this account" on X pages** (D8), in `extension/src/popup.ts`, with the D3 rules copied into it. Tests first, in `extension/src/test/popup.test.ts`:

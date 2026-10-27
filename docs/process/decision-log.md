@@ -348,3 +348,4 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Migration `0007_x_accounts`, a new X API client, and the extension token's allow-list gains `PUT /api/settings/x`.
   - X API reads are billed to the user's developer account. README advises a spending limit in the X console, and quotes X's Developer Policy on credentials, with the reading that the token belongs to the instance's owner and never leaves their computer.
   - X's field names are settled by a probe that the user runs with their own token, before Droid runs.
+  - X's Developer Agreement counts summaries as derived X Content, which must be deleted when access ends, or on request. CatchUp cannot delete single digests, so Settings gains "Delete all X data" (user decision, 2026-10-26).

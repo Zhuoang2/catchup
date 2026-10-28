@@ -73,3 +73,9 @@ def test_x_subdomain_links_are_not_related_context():
              EntryLink("https://help.x.com/en", "Help"),
              EntryLink("https://notx.com/article", "Outside")]
     assert related_links(ITEM, SITE, links, 8) == [links[2]]
+
+
+def test_fully_qualified_x_link_is_not_related_context():
+    x_link = EntryLink("https://x.com./a/status/1", "X post")
+    article = EntryLink("https://news.example/post", "Article")
+    assert related_links(ITEM, SITE, [x_link, article], 8) == [article]

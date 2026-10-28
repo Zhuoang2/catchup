@@ -31,15 +31,16 @@ function button(label: string, action: () => void): HTMLButtonElement {
 // Copy of the profile recognition rules in backend/src/catchup/sources/x_accounts.py.
 const xHosts = new Set(['x.com', 'twitter.com', 'www.x.com', 'www.twitter.com',
   'mobile.x.com', 'mobile.twitter.com'])
+const normalizedHost = (host: string) => host.toLowerCase().replace(/\.$/, '')
 const isXHost = (host: string) => ['x.com', 'twitter.com']
-  .some(domain => host === domain || host.endsWith(`.${domain}`))
+  .some(domain => normalizedHost(host) === domain || normalizedHost(host).endsWith(`.${domain}`))
 const xReserved = new Set(['home', 'explore', 'search', 'i', 'settings', 'notifications',
   'messages', 'compose', 'login', 'logout', 'signup', 'tos', 'privacy', 'hashtag',
   'intent', 'share', 'account', 'jobs'])
 function xUsername(url: string): string | null {
   try {
     const parsed = new URL(url)
-    if (!xHosts.has(parsed.hostname)) return null
+    if (!xHosts.has(normalizedHost(parsed.hostname))) return null
     const first = parsed.pathname.replace(/^\/+|\/+$/g, '').split('/')[0]
     return /^[A-Za-z0-9_]{1,15}$/.test(first) && !xReserved.has(first.toLowerCase())
       ? first : null
@@ -168,7 +169,7 @@ export async function initPopup(): Promise<void> {
   const statusText = element('p')
   statusText.setAttribute('role', 'status')
   statusText.setAttribute('aria-live', 'polite')
-  const host = (() => { try { return new URL(tab.url ?? '').hostname } catch { return '' } })()
+  const host = (() => { try { return normalizedHost(new URL(tab.url ?? '').hostname) } catch { return '' } })()
   const isX = isXHost(host)
   const username = xUsername(tab.url ?? '')
   const xPost = xHosts.has(host) && /^\/[^/]+\/status\/\d+(?:\/|$)/.test((() => {

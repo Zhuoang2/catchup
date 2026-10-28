@@ -335,6 +335,28 @@ it('offers only Add on a help.x.com page', async () => {
   expect(screen.queryByRole('button', { name: /Follow/ })).toBeNull()
 })
 
+it.each([
+  ['https://x.com./simonw', 'Follow this account'],
+  ['https://help.x.com./en', null],
+])('recognizes a trailing-dot X host on %s', async (url, follow) => {
+  connect()
+  chromeMock.tabs.query.mockResolvedValue([{ id: 8, url, title: 'X tab' }])
+  initPopup()
+  await screen.findByRole('button', { name: 'Add this page to my next digest' })
+  if (follow) expect(screen.getByRole('button', { name: follow })).toBeInTheDocument()
+  else expect(screen.queryByRole('button', { name: /Follow/ })).toBeNull()
+})
+
+it.each(['https://notx.com/simonw', 'https://x.com.example.org/simonw'])(
+  'offers Follow this site for look-alike host %s', async url => {
+    connect()
+    chromeMock.tabs.query.mockResolvedValue([{ id: 8, url, title: 'Other site' }])
+    initPopup()
+    await screen.findByRole('button', { name: 'Add this page to my next digest' })
+    expect(screen.getByRole('button', { name: 'Follow this site' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Follow this account' })).toBeNull()
+  })
+
 it('uses generic page extraction for a help.x.com URL that looks like a post', async () => {
   connect()
   chromeMock.tabs.query.mockResolvedValue([{ id: 8, url: 'https://help.x.com/a/status/1', title: 'Help' }])

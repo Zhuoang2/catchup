@@ -358,7 +358,7 @@ The review of fix round 1 confirmed the items below, and the user approved this 
   - **The cap after posts were read.** With 300 reads left, in Phase B, X answers a page of 5 originals with a `next_token`, then only empty pages with a `next_token`: 40 requests, the 5 posts are stored, and the gap is the old `newest_id` and the oldest of the 5.
 
   Verify: the tests fail on the current head. Then the named mutations "restore the empty-page stop (`or not page.posts`)" and "remove the page cap" each fail a test, by an assertion and not by hanging, and are reverted.
-- [ ] 7.2 **Hosts with a trailing dot** (D3, fix round 2), in `backend/src/catchup/sources/x_accounts.py` (`is_x_host`, `x_username`) and the copy in `extension/src/popup.ts`.
+- [x] 7.2 **Hosts with a trailing dot** (D3, fix round 2), in `backend/src/catchup/sources/x_accounts.py` (`is_x_host`, `x_username`) and the copy in `extension/src/popup.ts`.
   - Backend tests first, in `backend/tests/test_x_accounts.py` and `backend/tests/test_context_links.py`:
     - `is_x_host` is true for `x.com.`, `help.x.com.`, `twitter.com.`, and `X.COM`, and false for `notx.com` and `x.com.example.org` (guard, already green);
     - `x_username("https://x.com./simonw")` gives `simonw`; `https://x.com./home` and `https://help.x.com./en` raise `not_an_x_account`;

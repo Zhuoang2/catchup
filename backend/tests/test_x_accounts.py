@@ -1,7 +1,28 @@
 import pytest
 
 from catchup.errors import AppError
-from catchup.sources.x_accounts import x_username
+from catchup.sources.x_accounts import is_x_host, x_username
+
+
+@pytest.mark.parametrize("host", ["x.com.", "help.x.com.", "twitter.com.", "X.COM"])
+def test_fully_qualified_and_case_insensitive_x_hosts(host):
+    assert is_x_host(host)
+
+
+@pytest.mark.parametrize("host", ["notx.com", "x.com.example.org"])
+def test_lookalike_hosts_are_not_x_hosts(host):
+    assert not is_x_host(host)
+
+
+def test_fully_qualified_x_account_address():
+    assert x_username("https://x.com./simonw") == "simonw"
+
+
+@pytest.mark.parametrize("url", ["https://x.com./home", "https://help.x.com./en"])
+def test_fully_qualified_x_pages_are_not_accounts(url):
+    with pytest.raises(AppError) as error:
+        x_username(url)
+    assert error.value.code == "not_an_x_account"
 
 
 @pytest.mark.parametrize(("url", "username"), [

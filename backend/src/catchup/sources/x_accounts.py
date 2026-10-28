@@ -25,14 +25,15 @@ HOSTS = {"x.com", "twitter.com", "www.x.com", "www.twitter.com", "mobile.x.com",
 
 
 def is_x_host(host: str | None) -> bool:
-    return bool(host and any(host == domain or host.endswith("." + domain)
-                             for domain in ("x.com", "twitter.com")))
+    host = host.lower().removesuffix(".") if host else ""
+    return any(host == domain or host.endswith("." + domain)
+               for domain in ("x.com", "twitter.com"))
 
 
 def x_username(url: str) -> str | None:
     try:
         parts = urlsplit(url)
-        host = parts.hostname
+        host = (parts.hostname or "").lower().removesuffix(".")
         if not is_x_host(host):
             return None
     except ValueError:

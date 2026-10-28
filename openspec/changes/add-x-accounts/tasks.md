@@ -372,7 +372,7 @@ The review of fix round 1 confirmed the items below, and the user approved this 
 - [x] 7.3 **Feed confirm with an address it cannot parse** (D3, fix round 2), in `backend/src/catchup/api/sources.py`. Test first, in `backend/tests/test_sources_api.py`: `POST /api/sources` with `{"feed_url": "http://[abc/feed"}` answers 422 `invalid_url`, "Enter a valid public HTTP or HTTPS URL.", with `catchup.api.sources.safe_fetch` replaced by `pytest.fail`.
 
   Verify: the test fails on the current head (the test client raises `ValueError`), and passes after.
-- [ ] 7.4 **Checks no test pinned** (D1, D2; guards, already green). Each test must fail under its named mutation:
+- [x] 7.4 **Checks no test pinned** (D1, D2; guards, already green). Each test must fail under its named mutation:
   - **A missing instance secret** (`backend/tests/test_x_settings_api.py`): save a token, then remove the app's instance secret (`secret_key=None`), then `POST /api/settings/x/test` with `{}`: 400 `secret_invalid`, and the usage route has `call_count == 0`. Mutation: the shared helper catches only `InvalidToken`.
   - **Suspension named only in the title** (`backend/tests/test_x_api.py`): HTTP 200, no `data`, and `errors: [{type: ".../2/problems/resource-not-found", title: "Account suspended", detail: "Could not find user with username: [name]."}]` → `x_account_suspended`. Mutation: look for suspension in `detail` only.
 

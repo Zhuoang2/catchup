@@ -183,6 +183,18 @@ def test_suspension_detail_precedes_resource_not_found_and_http_status(status):
     assert (error.value.code, error.value.http_status) == ("x_account_suspended", status)
 
 
+def test_suspension_in_title_precedes_resource_not_found_with_misleading_detail():
+    body = {"errors": [{"type": "https://api.x.com/2/problems/resource-not-found",
+                        "title": "Account suspended",
+                        "detail": "Could not find user with username: [name]."}]}
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://api.x.com/2/users/by/username/writer").mock(
+            return_value=httpx.Response(200, json=body))
+        with XClient(TOKEN) as client, pytest.raises(XApiError) as error:
+            client.lookup_user("writer")
+    assert (error.value.code, error.value.http_status) == ("x_account_suspended", 200)
+
+
 def test_url_entity_without_short_url_keeps_text_but_includes_destination():
     post = {**POST, "text": "See the original", "entities": {"urls": [
         {"expanded_url": "https://blog.example/post"}]}}

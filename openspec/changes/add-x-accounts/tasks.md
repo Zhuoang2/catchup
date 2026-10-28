@@ -252,7 +252,7 @@ Implementer notes:
 
 ## 5. Docs and checks
 
-- [ ] 5.1 **README** (D10). Rewrite the X statements (`README.md:117-124,147-149,303-304`) into an "X accounts" section, with the anchor `x-accounts`:
+- [x] 5.1 **README** (D10). Rewrite the X statements (`README.md:117-124,147-149,303-304`) into an "X accounts" section, with the anchor `x-accounts`:
   - creating an App and copying its Bearer token in console.x.com;
   - pasting it in Settings, on the Sources page, or in the extension;
   - prices, dated 2026-10-24;
@@ -265,7 +265,7 @@ Implementer notes:
   Keep the saved-pages scraping note. Extend `extension/src/test/docs.test.ts` to require a `## X accounts` heading, "spending limit", and "CATCHUP_X_READS_PER_RUN", and the absence of "CatchUp does not follow X accounts".
 
   Verify: the README test fails before the edit, and passes after.
-- [ ] 5.2 **The test report and checks.**
+- [x] 5.2 **The test report and checks.**
   - **Report.** Write `docs/process/test-report-add-x-accounts.md`, with each task's observed red result, the named mutations, and the final numbers.
   - **Checks, in this order:**
     1. `npm run build` in `frontend/`;

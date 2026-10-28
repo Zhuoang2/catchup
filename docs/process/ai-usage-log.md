@@ -2,6 +2,12 @@
 
 Real usage records for the technical spec, alpha reflection, and final report. Each entry: date, tool/model, purpose, prompt (verbatim or faithful excerpt), outcome, problems, adjustment. The user often wrote prompts in Chinese; those prompts are quoted here in English translation.
 
+## 2026-10-27 — X accounts implementation (Factory Droid; model not exposed in this session)
+
+- Prompt (faithful excerpt): "Implement OpenSpec change `add-x-accounts` (#41) using `openspec-apply-change` and `tdd`. Work through `tasks.md` groups 1–5 in order; group 0 was already complete. Write failing tests before implementation, check off each task only after its verification passes, and commit after each group. Prefix every OpenSpec CLI command with `DO_NOT_TRACK=1`. Do not edit `proposal.md`, `design.md`, or spec deltas; do not push, tag, or open a PR."
+- Outcome: Added encrypted X token settings and extension-first-token permission, fixed-host X API client, follow/preview/confirm, budgeted digest collection and gaps, X UI, deletion of derived digest data, extension Follow and inline token prompt, and README policy/cost guidance. Four implementation-group commits, followed by docs/checks. Final checks: **706 backend tests, 96% coverage**, **254 frontend tests**, **104 extension tests**, two builds, local Docker smoke, strict OpenSpec validation. See `test-report-add-x-accounts.md`.
+- Problems / adjustment: Installed missing extension test dependencies with `npm ci`; selected Python 3.12 because an unchanged test cannot be collected by Python 3.11. Adjusted the prompt section's ARIA name after a duplicate-label test failure. Docker `npm ci` reported three existing audit findings; this feature did not update dependencies. Tests used invented X fixtures; no token or live provider was contacted.
+
 ## 2026-10-07 — UI redesign final review fixes (Factory Droid, GPT-6 Sol)
 
 - Prompt (faithful excerpt): "Implement tasks 13.1 through 13.12 in order: use diagnosing-bugs for 13.1-13.6 (show the failing check first, then fix, keep the regression test) and tdd for 13.7-13.11 ... check off a task only after its verification passes; commit after each task; do not edit proposal.md, design.md, specs/, or prototypes/; add no runtime dependencies; keep tests free of real network and real sleeps; never push, tag, or open a PR."

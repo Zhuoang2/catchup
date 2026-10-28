@@ -30,3 +30,16 @@ it('documents collection boundaries, reader license and the context-pass limit',
     expect(extension, text).toContain(text)
   }
 })
+
+it('documents X accounts, costs, limits and account ownership without old no-follow claim', () => {
+  const readme = readFileSync(resolve('../README.md'), 'utf8')
+  expect(readme).toContain('## X accounts')
+  expect(readme).toContain('](#x-accounts)')
+  const section = readme.split('## X accounts')[1]?.split(/^## /m)[0]
+  for (const text of ['console.x.com', 'Bearer token', 'spending limit',
+    '2026-10-24', 'CATCHUP_X_READS_PER_RUN', 'Waits for the next run',
+    'Delete all X data', '24 hours', 'model provider']) {
+    expect(section, text).toContain(text)
+  }
+  expect(readme).not.toContain('CatchUp does not follow X accounts')
+})

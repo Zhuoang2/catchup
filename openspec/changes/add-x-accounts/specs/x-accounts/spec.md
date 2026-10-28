@@ -3,7 +3,7 @@
 ### Requirement: Recognize X account addresses
 The system SHALL treat a pasted address as an X account address when its host is `x.com` or `twitter.com`, with or without `www.` or `mobile.`. Its path must be `/<username>`, `/<username>/<section>`, or `/<username>/status/<id>`, where the username is 1 to 15 letters, digits, or underscores. A post address identifies the post's author.
 
-X's own pages are not accounts, and the system MUST report "not an X account" for them. These are first path segments such as `home`, `explore`, `search`, `i`, `settings`, `notifications`, `messages`, `compose`, `login`, `signup`, `tos`, `privacy`, `hashtag`, `intent`, and `share`.
+X's own pages are not accounts, and the system MUST report "not an X account" for them. These are first path segments such as `home`, `explore`, `search`, `i`, `settings`, `notifications`, `messages`, `compose`, `login`, `signup`, `tos`, `privacy`, `hashtag`, `intent`, and `share`. Addresses on any other host under `x.com` or `twitter.com`, such as `help.x.com`, are not accounts either.
 
 The system MUST NOT request any page on x.com or twitter.com. It reads X only through the X API, with the user's token.
 
@@ -23,6 +23,10 @@ The system MUST NOT request any page on x.com or twitter.com. It reads X only th
 - **WHEN** the user pastes `https://x.com/home`
 - **THEN** the system reports that the address is not an X account, and saves nothing
 
+#### Scenario: Another X site
+- **WHEN** the user pastes `https://help.x.com/en`
+- **THEN** the system reports that the address is not an X account, requests nothing from help.x.com, and saves nothing
+
 ### Requirement: Store the user's X API token
 The system SHALL store one X API token, an app-only Bearer token from the user's own X developer account, encrypted with the secret supplied through the instance's environment, as it stores the model key.
 - It MUST NOT return the token, or write it to logs.
@@ -41,7 +45,7 @@ Settings SHALL let the user save, replace, remove, and test the token. Testing M
 
 #### Scenario: Remove the token
 - **WHEN** the user removes the token
-- **THEN** no token is stored, and the next run reports each X account as needing a token
+- **THEN** no token is stored, the next run reports each X account as needing a token, and an account preview shown before cannot be confirmed
 
 #### Scenario: Extension cannot replace a token
 - **WHEN** a token is saved and the extension sends another token
@@ -140,6 +144,10 @@ A post MUST NOT be lost because of the limit, unless the X API no longer returns
 - **WHEN** an account has 150 new posts, and 50 reads are left
 - **THEN** the run keeps the 50 newest posts it read, and a later run reads the other 100 before any newer post
 
+#### Scenario: New posts on several pages
+- **WHEN** an account has 150 new posts, and 200 reads are left
+- **THEN** the run reads all 150 posts, the account has no posts waiting, and the next run reads only posts newer than those
+
 #### Scenario: Run result
 - **WHEN** a run read 37 X posts, and 2 accounts have posts waiting
 - **THEN** the run result shows "37 X posts read" and "2 X accounts have posts waiting for the next run", with singular forms "1 X post read" and "1 X account has posts waiting for the next run"
@@ -175,6 +183,7 @@ Settings SHALL offer "Delete all X data", which asks for confirmation in place. 
 - the saved X token;
 - every followed X account, and every post stored for it;
 - every item from an X account in saved digests, with its title, summary, link, images, and "Also read" links;
+- every account preview not yet confirmed;
 - the overview of every saved topic that held such an item, because it was written from those items; such a topic's title SHALL become "Other" ("其他" in a Chinese digest). A topic left with no items, and a digest left with no items, SHALL be removed. A digest's item and source counts SHALL be lowered to match.
 
 Pages saved from x.com with the browser extension are not followed-account data, and SHALL remain; the confirmation MUST say so.

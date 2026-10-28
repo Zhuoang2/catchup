@@ -13,6 +13,15 @@ Full RePPIT change for issue #41.
   - the preview must not show `x:user:<id>`.
 
   The issue not taken: keeping the author's replies to commenters in their own thread, which matches the user's choice (D5).
+- **Fix round 1 (2026-10-28).** Claude's review of Droid run 1 (`/code-review`, a spec sub-agent with 44 mutations, and probes) confirmed defects that this design caused or left open. On 2026-10-28 the user approved one fix round, task group 6. The decisions below are amended where marked "Fix round 1":
+  - D5: Phase B left a stale gap after reading every page;
+  - D2: partial `errors` sent with data, and suspension reported as not found;
+  - D4, D1, D13: a cached preview could still be confirmed after the token was removed or all X data was deleted;
+  - D1: Test answered 500 for a token that cannot be decrypted;
+  - D3: other x.com hosts reached `discover()`;
+  - D8: the token prompt's hint, and its rejected-token wording, which disagreed with the spec.
+
+  Before Droid runs, a fresh sub-agent checked group 6 against the code (D-023). Claude verified its 8 findings and folded all of them in: a mutation that a rewrite would make equivalent, two checks the test network block made vacuous, a missing guard on the extractor choice, links to other X hosts still fetched as context, the real red result of Test, an axe check that could not fail, and an unbounded loop on empty pages.
 
 ## Context
 
@@ -76,10 +85,11 @@ The facts from the research that shape the design. Line numbers are at main f1b7
   - `PUT /api/settings/x`: `{token}`, stripped. It must be non-empty, at most 1,000 characters, with no whitespace, or it gets 422 `invalid_x_token`.
     - **From the extension:** when `request.state.extension_token_id` is set and a token is already saved, it answers 409 `x_token_exists`, and changes nothing.
     - **Without the instance secret** it answers `secret_not_configured`, as for the model key.
-  - `DELETE /api/settings/x`: removes the row; 204.
+  - `DELETE /api/settings/x`: removes the row, and empties the X preview cache (D4, fix round 1); 204.
   - `POST /api/settings/x/test`: `{token?}`. It tests the given token, or the saved one, with `GET /2/usage/tweets?days=1`, so no post or account is read.
     - It answers `{ok: true}`, or `x_token_rejected` (401/403), `rate_limited` (with `retry_after`), or `fetch_failed` (with `http_status`).
     - With no token, it answers 422 `x_token_required`.
+    - **Fix round 1.** When the saved token cannot be decrypted (the instance secret changed or is missing), it answers 400 `secret_invalid`, "Check the X token and instance secret.", and sends nothing. Preview already does this (`_x_token` in `api/sources.py`); both routes share one helper. Run 1 answered 500.
 - **Sending.** The token is sent only to the fixed base URL `https://api.x.com`. There is no configurable X base URL, so the "never send the key to another address" rule holds by construction.
 - **Allow-list.** `main.py:48-53` gains `PUT /api/settings/x`. `GET` and `DELETE` stay off the list, so the extension can neither read nor remove the token.
 
@@ -100,13 +110,17 @@ The facts from the research that shape the design. Line numbers are at main f1b7
   - `XPage(posts, next_token, result_count)`.
 - **The post's text:**
   - the `note_tweet` text when present, otherwise `text`;
-  - each `entities.urls[].url` (`t.co`) replaced by its `unwound_url`, or else its `expanded_url`;
+  - each `entities.urls[].url` (`t.co`) replaced by its `unwound_url`, or else its `expanded_url`. An entry with no `url` replaces nothing (fix round 1: run 1 replaced the empty string, which inserts the destination between every character);
   - `urls` keeps those destinations.
-- **Errors.** `XApiError(code, message, http_status, retry_after)`:
+- **Errors.** `XApiError(code, message, http_status, retry_after)`.
+  - **Fix round 1: `errors` decide the outcome only when the body has no `data`.** X sends `errors` next to `data` for parts of an answer it could not fill, such as a missing media item. Such an answer is a success, and its data is used. Run 1 mapped any `errors` entry, so one partial error discarded a page that X had already billed.
+  - Without `data`, the entries are checked in this order:
+    1. **Suspended first.** An entry whose `detail` or `title` mentions suspension → `x_account_suspended`. X reports a suspended account as HTTP 200 with type `resource-not-found` and the detail "User has been suspended", or sometimes as 403 (developer forum threads [141550](https://devcommunity.x.com/t/users-by-username-returns-200-status-for-suspended-accounts/141550) and [174127](https://devcommunity.x.com/t/403-forbidden-63-user-has-been-suspended/174127); the API reference does not say). So this check must come before the not-found check. Run 1 reported suspended accounts as not found.
+    2. A type ending in `resource-not-found` → `x_account_not_found`.
+    3. An authorization entry for an account (a protected account) → `x_account_protected`, even when the HTTP status is 401 or 403. The probe cannot show this case, so the mapping follows the documented error types, and a test pins it.
+  - Then the HTTP status:
   - 401 or 403 → `x_token_rejected`;
-  - a 404, or a lookup answered with an `errors` entry of type "not found" → `x_account_not_found`;
-  - an `errors` entry saying the user is suspended → `x_account_suspended`;
-  - a timeline answered with an authorization `errors` entry for an account (a protected account) → `x_account_protected`, even when the HTTP status is 401 or 403. The probe cannot show this case, so the mapping follows the documented error types, and a test pins it;
+  - 404 → `x_account_not_found`;
   - 429 → `rate_limited`, with `retry_after` = `x-rate-limit-reset` minus now, at least 1;
   - any other status or transport failure → `fetch_failed`, with `http_status` when there is one.
   - The message for `rate_limited` starts with `RATE_LIMIT_PREFIX` (`safe_fetch.py:22`), so stored checks read as rate limited.
@@ -138,9 +152,10 @@ The user ran `scripts/x_probe.py` against one public account, with their own tok
   - the first path segment must match `^[A-Za-z0-9_]{1,15}$`, and must not be reserved.
 - **Reserved first segments** are compared without case: `home`, `explore`, `search`, `i`, `settings`, `notifications`, `messages`, `compose`, `login`, `logout`, `signup`, `tos`, `privacy`, `hashtag`, `intent`, `share`, `account`, and `jobs`.
   - A reserved X address, a missing segment, or a segment that does not match raises `AppError("not_an_x_account", …, 422)`.
+  - **Fix round 1: every other host under `x.com` or `twitter.com`** (the host equals the domain or ends with `.` plus the domain), such as `help.x.com` or `developer.x.com`, also raises `not_an_x_account`. The spec says the system MUST NOT request any page on x.com or twitter.com; run 1 sent those hosts to `discover()`. The cost: X's own blogs cannot be followed as feeds. Look-alike hosts such as `notx.com` or `x.com.example.org` are not X hosts. One helper decides whether a host is under `x.com` or `twitter.com`. The same helper makes feed confirm refuse an X-host `feed_url`, and makes `related_links` (`context/links.py:34-35`) drop links to every X host, not only `x.com` and `twitter.com`, so a post's link to `developer.x.com` is not fetched as context.
   - A non-X address returns `None`, and the feed path runs as today.
 - **Where it runs.** Preview calls it before `discover()`, so an X address never reaches `safe_fetch`.
-- **The extension.** It keeps a copy of the rules, with a comment naming this module, as it already does for the error wording (`extension/src/popup.ts:27`).
+- **The extension.** It keeps a copy of the rules, with a comment naming this module, as it already does for the error wording (`extension/src/popup.ts:27`). With fix round 1, the copy treats every host under `x.com` or `twitter.com` as an X page, so `https://help.x.com/en` offers only "Add this page". The X extractor is still used only on post pages of the six account hosts.
 
 ### D4. Preview and confirm (capability `x-accounts`; `api/sources.py`)
 
@@ -157,7 +172,9 @@ The user ran `scripts/x_probe.py` against one public account, with their own tok
   - `entries`: up to 5, each with a title from the start of the post's text (the `_entry_title` rule, `sources/feeds.py:241-255`), its link, and `published_at`;
   - plus `username`.
 - **The preview cache.** An `XPreviewCache`, like `FeedCache` (600 s, 50 entries), keyed by `feed_url`, holds the `XUser` and the posts. `create_app` sets `app.state.x_preview_cache = XPreviewCache()`, next to the feed cache (`main.py:103`).
+- **Fix round 1: the cache never outlives the token or the X data.** Removing the token (D1) and Delete all X data (D13) empty it. Confirm also requires a saved token that decrypts, like preview, before it uses the cache; this covers a preview still running while the token is removed. Run 1 let a preview read before either action be confirmed for up to 10 minutes afterwards, which stored its posts again.
 - **Confirm** with a `feed_url` starting `x:user:`:
+  - It first requires a saved token (`x_token_required`, or `secret_invalid`), as preview does.
   - It takes the cached preview, or, if there is none, repeats the preview with `lookup_user_by_id` and one five-post read.
   - It creates the `Source` (kind `x`, title, `site_url`, `feed_url`, `input_url`), and an `x_accounts` row with:
     - `source_id` (primary key, foreign key with cascade), `user_id`, `username`;
@@ -184,6 +201,14 @@ The user ran `scripts/x_probe.py` against one public account, with their own tok
   - **Phase B, new posts.** Only when no gap remains, it reads with `since_id=newest_id` (or `start_time=followed_at` when `newest_id` is `None`), in pages the same way.
     - `newest_id` becomes the largest post id read.
     - When the budget runs out with `next_token` present, the gap is set to the old `newest_id` (since) and the oldest post id read (until).
+    - When Phase B reaches a page with no `next_token`, no gap is set.
+  - **Fix round 1: an empty page ends a phase.** A page with no posts is treated as the last page, even with a `next_token`, because the budget falls only by posts returned, so such pages could be requested without limit.
+  - **Fix round 1: the invariant.** After a check, the gap ids name exactly the posts that were skipped and are not yet read. So the gap changes only where a phase ends:
+    - Phase A that reads to its last page clears the gap; Phase A that stops early sets `gap_until_id` to the oldest id it read;
+    - Phase B sets the gap only when it stops early with `next_token` present, to the old `newest_id` and the oldest id read in Phase B.
+
+    Run 1 set the gap after every Phase B page that had a `next_token`, and did not clear it on the last page. So an account with more than one page of new posts kept a stale gap after it was read in full: the next run read those posts again, paid for them again, and counted the account as waiting.
+  - **Known limit (fix round 1, recorded, not fixed).** When Phase A reads to its last page with fewer than 5 reads left, Phase B waits for the next run. The account gets `no_new_items` or `new_items`, its `last_check_at` is set, and it is not counted as waiting. No post is lost: `newest_id` is unchanged, so the next run that reads it starts from there.
   - **Ids** are compared as integers, and stored as strings.
 - **Costs.** Each page subtracts its `result_count` from the budget. The run adds it to `DigestRun.x_reads`.
 - **Threads.** The posts read for one account in one run, from both phases, form one batch:
@@ -244,14 +269,15 @@ The user ran `scripts/x_probe.py` against one public account, with their own tok
 
 ### D8. The extension (capabilities `browser-extension`, `model-settings`)
 
-- **Address detection.** A copy of D3's rules decides whether the tab is an X account address, a profile or a post.
+- **Address detection.** A copy of D3's rules decides whether the tab is an X account address, a profile or a post. Every host under `x.com` or `twitter.com` counts as an X page (D3, fix round 1).
   - Profile and post pages show "Follow this account" and "Add this page". Other X pages show only Add.
   - The "X accounts cannot be followed" line (`popup.ts:153`) is removed everywhere.
 - **The preview.** For kind `x`, the popup shows `@username` and `site_url` in place of the feed URL (`popup.ts:236`).
 - **Follow** reuses `previewSite` and Confirm (`popup.ts:220-260`), with `POST /sources/preview {url}`.
-- **The token prompt.** On `x_token_required`, the popup shows a labelled password field, "X API token", with Save and a one-line hint on where to get one.
+- **The token prompt.** On `x_token_required`, the popup shows a labelled password field, "X API token", with Save and a one-line hint on where to get one: "Copy the Bearer token of your X App from console.x.com." (fix round 1: run 1 had no hint).
   - Save sends `PUT /settings/x {token}`, then previews again.
-  - On `x_token_exists` or `x_token_rejected`, it shows "Replace the X token in CatchUp Settings", with Open CatchUp.
+  - On `x_token_exists`, it shows "Replace the X token in CatchUp Settings.", with Open CatchUp.
+  - **Fix round 1.** On `x_token_rejected`, it shows the Sources page's wording, "X rejected the token. Replace the X token in CatchUp Settings.", with Open CatchUp. The spec requires the same error messages as the Sources page; this design's earlier wording contradicted it.
   - The token is never stored in `chrome.storage`.
 - **The `api()` helper** (`popup.ts:95-121`) gains a `PUT` method.
 - **Labels and wording.** `kindLabels` gains `x: 'X account'` (`popup.ts:228-233`). The error wording copy (`popup.ts:27-47`) gains the X codes.
@@ -314,7 +340,7 @@ The user ran `scripts/x_probe.py` against one public account, with their own tok
   5. deletes every `Source` of kind `x`, which cascades to its items, their contexts, and `x_accounts`;
   6. deletes the `x_credentials` row.
 
-  After the commit it runs `PRAGMA wal_checkpoint(TRUNCATE)`, so the deleted text does not linger in the write-ahead log. It answers `{digest_items, digests, accounts}`, the counts removed.
+  After the commit it runs `PRAGMA wal_checkpoint(TRUNCATE)`, so the deleted text does not linger in the write-ahead log. Still holding the lock, it empties the X preview cache (D4, fix round 1). It answers `{digest_items, digests, accounts}`, the counts removed.
 - **Not deleted:** pages saved from x.com with the extension's "Add this page" (kind `capture`). They were not obtained through the X API, and the user chose to keep them (2026-10-26); the confirmation says so.
 - **Readers of what it changes:**
   - `Digest.item_count` and `source_count` are read by `api/digests.py:34,95`, `run_detail` (`runner.py:430`), and shown as "N items · M sources" (`History.tsx:62`, `DigestArticle.tsx:59`);

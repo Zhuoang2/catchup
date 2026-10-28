@@ -277,3 +277,72 @@ Implementer notes:
   - **Logs.** Add the coverage-summary line and your AI usage log entry, with a faithful excerpt of the prompt you received. Leave out the session id.
 
   Verify: every command passes, and the report has the actual numbers.
+
+## 6. Fix round 1 (review of run 1, 2026-10-28)
+
+Claude's review of run 1 confirmed the defects below, and the user approved this round. Design decisions D1–D5, D8, and D13 are amended where marked "Fix round 1"; read those parts first. Work test-first, as before: every check here must fail on the current branch head, except those marked "guard (already green)". Name each new test after what it checks, and record each named mutation's result in the test report.
+
+- [ ] 6.1 **Gaps after a complete read** (D5, fix round 1), in `backend/src/catchup/sources/x_check.py`. Re-derive `read_phase` from the invariant in D5 ("the gap ids name exactly the posts that were skipped and are not yet read") instead of patching the current branch inside the page loop. Tests first, in `backend/tests/test_x_check.py`:
+  - **A complete Phase B over two pages.** With 300 reads left, and new posts answered as a page of 100 with a `next_token` and then a page of 20 without one: both gap ids are `None` afterwards, `newest_id` is the largest id read, and all originals are stored. A second call, with X answering 0 posts, makes exactly one request, with `since_id` equal to that `newest_id` and no `until_id`.
+  - **Phase B stopped by the budget after two pages** (guard, already green). With 150 reads left, a page of 100 with a `next_token`, then a page of 50 with a `next_token`: the gap is the old `newest_id` and the oldest id of the second page, and no third page is requested.
+  - **An empty page ends the phase.** A page with no posts and a `next_token` is treated as the last page, so the loop cannot request pages without spending the budget: with 300 reads left, Phase B answering a page of 0 posts with a `next_token` makes exactly one request.
+  - The existing gap tests still pass.
+  - **Through the run,** in `backend/tests/test_digest_runner.py`: an account whose new posts come as two pages, both read in full within the limit, gives `x_waiting_accounts` 0.
+
+  Verify: the first, the empty-page, and the last tests fail on the current head. Then the named mutation "restore the run-1 `read_phase`" (copy it from commit `173cd68`, `backend/src/catchup/sources/x_check.py`) fails the first test, and is reverted.
+- [ ] 6.2 **Partial errors and suspended accounts** (D2, fix round 1), in `backend/src/catchup/sources/x_api.py`. Tests first, in `backend/tests/test_x_api.py`, with probe-shaped fixtures:
+  - a timeline answer with `data` and an `errors` entry of type `.../resource-not-found` (for example, for a missing media item) returns its posts;
+  - a lookup answer with `data` and an `errors` entry of type `.../resource-not-found` (for example, for a pinned post that is gone) returns the user;
+  - HTTP 200, no `data`, and `errors: [{type: ".../2/problems/resource-not-found", title: "Forbidden", detail: "User has been suspended: [name]."}]` → `x_account_suspended`;
+  - HTTP 403 with the same entry → `x_account_suspended`;
+  - HTTP 200, no `data`, and a `resource-not-found` entry with no mention of suspension → `x_account_not_found` (guard, already green);
+  - an `entities.urls` entry with no `url` leaves the text unchanged, and still lists its destination in `urls`;
+  - **each reply signal alone** marks a post as a reply: a `replied_to` reference with no `in_reply_to_user_id`, and an `in_reply_to_user_id` with no reference.
+
+  Verify: the tests fail on the current head, except the guard and the reply-signal tests, which are guards that the current code passes. Then the named mutations "check `resource-not-found` before suspension", "map `errors` even when `data` is present", "drop the `in_reply_to_user_id` signal", and "drop the `replied_to` signal" each fail a test, and are reverted.
+- [ ] 6.3 **Other x.com and twitter.com hosts** (D3, D8, fix round 1), in `backend/src/catchup/sources/x_accounts.py` and the copy in `extension/src/popup.ts`.
+  - Backend tests first, in `backend/tests/test_x_accounts.py` and `backend/tests/test_x_sources_api.py`:
+    - `https://help.x.com/en`, `https://developer.x.com/`, and `https://api.twitter.com/2` raise `not_an_x_account`;
+    - `https://x.com.example.org/simonw` and `https://notx.com/simonw` return `None`;
+    - previewing `https://help.x.com/en` answers 422 `not_an_x_account`, with `catchup.api.sources.discover` replaced by `pytest.fail`, as in `test_x_preview_without_token_does_not_request_x_or_discover`. (A respx route would prove nothing here: the autouse network block makes `safe_fetch`'s address check raise before any request.)
+    - confirming a feed whose `feed_url` is on an X host, such as `https://help.x.com/rss`, answers 422 `not_an_x_account`, with `catchup.api.sources.safe_fetch` replaced by `pytest.fail`.
+  - Context tests first, in `backend/tests/test_context_links.py`: a link to `https://developer.x.com/en/docs` or `https://help.x.com/en` is not a related link, like links to `x.com` (`context/links.py:34-35`). One helper in `x_accounts.py` decides whether a host is under `x.com` or `twitter.com`; `x_username`, the feed confirm, and `related_links` all use it.
+  - Extension tests first, in `extension/src/test/popup.test.ts`:
+    - on `https://help.x.com/en`, the popup offers only "Add this page to my next digest", with no "Follow this site" or "Follow this account";
+    - on `https://x.com/simonw/status/1`, Add still uses the X extractor (guard, already green);
+    - on `https://help.x.com/a/status/1`, Add uses the generic extractor, not the X extractor (guard, already green; it turns red if the wider host rule reaches the extractor choice).
+
+  Verify: the tests fail on the current head, except the guards and the look-alike-host tests.
+- [ ] 6.4 **The preview cache does not outlive the token or the X data** (D1, D4, D13, fix round 1), in `backend/src/catchup/sources/x_accounts.py` (`XPreviewCache.clear()`), `api/settings.py`, and `api/sources.py`. Tests first, in `backend/tests/test_x_sources_api.py` and `backend/tests/test_x_settings_api.py`:
+  - preview an account, `DELETE /api/settings/x`, then confirm: 422 `x_token_required`, no source and no item are stored, and no further `api.x.com` request is made;
+  - preview an account, `POST /api/settings/x/delete-all`, save a new token, then confirm: the confirm makes a new lookup by id (the cached preview is gone);
+  - after `DELETE /api/settings/x`, and after delete-all, `app.state.x_preview_cache` holds no entry;
+  - preview an account, replace the app's instance secret with another valid one, then confirm: 400 `secret_invalid`, and nothing is stored.
+
+  Verify: the tests fail on the current head. Then the named mutations "do not clear the cache in delete-all" and "do not require a token in confirm" each fail a test, and are reverted.
+- [ ] 6.5 **Test answers `secret_invalid` for a token that cannot be decrypted** (D1, fix round 1), in `backend/src/catchup/api/settings.py`, sharing the decryption helper with preview. Tests first, in `backend/tests/test_x_settings_api.py`: save a token, replace the app's secret with another valid one, then `POST /api/settings/x/test` with `{}`: 400 `secret_invalid`, "Check the X token and instance secret.", and a respx route for `https://api.x.com/2/usage/tweets` has `call_count == 0`.
+
+  Verify: the test fails on the current head (the test client raises `InvalidToken`, which is a 500 in production), and passes after.
+- [ ] 6.6 **The popup's token prompt** (D8, fix round 1), in `extension/src/popup.ts`. Tests first, in `extension/src/test/popup.test.ts`:
+  - the prompt shows "Copy the Bearer token of your X App from console.x.com.", and the axe check passes for the prompt with its hint (one test);
+  - `x_token_rejected` shows "X rejected the token. Replace the X token in CatchUp Settings.", with Open CatchUp;
+  - `x_token_exists` shows "Replace the X token in CatchUp Settings.", with Open CatchUp (guard, already green);
+  - every X code in `describeError` of `frontend/src/pages/Sources.tsx` shows the same text in the popup: the test lists the Sources texts literally, with a comment naming that file.
+
+  Verify: the tests fail on the current head, except the guard; `npm run build` in `extension/` passes.
+- [ ] 6.7 **Spec checks no test pinned** (D4, D5, D13; guards, already green). Each test must fail under its named mutation, and pass without it:
+  - **Ordering by last check** (`backend/tests/test_digest_runner.py`): with a limit of 5, account A checked at a later time than account B, both non-null, and each answering 5 posts with no `next_token`: B is read, and A is `deferred`. Mutation: order by `last_check_at` descending, nulls first.
+  - **The reply cap** (`backend/tests/test_x_check.py`): 11 short replies in one thread give 10 `captured_replies`, the oldest 10. Mutation: cap at 100.
+  - **Delete-all counts** (`backend/tests/test_x_settings_api.py`):
+    - a digest with two X items from the same X source and one feed item, from two sources in all: afterwards `item_count` is 1 and `source_count` is 1. Mutation: lower `source_count` by the number of X items removed;
+    - a digest with two orphaned X items (`item_id` `NULL`) with the same `source_name`, and one feed item: `source_count` is lowered by 1. Mutation: ignore orphaned items when counting sources.
+  - **The starting point at confirm** (`backend/tests/test_x_sources_api.py`): when the lookup's most recent post id is newer than every previewed post, `newest_id` is the lookup's id. Mutation: ignore the lookup's id.
+  - **Remove in Settings** (`frontend/src/pages/Settings.test.tsx`): Remove sends `DELETE /api/settings/x`, and the group then reads as having no token. Mutation: remove the `DELETE` call.
+
+  Verify: each test passes, and each named mutation fails it, and is reverted.
+- [ ] 6.8 **Report and checks.**
+  - **Report.** Add a "Fix round 1" section to `docs/process/test-report-add-x-accounts.md`, with each task's observed red result and each named mutation's result.
+  - **Checks:** run the six checks of task 5.2, in its order. Run the OpenSpec check as `DO_NOT_TRACK=1 openspec validate add-x-accounts --strict`, which turns off the CLI's telemetry.
+  - **Logs.** Update the coverage-summary line, and add your AI usage log entry for this round, with a faithful excerpt of the prompt you received. Leave out the session id.
+
+  Verify: every command passes, and the report has the actual numbers.

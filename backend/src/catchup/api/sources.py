@@ -1,7 +1,11 @@
 """Source preview, confirmation, listing and deletion."""
 
+import re
 from datetime import timedelta
 from dataclasses import asdict
+from contextlib import closing
+
+from cryptography.fernet import InvalidToken
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
@@ -12,12 +16,15 @@ from sqlalchemy.orm import Session
 from catchup.collection import article_text
 from catchup.db import get_session
 from catchup.errors import AppError
-from catchup.models import AppSettings, Item, Source, SourceCheck, utc_now
+from catchup.crypto import decrypt_key
+from catchup.models import AppSettings, Item, Source, SourceCheck, XAccount, XCredential, utc_now
 from catchup.net.host_spacing import HostSpacer
 from catchup.net.rate_limit import is_rate_limited
 from catchup.net.safe_fetch import FetchError, safe_fetch
 from catchup.sources.discovery import FEED_UNAVAILABLE_MESSAGE, discover, http_error_status
 from catchup.sources.feeds import FeedParseError, is_short, parse_feed
+from catchup.sources.x_accounts import post_item, x_username
+from catchup.sources.x_api import XApiError, XClient
 
 router = APIRouter(prefix="/api/sources")
 
@@ -63,8 +70,107 @@ def _unique_entries(feed):
         yield entry
 
 
+def _x_error(exc: XApiError) -> AppError:
+    return AppError(exc.code, str(exc), 422, **{
+        key: value for key, value in {"http_status": exc.http_status, "retry_after": exc.retry_after}.items()
+        if value is not None
+    })
+
+
+def _x_token(request: Request, session: Session) -> str:
+    row = session.get(XCredential, 1)
+    if row is None:
+        raise AppError("x_token_required", "X token needed.", 422)
+    try:
+        return decrypt_key(row.token_encrypted, request.app.state.settings.secret_key)
+    except (InvalidToken, AppError) as exc:
+        raise AppError("secret_invalid", "Check the X token and instance secret.", 400) from exc
+
+
+def _x_preview(request: Request, session: Session, *, username: str | None = None,
+               user_id: str | None = None) -> dict:
+    token = _x_token(request, session)
+    try:
+        with closing(XClient(token)) as client:
+            user = client.lookup_user(username) if username is not None else client.lookup_user_by_id(user_id)
+            if user.protected:
+                raise AppError("x_account_protected", "Protected X accounts cannot be followed.", 422)
+            feed_url = f"x:user:{user.id}"
+            duplicate = _existing(feed_url, session)
+            if duplicate:
+                raise _duplicate(duplicate, 422)
+            page = client.user_posts(user.id, max_results=5, exclude=["retweets", "replies"])
+    except XApiError as exc:
+        raise _x_error(exc) from exc
+    request.app.state.x_preview_cache.put(feed_url, user, page)
+    posts = [post for post in page.posts if not post.is_reply and not post.is_retweet][:5]
+    return {
+        "feed_url": feed_url, "site_url": f"https://x.com/{user.username}", "title": user.name,
+        "follows_site_feed_notice": False, "kind": "x", "captions_enabled": False,
+        "username": user.username,
+        "entries": [{"title": post_item(post, source_id=0, user=user).title,
+                     "link": f"https://x.com/{user.username}/status/{post.id}",
+                     "published_at": post.created_at} for post in posts],
+    }
+
+
+def _x_confirm(feed_url: str, request: Request, session: Session) -> dict:
+    if not re.fullmatch(r"x:user:[0-9]+", feed_url):
+        raise AppError("not_an_x_account", "This is not an X account address.", 422)
+    duplicate = _existing(feed_url, session)
+    if duplicate:
+        raise _duplicate(duplicate, 409)
+    cached = request.app.state.x_preview_cache.pop(feed_url)
+    if cached is None:
+        _x_preview(request, session, user_id=feed_url.removeprefix("x:user:"))
+        cached = request.app.state.x_preview_cache.pop(feed_url)
+    user, page = cached
+    now = utc_now()
+    settings = request.app.state.settings
+    lookback = now - timedelta(days=settings.first_add_days)
+    recent = [post for post in page.posts if not post.is_reply and not post.is_retweet
+              and lookback <= post.created_at <= now]
+    selected = sorted(recent, key=lambda post: post.created_at, reverse=True)[:settings.first_add_max]
+    source = Source(
+        title=user.name, site_url=f"https://x.com/{user.username}", feed_url=feed_url,
+        input_url=f"https://x.com/{user.username}", kind="x", created_at=now,
+        last_check_at=None, last_check_status="new_items" if selected else "no_new_items",
+    )
+    session.add(source)
+    session.flush()
+    session.add(XAccount(
+        source_id=source.id, user_id=user.id, username=user.username,
+        newest_id=user.most_recent_post_id or max(
+            (post.id for post in page.posts), key=int, default=None,
+        ), followed_at=now,
+    ))
+    for post in selected:
+        session.add(post_item(post, source_id=source.id, user=user))
+    session.add(SourceCheck(
+        source_id=source.id, run_id=None, status=source.last_check_status,
+        possible_gap=False, error=None, http_status=200, entries_seen=len(page.posts),
+        new_count=len(selected), checked_at=now,
+    ))
+    try:
+        session.commit()
+    except IntegrityError as exc:
+        session.rollback()
+        duplicate = _existing(feed_url, session)
+        if duplicate:
+            raise _duplicate(duplicate, 409) from exc
+        raise
+    return {
+        "id": source.id, "title": source.title, "site_url": source.site_url,
+        "feed_url": source.feed_url, "kind": source.kind, "last_check_at": source.last_check_at,
+        "last_check_status": source.last_check_status, "possible_gap": False,
+    }
+
+
 @router.post("/preview")
 def preview(data: PreviewInput, request: Request, session: Session = Depends(get_session)) -> dict:
+    username = x_username(data.url.strip())
+    if username is not None:
+        return _x_preview(request, session, username=username)
     try:
         found = discover(data.url.strip(), cache=request.app.state.feed_cache,
                          max_feed_bytes=request.app.state.settings.max_feed_bytes)
@@ -94,6 +200,8 @@ def preview(data: PreviewInput, request: Request, session: Session = Depends(get
 
 @router.post("", status_code=201)
 def confirm(data: ConfirmInput, request: Request, session: Session = Depends(get_session)) -> dict:
+    if data.feed_url.strip().startswith("x:user:"):
+        return _x_confirm(data.feed_url.strip(), request, session)
     try:
         feed_url = data.feed_url.strip()
         response = request.app.state.feed_cache.pop(feed_url)

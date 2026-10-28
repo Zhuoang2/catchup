@@ -1,0 +1,31 @@
+import pytest
+
+from catchup.errors import AppError
+from catchup.sources.x_accounts import x_username
+
+
+@pytest.mark.parametrize(("url", "username"), [
+    ("https://x.com/simonw", "simonw"),
+    ("https://www.x.com/simonw/", "simonw"),
+    ("https://mobile.x.com/simonw/media", "simonw"),
+    ("https://twitter.com/simonw/status/123", "simonw"),
+    ("http://x.com/Simon_W", "Simon_W"),
+])
+def test_account_addresses_identify_first_path_segment(url, username):
+    assert x_username(url) == username
+
+
+@pytest.mark.parametrize("url", [
+    "https://x.com/home", "https://x.com/i/lists/1", "https://x.com/search?q=a",
+    "https://twitter.com/HOME", "https://x.com/", "https://x.com/abcdefghijklmnop",
+])
+def test_x_pages_and_invalid_usernames_are_not_accounts(url):
+    with pytest.raises(AppError) as error:
+        x_username(url)
+    assert error.value.code == "not_an_x_account"
+    assert error.value.status_code == 422
+
+
+@pytest.mark.parametrize("url", ["https://example.com/simonw", "https://notx.com/simonw"])
+def test_non_x_addresses_keep_feed_discovery(url):
+    assert x_username(url) is None

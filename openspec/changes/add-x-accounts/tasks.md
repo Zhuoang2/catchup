@@ -81,7 +81,7 @@ Implementer notes:
 
 ## 2. Following an account: the client, addresses, preview, and confirm
 
-- [ ] 2.1 **The X API client** (D2), in `backend/src/catchup/sources/x_api.py`. Tests first, in a new `backend/tests/test_x_api.py`, against respx routes with probe-shaped fixtures:
+- [x] 2.1 **The X API client** (D2), in `backend/src/catchup/sources/x_api.py`. Tests first, in a new `backend/tests/test_x_api.py`, against respx routes with probe-shaped fixtures:
   - **Lookups.** `lookup_user` and `lookup_user_by_id` parse `id`, `name`, `username`, `protected`, and the most recent post id.
   - **`user_posts`:**
     - sends the given `since_id`, `until_id`, `start_time`, `max_results`, `pagination_token`, and `exclude`;
@@ -104,14 +104,14 @@ Implementer notes:
   - **Limits:** a body over 5 MB is refused; one request per call, with no retry.
 
   Verify: the tests fail before the module exists, and pass after.
-- [ ] 2.2 **Recognizing X addresses** (D3), in `backend/src/catchup/sources/x_accounts.py`. Tests first, in a new `backend/tests/test_x_accounts.py`, as a parameterized table:
+- [x] 2.2 **Recognizing X addresses** (D3), in `backend/src/catchup/sources/x_accounts.py`. Tests first, in a new `backend/tests/test_x_accounts.py`, as a parameterized table:
   - `https://x.com/simonw`, `https://www.x.com/simonw/`, `https://mobile.x.com/simonw/media`, `https://twitter.com/simonw/status/123`, and `http://x.com/Simon_W` give their usernames;
   - `https://x.com/home`, `https://x.com/i/lists/1`, `https://x.com/search?q=a`, and `https://twitter.com/HOME` raise `not_an_x_account`;
   - on an X host, a missing segment (`https://x.com/`) or a 16-character segment raises `not_an_x_account`;
   - other hosts, such as `https://example.com/simonw` and `https://notx.com/simonw`, return `None`.
 
   Verify: the tests fail before the module exists, and pass after.
-- [ ] 2.3 **Preview and confirm for X accounts** (D4), in `backend/src/catchup/api/sources.py`, with an `XPreviewCache` on `app.state`. Tests first, in `backend/tests/test_sources_api.py`, or a new `test_x_sources_api.py`.
+- [x] 2.3 **Preview and confirm for X accounts** (D4), in `backend/src/catchup/api/sources.py`, with an `XPreviewCache` on `app.state`. Tests first, in `backend/tests/test_sources_api.py`, or a new `test_x_sources_api.py`.
 
   **Preview:**
   - An X address with no token gives 422 `x_token_required`. The x.com page and `api.x.com` routes have `call_count == 0`, and `discover()` is not called.
@@ -136,7 +136,7 @@ Implementer notes:
   - A `SourceCheck` with `run_id=None` is written.
 
   Verify: the tests fail before the change, and pass after.
-- [ ] 2.4 **The Sources page for X accounts** (D9), in `frontend/src/pages/Sources.tsx`, `components/ui.tsx`, and `components/Icon.tsx`. Tests first, in `frontend/src/pages/Sources.test.tsx`:
+- [x] 2.4 **The Sources page for X accounts** (D9), in `frontend/src/pages/Sources.tsx`, `components/ui.tsx`, and `components/Icon.tsx`. Tests first, in `frontend/src/pages/Sources.test.tsx`:
   - an X preview shows the "X account" badge, the method "Posts read through the X API with your token", `@username`, and the profile address, and never shows `x:user:`;
   - an X source row shows its profile address in place of the feed URL;
   - on `x_token_required`, an inline password field, a link to README's X section, and "Save and preview" appear. Saving sends `PUT /api/settings/x`, then the same preview again, and the preview appears. The result is announced;

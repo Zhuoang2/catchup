@@ -40,9 +40,10 @@ export function Chip({ children, tone = 'neutral', title }: {
   return <span className={`chip chip-${tone}`} title={title}>{children}</span>
 }
 
-export type SourceKind = 'feed' | 'podcast' | 'youtube' | 'capture'
+export type SourceKind = 'feed' | 'podcast' | 'youtube' | 'capture' | 'x'
 export const kindNames: Record<SourceKind, string> = {
   feed: 'Website feed', podcast: 'Podcast', youtube: 'YouTube channel', capture: 'Saved from browser',
+  x: 'X account',
 }
 export function KindBadge({ kind }: { kind: SourceKind }) {
   return <span className={`badge badge-kind kind-${kind}`}><Icon name={kind} className="icon icon-sm"/>{kindNames[kind]}</span>

@@ -26,6 +26,7 @@ from catchup.errors import register_error_handlers
 from catchup.llm.client import ModelClient
 from catchup.models import ExtensionToken, utc_now
 from catchup.net.feed_cache import FeedCache
+from catchup.sources.x_accounts import XPreviewCache
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +103,7 @@ def create_app(settings: Settings | None = None, dist_dir: Path | None = None) -
     app = FastAPI(lifespan=lifespan)
     app.state.settings = instance_settings
     app.state.feed_cache = FeedCache()
+    app.state.x_preview_cache = XPreviewCache()
     app.state.model_client_factory = ModelClient
     register_error_handlers(app)
     app.include_router(settings_router)

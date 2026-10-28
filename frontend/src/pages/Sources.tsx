@@ -10,7 +10,7 @@ type Entry = { title: string; link: string; published_at: string | null }
 type Preview = {
   feed_url: string; site_url: string; title: string
   follows_site_feed_notice: boolean; entries: Entry[]
-  kind: SourceKind; captions_enabled: boolean
+  kind: SourceKind; captions_enabled: boolean; username?: string
 }
 type Source = {
   id: number; title: string; feed_url: string; site_url: string; kind: SourceKind
@@ -24,6 +24,12 @@ const messages: Record<string, string> = {
   fetch_failed: 'Could not fetch the source. Check the URL and try again.',
   no_feed: 'No supported feed was found at this URL.',
   not_a_feed: 'The URL did not return a parsable feed.',
+  x_token_required: 'X token needed.',
+  x_token_rejected: 'X rejected the token. Replace the X token in CatchUp Settings.',
+  x_account_protected: 'Protected X accounts cannot be followed.',
+  x_account_not_found: 'X account not found.',
+  x_account_suspended: 'X account suspended.',
+  not_an_x_account: 'This is not an X account address.',
 }
 
 function describeError(error: unknown) {
@@ -57,6 +63,7 @@ function SourcePreview({ preview, onConfirm, onCancel }: {
   preview: Preview; onConfirm: () => void; onCancel: () => void
 }) {
   const method = preview.kind === 'podcast' ? 'Transcripts published by the show'
+    : preview.kind === 'x' ? 'Posts read through the X API with your token'
     : preview.kind === 'youtube' ? preview.captions_enabled
       ? 'Captions fetched from YouTube on this computer'
       : 'Caption fetching is off; videos will be listed without summaries'
@@ -64,7 +71,9 @@ function SourcePreview({ preview, onConfirm, onCancel }: {
   return <section className="preview-card" aria-label="Source preview">
     <div className="preview-head"><h2 className="preview-title">{preview.title}</h2>
       <KindBadge kind={preview.kind}/></div>
-    <dl className="preview-urls"><dt>Feed</dt><dd><a href={preview.feed_url}>{preview.feed_url}</a></dd>
+    <dl className="preview-urls">{preview.kind === 'x'
+      ? <><dt>Account</dt><dd>@{preview.username}</dd></>
+      : <><dt>Feed</dt><dd><a href={preview.feed_url}>{preview.feed_url}</a></dd></>}
       <dt>Site</dt><dd><a href={preview.site_url}>{preview.site_url}</a></dd></dl>
     <p className="preview-method"><Icon name={preview.kind === 'youtube' && !preview.captions_enabled ? 'info' : 'check'}/>
       {method}{preview.kind === 'youtube' && !preview.captions_enabled && <>
@@ -89,6 +98,7 @@ function SourcePreview({ preview, onConfirm, onCancel }: {
 function SourceStatus({ source }: { source: Source }) {
   const status = source.rate_limited ? 'Rate limited · try later' : ({
     new_items: 'New items', no_new_items: 'No new items', failed: 'Failed',
+    deferred: 'Waits for the next run',
   } as Record<string, string>)[source.last_check_status ?? ''] ?? 'Never checked'
   const tone = source.rate_limited ? 'warn' : source.last_check_status === 'failed' ? 'error'
     : source.last_check_status === 'new_items' ? 'ok' : 'neutral'
@@ -109,6 +119,8 @@ export default function Sources() {
   const [fieldError, setFieldError] = useState('')
   const [pageError, setPageError] = useState('')
   const [message, setMessage] = useState('')
+  const [needsXToken, setNeedsXToken] = useState(false)
+  const [xToken, setXToken] = useState('')
   const [confirmId, setConfirmId] = useState<number | null>(null)
   const [restoreFocusId, setRestoreFocusId] = useState<number | null>(null)
   const [focusAfterDelete, setFocusAfterDelete] = useState(false)
@@ -145,12 +157,33 @@ export default function Sources() {
 
   async function previewSource(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setPreview(null); setFieldError(''); setPageError(''); setMessage('')
+    setPreview(null); setFieldError(''); setPageError(''); setMessage(''); setNeedsXToken(false)
     try {
       setPreview(await request<Preview>('/sources/preview', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
       }))
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'x_token_required') setNeedsXToken(true)
+      setFieldError(describeError(err))
+    }
+  }
+
+  async function saveXAndPreview(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setFieldError(''); setMessage('')
+    try {
+      await request('/settings/x', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: xToken }),
+      })
+      setXToken('')
+      setNeedsXToken(false)
+      setPreview(await request<Preview>('/sources/preview', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      }))
+      setMessage('X token saved.')
     } catch (err) { setFieldError(describeError(err)) }
   }
 
@@ -185,13 +218,22 @@ export default function Sources() {
     <form className="add-form card" onSubmit={event => void previewSource(event)} noValidate>
       <label className="field-label" htmlFor="url">Website or feed URL</label>
       <div className="input-row"><input className="input" id="url" type="url" value={url}
-        onChange={event => { setUrl(event.target.value); setPreview(null); setFieldError('') }}
+        onChange={event => { setUrl(event.target.value); setPreview(null); setFieldError(''); setNeedsXToken(false) }}
         placeholder="https://example.com" required aria-invalid={fieldError ? true : undefined}
         aria-describedby={`${fieldError ? 'url-error ' : ''}url-hint`}/>
         <Button variant={preview ? 'secondary' : 'primary'} type="submit">Preview</Button></div>
       {fieldError && <p className="field-error" id="url-error" role="alert"><Icon name="alert"/>{fieldError}</p>}
       <p className="field-hint" id="url-hint">Paste a page address. CatchUp looks for its feed and shows a preview before saving.</p>
     </form>
+    {needsXToken && <form className="card" onSubmit={event => void saveXAndPreview(event)}>
+      <label className="field-label" htmlFor="source-x-token">X API token</label>
+      <input className="input" id="source-x-token" type="password" value={xToken}
+        autoComplete="new-password" aria-describedby="source-x-token-hint"
+        onChange={event => setXToken(event.target.value)} required/>
+      <p className="field-hint" id="source-x-token-hint">Paste your own Bearer token.{' '}
+        <a href="https://github.com/Zhuoang2/catchup#x-accounts">How to get one</a>.</p>
+      <Button type="submit" variant="primary">Save and preview</Button>
+    </form>}
     {pageError && <p className="field-error" role="alert"><Icon name="alert"/>{pageError}</p>}
     {message && <p role="status">{message}</p>}
     {preview && <SourcePreview preview={preview} onConfirm={() => void confirmSource()}
@@ -221,7 +263,8 @@ export default function Sources() {
           <span className="source-icon"><Icon name={source.kind}/></span>
           <div className="source-main"><p className="source-title">{source.title} <KindBadge kind={source.kind}/></p>
             {source.kind === 'capture' ? <p>{pluralPages(source.waiting_count ?? 0)}</p>
-              : <p className="source-feed" title={source.feed_url}>{source.feed_url}</p>}</div>
+              : <p className="source-feed" title={source.kind === 'x' ? source.site_url : source.feed_url}>
+                {source.kind === 'x' ? source.site_url : source.feed_url}</p>}</div>
           {source.kind !== 'capture' && <SourceStatus source={source}/>}
           <Button variant="ghost" size="sm" className="btn-danger" type="button"
             ref={node => { if (node) deleteRefs.current.set(source.id, node)

@@ -17,7 +17,7 @@ Implementer notes:
 
 ## 0. The field-name probe (Claude and the user, before Droid)
 
-- [ ] 0.1 **Probe the live API** (D11). Claude writes `scripts/x_probe.py`. The user runs it with their own token, in their own shell. Claude records the result in `design.md` as D2a:
+- [x] 0.1 **Probe the live API** (D11). Claude writes `scripts/x_probe.py`. The user runs it with their own token, in their own shell. Claude records the result in `design.md` as D2a:
   - the field and parameter names that work (`tweet.fields` or `post.fields`, `note_tweet` or `note_post`);
   - whether the lookup returns `most_recent_tweet_id`;
   - whether `GET /2/usage/tweets` answers with a Bearer token.
@@ -89,13 +89,13 @@ Implementer notes:
     - does not ask for `referenced_tweets.id`;
     - returns `XPage` with `next_token` and `result_count`.
   - **A post's text:**
-    - the long-post field when present, otherwise `text`;
+    - `note_tweet.text` when present, else `note_post.text`, otherwise `text` (D2a);
     - every `t.co` URL replaced by `unwound_url`, else `expanded_url`;
     - `urls` holds those destinations.
   - **Post kinds and photos:** replies and retweets are flagged; photos come with `alt_text`.
   - **Error mapping:**
     - 401 and 403 → `x_token_rejected`;
-    - a "not found" `errors` entry → `x_account_not_found`;
+    - an HTTP 200 answer with no `data`, and an `errors` entry whose `type` ends in `resource-not-found` (D2a) → `x_account_not_found`;
     - a "suspended" entry → `x_account_suspended`;
     - an authorization entry naming the account → `x_account_protected`;
     - 429 → `rate_limited`, with `retry_after` from `x-rate-limit-reset`, a message starting with `RATE_LIMIT_PREFIX`, and `http_status` 429;
@@ -119,7 +119,8 @@ Implementer notes:
     - `feed_url` `x:user:<id>`;
     - `kind` `x`;
     - the display name as `title`;
-    - up to 5 entries, whose titles come from the post text.
+    - up to 5 entries, whose titles come from the post text;
+    - a self-reply that comes back despite `exclude=replies` (D2a) is left out of the entries.
 
     It makes exactly one lookup request and one posts request, with `max_results=5` and `exclude` of retweets and replies.
   - A protected account gives 422 `x_account_protected`; an unknown one, `x_account_not_found`.

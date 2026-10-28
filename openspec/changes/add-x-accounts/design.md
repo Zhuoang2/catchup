@@ -112,6 +112,25 @@ The facts from the research that shape the design. Line numbers are at main f1b7
   - The message for `rate_limited` starts with `RATE_LIMIT_PREFIX` (`safe_fetch.py:22`), so stored checks read as rate limited.
 - **Field names.** Fixed by the probe (D11) before Droid runs. The probe's result is recorded here as D2a, and the fixtures follow it.
 
+### D2a. What the probe showed (2026-10-27)
+
+The user ran `scripts/x_probe.py` against one public account, with their own token. Its output, which holds no token, is in the gitignored `work/x-probe.txt`.
+- **Both spellings work, and the response keys follow the request.**
+  - `tweet.fields` returns `referenced_tweets` and `edit_history_tweet_ids`.
+  - `post.fields` returns `referenced_posts` and `edit_history_post_ids`.
+  - **The client uses `tweet.fields`.** It reads a long post's text from `note_tweet`, falling back to `note_post`. The sample held no long post, so a fixture invents one in the `note_tweet` shape of the data dictionary.
+- **The lookup** returns `id`, `name`, `username`, `protected`, and `most_recent_tweet_id`.
+- **`exclude=replies` did not exclude a self-reply.** A post came back with `exclude=retweets,replies` although its `in_reply_to_user_id` was the author's own id, and it had a `referenced_tweets` entry of type `replied_to`. So the preview drops replies itself: any post with a `replied_to` reference, or with `in_reply_to_user_id` set.
+- **Reply fields.** A reply carries `in_reply_to_user_id`, `conversation_id` (the root post's id), and `referenced_tweets` `[{type: "replied_to", id}]`. An original has `conversation_id` equal to its own `id`.
+- **An unknown username answers HTTP 200,** not 404. The body has no `data`, and `errors: [{title: "Not Found Error", resource_type: "user", type: ".../2/problems/resource-not-found", ...}]`.
+  - The client maps errors by the last path segment of `type` (`resource-not-found`).
+  - It maps them neither by the HTTP status, nor by the full URL, whose host was `api.x.com`.
+- **Timeline pages.** `meta` has `newest_id`, `oldest_id`, `result_count`, and `next_token`. Ids are 19-digit strings. `created_at` looks like `2026-10-28T04:18:22.000Z`.
+- **URLs.** Each `entities.urls` item had `url` (t.co), `expanded_url`, `unwound_url`, `display_url`, `status`, `start`, and `end`. None had a `title`.
+- **Media.** `includes.media` had `media_key`, `type` `photo`, and `url`. There was no `alt_text`, which appears only when set, so alt text defaults to `""`.
+- **Rate-limit headers.** Every answer had `x-rate-limit-limit`, `-remaining`, and `-reset`, a Unix time. The limits were 300 for lookups, 10,000 for the timeline, and 50 for usage.
+- **`GET /2/usage/tweets?days=1`** answers 200 with a Bearer token, and `data` holds `project_usage`, `project_cap`, and `cap_reset_day`. Test uses it.
+
 ### D3. Recognizing X account addresses (`backend/src/catchup/sources/x_accounts.py`)
 
 - **The function.** `x_username(url) -> str | None`:
@@ -129,7 +148,7 @@ The facts from the research that shape the design. Line numbers are at main f1b7
   1. **Token.** With no token saved, 422 `x_token_required`.
   2. **Lookup.** A protected account gets 422 `x_account_protected`.
   3. **Duplicates.** An account already followed (`feed_url == "x:user:<id>"`) gets 422 `duplicate`, with `existing_source`, as for feeds.
-  4. **Posts.** One `user_posts(id, max_results=5, exclude=["retweets","replies"])`.
+  4. **Posts.** One `user_posts(id, max_results=5, exclude=["retweets","replies"])`. Replies that still come back are dropped (D2a), so the preview may show fewer than 5.
 - **The preview response** has the same shape as a feed preview, so the Sources page and the popup render it unchanged:
   - `feed_url: "x:user:<id>"`;
   - `site_url: "https://x.com/<username>"`;

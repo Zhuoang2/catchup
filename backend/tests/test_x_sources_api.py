@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
+from threading import Thread
 
 import httpx
 import pytest
@@ -11,7 +12,8 @@ from sqlalchemy import func, select
 
 from catchup.config import Settings
 from catchup.main import create_app
-from catchup.models import Item, Source, SourceCheck, XAccount
+from catchup.models import Item, Source, SourceCheck, XAccount, XCredential
+from catchup.digest.runner import _start_lock
 
 UID = "1234567890123456789"
 TOKEN = "test-" + "x" * 40
@@ -156,6 +158,35 @@ def test_confirm_uses_cache_and_stores_only_recent_posts(client):
         assert items[0].entry_links == [{"url": "https://blog.example/article", "text": ""}]
         assert items[0].image_candidates[0]["alt"] == "Chart"
         assert check.run_id is None and check.new_count == 2
+
+
+def test_confirm_waits_for_delete_all_and_rechecks_token(client):
+    save_token(client)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        lookup, by_id, timeline = mock_x(router, posts=[post("900")])
+        preview = client.post("/api/sources/preview", json={"url": PROFILE})
+        assert preview.status_code == 200
+        results = []
+        thread = Thread(target=lambda: results.append(
+            client.post("/api/sources", json={"feed_url": preview.json()["feed_url"]})))
+        with _start_lock:
+            thread.start()
+            thread.join(timeout=0.5)
+            alive = thread.is_alive()
+            with client.app.state.session_factory() as session:
+                session.delete(session.get(XCredential, 1))
+                session.commit()
+        thread.join(timeout=5)
+        assert not thread.is_alive()
+        assert alive
+        assert len(results) == 1
+        assert results[0].status_code == 422
+        assert results[0].json()["error"]["code"] == "x_token_required"
+        assert lookup.call_count == timeline.call_count == 1
+        assert by_id.call_count == 0
+    with client.app.state.session_factory() as session:
+        assert session.scalar(select(Source)) is None
+        assert session.scalar(select(Item)) is None
 
 
 def test_confirm_cache_miss_looks_up_by_id_and_handles_never_posted(client):

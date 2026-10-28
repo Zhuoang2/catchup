@@ -411,7 +411,7 @@ An independent review of the whole change found the items below, Claude confirme
   - a timeline answer of `{"meta": {"result_count": 0}}` is still an empty last page (guard, already green).
 
   Verify: the tests fail on the current head, except the guard.
-- [ ] 8.4 **Confirm and Delete all X data exclude each other** (D4, D13, fix round 3), in `backend/src/catchup/api/sources.py` (`_x_confirm`). Tests first, in `backend/tests/test_x_sources_api.py`:
+- [x] 8.4 **Confirm and Delete all X data exclude each other** (D4, D13, fix round 3), in `backend/src/catchup/api/sources.py` (`_x_confirm`). Tests first, in `backend/tests/test_x_sources_api.py`:
   - preview an account; then hold `_start_lock` (`catchup.digest.runner._start_lock`) in a `with` block, and inside it: start the confirm in a thread, call `thread.join(timeout=0.5)`, record `alive = thread.is_alive()`, and remove the token with a direct database delete from a new session. After the block, `thread.join(timeout=5)`, and assert that the thread has finished, that `alive` was true, that the confirm answered 422 `x_token_required`, and that no source and no item are stored. (Assert only outside the `with` block, so a failure never leaves the lock held.)
   - a confirm with no concurrent change still answers 201 (guard, already green).
 

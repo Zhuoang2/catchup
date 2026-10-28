@@ -103,6 +103,8 @@ def _x_preview(request: Request, session: Session, *, username: str | None = Non
 
 
 def _x_confirm(feed_url: str, request: Request, session: Session) -> dict:
+    from catchup.digest.runner import _start_lock
+
     if not re.fullmatch(r"x:user:[0-9]+", feed_url):
         raise AppError("not_an_x_account", "This is not an X account address.", 422)
     _x_token(request, session)
@@ -120,39 +122,44 @@ def _x_confirm(feed_url: str, request: Request, session: Session) -> dict:
     recent = [post for post in page.posts if not post.is_reply and not post.is_retweet
               and lookback <= post.created_at <= now]
     selected = sorted(recent, key=lambda post: post.created_at, reverse=True)[:settings.first_add_max]
-    source = Source(
-        title=user.name, site_url=f"https://x.com/{user.username}", feed_url=feed_url,
-        input_url=f"https://x.com/{user.username}", kind="x", created_at=now,
-        last_check_at=None, last_check_status="new_items" if selected else "no_new_items",
-    )
-    session.add(source)
-    session.flush()
-    session.add(XAccount(
-        source_id=source.id, user_id=user.id, username=user.username,
-        newest_id=user.most_recent_post_id or max(
-            (post.id for post in page.posts), key=int, default=None,
-        ), followed_at=now,
-    ))
-    for post in selected:
-        session.add(post_item(post, source_id=source.id, user=user))
-    session.add(SourceCheck(
-        source_id=source.id, run_id=None, status=source.last_check_status,
-        possible_gap=False, error=None, http_status=200, entries_seen=len(page.posts),
-        new_count=len(selected), checked_at=now,
-    ))
-    try:
-        session.commit()
-    except IntegrityError as exc:
-        session.rollback()
-        duplicate = _existing(feed_url, session)
+    with _start_lock, request.app.state.session_factory() as fresh:
+        _x_token(request, fresh)
+        duplicate = _existing(feed_url, fresh)
         if duplicate:
-            raise _duplicate(duplicate, 409) from exc
-        raise
-    return {
-        "id": source.id, "title": source.title, "site_url": source.site_url,
-        "feed_url": source.feed_url, "kind": source.kind, "last_check_at": source.last_check_at,
-        "last_check_status": source.last_check_status, "possible_gap": False,
-    }
+            raise _duplicate(duplicate, 409)
+        source = Source(
+            title=user.name, site_url=f"https://x.com/{user.username}", feed_url=feed_url,
+            input_url=f"https://x.com/{user.username}", kind="x", created_at=now,
+            last_check_at=None, last_check_status="new_items" if selected else "no_new_items",
+        )
+        fresh.add(source)
+        fresh.flush()
+        fresh.add(XAccount(
+            source_id=source.id, user_id=user.id, username=user.username,
+            newest_id=user.most_recent_post_id or max(
+                (post.id for post in page.posts), key=int, default=None,
+            ), followed_at=now,
+        ))
+        for post in selected:
+            fresh.add(post_item(post, source_id=source.id, user=user))
+        fresh.add(SourceCheck(
+            source_id=source.id, run_id=None, status=source.last_check_status,
+            possible_gap=False, error=None, http_status=200, entries_seen=len(page.posts),
+            new_count=len(selected), checked_at=now,
+        ))
+        try:
+            fresh.commit()
+        except IntegrityError as exc:
+            fresh.rollback()
+            duplicate = _existing(feed_url, fresh)
+            if duplicate:
+                raise _duplicate(duplicate, 409) from exc
+            raise
+        return {
+            "id": source.id, "title": source.title, "site_url": source.site_url,
+            "feed_url": source.feed_url, "kind": source.kind, "last_check_at": source.last_check_at,
+            "last_check_status": source.last_check_status, "possible_gap": False,
+        }
 
 
 @router.post("/preview")

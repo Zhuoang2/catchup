@@ -323,7 +323,7 @@ Claude's review of run 1 confirmed the defects below, and the user approved this
 - [x] 6.5 **Test answers `secret_invalid` for a token that cannot be decrypted** (D1, fix round 1), in `backend/src/catchup/api/settings.py`, sharing the decryption helper with preview. Tests first, in `backend/tests/test_x_settings_api.py`: save a token, replace the app's secret with another valid one, then `POST /api/settings/x/test` with `{}`: 400 `secret_invalid`, "Check the X token and instance secret.", and a respx route for `https://api.x.com/2/usage/tweets` has `call_count == 0`.
 
   Verify: the test fails on the current head (the test client raises `InvalidToken`, which is a 500 in production), and passes after.
-- [ ] 6.6 **The popup's token prompt** (D8, fix round 1), in `extension/src/popup.ts`. Tests first, in `extension/src/test/popup.test.ts`:
+- [x] 6.6 **The popup's token prompt** (D8, fix round 1), in `extension/src/popup.ts`. Tests first, in `extension/src/test/popup.test.ts`:
   - the prompt shows "Copy the Bearer token of your X App from console.x.com.", and the axe check passes for the prompt with its hint (one test);
   - `x_token_rejected` shows "X rejected the token. Replace the X token in CatchUp Settings.", with Open CatchUp;
   - `x_token_exists` shows "Replace the X token in CatchUp Settings.", with Open CatchUp (guard, already green);

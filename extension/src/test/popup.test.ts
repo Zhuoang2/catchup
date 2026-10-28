@@ -384,6 +384,8 @@ it('asks for an X API token, saves it through the API, and retries the preview w
   fireEvent.click(await screen.findByRole('button', { name: 'Follow this account' }))
   const field = await screen.findByLabelText('X API token')
   expect(field).toHaveAttribute('type', 'password')
+  expect(screen.getByText('Copy the Bearer token of your X App from console.x.com.')).toBeInTheDocument()
+  expect(field).toHaveAccessibleDescription('Copy the Bearer token of your X App from console.x.com.')
   expect((await axe(document.body, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([])
   fireEvent.input(field, { target: { value: 'invented-x-token' } })
   fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -398,9 +400,9 @@ it('asks for an X API token, saves it through the API, and retries the preview w
 })
 
 it.each([
-  ['x_token_exists', 'save'],
-  ['x_token_rejected', 'preview'],
-])('directs %s to CatchUp Settings and offers Open CatchUp', async (code, stage) => {
+  ['x_token_exists', 'save', 'Replace the X token in CatchUp Settings.'],
+  ['x_token_rejected', 'preview', 'X rejected the token. Replace the X token in CatchUp Settings.'],
+])('directs %s to CatchUp Settings and offers Open CatchUp', async (code, stage, wording) => {
   connect()
   chromeMock.tabs.query.mockResolvedValue([{ id: 1, url: 'https://x.com/writer', title: 'Writer' }])
   fetchMock.mockImplementation(async (url: string) => url.endsWith('/preview')
@@ -414,14 +416,15 @@ it.each([
       { target: { value: 'invented-x-token' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
   }
-  await waitFor(() => expect(screen.getByRole('status'))
-    .toHaveTextContent('Replace the X token in CatchUp Settings.'))
+  await waitFor(() => expect(screen.getByRole('status').textContent).toBe(wording))
   fireEvent.click(screen.getByRole('button', { name: 'Open CatchUp' }))
   expect(chromeMock.tabs.create).toHaveBeenCalledWith({ url: 'http://127.0.0.1:8000' })
   expect((await axe(document.body, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([])
 })
 
+// These strings mirror describeError in frontend/src/pages/Sources.tsx.
 it.each([
+  ['x_token_rejected', 'X rejected the token. Replace the X token in CatchUp Settings.'],
   ['x_account_protected', 'Protected X accounts cannot be followed.'],
   ['x_account_not_found', 'X account not found.'],
   ['x_account_suspended', 'X account suspended.'],

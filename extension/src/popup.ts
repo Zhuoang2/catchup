@@ -68,7 +68,7 @@ function sourceError(error: ApiError): string {
     not_a_feed: 'The URL did not return a parsable feed.',
     x_token_required: 'X token needed.',
     x_token_exists: 'Replace the X token in CatchUp Settings.',
-    x_token_rejected: 'Replace the X token in CatchUp Settings.',
+    x_token_rejected: 'X rejected the token. Replace the X token in CatchUp Settings.',
     x_account_protected: 'Protected X accounts cannot be followed.',
     x_account_not_found: 'X account not found.',
     x_account_suspended: 'X account suspended.',
@@ -290,9 +290,12 @@ export async function initPopup(): Promise<void> {
     const input = element('input')
     input.type = 'password'
     input.autocomplete = 'off'
+    input.setAttribute('aria-describedby', 'x-token-hint')
     label.append(input)
+    const hint = element('p', 'Copy the Bearer token of your X App from console.x.com.')
+    hint.id = 'x-token-hint'
     const save = button('Save', () => { void saveXToken() })
-    section.append(label, save,
+    section.append(label, hint, save,
       button('Open CatchUp', () => { void chrome.tabs.create({ url: server }) }))
     root.replaceChildren(section, statusText)
     statusText.textContent = 'X token needed.'

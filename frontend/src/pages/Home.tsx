@@ -113,6 +113,7 @@ function RunStateContent({ run, compact, firstRun, loadingNewDigest, configurati
       : 'No digest was saved.'
     const result = <>
       <p className="result-meta">{details}{' · '}{tokenTotals(run.prompt_tokens, run.completion_tokens)}</p>
+      <HeldNotes run={run}/>
       <SourceChecks checks={attentionChecks} label="Needs attention" compact={compact}/>
     </>
     return <>

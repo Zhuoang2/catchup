@@ -79,6 +79,22 @@ it.each([
   else expect(container).not.toHaveTextContent('X accounts have posts waiting')
   await expectAccessible(container)
 })
+it.each([
+  [12, 1, '12 X posts read', '1 X account has posts waiting for the next run'],
+  [0, 0, null, null],
+] as const)('shows billed X reads on failed run with %i reads and %i waiting', async (
+  reads, waiting, readsText, waitingText,
+) => {
+  const { container } = mockPage({ run: { ...run, status: 'failed', error_message: 'Model unavailable.',
+    source_checks: [], x_reads: reads, x_waiting_accounts: waiting } })
+  expect(await screen.findByText('Model unavailable.')).toBeInTheDocument()
+  const result = screen.getByRole('region', { name: 'Digest run' })
+  if (readsText) expect(within(result).getByText(readsText)).toBeInTheDocument()
+  else expect(result).not.toHaveTextContent('X posts read')
+  if (waitingText) expect(within(result).getByText(waitingText)).toBeInTheDocument()
+  else expect(result).not.toHaveTextContent('X account has posts waiting')
+  await expectAccessible(container)
+})
 
 it('counts X accounts in the source rail', async () => {
   const { container } = mockPage({ sources: [...sources, { kind: 'x' }] })

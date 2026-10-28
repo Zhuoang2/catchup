@@ -416,7 +416,7 @@ An independent review of the whole change found the items below, Claude confirme
   - a confirm with no concurrent change still answers 201 (guard, already green).
 
   Verify: the first test fails on the current head (the confirm finishes while the lock is held, and stores the account). Then the named mutation "write without holding `_start_lock`" fails it, and is reverted.
-- [ ] 8.5 **A failed run shows its X reads** (D9, fix round 3), in `frontend/src/pages/Home.tsx`. Tests first, in `frontend/src/pages/Home.test.tsx`:
+- [x] 8.5 **A failed run shows its X reads** (D9, fix round 3), in `frontend/src/pages/Home.tsx`. Tests first, in `frontend/src/pages/Home.test.tsx`:
   - a failed run with `x_reads` 12 and `x_waiting_accounts` 1 shows "12 X posts read" and "1 X account has posts waiting for the next run", next to its error;
   - a failed run with both counters 0 shows neither line (guard, already green);
   - `expectAccessible` passes for the failed state with the lines.

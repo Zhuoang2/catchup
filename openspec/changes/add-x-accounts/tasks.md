@@ -346,3 +346,40 @@ Claude's review of run 1 confirmed the defects below, and the user approved this
   - **Logs.** Update the coverage-summary line, and add your AI usage log entry for this round, with a faithful excerpt of the prompt you received. Leave out the session id.
 
   Verify: every command passes, and the report has the actual numbers.
+
+## 7. Fix round 2 (review of fix round 1, 2026-10-28): the last round
+
+The review of fix round 1 confirmed the items below, and the user approved this round. It is the last Droid round for this change (D-023). Read the parts of `design.md` marked "Fix round 2" (D3, D5). Work test-first, as before: every check must fail on the current branch head, except those marked "guard (already green)", which must instead fail under their named mutation. No test may hang: when a mocked X route could be called more often than the test expects, give it a `side_effect` that fails the test on the extra call.
+
+- [ ] 7.1 **A page cap instead of the empty-page stop** (D5, fix round 2), in `backend/src/catchup/sources/x_check.py`. Tests first, in `backend/tests/test_x_check.py`. Replace `test_empty_page_with_next_token_ends_phase_without_another_request`, which hangs instead of failing when its rule breaks, with:
+  - **Phase B past an empty page.** With 300 reads left, X answers an empty page with a `next_token`, then a page of 3 originals with no `next_token`: exactly two requests, the 3 posts are stored, no gap is set, and `newest_id` is the largest of the 3.
+  - **Phase A past an empty page.** With 300 reads left, `newest_id` `"200"`, and the gap `"100"` to `"151"`, X answers an empty page with a `next_token`, then a page of 2 originals with ids between 100 and 151 and no `next_token`, then (for Phase B) a page with no posts and no `next_token`: exactly three requests; the second has `until_id` `"151"` and that `pagination_token`; both posts are stored, and the gap is cleared. (On the current head, the empty page ends Phase A, and the second request is Phase B's, without `until_id`.)
+  - **The cap with nothing read.** X answers only empty pages with a `next_token` (the route's `side_effect` fails the test on request 41): exactly 40 requests; the check is `no_new_items`, not `failed`. In Phase B, no gap is set and `newest_id` is unchanged; in Phase A (a second test, with a gap set), the gap ids are unchanged.
+  - **The cap after posts were read.** With 300 reads left, in Phase B, X answers a page of 5 originals with a `next_token`, then only empty pages with a `next_token`: 40 requests, the 5 posts are stored, and the gap is the old `newest_id` and the oldest of the 5.
+
+  Verify: the tests fail on the current head. Then the named mutations "restore the empty-page stop (`or not page.posts`)" and "remove the page cap" each fail a test, by an assertion and not by hanging, and are reverted.
+- [ ] 7.2 **Hosts with a trailing dot** (D3, fix round 2), in `backend/src/catchup/sources/x_accounts.py` (`is_x_host`, `x_username`) and the copy in `extension/src/popup.ts`.
+  - Backend tests first, in `backend/tests/test_x_accounts.py` and `backend/tests/test_context_links.py`:
+    - `is_x_host` is true for `x.com.`, `help.x.com.`, `twitter.com.`, and `X.COM`, and false for `notx.com` and `x.com.example.org` (guard, already green);
+    - `x_username("https://x.com./simonw")` gives `simonw`; `https://x.com./home` and `https://help.x.com./en` raise `not_an_x_account`;
+    - `related_links` drops `https://x.com./a/status/1`.
+  - Extension tests first, in `extension/src/test/popup.test.ts`:
+    - on `https://x.com./simonw`, the popup offers "Follow this account";
+    - on `https://help.x.com./en`, it offers only "Add this page to my next digest";
+    - on `https://notx.com/simonw` and `https://x.com.example.org/simonw`, it offers "Follow this site" (guard, already green).
+
+  Verify: the tests fail on the current head, except the guards. Then the named mutation "drop the `.` boundary in the popup's `isXHost`" fails a look-alike test, and is reverted.
+- [ ] 7.3 **Feed confirm with an address it cannot parse** (D3, fix round 2), in `backend/src/catchup/api/sources.py`. Test first, in `backend/tests/test_sources_api.py`: `POST /api/sources` with `{"feed_url": "http://[abc/feed"}` answers 422 `invalid_url`, "Enter a valid public HTTP or HTTPS URL.", with `catchup.api.sources.safe_fetch` replaced by `pytest.fail`.
+
+  Verify: the test fails on the current head (the test client raises `ValueError`), and passes after.
+- [ ] 7.4 **Checks no test pinned** (D1, D2; guards, already green). Each test must fail under its named mutation:
+  - **A missing instance secret** (`backend/tests/test_x_settings_api.py`): save a token, then remove the app's instance secret (`secret_key=None`), then `POST /api/settings/x/test` with `{}`: 400 `secret_invalid`, and the usage route has `call_count == 0`. Mutation: the shared helper catches only `InvalidToken`.
+  - **Suspension named only in the title** (`backend/tests/test_x_api.py`): HTTP 200, no `data`, and `errors: [{type: ".../2/problems/resource-not-found", title: "Account suspended", detail: "Could not find user with username: [name]."}]` → `x_account_suspended`. Mutation: look for suspension in `detail` only.
+
+  Verify: each test passes, each named mutation fails it, and is reverted.
+- [ ] 7.5 **Report and checks.**
+  - **Report.** Add a "Fix round 2" section to `docs/process/test-report-add-x-accounts.md`, with each task's observed red result and each named mutation's result.
+  - **Checks:** run the six checks of task 5.2, in its order, with the OpenSpec check as `DO_NOT_TRACK=1 openspec validate add-x-accounts --strict`.
+  - **Logs.** Update the coverage-summary line, and add your AI usage log entry for this round, with a faithful excerpt of the prompt you received. Leave out the session id.
+
+  Verify: every command passes, and the report has the actual numbers.

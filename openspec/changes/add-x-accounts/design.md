@@ -21,6 +21,12 @@ Full RePPIT change for issue #41.
   - D3: other x.com hosts reached `discover()`;
   - D8: the token prompt's hint, and its rejected-token wording, which disagreed with the spec.
 
+- **Fix round 2 (2026-10-28), the last round.** The review of fix round 1 found two small defects and one plan error, and the user approved one more small round, task group 7. Amended where marked "Fix round 2":
+  - D5: fix round 1's "an empty page ends a phase" could skip posts for good; a page cap replaces it;
+  - D3: a host with a trailing dot (`x.com.`) was not an X host, and feed confirm answered 500 for an address it could not parse.
+
+  A fresh sub-agent checked group 7 before Droid ran. Claude verified its 3 findings and folded them in: a Phase A test that passed on the current head and would fail after the fix, a missing budget, and a guard not marked as one.
+
   Before Droid runs, a fresh sub-agent checked group 6 against the code (D-023). Claude verified its 8 findings and folded all of them in: a mutation that a rewrite would make equivalent, two checks the test network block made vacuous, a missing guard on the extractor choice, links to other X hosts still fetched as context, the real red result of Test, an axe check that could not fail, and an unbounded loop on empty pages.
 
 ## Context
@@ -152,7 +158,7 @@ The user ran `scripts/x_probe.py` against one public account, with their own tok
   - the first path segment must match `^[A-Za-z0-9_]{1,15}$`, and must not be reserved.
 - **Reserved first segments** are compared without case: `home`, `explore`, `search`, `i`, `settings`, `notifications`, `messages`, `compose`, `login`, `logout`, `signup`, `tos`, `privacy`, `hashtag`, `intent`, `share`, `account`, and `jobs`.
   - A reserved X address, a missing segment, or a segment that does not match raises `AppError("not_an_x_account", …, 422)`.
-  - **Fix round 1: every other host under `x.com` or `twitter.com`** (the host equals the domain or ends with `.` plus the domain), such as `help.x.com` or `developer.x.com`, also raises `not_an_x_account`. The spec says the system MUST NOT request any page on x.com or twitter.com; run 1 sent those hosts to `discover()`. The cost: X's own blogs cannot be followed as feeds. Look-alike hosts such as `notx.com` or `x.com.example.org` are not X hosts. One helper decides whether a host is under `x.com` or `twitter.com`. The same helper makes feed confirm refuse an X-host `feed_url`, and makes `related_links` (`context/links.py:34-35`) drop links to every X host, not only `x.com` and `twitter.com`, so a post's link to `developer.x.com` is not fetched as context.
+  - **Fix round 1: every other host under `x.com` or `twitter.com`** (the host equals the domain or ends with `.` plus the domain), such as `help.x.com` or `developer.x.com`, also raises `not_an_x_account`. The spec says the system MUST NOT request any page on x.com or twitter.com; run 1 sent those hosts to `discover()`. The cost: X's own blogs cannot be followed as feeds. Look-alike hosts such as `notx.com` or `x.com.example.org` are not X hosts. One helper decides whether a host is under `x.com` or `twitter.com`. **Fix round 2:** it compares the host in lower case, without one trailing dot, so `x.com.` (the same host, fully qualified) counts; the popup's copy does the same, and every popup check uses that normalized host. So `https://x.com./simonw` is the account `simonw`, and `https://help.x.com./en` is refused. The same helper makes feed confirm refuse an X-host `feed_url`, and makes `related_links` (`context/links.py:34-35`) drop links to every X host, not only `x.com` and `twitter.com`, so a post's link to `developer.x.com` is not fetched as context. **Fix round 2:** feed confirm answers 422 `invalid_url`, "Enter a valid public HTTP or HTTPS URL.", as `safe_fetch` does, when the address cannot be parsed; round 1's host check raised `ValueError` there, a 500.
   - A non-X address returns `None`, and the feed path runs as today.
 - **Where it runs.** Preview calls it before `discover()`, so an X address never reaches `safe_fetch`.
 - **The extension.** It keeps a copy of the rules, with a comment naming this module, as it already does for the error wording (`extension/src/popup.ts:27`). With fix round 1, the copy treats every host under `x.com` or `twitter.com` as an X page, so `https://help.x.com/en` offers only "Add this page". The X extractor is still used only on post pages of the six account hosts.
@@ -202,7 +208,10 @@ The user ran `scripts/x_probe.py` against one public account, with their own tok
     - `newest_id` becomes the largest post id read.
     - When the budget runs out with `next_token` present, the gap is set to the old `newest_id` (since) and the oldest post id read (until).
     - When Phase B reaches a page with no `next_token`, no gap is set.
-  - **Fix round 1: an empty page ends a phase.** A page with no posts is treated as the last page, even with a `next_token`, because the budget falls only by posts returned, so such pages could be requested without limit.
+  - **Fix round 2: a page cap, not an empty-page stop.** Fix round 1 treated a page with no posts as the last page, even with a `next_token`. X's timeline guide says a `next_token` can come with `result_count: 0`, so the posts after such a page would be skipped for good: Phase A cleared the gap, and Phase B had already moved `newest_id`. Instead:
+    - an empty page with a `next_token` does not end a phase;
+    - a phase makes at most 40 requests (`MAX_PAGES`). The timeline returns at most the 3,200 most recent posts, which is 32 pages of 100, so 40 leaves room for empty pages, and bounds the loop, because empty pages cost no budget;
+    - reaching the cap is an early stop, like running out of budget: the gap rules below apply. When the phase read no post at all, nothing changes: Phase A keeps its gap, and Phase B sets no gap and keeps `newest_id`, so the next run reads from the same place.
   - **Fix round 1: the invariant.** After a check, the gap ids name exactly the posts that were skipped and are not yet read. So the gap changes only where a phase ends:
     - Phase A that reads to its last page clears the gap; Phase A that stops early sets `gap_until_id` to the oldest id it read;
     - Phase B sets the gap only when it stops early with `next_token` present, to the old `newest_id` and the oldest id read in Phase B.

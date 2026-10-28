@@ -25,6 +25,15 @@ Full RePPIT change for issue #41.
   - D5: fix round 1's "an empty page ends a phase" could skip posts for good; a page cap replaces it;
   - D3: a host with a trailing dot (`x.com.`) was not an X host, and feed confirm answered 500 for an address it could not parse.
 
+- **Fix round 3 (2026-10-28).** The user asked for an independent review of the whole change after fix round 2. It found no high-severity defect, and seven smaller ones, all confirmed by Claude. The user approved one more round, task group 8, and chose to record the eighth item, author replies lost when the read limit splits a thread, as a known limit (D5). Amended where marked "Fix round 3":
+  - D1: a token with a character outside printable ASCII was saved, then made every run fail, because `httpx` cannot encode it in a header;
+  - D3: the rule against requesting x.com lived in three callers, and `safe_fetch` still followed redirects to x.com and fetched x.com entry links; one refusal in `safe_fetch` replaces the callers' guards (re-derived, D-023);
+  - D2, D5: an answer that is not a timeline page (HTML, or only an unknown error) counted as the last page, and cleared a gap;
+  - D4, D13: a confirm could store an account while "Delete all X data" ran;
+  - D9: a failed run did not show the X reads already billed.
+
+  A fresh sub-agent checked group 8 before Droid ran. Claude verified its 6 findings and folded them in: an address parse in `safe_fetch` that still raised `ValueError`, a redirect test that could not fail, a lock test that could hang the suite, guards without mutations, a stale comment, and the reason a new session is needed.
+
   A fresh sub-agent checked group 7 before Droid ran. Claude verified its 3 findings and folded them in: a Phase A test that passed on the current head and would fail after the fix, a missing budget, and a guard not marked as one.
 
   Before Droid runs, a fresh sub-agent checked group 6 against the code (D-023). Claude verified its 8 findings and folded all of them in: a mutation that a rewrite would make equivalent, two checks the test network block made vacuous, a missing guard on the extractor choice, links to other X hosts still fetched as context, the real red result of Test, an axe check that could not fail, and an unbounded loop on empty pages.
@@ -88,7 +97,7 @@ The facts from the research that shape the design. Line numbers are at main f1b7
   - **Why its own table:** it mirrors `model_config`, and keeps `app_settings` to preferences.
 - **Routes** (in `api/settings.py`):
   - `GET /api/settings/x`: `{token_set, token_last4}`.
-  - `PUT /api/settings/x`: `{token}`, stripped. It must be non-empty, at most 1,000 characters, with no whitespace, or it gets 422 `invalid_x_token`.
+  - `PUT /api/settings/x`: `{token}`, stripped. It must be non-empty, at most 1,000 characters, with no whitespace, or it gets 422 `invalid_x_token`. **Fix round 3:** it must also be printable ASCII (`[\x21-\x7e]{1,1000}`), because it is sent in an HTTP header; `httpx` raises `UnicodeEncodeError` for anything else, for example a zero-width space copied with the token. Test's `{token}` follows the same rule.
     - **From the extension:** when `request.state.extension_token_id` is set and a token is already saved, it answers 409 `x_token_exists`, and changes nothing.
     - **Without the instance secret** it answers `secret_not_configured`, as for the model key.
   - `DELETE /api/settings/x`: removes the row, and empties the X preview cache (D4, fix round 1); 204.
@@ -124,6 +133,7 @@ The facts from the research that shape the design. Line numbers are at main f1b7
     1. **Suspended first.** An entry whose `detail` or `title` mentions suspension → `x_account_suspended`. X reports a suspended account as HTTP 200 with type `resource-not-found` and the detail "User has been suspended", or sometimes as 403 (developer forum threads [141550](https://devcommunity.x.com/t/users-by-username-returns-200-status-for-suspended-accounts/141550) and [174127](https://devcommunity.x.com/t/403-forbidden-63-user-has-been-suspended/174127); the API reference does not say). So this check must come before the not-found check. Run 1 reported suspended accounts as not found.
     2. A type ending in `resource-not-found` → `x_account_not_found`.
     3. An authorization entry for an account (a protected account) → `x_account_protected`, even when the HTTP status is 401 or 403. The probe cannot show this case, so the mapping follows the documented error types, and a test pins it.
+  - **Fix round 3.** A 2xx answer whose body is not a JSON object, or that has no `data` and only `errors` entries no rule above matches, is `fetch_failed`, with its HTTP status. A timeline answer is a page only when it has a `meta` object with an integer `result_count`; otherwise `fetch_failed`. Run 2 returned such answers as an empty page with no `next_token`, which ended a phase as complete and cleared its gap.
   - Then the HTTP status:
   - 401 or 403 → `x_token_rejected`;
   - 404 → `x_account_not_found`;
@@ -161,6 +171,11 @@ The user ran `scripts/x_probe.py` against one public account, with their own tok
   - **Fix round 1: every other host under `x.com` or `twitter.com`** (the host equals the domain or ends with `.` plus the domain), such as `help.x.com` or `developer.x.com`, also raises `not_an_x_account`. The spec says the system MUST NOT request any page on x.com or twitter.com; run 1 sent those hosts to `discover()`. The cost: X's own blogs cannot be followed as feeds. Look-alike hosts such as `notx.com` or `x.com.example.org` are not X hosts. One helper decides whether a host is under `x.com` or `twitter.com`. **Fix round 2:** it compares the host in lower case, without one trailing dot, so `x.com.` (the same host, fully qualified) counts; the popup's copy does the same, and every popup check uses that normalized host. So `https://x.com./simonw` is the account `simonw`, and `https://help.x.com./en` is refused. The same helper makes feed confirm refuse an X-host `feed_url`, and makes `related_links` (`context/links.py:34-35`) drop links to every X host, not only `x.com` and `twitter.com`, so a post's link to `developer.x.com` is not fetched as context. **Fix round 2:** feed confirm answers 422 `invalid_url`, "Enter a valid public HTTP or HTTPS URL.", as `safe_fetch` does, when the address cannot be parsed; round 1's host check raised `ValueError` there, a 500.
   - A non-X address returns `None`, and the feed path runs as today.
 - **Where it runs.** Preview calls it before `discover()`, so an X address never reaches `safe_fetch`.
+- **Fix round 3: one refusal, in `safe_fetch`.** Fix rounds 1 and 2 kept the rule "never request a page on x.com or twitter.com" in its callers: preview, feed confirm, and `related_links`, and then had to patch those guards (an unparsable address, a trailing dot). `safe_fetch` itself still followed a redirect to x.com, and fetched an x.com entry link (`collection.py:60`, for example from a feed that turns X posts into RSS). Re-derived from the invariant:
+  - `is_x_host` moves to a module with no CatchUp imports, `backend/src/catchup/net/x_hosts.py`, because `safe_fetch` cannot import `sources/x_accounts.py` (that module imports `x_api.py`, which imports `safe_fetch`). `x_accounts.py` imports it from there.
+  - `_check_address` (`net/safe_fetch.py`), which runs for the first address and for every redirect hop, refuses an X host before resolving it: `FetchError("blocked_address", "X pages are read only through the X API.")`.
+  - Feed confirm's own X-host check, and its `ValueError` mapping from fix round 2, are removed. `safe_fetch` answers `blocked_address` for an X host, and `invalid_url` for an address it cannot parse: its loop parsed the current address outside any `try` (`net/safe_fetch.py:118`), so `http://[abc/feed` raised `ValueError` in preview and confirm, which this round also fixes.
+  - What stays: preview calls `x_username` to route an account address to the X API, and to answer `not_an_x_account`; `related_links` still drops X links, so they do not use the context budget, but it is no longer what keeps x.com from being requested.
 - **The extension.** It keeps a copy of the rules, with a comment naming this module, as it already does for the error wording (`extension/src/popup.ts:27`). With fix round 1, the copy treats every host under `x.com` or `twitter.com` as an X page, so `https://help.x.com/en` offers only "Add this page". The X extractor is still used only on post pages of the six account hosts.
 
 ### D4. Preview and confirm (capability `x-accounts`; `api/sources.py`)
@@ -190,6 +205,7 @@ The user ran `scripts/x_probe.py` against one public account, with their own tok
   - Of the previewed posts, up to `FIRST_ADD_MAX` from `FIRST_ADD_DAYS` become `pending` items (D6). No baseline items are stored: `newest_id` already marks where reading starts.
   - It writes a `SourceCheck` with `run_id=None`, as for feeds (`api/sources.py:158-162`).
   - A concurrent duplicate is caught as `IntegrityError`, as for feeds.
+  - **Fix round 3: confirm and Delete all X data exclude each other.** The re-preview on a cache miss runs first, outside any lock, because it calls X. Then, holding `_start_lock` (`runner.py:33`), which delete-all holds, confirm opens a new session from `session_factory`, checks again that a token is saved, checks for a duplicate, writes, and commits. A new session matters: the request's session already loaded the token row in `_x_token`, and its identity map would return that row again without asking the database, so it would still see a deleted token.
 
 ### D5. Reading on each run, with the read limit (capabilities `x-accounts`, `content-collection`)
 
@@ -218,6 +234,7 @@ The user ran `scripts/x_probe.py` against one public account, with their own tok
 
     Run 1 set the gap after every Phase B page that had a `next_token`, and did not clear it on the last page. So an account with more than one page of new posts kept a stale gap after it was read in full: the next run read those posts again, paid for them again, and counted the account as waiting.
   - **Known limit (fix round 1, recorded, not fixed).** When Phase A reads to its last page with fewer than 5 reads left, Phase B waits for the next run. The account gets `no_new_items` or `new_items`, its `last_check_at` is set, and it is not counted as waiting. No post is lost: `newest_id` is unchanged, so the next run that reads it starts from there.
+  - **Known limit (fix round 3, the user's choice on 2026-10-28, recorded, not fixed).** Posts are read newest first, so the author's replies in a thread come before its root post. When the read limit or the page cap stops a read between them, the replies read in this run are dropped, because their root is not in the batch, and a later run that reads the root does not get them back. They are billed. The root post itself is not lost. README says so.
   - **Ids** are compared as integers, and stored as strings.
 - **Costs.** Each page subtracts its `result_count` from the budget. The run adds it to `DigestRun.x_reads`.
 - **Threads.** The posts read for one account in one run, from both phases, form one batch:
@@ -308,7 +325,7 @@ The user ran `scripts/x_probe.py` against one public account, with their own tok
   - the status label `deferred` → "Waits for the next run".
 - **Home:**
   - the check label `deferred` → "Waits for the next run";
-  - the held notes gain "N X posts read", and "N X accounts have posts waiting for the next run";
+  - the held notes gain "N X posts read", and "N X accounts have posts waiting for the next run". **Fix round 3:** a failed run shows the same two lines, because its reads were billed and its counters are stored (D5);
   - the rail adds the X account count;
   - `DigestArticle` shows the `x` kind icon.
 

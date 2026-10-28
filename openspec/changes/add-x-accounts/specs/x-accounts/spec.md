@@ -5,7 +5,7 @@ The system SHALL treat a pasted address as an X account address when its host is
 
 X's own pages are not accounts, and the system MUST report "not an X account" for them. These are first path segments such as `home`, `explore`, `search`, `i`, `settings`, `notifications`, `messages`, `compose`, `login`, `signup`, `tos`, `privacy`, `hashtag`, `intent`, and `share`. Addresses on any other host under `x.com` or `twitter.com`, such as `help.x.com`, are not accounts either.
 
-The system MUST NOT request any page on x.com or twitter.com. It reads X only through the X API, with the user's token.
+The system MUST NOT request any page on x.com or twitter.com, including through a redirect or a link in another source. It reads X only through the X API, with the user's token.
 
 #### Scenario: Profile address
 - **WHEN** the user pastes `https://x.com/simonw`
@@ -27,10 +27,15 @@ The system MUST NOT request any page on x.com or twitter.com. It reads X only th
 - **WHEN** the user pastes `https://help.x.com/en`
 - **THEN** the system reports that the address is not an X account, requests nothing from help.x.com, and saves nothing
 
+#### Scenario: Redirect to X
+- **WHEN** a feed entry's page, or a linked page, redirects to `https://x.com/someone/status/1`
+- **THEN** the system does not request x.com, and keeps the entry's feed text
+
 ### Requirement: Store the user's X API token
 The system SHALL store one X API token, an app-only Bearer token from the user's own X developer account, encrypted with the secret supplied through the instance's environment, as it stores the model key.
 - It MUST NOT return the token, or write it to logs.
 - It MAY return only the token's last four characters.
+- A token with whitespace, or with a character outside printable ASCII, MUST be refused.
 - Saving MUST be refused when the instance secret is missing.
 
 Settings SHALL let the user save, replace, remove, and test the token. Testing MUST NOT read any post or account. A request from the browser extension MAY save a token only when none is saved; replacing or removing a token is done in Settings.
@@ -134,7 +139,7 @@ Each run SHALL read at most `CATCHUP_X_READS_PER_RUN` posts from the X API, 200 
 - An account that the limit leaves unread SHALL be recorded with the outcome `deferred`, shown as "Waits for the next run".
 - When the limit is reached partway through an account, the posts already read SHALL be kept, and the account's remaining posts SHALL be read by later runs, before its newer posts.
 
-A post MUST NOT be lost because of the limit, unless the X API no longer returns it. The run SHALL report how many X posts it read, and how many accounts have posts waiting.
+A post MUST NOT be lost because of the limit, unless the X API no longer returns it. The run SHALL report how many X posts it read, and how many accounts have posts waiting, also when the run fails after reading.
 
 #### Scenario: Limit reached before an account
 - **WHEN** the limit is 200, and the first accounts read return 200 posts

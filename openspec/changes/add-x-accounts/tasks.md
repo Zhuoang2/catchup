@@ -383,3 +383,50 @@ The review of fix round 1 confirmed the items below, and the user approved this 
   - **Logs.** Update the coverage-summary line, and add your AI usage log entry for this round, with a faithful excerpt of the prompt you received. Leave out the session id.
 
   Verify: every command passes, and the report has the actual numbers.
+
+## 8. Fix round 3 (independent review, 2026-10-28)
+
+An independent review of the whole change found the items below, Claude confirmed them, and the user approved this round. Read the parts of `design.md` marked "Fix round 3" (the bullet near the top, D1, D2, D3, D4, D5, D9) and the amended lines of `specs/x-accounts/spec.md`. Work test-first, as before: every check must fail on the current branch head, except those marked "guard (already green)", which must instead fail under their named mutation when one is named. No test may hang: give any mocked route that could be called more often than expected a `side_effect` that fails the test on the extra call, and never hold a lock outside a `with` block.
+
+- [ ] 8.1 **Tokens are printable ASCII** (D1, fix round 3), in `backend/src/catchup/api/settings.py` (`_valid_x_token`). Tests first, in `backend/tests/test_x_settings_api.py`:
+  - `PUT /api/settings/x` with a token ending in a zero-width space (`"​"`), and with one containing `"é"`, answers 422 `invalid_x_token`, and stores nothing;
+  - `POST /api/settings/x/test` with such a `{token}` answers 422 `invalid_x_token`, and the usage route has `call_count == 0`;
+  - a token made of letters, digits, and `%`, `-`, `_`, `=`, `+`, `/` is still saved (guard, already green).
+
+  Verify: the first two tests fail on the current head (the save answers 200; the test client raises `UnicodeEncodeError` on Test).
+- [ ] 8.2 **One X-host refusal, in `safe_fetch`** (D3, fix round 3). Move `is_x_host` to a new `backend/src/catchup/net/x_hosts.py` with no CatchUp imports, and import it from there in `sources/x_accounts.py`, `context/links.py`, and `net/safe_fetch.py`. In `_check_address`, refuse an X host before resolving it, with `FetchError("blocked_address", "X pages are read only through the X API.")`. Make every parse of the current address in `safe_fetch` raise `invalid_url` instead of `ValueError`: today `parts = urlsplit(current)` (`net/safe_fetch.py:118`) runs before `_check_address` and outside any `try`, so `http://[abc/feed` raises `ValueError` (a 500 in preview and confirm). Remove feed confirm's own X-host check and its `ValueError` mapping (`api/sources.py`, fix round 2). Update the comment at `extension/src/popup.ts:31` to name both `sources/x_accounts.py` (account rules) and `net/x_hosts.py` (host rule). Tests first:
+  - in `backend/tests/test_safe_fetch.py`:
+    - `safe_fetch("https://x.com/a")`, and `safe_fetch("https://help.x.com./en")`, raise `blocked_address` without resolving the host (the autouse network block would raise first otherwise);
+    - a public address that answers 301 to `https://x.com/someone/status/1` raises `blocked_address`. Use `respx.mock(assert_all_mocked=True, assert_all_called=False)`, and make the `resolve` fixture answer `x.com` with a public address (`resolve["x.com"] = ["8.8.4.4"]`), so that without the refusal the x.com route would really be called; assert that route's `call_count == 0`;
+    - `safe_fetch("http://[abc/feed")` raises `FetchError` `invalid_url`;
+  - in `backend/tests/test_collection.py` (or the existing tests of `article_text`): a short feed entry whose link is `https://x.com/someone/status/1` keeps its feed text, with origin `feed`;
+  - in `backend/tests/test_x_sources_api.py`: update `test_confirm_feed_url_on_x_host_refuses_without_fetch` so it no longer replaces `safe_fetch`, and expects 422 `blocked_address`; nothing is stored;
+  - in `backend/tests/test_sources_api.py`: update `test_confirm_unparseable_feed_url_is_invalid_before_fetch` so it no longer replaces `safe_fetch`; it still expects 422 `invalid_url`, "Enter a valid public HTTP or HTTPS URL." (guard, already green after the change);
+  - the preview tests for `https://help.x.com/en` and the `related_links` tests still pass unchanged (guards).
+
+  Verify: the `safe_fetch` and `article_text` tests fail on the current head. Then the named mutation "remove the X-host refusal from `_check_address`" fails the redirect test, and is reverted.
+- [ ] 8.3 **Only a real timeline page counts** (D2, D5, fix round 3), in `backend/src/catchup/sources/x_api.py`. Tests first, in `backend/tests/test_x_api.py` and `backend/tests/test_x_check.py`:
+  - a 200 answer with an HTML body, a 200 answer with `{"errors": [{"type": "https://api.x.com/2/problems/invalid-request"}]}`, and a 200 timeline answer with `data` but no `meta` each raise `fetch_failed` with `http_status` 200;
+  - in `check_x_account`, with a gap set, each of those answers records `failed`, and leaves both gap ids and `newest_id` unchanged;
+  - a timeline answer of `{"meta": {"result_count": 0}}` is still an empty last page (guard, already green).
+
+  Verify: the tests fail on the current head, except the guard.
+- [ ] 8.4 **Confirm and Delete all X data exclude each other** (D4, D13, fix round 3), in `backend/src/catchup/api/sources.py` (`_x_confirm`). Tests first, in `backend/tests/test_x_sources_api.py`:
+  - preview an account; then hold `_start_lock` (`catchup.digest.runner._start_lock`) in a `with` block, and inside it: start the confirm in a thread, call `thread.join(timeout=0.5)`, record `alive = thread.is_alive()`, and remove the token with a direct database delete from a new session. After the block, `thread.join(timeout=5)`, and assert that the thread has finished, that `alive` was true, that the confirm answered 422 `x_token_required`, and that no source and no item are stored. (Assert only outside the `with` block, so a failure never leaves the lock held.)
+  - a confirm with no concurrent change still answers 201 (guard, already green).
+
+  Verify: the first test fails on the current head (the confirm finishes while the lock is held, and stores the account). Then the named mutation "write without holding `_start_lock`" fails it, and is reverted.
+- [ ] 8.5 **A failed run shows its X reads** (D9, fix round 3), in `frontend/src/pages/Home.tsx`. Tests first, in `frontend/src/pages/Home.test.tsx`:
+  - a failed run with `x_reads` 12 and `x_waiting_accounts` 1 shows "12 X posts read" and "1 X account has posts waiting for the next run", next to its error;
+  - a failed run with both counters 0 shows neither line (guard, already green);
+  - `expectAccessible` passes for the failed state with the lines.
+
+  Verify: the first test fails on the current head; `npm run build` passes.
+- [ ] 8.6 **The gap's starting point when the account had never posted** (D5; guard, already green), in `backend/tests/test_x_check.py`: with `newest_id` `None`, a Phase B stopped by the budget sets `gap_since_id` `None`; the next call's first request (Phase A) has `start_time` equal to `followed_at`, no `since_id`, and `until_id` equal to the gap's. Mutation: send `start_time=None` in Phase A.
+- [ ] 8.7 **README and report.**
+  - **README.** In the "X accounts" section, add one sentence on the known limit (D5): when the read limit stops a read inside a thread, the author's replies read before the limit are dropped, and are not added later. Extend `extension/src/test/docs.test.ts` to require the word "thread" in that section, and see it fail first.
+  - **Report.** Add a "Fix round 3" section to `docs/process/test-report-add-x-accounts.md`, with each task's observed red result and each named mutation's result.
+  - **Checks:** run the six checks of task 5.2, in its order, with the OpenSpec check as `DO_NOT_TRACK=1 openspec validate add-x-accounts --strict`.
+  - **Logs.** Update the coverage-summary line, and add your AI usage log entry for this round, with a faithful excerpt of the prompt you received. Leave out the session id.
+
+  Verify: every command passes, and the report has the actual numbers.

@@ -9,6 +9,8 @@ from catchup.models import Item, Source, SourceCheck, XAccount, utc_now
 from catchup.sources.x_accounts import post_item
 from catchup.sources.x_api import XApiError, XClient, XPage, XPost, XUser
 
+MAX_PAGES = 40
+
 
 @dataclass
 class XReadBudget:
@@ -56,12 +58,14 @@ def check_x_account(session: Session, source: Source, account: XAccount, run_id:
         token = None
         oldest_read = None
         complete = False
-        while budget.remaining >= 5:
+        pages = 0
+        while budget.remaining >= 5 and pages < MAX_PAGES:
             page: XPage = client.user_posts(
                 account.user_id, since_id=since_id, until_id=until_id,
                 start_time=start_time, max_results=min(100, budget.remaining),
                 pagination_token=token, exclude=["retweets"],
             )
+            pages += 1
             budget.charge(page.result_count)
             entries_seen += page.result_count
             posts.extend(page.posts)
@@ -72,7 +76,7 @@ def check_x_account(session: Session, source: Source, account: XAccount, run_id:
                 newest = max((post.id for post in page.posts), key=int, default=None)
                 if newest is not None and (account.newest_id is None or int(newest) > int(account.newest_id)):
                     account.newest_id = newest
-            if not page.next_token or not page.posts:
+            if not page.next_token:
                 complete = True
                 break
             if budget.remaining < 5:

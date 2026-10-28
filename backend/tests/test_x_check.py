@@ -252,9 +252,118 @@ def test_two_page_new_post_budget_exhaustion_keeps_only_unread_gap(app):
         assert (account.newest_id, account.gap_since_id, account.gap_until_id) == ("300", "100", "151")
 
 
-def test_empty_page_with_next_token_ends_phase_without_another_request(app):
+def test_phase_b_reads_posts_after_an_empty_page_with_a_next_token(app):
+    responses = [page([], "next"), page([x_post(203), x_post(202), x_post(201)])]
+
+    def respond(request):
+        if len(route.calls) >= len(responses):
+            pytest.fail("unexpected extra X page request")
+        return httpx.Response(200, json=responses[len(route.calls)])
+
     with respx.mock(assert_all_mocked=True) as router:
-        route = router.get(f"https://api.x.com/2/users/{UID}/tweets").mock(
-            return_value=httpx.Response(200, json=page([], "next")))
+        route = router.get(f"https://api.x.com/2/users/{UID}/tweets").mock(side_effect=respond)
         result = check(app, XReadBudget(remaining=300), router)
-    assert result.status == "no_new_items" and route.call_count == 1
+    assert route.call_count == 2
+    assert route.calls[1].request.url.params["pagination_token"] == "next"
+    assert (result.status, result.new_count) == ("new_items", 3)
+    with app.app.state.session_factory() as session:
+        assert {item.identity_key for item in session.scalars(select(Item))} == {"201", "202", "203"}
+        account = session.scalar(select(XAccount))
+        assert (account.newest_id, account.gap_since_id, account.gap_until_id) == ("203", None, None)
+
+
+def test_phase_a_reads_gap_after_an_empty_page_then_reads_phase_b(app):
+    with app.app.state.session_factory() as session:
+        account = session.scalar(select(XAccount))
+        account.newest_id = "200"
+        account.gap_since_id = "100"
+        account.gap_until_id = "151"
+        session.commit()
+    responses = [page([], "next"), page([x_post(150), x_post(149)]), page([])]
+
+    def respond(request):
+        if len(route.calls) >= len(responses):
+            pytest.fail("unexpected extra X page request")
+        return httpx.Response(200, json=responses[len(route.calls)])
+
+    with respx.mock(assert_all_mocked=True) as router:
+        route = router.get(f"https://api.x.com/2/users/{UID}/tweets").mock(side_effect=respond)
+        result = check(app, XReadBudget(remaining=300), router)
+    assert route.call_count == 3
+    assert route.calls[1].request.url.params["until_id"] == "151"
+    assert route.calls[1].request.url.params["pagination_token"] == "next"
+    assert (result.status, result.new_count, result.entries_seen) == ("new_items", 2, 2)
+    with app.app.state.session_factory() as session:
+        assert {item.identity_key for item in session.scalars(select(Item))} == {"149", "150"}
+        account = session.scalar(select(XAccount))
+        assert (account.newest_id, account.gap_since_id, account.gap_until_id) == ("200", None, None)
+
+
+def test_phase_b_caps_empty_pages_without_changing_cursor_or_gap(app):
+    calls = 0
+
+    def respond(request):
+        nonlocal calls
+        calls += 1
+        if calls > 40:
+            pytest.fail("X requested page 41")
+        return httpx.Response(200, json=page([], "next"))
+
+    with respx.mock(assert_all_mocked=True) as router:
+        route = router.get(f"https://api.x.com/2/users/{UID}/tweets").mock(side_effect=respond)
+        result = check(app, XReadBudget(remaining=300), router)
+    assert calls == route.call_count == 40
+    assert (result.status, result.entries_seen) == ("no_new_items", 0)
+    with app.app.state.session_factory() as session:
+        account = session.scalar(select(XAccount))
+        assert (account.newest_id, account.gap_since_id, account.gap_until_id) == ("100", None, None)
+
+
+def test_phase_a_caps_empty_pages_without_clearing_unread_gap(app):
+    with app.app.state.session_factory() as session:
+        account = session.scalar(select(XAccount))
+        account.newest_id = "200"
+        account.gap_since_id = "100"
+        account.gap_until_id = "151"
+        session.commit()
+    calls = 0
+
+    def respond(request):
+        nonlocal calls
+        calls += 1
+        if calls > 40:
+            pytest.fail("X requested page 41")
+        return httpx.Response(200, json=page([], "next"))
+
+    with respx.mock(assert_all_mocked=True) as router:
+        route = router.get(f"https://api.x.com/2/users/{UID}/tweets").mock(side_effect=respond)
+        result = check(app, XReadBudget(remaining=300), router)
+    assert calls == route.call_count == 40
+    assert (result.status, result.entries_seen) == ("no_new_items", 0)
+    with app.app.state.session_factory() as session:
+        account = session.scalar(select(XAccount))
+        assert (account.newest_id, account.gap_since_id, account.gap_until_id) == ("200", "100", "151")
+
+
+def test_phase_b_caps_after_posts_and_preserves_unread_gap(app):
+    calls = 0
+
+    def respond(request):
+        nonlocal calls
+        calls += 1
+        if calls > 40:
+            pytest.fail("X requested page 41")
+        posts = [x_post(n) for n in range(205, 200, -1)] if calls == 1 else []
+        return httpx.Response(200, json=page(posts, "next"))
+
+    with respx.mock(assert_all_mocked=True) as router:
+        route = router.get(f"https://api.x.com/2/users/{UID}/tweets").mock(side_effect=respond)
+        result = check(app, XReadBudget(remaining=300), router)
+    assert calls == route.call_count == 40
+    assert (result.status, result.new_count, result.entries_seen) == ("new_items", 5, 5)
+    with app.app.state.session_factory() as session:
+        assert {item.identity_key for item in session.scalars(select(Item))} == {
+            "201", "202", "203", "204", "205",
+        }
+        account = session.scalar(select(XAccount))
+        assert (account.newest_id, account.gap_since_id, account.gap_until_id) == ("205", "100", "201")

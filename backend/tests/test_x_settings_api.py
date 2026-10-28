@@ -11,6 +11,7 @@ from sqlalchemy import select
 from catchup.main import create_app
 from catchup.models import (Digest, DigestItem, DigestRun, DigestTopic, Item, ItemContext,
                              Source, XAccount, XCredential)
+from catchup.sources.x_api import XPage, XUser
 
 
 @pytest.fixture
@@ -227,3 +228,14 @@ def test_extension_cannot_delete_all_x_data(client):
     })
     assert response.status_code == 403
     assert client.get("/api/settings/x").json()["token_set"] is True
+
+
+@pytest.mark.parametrize("operation", ["delete-token", "delete-all"])
+def test_removing_x_access_empties_the_preview_cache(client, operation):
+    feed_url = "x:user:123"
+    cache = client.app.state.x_preview_cache
+    cache.put(feed_url, XUser("123", "Writer", "writer", False, None), XPage((), None, 0))
+    response = (client.delete("/api/settings/x") if operation == "delete-token"
+                else client.post("/api/settings/x/delete-all"))
+    assert response.status_code in (200, 204)
+    assert cache.pop(feed_url) is None

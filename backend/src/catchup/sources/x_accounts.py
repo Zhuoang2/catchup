@@ -68,6 +68,10 @@ class XPreviewCache:
                 return None
             return entry[1], entry[2]
 
+    def clear(self) -> None:
+        with self._lock:
+            self._entries.clear()
+
 
 def post_item(post: XPost, *, source_id: int, user: XUser, replies: list[str] | None = None) -> Item:
     link = f"https://x.com/{user.username}/status/{post.id}"

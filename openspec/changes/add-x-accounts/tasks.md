@@ -313,7 +313,7 @@ Claude's review of run 1 confirmed the defects below, and the user approved this
     - on `https://help.x.com/a/status/1`, Add uses the generic extractor, not the X extractor (guard, already green; it turns red if the wider host rule reaches the extractor choice).
 
   Verify: the tests fail on the current head, except the guards and the look-alike-host tests.
-- [ ] 6.4 **The preview cache does not outlive the token or the X data** (D1, D4, D13, fix round 1), in `backend/src/catchup/sources/x_accounts.py` (`XPreviewCache.clear()`), `api/settings.py`, and `api/sources.py`. Tests first, in `backend/tests/test_x_sources_api.py` and `backend/tests/test_x_settings_api.py`:
+- [x] 6.4 **The preview cache does not outlive the token or the X data** (D1, D4, D13, fix round 1), in `backend/src/catchup/sources/x_accounts.py` (`XPreviewCache.clear()`), `api/settings.py`, and `api/sources.py`. Tests first, in `backend/tests/test_x_sources_api.py` and `backend/tests/test_x_settings_api.py`:
   - preview an account, `DELETE /api/settings/x`, then confirm: 422 `x_token_required`, no source and no item are stored, and no further `api.x.com` request is made;
   - preview an account, `POST /api/settings/x/delete-all`, save a new token, then confirm: the confirm makes a new lookup by id (the cached preview is gone);
   - after `DELETE /api/settings/x`, and after delete-all, `app.state.x_preview_cache` holds no entry;

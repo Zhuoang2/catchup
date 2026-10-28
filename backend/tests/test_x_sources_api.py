@@ -1,5 +1,6 @@
 """Preview and follow X accounts without visiting x.com pages."""
 
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -182,3 +183,58 @@ def test_confirm_feed_url_on_x_host_refuses_without_fetch(client, monkeypatch):
     response = client.post("/api/sources", json={"feed_url": "https://help.x.com/rss"})
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "not_an_x_account"
+
+
+def test_removed_token_invalidates_cached_preview_and_refuses_confirm(client):
+    save_token(client)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        lookup, by_id, timeline = mock_x(router, posts=[post("900")])
+        preview = client.post("/api/sources/preview", json={"url": PROFILE})
+        assert preview.status_code == 200
+        assert client.delete("/api/settings/x").status_code == 204
+        confirm = client.post("/api/sources", json={"feed_url": preview.json()["feed_url"]})
+        assert lookup.call_count == timeline.call_count == 1 and by_id.call_count == 0
+    assert confirm.status_code == 422 and confirm.json()["error"]["code"] == "x_token_required"
+    with client.app.state.session_factory() as session:
+        assert session.scalar(select(Source)) is None and session.scalar(select(Item)) is None
+
+
+def test_delete_all_clears_cached_preview_before_confirm_with_a_new_token(client):
+    save_token(client)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        lookup, by_id, timeline = mock_x(router, posts=[post("900")])
+        assert client.post("/api/sources/preview", json={"url": PROFILE}).status_code == 200
+        assert client.post("/api/settings/x/delete-all").status_code == 200
+        save_token(client)
+        confirm = client.post("/api/sources", json={"feed_url": f"x:user:{UID}"})
+        assert confirm.status_code == 201
+        assert lookup.call_count == 1 and by_id.call_count == 1 and timeline.call_count == 2
+
+
+def test_confirm_rejects_cached_preview_when_instance_secret_has_changed(client):
+    save_token(client)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        lookup, by_id, timeline = mock_x(router, posts=[post("900")])
+        assert client.post("/api/sources/preview", json={"url": PROFILE}).status_code == 200
+        client.app.state.settings = replace(client.app.state.settings, secret_key="different-instance-secret")
+        response = client.post("/api/sources", json={"feed_url": f"x:user:{UID}"})
+        assert lookup.call_count == timeline.call_count == 1 and by_id.call_count == 0
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "secret_invalid"
+    with client.app.state.session_factory() as session:
+        assert session.scalar(select(Source)) is None and session.scalar(select(Item)) is None
+
+
+def test_confirm_refuses_late_preview_cached_after_token_removal(client):
+    save_token(client)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        lookup, by_id, timeline = mock_x(router, posts=[post("900")])
+        assert client.post("/api/sources/preview", json={"url": PROFILE}).status_code == 200
+        cached = client.app.state.x_preview_cache.pop(f"x:user:{UID}")
+        assert client.delete("/api/settings/x").status_code == 204
+        client.app.state.x_preview_cache.put(f"x:user:{UID}", *cached)
+        response = client.post("/api/sources", json={"feed_url": f"x:user:{UID}"})
+        assert lookup.call_count == timeline.call_count == 1 and by_id.call_count == 0
+    assert response.status_code == 422 and response.json()["error"]["code"] == "x_token_required"
+    with client.app.state.session_factory() as session:
+        assert session.scalar(select(Source)) is None

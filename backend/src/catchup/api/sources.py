@@ -118,6 +118,7 @@ def _x_preview(request: Request, session: Session, *, username: str | None = Non
 def _x_confirm(feed_url: str, request: Request, session: Session) -> dict:
     if not re.fullmatch(r"x:user:[0-9]+", feed_url):
         raise AppError("not_an_x_account", "This is not an X account address.", 422)
+    _x_token(request, session)
     duplicate = _existing(feed_url, session)
     if duplicate:
         raise _duplicate(duplicate, 409)

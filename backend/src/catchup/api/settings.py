@@ -85,11 +85,12 @@ def save_x(data: XTokenInput, request: Request, session: Session = Depends(get_s
 
 
 @router.delete("/x", status_code=204)
-def delete_x(session: Session = Depends(get_session)) -> None:
+def delete_x(request: Request, session: Session = Depends(get_session)) -> None:
     row = session.get(XCredential, 1)
     if row:
         session.delete(row)
         session.commit()
+    request.app.state.x_preview_cache.clear()
 
 
 @router.post("/x/test")
@@ -165,6 +166,7 @@ def delete_all_x(request: Request) -> dict:
             session.delete(credential)
         session.commit()
         session.connection().exec_driver_sql("PRAGMA wal_checkpoint(TRUNCATE)")
+        request.app.state.x_preview_cache.clear()
         return {"digest_items": len(removed), "digests": deleted_digests, "accounts": len(accounts)}
 
 

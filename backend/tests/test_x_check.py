@@ -234,6 +234,30 @@ def test_budget_exhaustion_creates_gap_then_reads_gap_before_new_posts(app):
         assert account.gap_since_id is account.gap_until_id is None
 
 
+def test_never_posted_account_gap_resumes_from_follow_time(app):
+    with app.app.state.session_factory() as session:
+        account = session.scalar(select(XAccount))
+        account.newest_id = None
+        followed_at = account.followed_at
+        session.commit()
+    with respx.mock(assert_all_mocked=True) as router:
+        route = router.get(f"https://api.x.com/2/users/{UID}/tweets").mock(side_effect=[
+            httpx.Response(200, json=page([x_post(n) for n in range(205, 200, -1)], "more")),
+            httpx.Response(200, json=page([x_post(200)])),
+            AssertionError("unexpected extra timeline request"),
+        ])
+        check(app, XReadBudget(remaining=5), router)
+        with app.app.state.session_factory() as session:
+            account = session.scalar(select(XAccount))
+            assert (account.newest_id, account.gap_since_id, account.gap_until_id) == ("205", None, "201")
+        check(app, XReadBudget(remaining=5), router)
+        assert route.call_count == 2
+        resumed = route.calls[1].request.url.params
+    assert resumed["start_time"] == followed_at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    assert "since_id" not in resumed
+    assert resumed["until_id"] == "201"
+
+
 def test_complete_two_page_new_post_read_leaves_no_gap_and_next_read_starts_at_newest(app):
     first = [x_post(n) for n in range(300, 200, -1)]
     second = [x_post(n) for n in range(200, 180, -1)]

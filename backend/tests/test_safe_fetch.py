@@ -107,6 +107,17 @@ def test_redirect_to_x_is_blocked_before_request(resolve):
     assert error.value.code == "blocked_address"
 
 
+def test_redirect_to_unparseable_location_is_invalid_url(resolve):
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(PUBLIC).mock(side_effect=[
+            httpx.Response(301, headers={"location": "http://[abc/feed"}),
+            AssertionError("unexpected second request to public feed"),
+        ])
+        with pytest.raises(FetchError) as error:
+            safe_fetch(PUBLIC)
+    assert error.value.code == "invalid_url"
+
+
 def test_unparseable_current_url_is_invalid_url():
     with pytest.raises(FetchError) as error:
         safe_fetch("http://[abc/feed")

@@ -208,3 +208,17 @@ Named mutations were run individually and reverted:
 
 No live X API, authenticated extension-on-X, or real model-provider check was
 performed. The local Docker image was not published.
+
+## Claude's review of fix round 3 (2026-10-28)
+
+- **Delta review.** `/code-review` on `38f033f..fa77990` reported 3 low findings. A spec sub-agent ran 24 mutations on the changed lines: 18 killed, 2 equivalent (the duplicate re-check under the lock, and confirm's early token check), and 4 survivors, S06, S07, S09, and S11. Docker smoke on `catchup:review-41` at `fa77990`: 11 passed.
+- **Leftovers in Claude's review commit.** With the user's approval (an exception to D-023, recorded in D-025), Claude fixed two small behavior gaps test-first, and added tests for three survivors:
+  - **A redirect to an unparsable address.** `test_redirect_to_unparseable_location_is_invalid_url` failed first (`urljoin` raised `ValueError`). `safe_fetch` now maps it to `invalid_url`. Mutation "unguarded `urljoin`": 1 failed.
+  - **A failed run's notes.** `shows only billed X reads on failed run` failed first for both cases (the transcript and deferred-video lines appeared). The failed branch now shows only "N X posts read" (D9). Restoring `HeldNotes` there fails both cases.
+  - **S06, S07** (`body = {}` after a JSON error; no `fetch_failed` for errors-only answers): `test_invalid_lookup_and_usage_answers_are_fetch_failed_with_status`, 1 failed under each.
+  - **S09** (`result_count` checked for presence only): `test_text_result_count_is_fetch_failed`, 1 failed.
+- **Recorded, not changed:**
+  - S11: the request's session would see a deleted token too; D4 now calls the new session a defensive choice;
+  - the X-host refusal uses code `blocked_address`, which the Sources page and the popup show as "This address is not allowed.";
+  - an errors-only timeline answer with `meta` now fails the account, by design (D2).
+- **Checks after the commit:** backend 776 passed; frontend 256 passed, build passed; extension unchanged.

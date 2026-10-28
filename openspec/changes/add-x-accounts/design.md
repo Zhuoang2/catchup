@@ -205,7 +205,7 @@ The user ran `scripts/x_probe.py` against one public account, with their own tok
   - Of the previewed posts, up to `FIRST_ADD_MAX` from `FIRST_ADD_DAYS` become `pending` items (D6). No baseline items are stored: `newest_id` already marks where reading starts.
   - It writes a `SourceCheck` with `run_id=None`, as for feeds (`api/sources.py:158-162`).
   - A concurrent duplicate is caught as `IntegrityError`, as for feeds.
-  - **Fix round 3: confirm and Delete all X data exclude each other.** The re-preview on a cache miss runs first, outside any lock, because it calls X. Then, holding `_start_lock` (`runner.py:33`), which delete-all holds, confirm opens a new session from `session_factory`, checks again that a token is saved, checks for a duplicate, writes, and commits. A new session matters: the request's session already loaded the token row in `_x_token`, and its identity map would return that row again without asking the database, so it would still see a deleted token.
+  - **Fix round 3: confirm and Delete all X data exclude each other.** The re-preview on a cache miss runs first, outside any lock, because it calls X. Then, holding `_start_lock` (`runner.py:33`), which delete-all holds, confirm opens a new session from `session_factory`, checks again that a token is saved, checks for a duplicate, writes, and commits. The new session is a defensive choice: it keeps the locked check and write apart from whatever the request's session loaded earlier. (A review mutation showed the request's session would also see the deletion, because its identity map keeps no strong reference to the token row; no test tells the two apart.)
 
 ### D5. Reading on each run, with the read limit (capabilities `x-accounts`, `content-collection`)
 
@@ -325,7 +325,7 @@ The user ran `scripts/x_probe.py` against one public account, with their own tok
   - the status label `deferred` → "Waits for the next run".
 - **Home:**
   - the check label `deferred` → "Waits for the next run";
-  - the held notes gain "N X posts read", and "N X accounts have posts waiting for the next run". **Fix round 3:** a failed run shows the same two lines, because its reads were billed and its counters are stored (D5);
+  - the held notes gain "N X posts read", and "N X accounts have posts waiting for the next run". **Fix round 3:** a failed run shows "N X posts read", because its reads were billed and its counters are stored (D5). Claude's review of round 3 narrowed this to that one line: on a failed run the waiting line would undercount (posts read but not summarized wait too), and the transcript and video lines are not about X;
   - the rail adds the X account count;
   - `DigestArticle` shows the `x` kind icon.
 

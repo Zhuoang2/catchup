@@ -80,19 +80,20 @@ it.each([
   await expectAccessible(container)
 })
 it.each([
-  [12, 1, '12 X posts read', '1 X account has posts waiting for the next run'],
-  [0, 0, null, null],
-] as const)('shows billed X reads on failed run with %i reads and %i waiting', async (
-  reads, waiting, readsText, waitingText,
+  [12, 1, '12 X posts read'],
+  [0, 0, null],
+] as const)('shows only billed X reads on failed run with %i reads and %i waiting', async (
+  reads, waiting, readsText,
 ) => {
   const { container } = mockPage({ run: { ...run, status: 'failed', error_message: 'Model unavailable.',
-    source_checks: [], x_reads: reads, x_waiting_accounts: waiting } })
+    source_checks: [], x_reads: reads, x_waiting_accounts: waiting, waiting_count: 2, deferred_count: 1 } })
   expect(await screen.findByText('Model unavailable.')).toBeInTheDocument()
   const result = screen.getByRole('region', { name: 'Digest run' })
   if (readsText) expect(within(result).getByText(readsText)).toBeInTheDocument()
   else expect(result).not.toHaveTextContent('X posts read')
-  if (waitingText) expect(within(result).getByText(waitingText)).toBeInTheDocument()
-  else expect(result).not.toHaveTextContent('X account has posts waiting')
+  expect(result).not.toHaveTextContent('posts waiting')
+  expect(result).not.toHaveTextContent('waiting for transcripts')
+  expect(result).not.toHaveTextContent('deferred to the next run')
   await expectAccessible(container)
 })
 

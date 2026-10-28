@@ -38,6 +38,27 @@ def test_invalid_timeline_is_fetch_failed_with_status(response):
     assert error.value.http_status == 200
 
 
+def test_text_result_count_is_fetch_failed():
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(f"https://api.x.com/2/users/{USER['data']['id']}/tweets").mock(
+            return_value=httpx.Response(200, json={"data": [POST], "meta": {"result_count": "1"}}))
+        with XClient(TOKEN) as client, pytest.raises(XApiError) as error:
+            client.user_posts(USER["data"]["id"])
+    assert (error.value.code, error.value.http_status) == ("fetch_failed", 200)
+
+
+@pytest.mark.parametrize("response", INVALID_TIMELINES[:2], ids=["html", "unknown-error"])
+def test_invalid_lookup_and_usage_answers_are_fetch_failed_with_status(response):
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://api.x.com/2/users/by/username/writer").mock(return_value=response)
+        router.get("https://api.x.com/2/usage/tweets").mock(return_value=response)
+        with XClient(TOKEN) as client:
+            for call in (lambda: client.lookup_user("writer"), client.usage):
+                with pytest.raises(XApiError) as error:
+                    call()
+                assert (error.value.code, error.value.http_status) == ("fetch_failed", 200)
+
+
 def test_lookups_parse_user_fields_and_send_requested_fields():
     with respx.mock(assert_all_mocked=True) as router:
         by_name = router.get("https://api.x.com/2/users/by/username/writer").mock(

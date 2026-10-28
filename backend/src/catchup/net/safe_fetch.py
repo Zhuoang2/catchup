@@ -161,7 +161,10 @@ def safe_fetch(url: str, *, same_origin: str | None = None, budget: list[int] | 
                                 raise FetchError(
                                     "fetch_failed", "The source redirected too many times.", response.status_code,
                                 )
-                            current = urljoin(current, location)
+                            try:
+                                current = urljoin(current, location)
+                            except ValueError as exc:
+                                raise FetchError("invalid_url", "Enter a valid public HTTP or HTTPS URL.") from exc
                             break
                         response.raise_for_status()
                         length = response.headers.get("content-length")

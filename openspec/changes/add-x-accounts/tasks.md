@@ -26,7 +26,7 @@ Implementer notes:
 
 ## 1. The X token: storage, routes, and Settings
 
-- [ ] 1.1 **Migration `0007_x_accounts` and models** (D1, D4, D5; Migration Plan). Add:
+- [x] 1.1 **Migration `0007_x_accounts` and models** (D1, D4, D5; Migration Plan). Add:
   - `x_credentials` (id, `token_encrypted`, `token_last4`, `updated_at`);
   - `x_accounts` (`source_id` primary key with an `ON DELETE CASCADE` foreign key, `user_id`, `username`, `newest_id`, `gap_since_id`, `gap_until_id`, `followed_at`);
   - `digest_runs.x_reads` and `digest_runs.x_waiting_accounts` (integers, server default `0`).
@@ -40,7 +40,7 @@ Implementer notes:
   Update the existing checks that this changes: the exact table set (`test_db.py:19-23`), and the expected head revision (`test_db.py:69`).
 
   Verify: the new tests fail before the migration and pass after; `migrate(make_engine(copy_dir))` (`db.py:17,32`) on a copy of a `0006` database upgrades it.
-- [ ] 1.2 **Settings routes for the token** (D1), in `backend/src/catchup/api/settings.py`. Tests first, in a new `backend/tests/test_x_settings_api.py`:
+- [x] 1.2 **Settings routes for the token** (D1), in `backend/src/catchup/api/settings.py`. Tests first, in a new `backend/tests/test_x_settings_api.py`:
   - `GET /api/settings/x` with nothing saved gives `{token_set: false, token_last4: null}`;
   - `PUT` stores the token encrypted: the database column does not contain the token, and `GET` gives its last four characters only;
   - no response body or log record contains the token (use `caplog`);
@@ -55,14 +55,14 @@ Implementer notes:
     - answers 422 `x_token_required` with no token.
 
   Verify: the tests fail before the routes exist, and pass after.
-- [ ] 1.3 **The extension may save the first token only** (D1, D8), in `backend/src/catchup/main.py` (`_extension_operation`) and the `PUT` route. Tests first, in `backend/tests/test_extension_api.py`, with a connected token and an extension `Origin`:
+- [x] 1.3 **The extension may save the first token only** (D1, D8), in `backend/src/catchup/main.py` (`_extension_operation`) and the `PUT` route. Tests first, in `backend/tests/test_extension_api.py`, with a connected token and an extension `Origin`:
   - `PUT /api/settings/x` with no X token saved stores it;
   - with an X token saved, it gives 409 `x_token_exists`, and the saved token is unchanged;
   - guard (already green): `GET` and `DELETE /api/settings/x`, and `POST /api/settings/x/test`, give 403 `cross_site_request`, because the middleware refuses them before routing (`main.py:125`);
   - guard (already green after 1.2): CatchUp's own pages (same `Origin`) can still replace the token with `PUT`.
 
   Verify: the tests fail before the change. Then the named mutation "allow `PUT /api/settings/x` for tokens even when one is saved" fails the 409 test, and is reverted.
-- [ ] 1.4 **Settings "X accounts" group** (D9), in `frontend/src/pages/Settings.tsx`. Add section 5, after "Browser extension" and outside the model form, with:
+- [x] 1.4 **Settings "X accounts" group** (D9), in `frontend/src/pages/Settings.tsx`. Add section 5, after "Browser extension" and outside the model form, with:
   - the password field and "Saved token ending in …";
   - Save, Test, and Remove;
   - the billing and spending-limit note, linking to `https://github.com/Zhuoang2/catchup#x-accounts`.

@@ -15,7 +15,8 @@ from catchup.errors import AppError
 from catchup.llm.client import (
     AuthFailed, ConnectionFailed, InsufficientBalance, ModelClient, ProviderError, RateLimited,
 )
-from catchup.models import AppSettings, ModelConfig, utc_now
+from catchup.models import AppSettings, ModelConfig, XCredential, utc_now
+from catchup.sources.x_api import XApiError, XClient
 
 router = APIRouter(prefix="/api/settings")
 DEFAULT_BASE_URL = "https://api.deepseek.com"
@@ -37,6 +38,76 @@ class PreferenceInput(BaseModel):
     youtube_captions: bool | None = None
     youtube_skip_shorts: bool | None = None
     show_images: bool | None = None
+
+
+class XTokenInput(BaseModel):
+    token: str
+
+
+class XTestInput(BaseModel):
+    token: str | None = None
+
+
+def _public_x(row: XCredential | None) -> dict:
+    return {"token_set": row is not None, "token_last4": row.token_last4 if row else None}
+
+
+def _valid_x_token(value: str) -> str:
+    token = value.strip()
+    if not token or len(token) > 1000 or any(char.isspace() for char in token):
+        raise AppError("invalid_x_token", "Enter an X API token without whitespace (at most 1,000 characters).", 422)
+    return token
+
+
+@router.get("/x")
+def read_x(session: Session = Depends(get_session)) -> dict:
+    return _public_x(session.get(XCredential, 1))
+
+
+@router.put("/x")
+def save_x(data: XTokenInput, request: Request, session: Session = Depends(get_session)) -> dict:
+    token = _valid_x_token(data.token)
+    row = session.get(XCredential, 1)
+    if getattr(request.state, "extension_token_id", None) is not None and row is not None:
+        raise AppError("x_token_exists", "Replace the X token in CatchUp Settings.", 409)
+    encrypted = encrypt_key(token, request.app.state.settings.secret_key)
+    if row is None:
+        row = XCredential(id=1, token_encrypted=encrypted, token_last4=token[-4:])
+        session.add(row)
+    else:
+        row.token_encrypted = encrypted
+        row.token_last4 = token[-4:]
+        row.updated_at = utc_now()
+    session.commit()
+    return _public_x(row)
+
+
+@router.delete("/x", status_code=204)
+def delete_x(session: Session = Depends(get_session)) -> None:
+    row = session.get(XCredential, 1)
+    if row:
+        session.delete(row)
+        session.commit()
+
+
+@router.post("/x/test")
+def test_x(data: XTestInput, request: Request, session: Session = Depends(get_session)) -> dict:
+    row = session.get(XCredential, 1)
+    token = _valid_x_token(data.token) if data.token is not None else (
+        decrypt_key(row.token_encrypted, request.app.state.settings.secret_key) if row else ""
+    )
+    if not token:
+        raise AppError("x_token_required", "X token needed.", 422)
+    try:
+        with XClient(token) as client:
+            client.usage()
+    except XApiError as exc:
+        status = 401 if exc.code == "x_token_rejected" else 429 if exc.code == "rate_limited" else 502
+        raise AppError(exc.code, str(exc), status, **{
+            key: value for key, value in {"retry_after": exc.retry_after, "http_status": exc.http_status}.items()
+            if value is not None
+        }) from exc
+    return {"ok": True}
 
 
 def get_model_client_factory() -> Callable[..., ModelClient]:

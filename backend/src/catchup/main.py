@@ -48,6 +48,7 @@ def _touch_extension_token(factory: sessionmaker, token_id: int) -> None:
 def _extension_operation(method: str, path: str) -> bool:
     return (
         (method == "POST" and path in {"/api/sources", "/api/sources/preview", "/api/captures"})
+        or (method == "PUT" and path == "/api/settings/x")
         or (method == "GET" and path in {"/api/captures", "/api/extension/status"})
         or (method == "DELETE" and path.startswith("/api/captures/") and path.count("/") == 3)
     )

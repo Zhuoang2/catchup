@@ -11,6 +11,7 @@ type Preferences = { digest_language: string; youtube_captions: boolean; youtube
 type TestResult = { ok: true; models: string[] }
 type Browser = { id: number; name: string; created_at: string; last_used_at: string | null }
 type ConnectedBrowser = Omit<Browser, 'last_used_at'> & { token: string }
+type XSettings = { token_set: boolean; token_last4: string | null }
 const languageOptions = ['en', 'zh-Hans', 'original']
 
 function errorMessage(error: unknown): string {
@@ -59,6 +60,10 @@ export default function Settings() {
   const [browserError, setBrowserError] = useState('')
   const [browserMessage, setBrowserMessage] = useState('')
   const [copyMessage, setCopyMessage] = useState('')
+  const [xToken, setXToken] = useState('')
+  const [xLast4, setXLast4] = useState<string | null>(null)
+  const [xError, setXError] = useState('')
+  const [xMessage, setXMessage] = useState('')
   const tokenRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -90,6 +95,49 @@ export default function Settings() {
       .catch((err: unknown) => { if (mounted) setBrowserError(errorMessage(err)) })
     return () => { mounted = false }
   }, [])
+
+  useEffect(() => {
+    let mounted = true
+    request<XSettings>('/settings/x')
+      .then(saved => { if (mounted) setXLast4(saved.token_set ? saved.token_last4 : null) })
+      .catch((err: unknown) => { if (mounted) setXError(errorMessage(err)) })
+    return () => { mounted = false }
+  }, [])
+
+  async function saveX(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setXError(''); setXMessage('')
+    try {
+      const saved = await request<XSettings>('/settings/x', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: xToken }),
+      })
+      setXLast4(saved.token_last4)
+      setXToken('')
+      setXMessage('X token saved.')
+    } catch (err) { setXError(errorMessage(err)) }
+  }
+
+  async function testX() {
+    setXError(''); setXMessage('')
+    try {
+      await request<{ ok: true }>('/settings/x/test', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: xToken || undefined }),
+      })
+      setXMessage('X token works.')
+    } catch (err) { setXError(errorMessage(err)) }
+  }
+
+  async function removeX() {
+    setXError(''); setXMessage('')
+    try {
+      await request<void>('/settings/x', { method: 'DELETE' })
+      setXLast4(null)
+      setXToken('')
+      setXMessage('X token removed.')
+    } catch (err) { setXError(errorMessage(err)) }
+  }
 
   async function connectBrowser(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -179,8 +227,8 @@ export default function Settings() {
 
   return <section className="page page-settings">
     <PageHead title="Settings" lede={last4
-      ? 'Your model, digest language, YouTube options, and browser extension.'
-      : 'Three quick steps, and an optional browser extension. Your key stays on this computer, encrypted.'}/>
+      ? 'Your model, digest language, YouTube options, browser extension, and X accounts.'
+      : 'Three quick steps, plus optional X accounts and a browser extension. Your key stays on this computer, encrypted.'}/>
     {loading ? <p>Loading settings…</p> : <form className="settings-form" onSubmit={event => void save(event)}>
       <SettingsSection number={1} title="Model provider">
         <p className="note"><Icon name="info"/>Content will be sent to your configured model provider.</p>
@@ -272,6 +320,29 @@ export default function Settings() {
         <Button type="button" variant="ghost" aria-label={`Disconnect ${browser.name}`}
           onClick={() => void disconnectBrowser(browser)}>Disconnect</Button>
       </li>)}</ul>
+    </SettingsSection>}
+    {!loading && <SettingsSection number={5} title="X accounts">
+      <form onSubmit={event => void saveX(event)}>
+        <div className="field"><label className="field-label" htmlFor="x-token">X API token</label>
+          {xLast4 && <p className="key-saved" id="x-token-saved"><Icon name="check"/>
+            Saved token ending in <code>{xLast4}</code></p>}
+          <input className="input" id="x-token" type="password" value={xToken}
+            autoComplete="new-password" aria-describedby="x-token-note"
+            onChange={event => setXToken(event.target.value)}/>
+          <p className="field-hint" id="x-token-note">
+            Your own X developer App's Bearer token is stored encrypted on this computer.
+          </p>
+        </div>
+        <div className="field-row">
+          <Button type="submit">Save X token</Button>
+          <Button type="button" onClick={() => void testX()}>Test X token</Button>
+          <Button type="button" variant="ghost" onClick={() => void removeX()}>Remove X token</Button>
+        </div>
+      </form>
+      <p className="note">X API reads are billed to your X developer account. You can set a{' '}
+        <a href="https://github.com/Zhuoang2/catchup#x-accounts">spending limit in the X console</a>.</p>
+      {xError && <p className="field-error" role="alert"><Icon name="alert"/>{xError}</p>}
+      {xMessage && <p className="inline-msg msg-ok" role="status"><Icon name="check"/>{xMessage}</p>}
     </SettingsSection>}
     {error && !errorField && <p className="field-error" role="alert"><Icon name="alert"/>{error}</p>}
   </section>

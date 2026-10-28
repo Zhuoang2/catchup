@@ -20,6 +20,7 @@ beforeEach(() => {
       digest_language: 'en', youtube_captions: false, youtube_skip_shorts: true,
     })
     if (url === '/api/settings/extension-tokens') return respond([])
+    if (url === '/api/settings/x') return respond({ token_set: false, token_last4: null })
     throw new Error(`Unexpected request: ${url}`)
   })
 })
@@ -37,7 +38,7 @@ describe('model settings', () => {
     const { container } = render(<Settings/>)
     await screen.findByLabelText('API key')
     expect(container.querySelector('.lede')?.textContent)
-      .toBe('Three quick steps, and an optional browser extension. Your key stays on this computer, encrypted.')
+      .toBe('Three quick steps, plus optional X accounts and a browser extension. Your key stays on this computer, encrypted.')
     await expectAccessible(container)
   })
 
@@ -349,5 +350,81 @@ describe('model settings', () => {
     expect(calls).toEqual(['/api/settings/model', '/api/settings/preferences'])
     expect(key).toHaveValue('')
     expect(key).not.toHaveAttribute('placeholder', expect.stringContaining('3f9a'))
+  })
+})
+
+describe('X accounts settings', () => {
+  it('loads a saved token without putting it in the field', async () => {
+    const original = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (url: string) =>
+      url === '/api/settings/x' ? respond({ token_set: true, token_last4: 'abcd' }) : original(url))
+    const { container } = render(<Settings/>)
+    expect(await screen.findByText(/Saved token ending in/)).toHaveTextContent('abcd')
+    expect(screen.getByLabelText('X API token')).toHaveValue('')
+    expect(screen.getByLabelText('X API token')).toHaveAttribute('type', 'password')
+    expect(container.querySelector('.lede')?.textContent)
+      .toBe('Your model, digest language, YouTube options, browser extension, and X accounts.')
+    expect(screen.getByRole('link', { name: /spending limit/i }))
+      .toHaveAttribute('href', 'https://github.com/Zhuoang2/catchup#x-accounts')
+    await expectAccessible(container)
+  })
+
+  it('saves, tests, and removes the token without touching model settings', async () => {
+    const original = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (url: string, options?: RequestInit) => {
+      if (url === '/api/settings/x' && options?.method === 'PUT') {
+        expect(JSON.parse(options.body as string)).toEqual({ token: 'test-token' })
+        return respond({ token_set: true, token_last4: 'oken' })
+      }
+      if (url === '/api/settings/x/test') return respond({ ok: true })
+      if (url === '/api/settings/x' && options?.method === 'DELETE') return respond(null, 204)
+      return original(url)
+    })
+    const { container } = render(<Settings/>)
+    const input = await screen.findByLabelText('X API token')
+    fireEvent.change(input, { target: { value: 'test-token' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save X token' }))
+    await screen.findByText(/Saved token ending in/)
+    expect(input).toHaveValue('')
+    fireEvent.click(screen.getByRole('button', { name: 'Test X token' }))
+    expect(await screen.findByText('X token works.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove X token' }))
+    await waitFor(() => expect(screen.queryByText(/Saved token ending in/)).toBeNull())
+    expect(fetchMock.mock.calls.some(([url, options]) => url === '/api/settings/model'
+      && (options as RequestInit | undefined)?.method === 'PUT')).toBe(false)
+    await expectAccessible(container)
+  })
+
+  it('reports rejected tokens and remains accessible', async () => {
+    const original = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (url: string, options?: RequestInit) =>
+      url === '/api/settings/x/test' && options?.method === 'POST'
+        ? respond({ error: { code: 'x_token_rejected', message: 'X rejected the token.' } }, 401)
+        : original(url))
+    const { container } = render(<Settings/>)
+    await screen.findByLabelText('X API token')
+    await expectAccessible(container)
+    fireEvent.click(screen.getByRole('button', { name: 'Test X token' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('X rejected the token')
+    await expectAccessible(container)
+  })
+
+  it('keeps model form saves separate from X operations', async () => {
+    const original = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (url: string, options?: RequestInit) => {
+      if (url === '/api/settings/model' && options?.method === 'PUT') return respond({
+        base_url: 'https://api.deepseek.com', model_id: 'saved-model', key_set: true, api_key_last4: '1234',
+      })
+      if (url === '/api/settings/preferences' && options?.method === 'PUT') return respond({
+        digest_language: 'en', youtube_captions: false, youtube_skip_shorts: true,
+      })
+      return original(url)
+    })
+    render(<Settings/>)
+    await screen.findByLabelText('X API token')
+    fireEvent.click(screen.getByRole('button', { name: /^Save$/ }))
+    await screen.findByText('Settings saved.')
+    expect(fetchMock.mock.calls.filter(([url, options]) => url === '/api/settings/x'
+      && (options as RequestInit | undefined)?.method)).toEqual([])
   })
 })

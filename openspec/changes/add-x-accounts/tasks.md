@@ -231,7 +231,7 @@ Implementer notes:
 
 ## 4. The extension
 
-- [ ] 4.1 **"Follow this account" on X pages** (D8), in `extension/src/popup.ts`, with the D3 rules copied into it. Tests first, in `extension/src/test/popup.test.ts`:
+- [x] 4.1 **"Follow this account" on X pages** (D8), in `extension/src/popup.ts`, with the D3 rules copied into it. Tests first, in `extension/src/test/popup.test.ts`:
   - on `https://x.com/simonw`, the popup shows "Follow this account" and "Add this page", and no "cannot be followed" line;
   - choosing it sends `POST /api/sources/preview` with the tab URL, and shows the preview with "X account", `@username`, and the profile address, never `x:user:`;
   - Confirm sends `POST /api/sources` with `feed_url` `x:user:<id>`;
@@ -240,7 +240,7 @@ Implementer notes:
   - the manifest test still passes unchanged.
 
   Update the existing X popup tests (`popup.test.ts:185-193,311`) to the new behavior. Verify: the tests fail before the change, and pass after.
-- [ ] 4.2 **The token prompt** (D8). Tests first, in `extension/src/test/popup.test.ts`:
+- [x] 4.2 **The token prompt** (D8). Tests first, in `extension/src/test/popup.test.ts`:
   - a preview answering `x_token_required` shows a labelled password field "X API token" and Save;
   - Save sends `PUT /api/settings/x`, with the Bearer connection token and `{token}`, then repeats the preview, and shows it;
   - `chrome.storage.local.set` is never called with the X token;

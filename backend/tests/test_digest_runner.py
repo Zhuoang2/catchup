@@ -158,6 +158,27 @@ def x_timeline(post_id, *, replies=False):
     return {"data": posts, "meta": {"result_count": len(posts)}}
 
 
+def test_complete_two_page_x_read_does_not_count_account_as_waiting(environment):
+    seed(environment, sources=0)
+    seed_x_accounts(environment, ("a",))
+    environment.app.state.settings = replace(environment.app.state.settings, x_reads_per_run=200)
+    assert environment.put("/api/settings/x", json={"token": "test-" + "x" * 40}).status_code == 200
+    now = datetime.now(timezone.utc).isoformat()
+    def page(ids, token=None):
+        return {"data": [{"id": str(n), "text": f"New {n}", "conversation_id": str(n),
+                          "created_at": now} for n in ids],
+                "meta": {"result_count": len(ids), **({"next_token": token} if token else {})}}
+    with respx.mock(assert_all_mocked=True) as router:
+        route = router.get("https://api.x.com/2/users/100/tweets").mock(side_effect=[
+            httpx.Response(200, json=page(range(1200, 1100, -1), "next")),
+            httpx.Response(200, json=page(range(1100, 1080, -1))),
+        ])
+        result = execute(environment)
+    assert route.call_count == 2
+    assert result["status"] == "succeeded"
+    assert (result["x_reads"], result["x_waiting_accounts"]) == (120, 0)
+
+
 def test_x_runs_defer_account_and_read_it_first_next_time(environment):
     seed(environment, sources=0)
     seed_x_accounts(environment)

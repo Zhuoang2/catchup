@@ -54,6 +54,8 @@ def check_x_account(session: Session, source: Source, account: XAccount, run_id:
                    start_time, gap: bool) -> bool:
         nonlocal entries_seen
         token = None
+        oldest_read = None
+        complete = False
         while budget.remaining >= 5:
             page: XPage = client.user_posts(
                 account.user_id, since_id=since_id, until_id=until_id,
@@ -64,24 +66,27 @@ def check_x_account(session: Session, source: Source, account: XAccount, run_id:
             entries_seen += page.result_count
             posts.extend(page.posts)
             oldest = min((post.id for post in page.posts), key=int, default=None)
-            if gap:
-                if oldest is not None:
-                    account.gap_until_id = oldest
-            else:
+            if oldest is not None:
+                oldest_read = oldest
+            if not gap:
                 newest = max((post.id for post in page.posts), key=int, default=None)
                 if newest is not None and (account.newest_id is None or int(newest) > int(account.newest_id)):
                     account.newest_id = newest
-                if page.next_token and oldest is not None:
-                    account.gap_since_id = old_newest
-                    account.gap_until_id = oldest
-            if not page.next_token:
-                if gap:
-                    account.gap_since_id = account.gap_until_id = None
-                return True
+            if not page.next_token or not page.posts:
+                complete = True
+                break
             if budget.remaining < 5:
-                return False
+                break
             token = page.next_token
-        return False
+        if gap:
+            if complete:
+                account.gap_since_id = account.gap_until_id = None
+            elif oldest_read is not None:
+                account.gap_until_id = oldest_read
+        elif not complete and oldest_read is not None:
+            account.gap_since_id = old_newest
+            account.gap_until_id = oldest_read
+        return complete
 
     try:
         if account.gap_until_id is not None:

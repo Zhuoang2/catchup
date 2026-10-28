@@ -122,3 +122,41 @@ passed after reversion. Results:
 
 Live X API, authenticated extension-on-X and real model-provider checks
 remain unperformed; the Docker image was not published.
+
+## Fix round 2 (2026-10-28, final Droid round)
+
+Task group 7 followed the amended plan in `555053c`. New behavior was
+observed failing before the fix; existing behavior was proved by the
+specified mutations. Every temporary mutation was reverted.
+
+| Task | Observed red or guard result |
+| --- | --- |
+| 7.1 | Phase B stopped at the first empty page with a continuation token (1 request instead of 2); Phase A likewise made 2 requests instead of 3 and missed posts behind its gap. After removing the empty-page stop, three bounded-route tests each failed immediately on request 41 without a page cap: empty Phase B, empty Phase A, and Phase B after 5 posts. A 40-page cap preserved the old cursor with no posts, preserved Phase A's gap, and saved an unread Phase B gap after 5 posts. All **15** focused X-check tests passed. |
+| 7.2 | Backend host and context tests: **8 failed, 26 passed** before normalization. Hosts `x.com.`, `help.x.com.`, `twitter.com.`, and `X.COM` were unrecognized; the profile and two non-account addresses on trailing-dot hosts were misclassified; a trailing-dot X link was retained as context. Popup: **2 failed**, with the two look-alike guards passing. After normalizing one trailing dot and case, backend **34 passed**, popup **64 passed**, and extension build passed. |
+| 7.3 | Confirming `http://[abc/feed` raised `ValueError: Invalid IPv6 URL` in TestClient instead of answering 422; `safe_fetch` was replaced by `pytest.fail` and was not reached. Mapping the pre-fetch parse error to `invalid_url` made both the new check and the existing X-host feed refusal pass (**2 passed**). |
+| 7.4 | Both new guards passed unmodified. With the named missing-secret mutation, Test answered `secret_not_configured` rather than `secret_invalid`; with the title-only suspension mutation, lookup answered `x_account_not_found` rather than `x_account_suspended`. Both mutations were reverted; the focused X settings and API suites passed (**45 passed**). |
+| 7.5 | Report and full checks, not a runtime behavior, so no red-first test applies. |
+
+Named mutations and their bounded failures:
+
+- **7.1, restore `or not page.posts`:** Phase B returned after one request rather than two; Phase A returned after two rather than three. Both tests failed assertions, not by hanging.
+- **7.1, remove the page cap:** each of the three capped-page tests failed at the route's `pytest.fail("X requested page 41")`; no test hung.
+- **7.2, drop the `.` boundary from popup `isXHost`:** `https://notx.com/simonw` lost "Follow this site", so its look-alike guard failed.
+- **7.4, catch only `InvalidToken`:** the missing-secret test received `secret_not_configured` instead of `secret_invalid`, with zero usage requests.
+- **7.4, ignore suspension in `title`:** the title-only suspension test received `x_account_not_found` instead of `x_account_suspended`.
+
+### Fix-round-2 final automated checks, in task 5.2 order
+
+| Command | Result |
+| --- | --- |
+| `cd frontend && npm run build` | Passed, 41 modules transformed. |
+| `cd backend && uv run --python 3.12 pytest --cov=catchup --cov-report=term` | **754 passed**, **96%** statement coverage: **3,015/3,127** covered (112 missed). `sources/x_check.py` 100%, `sources/x_api.py` 94%, `sources/x_accounts.py` 95%, `api/sources.py` 91%. |
+| `cd frontend && npm test -- --run` | **254 passed** in 14 files. |
+| `cd extension && npm test -- --run` | **111 passed** in 8 files. |
+| `cd extension && npm run build` | Passed, including TypeScript and packaged-file checks. |
+| `docker build -t catchup:x-accounts-local .` | Passed locally. |
+| `scripts/docker-smoke.sh catchup:x-accounts-local` | Passed: container health, API/UI/PWA, saved preference, non-root process, persistent volume, image exclusions, restart persistence. |
+| `DO_NOT_TRACK=1 openspec validate add-x-accounts --strict` | Passed. |
+
+No live X API, authenticated extension-on-X, or real model-provider check
+was performed. The local Docker image was not published.

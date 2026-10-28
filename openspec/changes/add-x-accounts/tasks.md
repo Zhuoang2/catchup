@@ -377,7 +377,7 @@ The review of fix round 1 confirmed the items below, and the user approved this 
   - **Suspension named only in the title** (`backend/tests/test_x_api.py`): HTTP 200, no `data`, and `errors: [{type: ".../2/problems/resource-not-found", title: "Account suspended", detail: "Could not find user with username: [name]."}]` → `x_account_suspended`. Mutation: look for suspension in `detail` only.
 
   Verify: each test passes, each named mutation fails it, and is reverted.
-- [ ] 7.5 **Report and checks.**
+- [x] 7.5 **Report and checks.**
   - **Report.** Add a "Fix round 2" section to `docs/process/test-report-add-x-accounts.md`, with each task's observed red result and each named mutation's result.
   - **Checks:** run the six checks of task 5.2, in its order, with the OpenSpec check as `DO_NOT_TRACK=1 openspec validate add-x-accounts --strict`.
   - **Logs.** Update the coverage-summary line, and add your AI usage log entry for this round, with a faithful excerpt of the prompt you received. Leave out the session id.

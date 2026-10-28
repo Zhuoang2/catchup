@@ -160,3 +160,14 @@ Named mutations and their bounded failures:
 
 No live X API, authenticated extension-on-X, or real model-provider check
 was performed. The local Docker image was not published.
+
+## Claude's review of fix round 2 (2026-10-28)
+
+- **Delta review.** `/code-review` on `555053c..b73b31d` found no real defect. A spec sub-agent ran 20 mutations on the changed lines: 17 killed, 2 equivalent (normalizing a host that is already normalized; stripping every trailing dot instead of one), and 1 survivor, R17.
+- **R17, the leftover test.** Dropping `normalizedHost` from the popup's `host` constant made Add on `https://x.com./writer/status/1` use the generic extractor, and no test noticed. Claude added that address to the post-page test in `extension/src/test/popup.test.ts`. Under R17 it fails ("1 failed | 111 passed"); without it, 112 pass.
+- **Recorded, not changed:**
+  - a phase that reaches the 40-page cap without reading any post sets no gap, so the next run asks for the same pages again (D5 accepts this; the timeline holds at most 3,200 posts, 32 full pages);
+  - a host with two trailing dots is not normalized;
+  - the host is normalized twice in `x_username` and in the popup's `isXHost`;
+  - the popup's host line shows the normalized host.
+- **Docker smoke** on `catchup:review-41` at `b73b31d`: 11 passed.

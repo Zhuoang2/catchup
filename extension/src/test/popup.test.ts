@@ -301,11 +301,12 @@ it('still saves an X profile as a generic page when Add is chosen', async () => 
   expect((await axe(document.body, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([])
 })
 
-it('offers Follow on a post page but keeps Add using the X extractor', async () => {
+it.each(['https://x.com/writer/status/1', 'https://x.com./writer/status/1'])(
+  'offers Follow on post page %s but keeps Add using the X extractor', async url => {
   connect()
-  chromeMock.tabs.query.mockResolvedValue([{ id: 9, url: 'https://x.com/writer/status/1', title: 'Post' }])
+  chromeMock.tabs.query.mockResolvedValue([{ id: 9, url, title: 'Post' }])
   chromeMock.scripting.executeScript.mockResolvedValue([{ result: {
-    ...captured, url: 'https://x.com/writer/status/1',
+    ...captured, url,
   } }])
   fetchMock.mockImplementation(async (url: string) => url.endsWith('/captures')
     ? response(201, { id: 46, waiting: 4 })

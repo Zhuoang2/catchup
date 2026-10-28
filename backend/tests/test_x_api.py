@@ -18,6 +18,25 @@ POST = {"id": "1234567890123456999", "text": "Short https://t.co/abc", "author_i
                                 "unwound_url": "https://blog.example/post"}]},
         "attachments": {"media_keys": ["3_123"]}}
 
+INVALID_TIMELINES = [
+    httpx.Response(200, text="<html>Not a timeline</html>"),
+    httpx.Response(200, json={"errors": [
+        {"type": "https://api.x.com/2/problems/invalid-request"}]}),
+    httpx.Response(200, json={"data": [POST]}),
+]
+
+
+@pytest.mark.parametrize("response", INVALID_TIMELINES, ids=["html", "unknown-error", "no-meta"])
+def test_invalid_timeline_is_fetch_failed_with_status(response):
+    with respx.mock(assert_all_mocked=True) as router:
+        route = router.get(f"https://api.x.com/2/users/{USER['data']['id']}/tweets").mock(
+            side_effect=[response, AssertionError("unexpected second timeline request")])
+        with XClient(TOKEN) as client, pytest.raises(XApiError) as error:
+            client.user_posts(USER["data"]["id"])
+        assert route.call_count == 1
+    assert error.value.code == "fetch_failed"
+    assert error.value.http_status == 200
+
 
 def test_lookups_parse_user_fields_and_send_requested_fields():
     with respx.mock(assert_all_mocked=True) as router:

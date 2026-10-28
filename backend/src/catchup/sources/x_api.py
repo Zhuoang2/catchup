@@ -92,7 +92,7 @@ class XClient:
                 try:
                     body = json.loads(b"".join(chunks))
                 except ValueError:
-                    body = {}
+                    body = None
                 errors = body.get("errors", []) if isinstance(body, dict) and not body.get("data") else []
                 for error in errors:
                     kind = str(error.get("type", "")).rsplit("/", 1)[-1].lower()
@@ -120,6 +120,8 @@ class XClient:
                 if response.status_code >= 400:
                     raise XApiError("fetch_failed", "X could not complete the request.", response.status_code)
                 if not isinstance(body, dict):
+                    raise XApiError("fetch_failed", "X returned an invalid answer.", response.status_code)
+                if errors:
                     raise XApiError("fetch_failed", "X returned an invalid answer.", response.status_code)
                 return body
         except httpx.HTTPError as exc:
@@ -168,12 +170,14 @@ class XClient:
         if exclude:
             params["exclude"] = ",".join(exclude)
         body = self._request(f"/2/users/{user_id}/tweets", params)
+        meta = body.get("meta")
+        if not isinstance(meta, dict) or type(meta.get("result_count")) is not int:
+            raise XApiError("fetch_failed", "X returned invalid post data.", 200)
         media = {entry["media_key"]: entry for entry in body.get("includes", {}).get("media", [])
                  if entry.get("media_key")}
         try:
             posts = tuple(self._parse_post(post, media) for post in body.get("data", []))
-            meta = body.get("meta", {})
-            return XPage(posts, meta.get("next_token"), int(meta.get("result_count", len(posts))))
+            return XPage(posts, meta.get("next_token"), meta["result_count"])
         except (ValueError, KeyError, TypeError) as exc:
             raise XApiError("fetch_failed", "X returned invalid post data.") from exc
 

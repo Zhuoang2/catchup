@@ -405,7 +405,7 @@ An independent review of the whole change found the items below, Claude confirme
   - the preview tests for `https://help.x.com/en` and the `related_links` tests still pass unchanged (guards).
 
   Verify: the `safe_fetch` and `article_text` tests fail on the current head. Then the named mutation "remove the X-host refusal from `_check_address`" fails the redirect test, and is reverted.
-- [ ] 8.3 **Only a real timeline page counts** (D2, D5, fix round 3), in `backend/src/catchup/sources/x_api.py`. Tests first, in `backend/tests/test_x_api.py` and `backend/tests/test_x_check.py`:
+- [x] 8.3 **Only a real timeline page counts** (D2, D5, fix round 3), in `backend/src/catchup/sources/x_api.py`. Tests first, in `backend/tests/test_x_api.py` and `backend/tests/test_x_check.py`:
   - a 200 answer with an HTML body, a 200 answer with `{"errors": [{"type": "https://api.x.com/2/problems/invalid-request"}]}`, and a 200 timeline answer with `data` but no `meta` each raise `fetch_failed` with `http_status` 200;
   - in `check_x_account`, with a gap set, each of those answers records `failed`, and leaves both gap ids and `newest_id` unchanged;
   - a timeline answer of `{"meta": {"result_count": 0}}` is still an empty last page (guard, already green).

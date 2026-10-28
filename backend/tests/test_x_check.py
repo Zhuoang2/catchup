@@ -13,6 +13,7 @@ from catchup.models import DigestRun, Item, Source, SourceCheck, XAccount
 from catchup.net.rate_limit import is_rate_limited
 from catchup.sources.x_api import XClient
 from catchup.sources.x_check import XReadBudget, check_x_account
+from test_x_api import INVALID_TIMELINES
 
 UID = "1234567890123456789"
 TOKEN = "test-" + "x" * 40
@@ -103,6 +104,24 @@ def test_zero_post_response_is_success_and_never_posted_uses_follow_time(app):
     assert result.status == "no_new_items" and result.entries_seen == 0
     assert "since_id" not in route.calls[0].request.url.params
     assert route.calls[0].request.url.params["start_time"]
+
+
+@pytest.mark.parametrize("response", INVALID_TIMELINES, ids=["html", "unknown-error", "no-meta"])
+def test_invalid_timeline_preserves_gap_and_newest_id(app, response):
+    with app.app.state.session_factory() as session:
+        account = session.scalar(select(XAccount))
+        account.gap_since_id = "80"
+        account.gap_until_id = "90"
+        session.commit()
+    with respx.mock(assert_all_mocked=True) as router:
+        route = router.get(f"https://api.x.com/2/users/{UID}/tweets").mock(
+            side_effect=[response, AssertionError("unexpected second timeline request")])
+        result = check(app, XReadBudget(remaining=10), router)
+        assert route.call_count == 1
+    assert result.status == "failed" and result.http_status == 200
+    with app.app.state.session_factory() as session:
+        account = session.scalar(select(XAccount))
+        assert (account.newest_id, account.gap_since_id, account.gap_until_id) == ("100", "80", "90")
 
 
 def test_duplicate_post_is_not_inserted_twice(app):

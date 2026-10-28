@@ -93,14 +93,15 @@ class XClient:
                     body = json.loads(b"".join(chunks))
                 except ValueError:
                     body = {}
-                errors = body.get("errors", []) if isinstance(body, dict) else []
+                errors = body.get("errors", []) if isinstance(body, dict) and not body.get("data") else []
                 for error in errors:
                     kind = str(error.get("type", "")).rsplit("/", 1)[-1].lower()
                     detail = str(error.get("detail", "")).lower()
+                    title = str(error.get("title", "")).lower()
+                    if any("suspend" in value for value in (kind, detail, title)):
+                        raise XApiError("x_account_suspended", "X account suspended.", response.status_code)
                     if kind == "resource-not-found":
                         raise XApiError("x_account_not_found", "X account not found.", response.status_code)
-                    if "suspend" in kind or "suspend" in detail:
-                        raise XApiError("x_account_suspended", "X account suspended.", response.status_code)
                     if (("authoriz" in kind or "protect" in kind or "protect" in detail)
                             and (error.get("resource_type") == "user" or "account" in detail)):
                         raise XApiError("x_account_protected", "This X account is protected.", response.status_code)
@@ -185,7 +186,8 @@ class XClient:
         for link in entities.get("urls", []):
             destination = link.get("unwound_url") or link.get("expanded_url")
             if destination:
-                text = text.replace(link.get("url", ""), destination)
+                if link.get("url"):
+                    text = text.replace(link["url"], destination)
                 urls.append(destination)
         references = data.get("referenced_tweets") or data.get("referenced_posts") or []
         types = {entry.get("type") for entry in references}

@@ -151,3 +151,57 @@ def test_body_limit_and_transport_failure_have_no_retry():
             client.usage()
         assert error.value.code == "fetch_failed" and error.value.http_status is None
         assert route.call_count == 2
+
+
+@pytest.mark.parametrize("kind", ["lookup", "timeline"])
+def test_partial_resource_not_found_error_does_not_discard_valid_data(kind):
+    data = USER if kind == "lookup" else {"data": [POST], "meta": {"result_count": 1}}
+    body = {**data, "errors": [{"type": "https://api.x.com/2/problems/resource-not-found",
+                                  "detail": "Pinned post or media not found"}]}
+    with respx.mock(assert_all_mocked=True) as router:
+        if kind == "lookup":
+            router.get("https://api.x.com/2/users/by/username/writer").mock(
+                return_value=httpx.Response(200, json=body))
+        else:
+            router.get(f"https://api.x.com/2/users/{USER['data']['id']}/tweets").mock(
+                return_value=httpx.Response(200, json=body))
+        with XClient(TOKEN) as client:
+            result = client.lookup_user("writer") if kind == "lookup" else client.user_posts(USER["data"]["id"])
+    expected = USER["data"]["id"] if kind == "lookup" else POST["id"]
+    assert (result.id if kind == "lookup" else result.posts[0].id) == expected
+
+
+@pytest.mark.parametrize("status", [200, 403])
+def test_suspension_detail_precedes_resource_not_found_and_http_status(status):
+    body = {"errors": [{"type": "https://api.x.com/2/problems/resource-not-found",
+                        "title": "Forbidden", "detail": "User has been suspended: [writer]."}]}
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://api.x.com/2/users/by/username/writer").mock(
+            return_value=httpx.Response(status, json=body))
+        with XClient(TOKEN) as client, pytest.raises(XApiError) as error:
+            client.lookup_user("writer")
+    assert (error.value.code, error.value.http_status) == ("x_account_suspended", status)
+
+
+def test_url_entity_without_short_url_keeps_text_but_includes_destination():
+    post = {**POST, "text": "See the original", "entities": {"urls": [
+        {"expanded_url": "https://blog.example/post"}]}}
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(f"https://api.x.com/2/users/{USER['data']['id']}/tweets").mock(
+            return_value=httpx.Response(200, json={"data": [post], "meta": {"result_count": 1}}))
+        with XClient(TOKEN) as client:
+            result = client.user_posts(USER["data"]["id"]).posts[0]
+    assert result.text == "See the original"
+    assert result.urls == ("https://blog.example/post",)
+
+
+@pytest.mark.parametrize("signal", [
+    {"referenced_tweets": [{"type": "replied_to", "id": "1"}]},
+    {"in_reply_to_user_id": "123"},
+])
+def test_either_reply_signal_alone_marks_post_as_reply(signal):
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(f"https://api.x.com/2/users/{USER['data']['id']}/tweets").mock(
+            return_value=httpx.Response(200, json={"data": [{**POST, **signal}], "meta": {"result_count": 1}}))
+        with XClient(TOKEN) as client:
+            assert client.user_posts(USER["data"]["id"]).posts[0].is_reply

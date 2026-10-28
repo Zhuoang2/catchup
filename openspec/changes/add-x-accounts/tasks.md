@@ -290,7 +290,7 @@ Claude's review of run 1 confirmed the defects below, and the user approved this
   - **Through the run,** in `backend/tests/test_digest_runner.py`: an account whose new posts come as two pages, both read in full within the limit, gives `x_waiting_accounts` 0.
 
   Verify: the first, the empty-page, and the last tests fail on the current head. Then the named mutation "restore the run-1 `read_phase`" (copy it from commit `173cd68`, `backend/src/catchup/sources/x_check.py`) fails the first test, and is reverted.
-- [ ] 6.2 **Partial errors and suspended accounts** (D2, fix round 1), in `backend/src/catchup/sources/x_api.py`. Tests first, in `backend/tests/test_x_api.py`, with probe-shaped fixtures:
+- [x] 6.2 **Partial errors and suspended accounts** (D2, fix round 1), in `backend/src/catchup/sources/x_api.py`. Tests first, in `backend/tests/test_x_api.py`, with probe-shaped fixtures:
   - a timeline answer with `data` and an `errors` entry of type `.../resource-not-found` (for example, for a missing media item) returns its posts;
   - a lookup answer with `data` and an `errors` entry of type `.../resource-not-found` (for example, for a pinned post that is gone) returns the user;
   - HTTP 200, no `data`, and `errors: [{type: ".../2/problems/resource-not-found", title: "Forbidden", detail: "User has been suspended: [name]."}]` → `x_account_suspended`;

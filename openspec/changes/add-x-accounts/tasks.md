@@ -369,7 +369,7 @@ The review of fix round 1 confirmed the items below, and the user approved this 
     - on `https://notx.com/simonw` and `https://x.com.example.org/simonw`, it offers "Follow this site" (guard, already green).
 
   Verify: the tests fail on the current head, except the guards. Then the named mutation "drop the `.` boundary in the popup's `isXHost`" fails a look-alike test, and is reverted.
-- [ ] 7.3 **Feed confirm with an address it cannot parse** (D3, fix round 2), in `backend/src/catchup/api/sources.py`. Test first, in `backend/tests/test_sources_api.py`: `POST /api/sources` with `{"feed_url": "http://[abc/feed"}` answers 422 `invalid_url`, "Enter a valid public HTTP or HTTPS URL.", with `catchup.api.sources.safe_fetch` replaced by `pytest.fail`.
+- [x] 7.3 **Feed confirm with an address it cannot parse** (D3, fix round 2), in `backend/src/catchup/api/sources.py`. Test first, in `backend/tests/test_sources_api.py`: `POST /api/sources` with `{"feed_url": "http://[abc/feed"}` answers 422 `invalid_url`, "Enter a valid public HTTP or HTTPS URL.", with `catchup.api.sources.safe_fetch` replaced by `pytest.fail`.
 
   Verify: the test fails on the current head (the test client raises `ValueError`), and passes after.
 - [ ] 7.4 **Checks no test pinned** (D1, D2; guards, already green). Each test must fail under its named mutation:

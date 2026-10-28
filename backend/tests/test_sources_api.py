@@ -104,6 +104,17 @@ def test_confirm_stores_pending_item_links_and_comment_metadata(client):
         assert saved.comment_feed_url == "https://site.example/articles/0/comments/feed"
 
 
+def test_confirm_unparseable_feed_url_is_invalid_before_fetch(client, monkeypatch):
+    monkeypatch.setattr("catchup.api.sources.safe_fetch", lambda *_a, **_kw: pytest.fail("feed fetched"))
+    response = client.post("/api/sources", json={"feed_url": "http://[abc/feed"})
+    assert response.status_code == 422
+    assert response.json()["error"] == {
+        "code": "invalid_url", "message": "Enter a valid public HTTP or HTTPS URL.",
+    }
+    with client.app.state.session_factory() as session:
+        assert session.scalar(select(Source)) is None
+
+
 def test_confirm_stores_image_candidates_without_fetching_images(client):
     raw = entries_xml(1).replace(
         b"</item>", b"<description>&lt;img src='https://site.example/chart.png' alt='Chart'&gt;"

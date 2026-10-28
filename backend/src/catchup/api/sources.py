@@ -194,7 +194,11 @@ def confirm(data: ConfirmInput, request: Request, session: Session = Depends(get
         return _x_confirm(data.feed_url.strip(), request, session)
     try:
         feed_url = data.feed_url.strip()
-        if is_x_host(urlsplit(feed_url).hostname):
+        try:
+            host = urlsplit(feed_url).hostname
+        except ValueError as exc:
+            raise AppError("invalid_url", "Enter a valid public HTTP or HTTPS URL.", 422) from exc
+        if is_x_host(host):
             raise AppError("not_an_x_account", "This is not an X account address.", 422)
         response = request.app.state.feed_cache.pop(feed_url)
         feed = parse_feed(response if response is not None else safe_fetch(

@@ -66,3 +66,10 @@ def test_mobile_youtube_watch_is_excluded():
     watch = EntryLink("https://m.youtube.com/watch?v=video", "Watch")
     article = EntryLink("https://docs.example/analysis", "Analysis")
     assert related_links(ITEM, SITE, [watch, article], 8) == [article]
+
+
+def test_x_subdomain_links_are_not_related_context():
+    links = [EntryLink("https://developer.x.com/en/docs", "Docs"),
+             EntryLink("https://help.x.com/en", "Help"),
+             EntryLink("https://notx.com/article", "Outside")]
+    assert related_links(ITEM, SITE, links, 8) == [links[2]]

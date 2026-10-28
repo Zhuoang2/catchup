@@ -24,13 +24,21 @@ HOSTS = {"x.com", "twitter.com", "www.x.com", "www.twitter.com", "mobile.x.com",
          "mobile.twitter.com"}
 
 
+def is_x_host(host: str | None) -> bool:
+    return bool(host and any(host == domain or host.endswith("." + domain)
+                             for domain in ("x.com", "twitter.com")))
+
+
 def x_username(url: str) -> str | None:
     try:
         parts = urlsplit(url)
-        if parts.hostname not in HOSTS:
+        host = parts.hostname
+        if not is_x_host(host):
             return None
     except ValueError:
         return None
+    if host not in HOSTS:
+        raise AppError("not_an_x_account", "This is not an X account address.", 422)
     first = parts.path.strip("/").split("/", 1)[0]
     if not USERNAME.fullmatch(first) or first.lower() in RESERVED:
         raise AppError("not_an_x_account", "This is not an X account address.", 422)

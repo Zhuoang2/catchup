@@ -4,6 +4,7 @@ import re
 from datetime import timedelta
 from dataclasses import asdict
 from contextlib import closing
+from urllib.parse import urlsplit
 
 from cryptography.fernet import InvalidToken
 
@@ -23,7 +24,7 @@ from catchup.net.rate_limit import is_rate_limited
 from catchup.net.safe_fetch import FetchError, safe_fetch
 from catchup.sources.discovery import FEED_UNAVAILABLE_MESSAGE, discover, http_error_status
 from catchup.sources.feeds import FeedParseError, is_short, parse_feed
-from catchup.sources.x_accounts import post_item, x_username
+from catchup.sources.x_accounts import is_x_host, post_item, x_username
 from catchup.sources.x_api import XApiError, XClient
 
 router = APIRouter(prefix="/api/sources")
@@ -204,6 +205,8 @@ def confirm(data: ConfirmInput, request: Request, session: Session = Depends(get
         return _x_confirm(data.feed_url.strip(), request, session)
     try:
         feed_url = data.feed_url.strip()
+        if is_x_host(urlsplit(feed_url).hostname):
+            raise AppError("not_an_x_account", "This is not an X account address.", 422)
         response = request.app.state.feed_cache.pop(feed_url)
         feed = parse_feed(response if response is not None else safe_fetch(
             feed_url, max_bytes=request.app.state.settings.max_feed_bytes,

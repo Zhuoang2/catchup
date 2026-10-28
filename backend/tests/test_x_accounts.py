@@ -29,3 +29,17 @@ def test_x_pages_and_invalid_usernames_are_not_accounts(url):
 @pytest.mark.parametrize("url", ["https://example.com/simonw", "https://notx.com/simonw"])
 def test_non_x_addresses_keep_feed_discovery(url):
     assert x_username(url) is None
+
+
+@pytest.mark.parametrize("url", [
+    "https://help.x.com/en", "https://developer.x.com/", "https://api.twitter.com/2",
+])
+def test_other_x_owned_hosts_are_not_accounts(url):
+    with pytest.raises(AppError) as error:
+        x_username(url)
+    assert error.value.code == "not_an_x_account"
+
+
+@pytest.mark.parametrize("url", ["https://x.com.example.org/simonw", "https://notx.com/simonw"])
+def test_lookalike_x_hosts_remain_non_x(url):
+    assert x_username(url) is None

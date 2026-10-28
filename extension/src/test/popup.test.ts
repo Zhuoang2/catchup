@@ -327,6 +327,29 @@ it('only offers Add on X home pages', async () => {
   expect((await axe(document.body, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([])
 })
 
+it('offers only Add on a help.x.com page', async () => {
+  connect()
+  chromeMock.tabs.query.mockResolvedValue([{ id: 8, url: 'https://help.x.com/en', title: 'Help' }])
+  initPopup()
+  await screen.findByRole('button', { name: 'Add this page to my next digest' })
+  expect(screen.queryByRole('button', { name: /Follow/ })).toBeNull()
+})
+
+it('uses generic page extraction for a help.x.com URL that looks like a post', async () => {
+  connect()
+  chromeMock.tabs.query.mockResolvedValue([{ id: 8, url: 'https://help.x.com/a/status/1', title: 'Help' }])
+  genericResult({ ...captured, url: 'https://help.x.com/a/status/1' })
+  fetchMock.mockImplementation(async (url: string) => url.endsWith('/captures')
+    ? response(201, { id: 50, waiting: 4 })
+    : response(200, { name: 'My browser', waiting: 3 }))
+  initPopup()
+  fireEvent.click(await screen.findByRole('button', { name: 'Add this page to my next digest' }))
+  await screen.findByText('Saved. It will be in your next digest.')
+  expect(chromeMock.scripting.executeScript.mock.calls.map(([details]) =>
+    details.files ? 'readability.js' : details.func.name))
+    .toEqual(['readability.js', 'extractReadable', 'extractGeneric'])
+})
+
 it.each([
   ['https://twitter.com/Writer/status/123', true],
   ['https://www.x.com/Writer', true],

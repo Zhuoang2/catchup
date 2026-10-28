@@ -300,7 +300,7 @@ Claude's review of run 1 confirmed the defects below, and the user approved this
   - **each reply signal alone** marks a post as a reply: a `replied_to` reference with no `in_reply_to_user_id`, and an `in_reply_to_user_id` with no reference.
 
   Verify: the tests fail on the current head, except the guard and the reply-signal tests, which are guards that the current code passes. Then the named mutations "check `resource-not-found` before suspension", "map `errors` even when `data` is present", "drop the `in_reply_to_user_id` signal", and "drop the `replied_to` signal" each fail a test, and are reverted.
-- [ ] 6.3 **Other x.com and twitter.com hosts** (D3, D8, fix round 1), in `backend/src/catchup/sources/x_accounts.py` and the copy in `extension/src/popup.ts`.
+- [x] 6.3 **Other x.com and twitter.com hosts** (D3, D8, fix round 1), in `backend/src/catchup/sources/x_accounts.py` and the copy in `extension/src/popup.ts`.
   - Backend tests first, in `backend/tests/test_x_accounts.py` and `backend/tests/test_x_sources_api.py`:
     - `https://help.x.com/en`, `https://developer.x.com/`, and `https://api.twitter.com/2` raise `not_an_x_account`;
     - `https://x.com.example.org/simonw` and `https://notx.com/simonw` return `None`;

@@ -168,3 +168,17 @@ def test_confirm_cache_miss_looks_up_by_id_and_handles_never_posted(client):
     with client.app.state.session_factory() as session:
         assert session.scalar(select(XAccount)).newest_id is None
         assert session.scalar(select(func.count()).select_from(Item)) == 0
+
+
+def test_preview_other_x_host_refuses_without_discovery(client, monkeypatch):
+    monkeypatch.setattr("catchup.api.sources.discover", lambda *_a, **_kw: pytest.fail("discovery on X host"))
+    response = client.post("/api/sources/preview", json={"url": "https://help.x.com/en"})
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "not_an_x_account"
+
+
+def test_confirm_feed_url_on_x_host_refuses_without_fetch(client, monkeypatch):
+    monkeypatch.setattr("catchup.api.sources.safe_fetch", lambda *_a, **_kw: pytest.fail("fetch on X host"))
+    response = client.post("/api/sources", json={"feed_url": "https://help.x.com/rss"})
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "not_an_x_account"

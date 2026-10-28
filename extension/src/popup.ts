@@ -31,6 +31,8 @@ function button(label: string, action: () => void): HTMLButtonElement {
 // Copy of the profile recognition rules in backend/src/catchup/sources/x_accounts.py.
 const xHosts = new Set(['x.com', 'twitter.com', 'www.x.com', 'www.twitter.com',
   'mobile.x.com', 'mobile.twitter.com'])
+const isXHost = (host: string) => ['x.com', 'twitter.com']
+  .some(domain => host === domain || host.endsWith(`.${domain}`))
 const xReserved = new Set(['home', 'explore', 'search', 'i', 'settings', 'notifications',
   'messages', 'compose', 'login', 'logout', 'signup', 'tos', 'privacy', 'hashtag',
   'intent', 'share', 'account', 'jobs'])
@@ -167,9 +169,9 @@ export async function initPopup(): Promise<void> {
   statusText.setAttribute('role', 'status')
   statusText.setAttribute('aria-live', 'polite')
   const host = (() => { try { return new URL(tab.url ?? '').hostname } catch { return '' } })()
-  const isX = xHosts.has(host)
+  const isX = isXHost(host)
   const username = xUsername(tab.url ?? '')
-  const xPost = isX && /^\/[^/]+\/status\/\d+(?:\/|$)/.test((() => {
+  const xPost = xHosts.has(host) && /^\/[^/]+\/status\/\d+(?:\/|$)/.test((() => {
     try { return new URL(tab.url ?? '').pathname } catch { return '' }
   })())
 

@@ -179,10 +179,11 @@ def test_preview_other_x_host_refuses_without_discovery(client, monkeypatch):
 
 
 def test_confirm_feed_url_on_x_host_refuses_without_fetch(client, monkeypatch):
-    monkeypatch.setattr("catchup.api.sources.safe_fetch", lambda *_a, **_kw: pytest.fail("fetch on X host"))
     response = client.post("/api/sources", json={"feed_url": "https://help.x.com/rss"})
     assert response.status_code == 422
-    assert response.json()["error"]["code"] == "not_an_x_account"
+    assert response.json()["error"]["code"] == "blocked_address"
+    with client.app.state.session_factory() as session:
+        assert session.scalar(select(Source)) is None
 
 
 def test_removed_token_invalidates_cached_preview_and_refuses_confirm(client):

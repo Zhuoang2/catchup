@@ -28,7 +28,8 @@ function button(label: string, action: () => void): HTMLButtonElement {
   return node
 }
 
-// Copy of the profile recognition rules in backend/src/catchup/sources/x_accounts.py.
+// Copy of the account rules in backend/src/catchup/sources/x_accounts.py
+// and the host rule in backend/src/catchup/net/x_hosts.py.
 const xHosts = new Set(['x.com', 'twitter.com', 'www.x.com', 'www.twitter.com',
   'mobile.x.com', 'mobile.twitter.com'])
 const normalizedHost = (host: string) => host.toLowerCase().replace(/\.$/, '')

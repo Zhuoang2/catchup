@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 
 from catchup.errors import AppError
 from catchup.models import Item
+from catchup.net.x_hosts import is_x_host
 from catchup.sources.feeds import EntryImage, _entry_title, filter_image_urls
 from catchup.sources.x_api import XPage, XPost, XUser
 
@@ -22,12 +23,6 @@ RESERVED = {
 USERNAME = re.compile(r"[A-Za-z0-9_]{1,15}\Z")
 HOSTS = {"x.com", "twitter.com", "www.x.com", "www.twitter.com", "mobile.x.com",
          "mobile.twitter.com"}
-
-
-def is_x_host(host: str | None) -> bool:
-    host = host.lower().removesuffix(".") if host else ""
-    return any(host == domain or host.endswith("." + domain)
-               for domain in ("x.com", "twitter.com"))
 
 
 def x_username(url: str) -> str | None:

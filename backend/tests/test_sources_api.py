@@ -105,7 +105,6 @@ def test_confirm_stores_pending_item_links_and_comment_metadata(client):
 
 
 def test_confirm_unparseable_feed_url_is_invalid_before_fetch(client, monkeypatch):
-    monkeypatch.setattr("catchup.api.sources.safe_fetch", lambda *_a, **_kw: pytest.fail("feed fetched"))
     response = client.post("/api/sources", json={"feed_url": "http://[abc/feed"})
     assert response.status_code == 422
     assert response.json()["error"] == {
@@ -192,6 +191,17 @@ def test_large_article_keeps_feed_text(client):
             200, content=b"x" * (MAX_BYTES + 1),
         ))
         assert article_text(entry, {FEED_URL}, 500) == ("Excerpt", "feed")
+
+
+def test_x_entry_link_keeps_feed_text_without_fetch(client, monkeypatch):
+    entry = FeedEntry("x-post", "https://x.com/someone/status/1", "Post", None, "Feed excerpt")
+    monkeypatch.setattr(socket, "getaddrinfo", lambda host, port, **_kw: [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.4.4", port))
+    ])
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        x_page = router.get(entry.link).mock(side_effect=AssertionError("X entry must not be fetched"))
+        assert article_text(entry, {FEED_URL}, 500) == ("Feed excerpt", "feed")
+        assert x_page.call_count == 0
 
 
 def test_short_excerpt_not_in_extracted_article_keeps_both(client, monkeypatch):

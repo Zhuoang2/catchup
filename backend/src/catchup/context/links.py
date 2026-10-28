@@ -3,7 +3,7 @@
 from urllib.parse import urlsplit
 
 from catchup.sources.feeds import EntryLink
-from catchup.sources.x_accounts import is_x_host
+from catchup.net.x_hosts import is_x_host
 
 
 TAXONOMY = {"tag", "tags", "category", "categories", "author", "page", "search", "archive"}

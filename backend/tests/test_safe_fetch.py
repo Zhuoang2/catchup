@@ -83,6 +83,36 @@ def test_redirect_to_metadata_is_blocked_before_request(resolve):
     assert error.value.code == "blocked_address"
 
 
+@pytest.mark.parametrize("url", ["https://x.com/a", "https://help.x.com./en"])
+def test_x_host_is_blocked_before_dns(resolve, url):
+    with pytest.raises(FetchError) as error:
+        safe_fetch(url)
+    assert error.value.code == "blocked_address"
+    assert str(error.value) == "X pages are read only through the X API."
+
+
+def test_redirect_to_x_is_blocked_before_request(resolve):
+    resolve["x.com"] = ["8.8.4.4"]
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        first = router.get(PUBLIC).mock(side_effect=[
+            httpx.Response(301, headers={"location": "https://x.com/someone/status/1"}),
+            AssertionError("unexpected second request to public feed"),
+        ])
+        x_page = router.get("https://x.com/someone/status/1").mock(
+            side_effect=AssertionError("X page must never be fetched"))
+        with pytest.raises(FetchError) as error:
+            safe_fetch(PUBLIC)
+        assert first.call_count == 1
+        assert x_page.call_count == 0
+    assert error.value.code == "blocked_address"
+
+
+def test_unparseable_current_url_is_invalid_url():
+    with pytest.raises(FetchError) as error:
+        safe_fetch("http://[abc/feed")
+    assert error.value.code == "invalid_url"
+
+
 @pytest.mark.parametrize("url", ["file:///tmp/a", "http://user:pass@public.example/feed",
                                    "http://", "https://public.example:bad/feed"])
 def test_rejects_invalid_urls(url):

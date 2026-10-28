@@ -7,6 +7,7 @@ from urllib.parse import urlsplit
 from cryptography.fernet import InvalidToken
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from catchup.crypto import decrypt_key, encrypt_key
@@ -15,7 +16,8 @@ from catchup.errors import AppError
 from catchup.llm.client import (
     AuthFailed, ConnectionFailed, InsufficientBalance, ModelClient, ProviderError, RateLimited,
 )
-from catchup.models import AppSettings, ModelConfig, XCredential, utc_now
+from catchup.models import (AppSettings, Digest, DigestItem, DigestRun, DigestTopic,
+                             Item, ModelConfig, Source, XCredential, utc_now)
 from catchup.sources.x_api import XApiError, XClient
 
 router = APIRouter(prefix="/api/settings")
@@ -108,6 +110,62 @@ def test_x(data: XTestInput, request: Request, session: Session = Depends(get_se
             if value is not None
         }) from exc
     return {"ok": True}
+
+
+@router.post("/x/delete-all")
+def delete_all_x(request: Request) -> dict:
+    from catchup.digest.runner import _start_lock, active_run
+
+    with _start_lock, request.app.state.session_factory() as session:
+        if active_run(session) is not None:
+            raise AppError("run_active", "A digest is being made. Try again when it finishes.", 409)
+        session.execute(text("PRAGMA secure_delete=ON"))
+        removed = session.scalars(select(DigestItem).where(DigestItem.source_kind == "x")).all()
+        topic_ids = {row.topic_id for row in removed}
+        digest_ids = {row.digest_id for row in removed}
+        distinct_sources: dict[int, set[tuple[str, object]]] = {}
+        for row in removed:
+            item = session.get(Item, row.item_id) if row.item_id is not None else None
+            key = ("id", item.source_id) if item else ("name", row.source_name)
+            distinct_sources.setdefault(row.digest_id, set()).add(key)
+            session.delete(row)
+        session.flush()
+        for topic_id in topic_ids:
+            topic = session.get(DigestTopic, topic_id)
+            if topic is None:
+                continue
+            count = session.scalar(select(func.count(DigestItem.id)).where(DigestItem.topic_id == topic_id))
+            if count == 0:
+                session.delete(topic)
+            else:
+                digest = session.get(Digest, topic.digest_id)
+                topic.overview = ""
+                topic.title = "其他" if digest.language == "zh-Hans" else "Other"
+        session.flush()
+        deleted_digests = 0
+        for digest_id in digest_ids:
+            digest = session.get(Digest, digest_id)
+            if digest is None:
+                continue
+            count = session.scalar(select(func.count(DigestItem.id)).where(DigestItem.digest_id == digest_id))
+            if count == 0:
+                run = session.get(DigestRun, digest.run_id)
+                if run is not None:
+                    run.digest_id = None
+                session.delete(digest)
+                deleted_digests += 1
+            else:
+                digest.item_count = count
+                digest.source_count = max(0, digest.source_count - len(distinct_sources[digest_id]))
+        accounts = session.scalars(select(Source).where(Source.kind == "x")).all()
+        for source in accounts:
+            session.delete(source)
+        credential = session.get(XCredential, 1)
+        if credential is not None:
+            session.delete(credential)
+        session.commit()
+        session.connection().exec_driver_sql("PRAGMA wal_checkpoint(TRUNCATE)")
+        return {"digest_items": len(removed), "digests": deleted_digests, "accounts": len(accounts)}
 
 
 def get_model_client_factory() -> Callable[..., ModelClient]:

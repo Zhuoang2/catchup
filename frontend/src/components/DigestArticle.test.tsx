@@ -39,6 +39,22 @@ it('shows the captured page kind and its own site name', async () => {
   await expectAccessible(container)
 })
 
+it('shows the X account icon on a digest item', async () => {
+  const withX = { ...digest, topics: [{ ...digest.topics[0], items: [{
+    ...digest.topics[0].items[0], source_kind: 'x' as const, source_name: 'X · Writer',
+  }] }] }
+  const { container } = render(<MemoryRouter><DigestArticle digest={withX}/></MemoryRouter>)
+  expect(container.querySelector('.item-meta')).toHaveTextContent('X account: X · Writer')
+  expect(container.querySelector('.item-meta svg')).toBeInTheDocument()
+  await expectAccessible(container)
+})
+
+it('does not render an overview after X data was removed from a mixed topic', () => {
+  const cleared = { ...digest, topics: [{ ...digest.topics[0], overview: '' }] }
+  const { container } = render(<MemoryRouter><DigestArticle digest={cleared}/></MemoryRouter>)
+  expect(container.querySelector('.topic-overview')).toBeNull()
+})
+
 it('shows used context links after the summary, safely opening originals', async () => {
   const withLinks = { ...digest, topics: [{ ...digest.topics[0], items: [{
     ...digest.topics[0].items[0], also_read: [

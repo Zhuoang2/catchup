@@ -14,6 +14,7 @@ from catchup.llm.client import ModelInfo
 from catchup.main import create_app
 from catchup.models import (
     AppSettings, Digest, DigestItem, DigestRun, DigestTopic, Item, ItemContext, ModelConfig, Source, SourceCheck,
+    XAccount,
 )
 from catchup.net.host_spacing import HostSpacer
 from catchup.net.safe_fetch import RATE_LIMIT_PREFIX
@@ -130,6 +131,258 @@ def saved_capture(client, *, site_name="X · Name", image=False):
     }, headers={"Authorization": f"Bearer {token}", "Origin": "chrome-extension://abcdefghijklmnop"})
     assert response.status_code == 201
     return response.json()
+
+
+def seed_x_accounts(client, usernames=("a", "b")):
+    with client.app.state.session_factory() as session:
+        for index, username in enumerate(usernames):
+            source = Source(title=f"Writer {username}", site_url=f"https://x.com/{username}",
+                            feed_url=f"x:user:{index + 100}", input_url=f"https://x.com/{username}",
+                            kind="x")
+            session.add(source)
+            session.flush()
+            session.add(XAccount(source_id=source.id, user_id=str(index + 100),
+                                 username=username, newest_id="1000",
+                                 followed_at=datetime.now(timezone.utc) - timedelta(days=1)))
+        session.commit()
+
+
+def x_timeline(post_id, *, replies=False):
+    posts = [{"id": str(post_id), "text": f"X news {post_id}", "conversation_id": str(post_id),
+              "created_at": datetime.now(timezone.utc).isoformat()}]
+    if replies:
+        posts.append({"id": str(post_id + 1), "text": "Author reply", "conversation_id": str(post_id),
+                      "in_reply_to_user_id": "100", "referenced_tweets": [
+                          {"type": "replied_to", "id": str(post_id)}],
+                      "created_at": datetime.now(timezone.utc).isoformat()})
+    return {"data": posts, "meta": {"result_count": len(posts)}}
+
+
+def test_x_runs_defer_account_and_read_it_first_next_time(environment):
+    seed(environment, sources=0)
+    seed_x_accounts(environment)
+    environment.app.state.settings = replace(environment.app.state.settings, x_reads_per_run=5)
+    assert environment.put("/api/settings/x", json={"token": "test-" + "x" * 40}).status_code == 200
+    calls = []
+    with respx.mock(assert_all_mocked=True) as router:
+        def timeline(request):
+            calls.append(request.url.path)
+            return httpx.Response(200, json={"data": [
+                {"id": str(1100 + i), "text": f"Post {i}", "conversation_id": str(1100 + i),
+                 "created_at": datetime.now(timezone.utc).isoformat()} for i in range(5)],
+                "meta": {"result_count": 5}})
+        router.get("https://api.x.com/2/users/100/tweets").mock(side_effect=timeline)
+        router.get("https://api.x.com/2/users/101/tweets").mock(side_effect=timeline)
+        first = execute(environment)
+        assert first["x_reads"] == 5 and first["x_waiting_accounts"] == 1
+        assert first["sources_total"] == len(first["source_checks"]) == 2
+        assert [row["status"] for row in first["source_checks"]] == ["new_items", "deferred"]
+        assert environment.get("/api/sources").json()[1]["last_check_status"] == "deferred"
+        second = execute(environment)
+    assert calls == ["/2/users/100/tweets", "/2/users/101/tweets"]
+    assert second["x_reads"] == 5 and second["x_waiting_accounts"] == 1
+    assert [row["status"] for row in second["source_checks"]] == ["new_items", "deferred"]
+    assert second["status"] == "succeeded"
+
+
+def test_x_is_checked_after_feed_and_pending_post_is_summarized_under_its_name(environment, monkeypatch):
+    seed(environment, count=0)
+    seed_x_accounts(environment, ("a",))
+    environment.put("/api/settings/x", json={"token": "test-" + "x" * 40})
+    order = []
+    stub_collection(monkeypatch, on_check=lambda: order.append("feed"))
+    model = FakeModel()
+    environment.app.state.model_client_factory = lambda *_: model
+    with respx.mock(assert_all_mocked=True) as router:
+        def timeline(_request):
+            order.append("x")
+            return httpx.Response(200, json=x_timeline(1100))
+        router.get("https://api.x.com/2/users/100/tweets").mock(side_effect=timeline)
+        result = execute(environment)
+    assert order == ["feed", "x"]
+    assert result["status"] == "succeeded"
+    with environment.app.state.session_factory() as session:
+        x_item = session.scalar(select(DigestItem).where(DigestItem.source_kind == "x"))
+        assert x_item.source_name == "X · Writer a"
+        assert x_item.link == "https://x.com/a/status/1100"
+    assert any("X · Writer a" in str(messages) for messages, _ in model.calls)
+
+
+def test_x_gap_waiting_count_survives_a_later_failure(environment):
+    seed(environment, sources=0)
+    seed_x_accounts(environment, ("a",))
+    environment.app.state.settings = replace(environment.app.state.settings, x_reads_per_run=5)
+    environment.put("/api/settings/x", json={"token": "test-" + "x" * 40})
+    environment.app.state.model_client_factory = lambda *_: FakeModel([ProviderError("model failed")])
+    with respx.mock(assert_all_mocked=True) as router:
+        data = [{"id": str(1100 + i), "text": f"Post {i}", "conversation_id": str(1100 + i),
+                 "created_at": datetime.now(timezone.utc).isoformat()} for i in range(5)]
+        router.get("https://api.x.com/2/users/100/tweets").mock(
+            return_value=httpx.Response(200, json={"data": data, "meta": {
+                "result_count": 5, "next_token": "more"}}))
+        result = execute(environment)
+    assert result["status"] == "failed"
+    assert (result["x_reads"], result["x_waiting_accounts"]) == (5, 1)
+
+
+def test_deferred_check_stays_deferred_with_item_held_from_confirm(environment):
+    seed(environment, sources=0)
+    seed_x_accounts(environment, ("a",))
+    environment.app.state.settings = replace(environment.app.state.settings, x_reads_per_run=0)
+    environment.put("/api/settings/x", json={"token": "test-" + "x" * 40})
+    with environment.app.state.session_factory() as session:
+        source = session.scalar(select(Source).where(Source.kind == "x"))
+        session.add(Item(source_id=source.id, identity_key="1100", link="https://x.com/a/status/1100",
+                         title="Held", content_text="Post from confirm", content_origin="x", state="pending"))
+        session.commit()
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        timeline = router.get("https://api.x.com/2/users/100/tweets").mock(return_value=httpx.Response(200))
+        result = execute(environment)
+        assert timeline.call_count == 0
+    assert result["status"] == "succeeded"
+    assert result["x_reads"] == 0 and result["x_waiting_accounts"] == 1
+    assert result["source_checks"][0]["status"] == "deferred"
+    assert environment.get("/api/sources").json()[0]["last_check_status"] == "deferred"
+    with environment.app.state.session_factory() as session:
+        assert session.scalar(select(DigestItem)).source_kind == "x"
+
+
+def test_without_x_token_feed_still_checked(environment, monkeypatch):
+    seed(environment, count=0)
+    seed_x_accounts(environment, ("a", "b"))
+    stub_collection(monkeypatch)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        timeline = router.get("https://api.x.com/2/users/100/tweets").mock(return_value=httpx.Response(200))
+        result = execute(environment)
+        assert timeline.call_count == 0
+    assert result["sources_total"] == len(result["source_checks"]) == 3
+    assert [row["status"] for row in result["source_checks"]] == ["no_new_items", "failed", "failed"]
+    assert all(row["error"] == "X token needed" for row in result["source_checks"][1:])
+
+
+def test_x_reads_survive_later_model_failure(environment):
+    seed(environment, sources=0)
+    seed_x_accounts(environment, ("a",))
+    environment.put("/api/settings/x", json={"token": "test-" + "x" * 40})
+    environment.app.state.model_client_factory = lambda *_: FakeModel([ProviderError("model failed")])
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://api.x.com/2/users/100/tweets").mock(
+            return_value=httpx.Response(200, json=x_timeline(1100)))
+        result = execute(environment)
+    assert result["status"] == "failed"
+    assert result["x_reads"] == 1
+
+
+def test_x_context_reads_link_and_replies_but_not_x_site(environment, monkeypatch):
+    seed(environment, sources=0)
+    seed_x_accounts(environment, ("a",))
+    environment.app.state.settings = replace(environment.app.state.settings, context_fetches_per_run=0)
+    environment.app.state.model_client_factory = lambda *_: FakeModel([
+        {"summary": "X summary", "used": ["A1"]},
+        {"topics": [{"title": "News", "overview": "X", "item_refs": ["i1"]}]},
+    ])
+    with environment.app.state.session_factory() as session:
+        source = session.scalar(select(Source).where(Source.kind == "x"))
+        session.add(Item(source_id=source.id, identity_key="1100", link="https://x.com/a/status/1100",
+                         title="Post", content_text="Post", content_origin="x", state="pending",
+                         entry_links=[{"url": "https://blog.example/post", "text": "Blog"},
+                                      {"url": "https://x.com/a/status/1101", "text": "Other"}],
+                         captured_replies=["First", "Second"]))
+        session.commit()
+    monkeypatch.setattr(socket, "getaddrinfo", lambda _host, port, *_a, **_kw: [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", port)),
+    ])
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        own = router.get("https://x.com/a/status/1100").mock(return_value=httpx.Response(200))
+        other = router.get("https://x.com/a/status/1101").mock(return_value=httpx.Response(200))
+        blog = router.get("https://blog.example/post").mock(return_value=httpx.Response(200))
+        result = execute(environment)
+        assert own.call_count == other.call_count == blog.call_count == 0
+    assert result["status"] == "succeeded"
+    with environment.app.state.session_factory() as session:
+        assert session.scalars(select(ItemContext)).all() == []
+        assert session.scalar(select(DigestItem)).context_links == [{
+            "title": "Author replies (2)", "url": "https://x.com/a/status/1100",
+            "kind": "author_replies",
+        }]
+
+
+def test_x_context_reads_external_article_without_fetching_own_address(environment, monkeypatch):
+    seed(environment, sources=0)
+    seed_x_accounts(environment, ("a",))
+    with environment.app.state.session_factory() as session:
+        source = session.scalar(select(Source).where(Source.kind == "x"))
+        session.add(Item(source_id=source.id, identity_key="1100", link="https://x.com/a/status/1100",
+                         title="Post", content_text="Post", content_origin="x", state="pending",
+                         site_name="X · Writer a",
+                         entry_links=[{"url": "https://blog.example/post", "text": "Blog"},
+                                      {"url": "https://x.com/a/status/1101", "text": "Other"}]))
+        session.commit()
+    monkeypatch.setattr(socket, "getaddrinfo", lambda _host, port, *_a, **_kw: [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", port)),
+    ])
+    environment.app.state.model_client_factory = lambda *_: FakeModel([
+        {"summary": "Post about article", "used": ["L1"]},
+        {"topics": [{"title": "News", "overview": "Post", "item_refs": ["i1"]}]},
+    ])
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        own = router.get("https://x.com/a/status/1100").mock(return_value=httpx.Response(200))
+        other = router.get("https://x.com/a/status/1101").mock(return_value=httpx.Response(200))
+        router.get("https://blog.example/robots.txt").mock(return_value=httpx.Response(404))
+        article = router.get("https://blog.example/post").mock(
+            return_value=httpx.Response(200, text="<html><title>Article</title><article><p>" +
+                                        "Context " * 60 + "</p></article></html>"))
+        result = execute(environment)
+        assert own.call_count == other.call_count == 0
+        assert article.call_count == 1
+    assert result["status"] == "succeeded"
+    with environment.app.state.session_factory() as session:
+        assert session.scalar(select(DigestItem)).context_links == [{
+            "title": "Article", "url": "https://blog.example/post", "kind": "link",
+        }]
+
+
+def test_delivered_x_item_clears_text_replies_and_context_but_keeps_digest_snapshot(environment, monkeypatch):
+    seed(environment, count=1)
+    seed_x_accounts(environment, ("a",))
+    stub_collection(monkeypatch)
+    environment.app.state.settings = replace(environment.app.state.settings, x_reads_per_run=0)
+    environment.put("/api/settings/x", json={"token": "test-" + "x" * 40})
+    with environment.app.state.session_factory() as session:
+        source = session.scalar(select(Source).where(Source.kind == "x"))
+        item = Item(source_id=source.id, identity_key="1100", link="https://x.com/a/status/1100",
+                    title="A post", content_text="Sensitive X post", content_origin="x", state="pending",
+                    site_name="X · Writer a", captured_replies=["A reply"], context_status="gathered")
+        session.add(item)
+        session.flush()
+        session.add(ItemContext(item_id=item.id, ref="L1", kind="link", url="https://blog.example/post",
+                                title="Article", text="Context text", position=1))
+        session.commit()
+    environment.app.state.model_client_factory = lambda *_: FakeModel([
+        {"summary": "Feed summary"},
+        {"summary": "X summary", "used": ["L1"]},
+        {"topics": [{"title": "News", "overview": "Overview", "item_refs": ["i1", "i2"]}]},
+    ])
+    result = execute(environment)
+    assert result["status"] == "succeeded"
+    with environment.app.state.session_factory() as session:
+        stored = session.scalar(select(Item).join(Source).where(Source.kind == "x"))
+        feed = session.scalar(select(Item).join(Source).where(Source.kind == "feed"))
+        snapshot = session.scalar(select(DigestItem).where(DigestItem.source_kind == "x"))
+        assert (stored.content_text, stored.captured_replies, stored.contexts) == ("", None, [])
+        assert (snapshot.title, snapshot.summary, snapshot.link, snapshot.source_name) == (
+            "A post", "X summary", "https://x.com/a/status/1100", "X · Writer a",
+        )
+        assert snapshot.context_links == [{"title": "Article", "url": "https://blog.example/post",
+                                           "kind": "link"}]
+        assert feed.content_text == "Original content"
+        source_id = stored.source_id
+    assert environment.delete(f"/api/sources/{source_id}").status_code == 204
+    with environment.app.state.session_factory() as session:
+        assert session.get(XAccount, source_id) is None
+        assert session.scalar(select(Item).where(Item.source_id == source_id)) is None
+
+
 
 
 def test_capture_source_is_not_checked_and_uses_its_own_site_name(environment, monkeypatch):
@@ -472,7 +725,7 @@ def delete_during_outcome_selection(client, source_id):
     deleted = []
 
     def on_select(_connection, _cursor, statement, _parameters, _context, _executemany):
-        if "FROM source_checks" not in statement or "source_checks.status !=" not in statement:
+        if "FROM source_checks" not in statement or "source_checks.status NOT IN" not in statement:
             return
         deleted.append(source_id)
         with engine.begin() as connection:

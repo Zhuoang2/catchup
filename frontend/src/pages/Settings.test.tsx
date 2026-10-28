@@ -354,6 +354,48 @@ describe('model settings', () => {
 })
 
 describe('X accounts settings', () => {
+  it('asks before deleting all X data, preserves saved pages, and announces counts', async () => {
+    const original = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (url: string, options?: RequestInit) => {
+      if (url === '/api/settings/x/delete-all' && options?.method === 'POST') return respond({
+        digest_items: 3, digests: 1, accounts: 2,
+      })
+      return original(url)
+    })
+    const { container } = render(<Settings/>)
+    await screen.findByLabelText('X API token')
+    fireEvent.click(screen.getByRole('button', { name: 'Delete all X data' }))
+    const confirmation = screen.getByRole('group', { name: 'Confirm X data deletion' })
+    expect(confirmation).toHaveTextContent(
+      'Delete all X data? This removes your X token, followed X accounts, and their items in saved digests.')
+    expect(confirmation).toHaveTextContent('Pages saved from X with the extension stay.')
+    await expectAccessible(container)
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(fetchMock.mock.calls.filter(([url]) => url === '/api/settings/x/delete-all')).toHaveLength(0)
+    fireEvent.click(screen.getByRole('button', { name: 'Delete all X data' }))
+    fireEvent.click(screen.getByRole('group', { name: 'Confirm X data deletion' }).querySelector('button')!)
+    expect((await screen.findByText('Deleted 3 X digest items, 1 digest, and 2 X accounts.'))
+      .closest('[role="status"]')).toBeInTheDocument()
+    expect(fetchMock.mock.calls.filter(([url]) => url === '/api/settings/x/delete-all')).toHaveLength(1)
+  })
+
+  it('shows the active-run refusal and keeps the confirmation', async () => {
+    const original = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (url: string, options?: RequestInit) =>
+      url === '/api/settings/x/delete-all' && options?.method === 'POST'
+        ? respond({ error: { code: 'run_active',
+          message: 'A digest is being made. Try again when it finishes.' } }, 409)
+        : original(url))
+    const { container } = render(<Settings/>)
+    await screen.findByLabelText('X API token')
+    fireEvent.click(screen.getByRole('button', { name: 'Delete all X data' }))
+    fireEvent.click(screen.getByRole('group', { name: 'Confirm X data deletion' }).querySelector('button')!)
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'A digest is being made. Try again when it finishes.')
+    expect(screen.getByRole('group', { name: 'Confirm X data deletion' })).toBeInTheDocument()
+    await expectAccessible(container)
+  })
+
   it('loads a saved token without putting it in the field', async () => {
     const original = fetchMock.getMockImplementation()!
     fetchMock.mockImplementation(async (url: string) =>

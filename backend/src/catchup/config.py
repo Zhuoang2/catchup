@@ -21,6 +21,19 @@ def positive_env(name: str, default: int | None = None) -> int | None:
     return value
 
 
+def nonnegative_env(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a non-negative integer.") from exc
+    if value < 0:
+        raise ValueError(f"{name} must be a non-negative integer.")
+    return value
+
+
 def validate_user_agent_contact(contact: str | None) -> str | None:
     if contact is not None and (len(contact) > 100 or any(not 32 <= ord(ch) <= 126 for ch in contact)):
         raise ValueError("CATCHUP_USER_AGENT_CONTACT must be printable ASCII (no CR/LF), at most 100 characters.")
@@ -47,6 +60,7 @@ class Settings:
     links_per_item: int = 8
     context_fetches_per_run: int = 60
     author_replies: bool = True
+    x_reads_per_run: int = 200
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -66,6 +80,7 @@ class Settings:
             links_per_item=positive_env("CATCHUP_LINKS_PER_ITEM", 8),
             context_fetches_per_run=positive_env("CATCHUP_CONTEXT_FETCHES_PER_RUN", 60),
             author_replies=os.getenv("CATCHUP_AUTHOR_REPLIES", "true").lower() not in ("0", "false", "no"),
+            x_reads_per_run=nonnegative_env("CATCHUP_X_READS_PER_RUN", 200),
             long_item_chars=positive_env("CATCHUP_LONG_ITEM_CHARS", 20_000),
             single_call_chars=positive_env("CATCHUP_SINGLE_CALL_CHARS"),
             allowed_hosts=tuple(

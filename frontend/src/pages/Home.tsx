@@ -18,6 +18,7 @@ type Run = {
   digest_item_count: number | null; digest_update_count: number | null
   source_checks: Check[]; error_kind: string | null; error_message: string | null; digest_id: number | null
   waiting_count: number; deferred_count: number; prompt_tokens: number | null; completion_tokens: number | null
+  x_reads?: number; x_waiting_accounts?: number
 }
 type Source = { kind: string }
 // "16 items (14 summarized, 2 in Creator updates)": the saved total, split when Creator updates are part of it.
@@ -40,6 +41,7 @@ function SourceChecks({ checks, label, compact = false }: { checks: Check[]; lab
           : check.status === 'new_items' ? 'ok' : 'neutral'}>
           {check.rate_limited ? 'Rate limited · try later' : ({
             failed: 'Failed', new_items: 'New items', no_new_items: 'No new items',
+            deferred: 'Waits for the next run',
           } as Record<string, string>)[check.status] ?? check.status}
         </Chip>
         {check.possible_gap && <Chip tone="warn"
@@ -50,9 +52,13 @@ function SourceChecks({ checks, label, compact = false }: { checks: Check[]; lab
 }
 
 function HeldNotes({ run }: { run: Run }) {
-  return run.waiting_count || run.deferred_count ? <ul className="held-notes">
+  return run.waiting_count || run.deferred_count || run.x_reads || run.x_waiting_accounts
+    ? <ul className="held-notes">
     {!!run.waiting_count && <li>{plural(run.waiting_count, 'item')} waiting for transcripts or captions</li>}
     {!!run.deferred_count && <li>{plural(run.deferred_count, 'video')} deferred to the next run</li>}
+    {!!run.x_reads && <li>{plural(run.x_reads, 'X post')} read</li>}
+    {!!run.x_waiting_accounts && <li>{plural(run.x_waiting_accounts, 'X account')}{' '}
+      {run.x_waiting_accounts === 1 ? 'has' : 'have'} posts waiting for the next run</li>}
   </ul> : null
 }
 
@@ -305,7 +311,8 @@ export default function Home() {
         <p className="rail-big">{checkedSources?.length}</p>
         <p className="rail-meta">{plural(sources.filter(s => s.kind === 'podcast').length, 'podcast')} ·{' '}
           {sources.filter(s => s.kind === 'youtube').length} YouTube ·{' '}
-          {plural(sources.filter(s => s.kind === 'feed').length, 'website')}</p>
+          {plural(sources.filter(s => s.kind === 'feed').length, 'website')} ·{' '}
+          {plural(sources.filter(s => s.kind === 'x').length, 'X account')}</p>
         <p><Link to="/sources">Manage sources</Link></p>
       </section>}
     </>}

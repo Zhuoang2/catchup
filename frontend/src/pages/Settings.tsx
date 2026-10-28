@@ -64,6 +64,7 @@ export default function Settings() {
   const [xLast4, setXLast4] = useState<string | null>(null)
   const [xError, setXError] = useState('')
   const [xMessage, setXMessage] = useState('')
+  const [xDeleteConfirm, setXDeleteConfirm] = useState(false)
   const tokenRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -136,6 +137,20 @@ export default function Settings() {
       setXLast4(null)
       setXToken('')
       setXMessage('X token removed.')
+    } catch (err) { setXError(errorMessage(err)) }
+  }
+
+  async function deleteAllX() {
+    setXError(''); setXMessage('')
+    try {
+      const removed = await request<{ digest_items: number; digests: number; accounts: number }>(
+        '/settings/x/delete-all', { method: 'POST' })
+      setXLast4(null)
+      setXToken('')
+      setXDeleteConfirm(false)
+      setXMessage(`Deleted ${removed.digest_items} X digest ${removed.digest_items === 1 ? 'item' : 'items'}, ` +
+        `${removed.digests} ${removed.digests === 1 ? 'digest' : 'digests'}, and ` +
+        `${removed.accounts} X ${removed.accounts === 1 ? 'account' : 'accounts'}.`)
     } catch (err) { setXError(errorMessage(err)) }
   }
 
@@ -341,6 +356,15 @@ export default function Settings() {
       </form>
       <p className="note">X API reads are billed to your X developer account. You can set a{' '}
         <a href="https://github.com/Zhuoang2/catchup#x-accounts">spending limit in the X console</a>.</p>
+      {xDeleteConfirm ? <div role="group" aria-label="Confirm X data deletion">
+        <p>Delete all X data? This removes your X token, followed X accounts, and their items in saved digests.
+          {' '}Pages saved from X with the extension stay.</p>
+        <div className="actions">
+          <Button type="button" variant="danger-solid" onClick={() => void deleteAllX()}>Delete X data</Button>
+          <Button type="button" variant="ghost" onClick={() => setXDeleteConfirm(false)}>Cancel</Button>
+        </div>
+      </div> : <Button type="button" variant="danger"
+        onClick={() => { setXError(''); setXMessage(''); setXDeleteConfirm(true) }}>Delete all X data</Button>}
       {xError && <p className="field-error" role="alert"><Icon name="alert"/>{xError}</p>}
       {xMessage && <p className="inline-msg msg-ok" role="status"><Icon name="check"/>{xMessage}</p>}
     </SettingsSection>}

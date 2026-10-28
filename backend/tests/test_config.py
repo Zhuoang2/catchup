@@ -61,3 +61,16 @@ def test_context_limits_must_be_positive(monkeypatch, name, value):
     monkeypatch.setenv(name, value)
     with pytest.raises(ValueError, match=name):
         Settings.from_env()
+
+
+def test_x_read_limit_defaults_and_accepts_zero(monkeypatch):
+    assert Settings.from_env().x_reads_per_run == 200
+    monkeypatch.setenv("CATCHUP_X_READS_PER_RUN", "0")
+    assert Settings.from_env().x_reads_per_run == 0
+
+
+@pytest.mark.parametrize("value", ["-1", "abc"])
+def test_x_read_limit_rejects_invalid_values(monkeypatch, value):
+    monkeypatch.setenv("CATCHUP_X_READS_PER_RUN", value)
+    with pytest.raises(ValueError, match="CATCHUP_X_READS_PER_RUN"):
+        Settings.from_env()

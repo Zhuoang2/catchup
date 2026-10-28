@@ -148,7 +148,7 @@ Implementer notes:
 
 ## 3. Reading posts on each run
 
-- [ ] 3.1 **Reading one account** (D5, D6), as `check_x_account` in `backend/src/catchup/collection.py` or a new `backend/src/catchup/sources/x_check.py`. Tests first, in a new `backend/tests/test_x_check.py`, each calling the function with a seeded source and `x_accounts` row:
+- [x] 3.1 **Reading one account** (D5, D6), as `check_x_account` in `backend/src/catchup/collection.py` or a new `backend/src/catchup/sources/x_check.py`. Tests first, in a new `backend/tests/test_x_check.py`, each calling the function with a seeded source and `x_accounts` row:
   - **The request:** `since_id=newest_id`, `exclude` with retweets only, and `max_results=min(100, remaining)`. `newest_id` becomes the largest id read.
   - **An original post** becomes a `pending` item with the D6 fields: link, title, `site_name` "X · <name>", text with link destinations, `entry_links`, `image_candidates` with alt text, `content_origin` `x`.
   - **Threads:**
@@ -163,7 +163,7 @@ Implementer notes:
   - **Errors:** an `XApiError` after one page rolls back that account's items and id changes, and records `failed` with the error's message and `http_status`. A 429 check is rate limited by `is_rate_limited`.
 
   Verify: the tests fail before the function exists, and pass after.
-- [ ] 3.2 **The read limit and gaps** (D5). Tests first, in `backend/tests/test_x_check.py`, with a shared `XReadBudget`:
+- [x] 3.2 **The read limit and gaps** (D5). Tests first, in `backend/tests/test_x_check.py`, with a shared `XReadBudget`:
   - with fewer than 5 reads left, the account is `deferred`, no request is made (`call_count == 0`), and `Source.last_check_at` is unchanged;
   - with 50 reads left, and an account whose first page has 50 posts and a `next_token`:
     - the 50 are kept;
@@ -175,7 +175,7 @@ Implementer notes:
   - the budget decreases by each page's `result_count`, including dropped replies.
 
   Verify: the tests fail before the change, and pass after. Then the named mutation "set `newest_id` but no gap when the budget runs out" fails the gap test, and is reverted.
-- [ ] 3.3 **X accounts in the run** (D5, D6), in `backend/src/catchup/digest/runner.py`, `context/gather.py`, and `config.py` (`CATCHUP_X_READS_PER_RUN`, default 200, with a parser that accepts 0). Tests first, in `backend/tests/test_config.py` (default 200; `0` accepted; `-1` and `abc` rejected) and `backend/tests/test_digest_runner.py`, with `FakeModel`:
+- [x] 3.3 **X accounts in the run** (D5, D6), in `backend/src/catchup/digest/runner.py`, `context/gather.py`, and `config.py` (`CATCHUP_X_READS_PER_RUN`, default 200, with a parser that accepts 0). Tests first, in `backend/tests/test_config.py` (default 200; `0` accepted; `-1` and `abc` rejected) and `backend/tests/test_digest_runner.py`, with `FakeModel`:
   - **Ordering:** X sources are checked after the other sources, with never-checked sources first, then the least recently checked, then by id.
   - **Two runs:** with a limit of 5, and accounts A and B each answering exactly 5 posts and no `next_token`, run 1 reads A and defers B; run 2 reads B before A.
   - **Deferral:**
@@ -192,14 +192,14 @@ Implementer notes:
   - **Counters survive a later failure:** when the run fails after the X checks (for example, the model raises), `x_reads` is still stored.
 
   Verify: the tests fail before the change, and pass after.
-- [ ] 3.4 **Clearing delivered X posts** (D7), in `backend/src/catchup/digest/runner.py`. Tests first, in `backend/tests/test_digest_runner.py`:
+- [x] 3.4 **Clearing delivered X posts** (D7), in `backend/src/catchup/digest/runner.py`. Tests first, in `backend/tests/test_digest_runner.py`:
   - after a run delivers an X item with replies and a linked-page context, the item's `content_text` is `""`, `captured_replies` is `None`, and it has no `item_contexts` rows;
   - its digest item still has the summary, title, link, `source_name`, and `context_links`;
   - a feed item delivered in the same run keeps its text;
   - guard (already green after 1.1): deleting the X source deletes its items and its `x_accounts` row.
 
   Verify: the tests fail before the change. Then the named mutation "clear text for every delivered item" fails the feed-item check, and is reverted.
-- [ ] 3.5 **Home for X accounts** (D9), in `frontend/src/pages/Home.tsx` and `components/DigestArticle.tsx`. Tests first, in `frontend/src/pages/Home.test.tsx` and `DigestArticle.test.tsx`:
+- [x] 3.5 **Home for X accounts** (D9), in `frontend/src/pages/Home.tsx` and `components/DigestArticle.tsx`. Tests first, in `frontend/src/pages/Home.test.tsx` and `DigestArticle.test.tsx`:
   - a check with status `deferred` reads "Waits for the next run", and is not listed under "Needs attention" after the run;
   - a finished run with `x_reads` 37 and `x_waiting_accounts` 2 shows "37 X posts read" and "2 X accounts have posts waiting for the next run";
   - singular forms: "1 X post read" and "1 X account has posts waiting for the next run";
@@ -209,7 +209,7 @@ Implementer notes:
 
   Verify: the tests fail before the change, and pass after; `npm run build` passes.
 
-- [ ] 3.6 **Delete all X data** (D13), in `backend/src/catchup/api/settings.py` and `frontend/src/pages/Settings.tsx`. Tests first, in `backend/tests/test_x_settings_api.py`, with digests built by a run or seeded directly:
+- [x] 3.6 **Delete all X data** (D13), in `backend/src/catchup/api/settings.py` and `frontend/src/pages/Settings.tsx`. Tests first, in `backend/tests/test_x_settings_api.py`, with digests built by a run or seeded directly:
   - **Mixed topic.** A digest with one X item and one feed item, from two sources, in one topic: after `POST /api/settings/x/delete-all`, the digest has only the feed item, `item_count` 1, `source_count` 1, and the topic's `overview` `""` and title "Other" ("其他" for a `zh-Hans` digest).
   - **An orphaned X digest item,** whose source was deleted earlier (`item_id` `NULL`), is also removed.
   - **A page saved from x.com with the extension** (kind `capture`) and its digest item remain.

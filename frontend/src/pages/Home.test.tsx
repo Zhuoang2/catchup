@@ -51,6 +51,41 @@ const digest = {
   }] }],
 }
 
+it('labels a deferred X check without listing it under Needs attention', async () => {
+  const xCheck = { source_id: 4, source_title: 'Writer', status: 'deferred', possible_gap: false,
+    error: null, rate_limited: false, http_status: null }
+  const collecting = mockPage({ run: { ...run, sources_total: 1, source_checks: [xCheck] } })
+  expect(await screen.findByText('Waits for the next run')).toBeInTheDocument()
+  await expectAccessible(collecting.container)
+  collecting.unmount()
+  const finished = mockPage({ run: { ...run, status: 'no_new_content', source_checks: [xCheck] } })
+  await screen.findByRole('heading', { name: 'No new content' })
+  expect(screen.queryByText('Needs attention')).toBeNull()
+  await expectAccessible(finished.container)
+})
+
+it.each([
+  [37, 2, '37 X posts read', '2 X accounts have posts waiting for the next run'],
+  [1, 1, '1 X post read', '1 X account has posts waiting for the next run'],
+  [0, 2, null, '2 X accounts have posts waiting for the next run'],
+  [0, 0, null, null],
+] as const)('shows X usage %i and waiting %i', async (reads, waiting, readsText, waitingText) => {
+  const { container } = mockPage({ run: { ...run, status: 'no_new_content',
+    source_checks: [], x_reads: reads, x_waiting_accounts: waiting } })
+  await screen.findByRole('heading', { name: 'No new content' })
+  if (readsText) expect(screen.getByText(readsText)).toBeInTheDocument()
+  else expect(container).not.toHaveTextContent('X posts read')
+  if (waitingText) expect(screen.getByText(waitingText)).toBeInTheDocument()
+  else expect(container).not.toHaveTextContent('X accounts have posts waiting')
+  await expectAccessible(container)
+})
+
+it('counts X accounts in the source rail', async () => {
+  const { container } = mockPage({ sources: [...sources, { kind: 'x' }] })
+  await screen.findByRole('heading', { name: 'Your sources' })
+  expect(container.querySelector('.rail-meta')).toHaveTextContent('1 X account')
+})
+
 it('keeps saved pages out of visible source counts but allows capture-only runs', async () => {
   const { container } = mockPage({ sources: [sources[0], captures] })
   expect(await screen.findByText('Check your 1 source and summarize everything new since your last digest.'))

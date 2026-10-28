@@ -238,3 +238,14 @@ def test_confirm_refuses_late_preview_cached_after_token_removal(client):
     assert response.status_code == 422 and response.json()["error"]["code"] == "x_token_required"
     with client.app.state.session_factory() as session:
         assert session.scalar(select(Source)) is None
+
+
+def test_confirm_starts_after_lookup_most_recent_id_even_if_preview_is_older(client):
+    save_token(client)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        mock_x(router, newest="999", posts=[post("900"), post("899")])
+        preview = client.post("/api/sources/preview", json={"url": PROFILE})
+        assert preview.status_code == 200
+        assert client.post("/api/sources", json={"feed_url": preview.json()["feed_url"]}).status_code == 201
+    with client.app.state.session_factory() as session:
+        assert session.scalar(select(XAccount)).newest_id == "999"

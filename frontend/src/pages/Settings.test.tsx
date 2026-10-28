@@ -413,16 +413,24 @@ describe('X accounts settings', () => {
 
   it('saves, tests, and removes the token without touching model settings', async () => {
     const original = fetchMock.getMockImplementation()!
+    let tokenSet = false
     fetchMock.mockImplementation(async (url: string, options?: RequestInit) => {
+      if (url === '/api/settings/x' && !options?.method) {
+        return respond({ token_set: tokenSet, token_last4: tokenSet ? 'oken' : null })
+      }
       if (url === '/api/settings/x' && options?.method === 'PUT') {
         expect(JSON.parse(options.body as string)).toEqual({ token: 'test-token' })
+        tokenSet = true
         return respond({ token_set: true, token_last4: 'oken' })
       }
       if (url === '/api/settings/x/test') return respond({ ok: true })
-      if (url === '/api/settings/x' && options?.method === 'DELETE') return respond(null, 204)
+      if (url === '/api/settings/x' && options?.method === 'DELETE') {
+        tokenSet = false
+        return respond(null, 204)
+      }
       return original(url)
     })
-    const { container } = render(<Settings/>)
+    const { container, unmount } = render(<Settings/>)
     const input = await screen.findByLabelText('X API token')
     fireEvent.change(input, { target: { value: 'test-token' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save X token' }))
@@ -432,9 +440,18 @@ describe('X accounts settings', () => {
     expect(await screen.findByText('X token works.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Remove X token' }))
     await waitFor(() => expect(screen.queryByText(/Saved token ending in/)).toBeNull())
+    expect(fetchMock.mock.calls.filter(([url, options]) => url === '/api/settings/x'
+      && (options as RequestInit | undefined)?.method === 'DELETE')).toHaveLength(1)
+    expect(screen.getByLabelText('X API token').closest('section')).not.toHaveTextContent('Saved token ending in')
     expect(fetchMock.mock.calls.some(([url, options]) => url === '/api/settings/model'
       && (options as RequestInit | undefined)?.method === 'PUT')).toBe(false)
     await expectAccessible(container)
+    unmount()
+    render(<Settings/>)
+    await screen.findByLabelText('X API token')
+    expect(screen.getByLabelText('X API token').closest('section')).not.toHaveTextContent('Saved token ending in')
+    expect(fetchMock.mock.calls.filter(([url, options]) => url === '/api/settings/x'
+      && !(options as RequestInit | undefined)?.method)).toHaveLength(2)
   })
 
   it('reports rejected tokens and remains accessible', async () => {

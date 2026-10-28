@@ -206,6 +206,32 @@ def test_x_runs_defer_account_and_read_it_first_next_time(environment):
     assert second["status"] == "succeeded"
 
 
+def test_x_least_recently_checked_account_is_read_before_a_newer_check(environment):
+    seed(environment, sources=0)
+    seed_x_accounts(environment, ("a", "b"))
+    environment.app.state.settings = replace(environment.app.state.settings, x_reads_per_run=5)
+    environment.put("/api/settings/x", json={"token": "test-" + "x" * 40})
+    with environment.app.state.session_factory() as session:
+        sources = session.scalars(select(Source).where(Source.kind == "x").order_by(Source.id)).all()
+        sources[0].last_check_at = datetime(2026, 10, 27, tzinfo=timezone.utc)
+        sources[1].last_check_at = datetime(2026, 10, 26, tzinfo=timezone.utc)
+        session.commit()
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        five_posts = {"data": [
+            {"id": str(n), "text": f"Post {n}", "conversation_id": str(n),
+             "created_at": datetime.now(timezone.utc).isoformat()} for n in range(1100, 1105)],
+            "meta": {"result_count": 5}}
+        newer = router.get("https://api.x.com/2/users/100/tweets").mock(
+            return_value=httpx.Response(200, json=five_posts))
+        older = router.get("https://api.x.com/2/users/101/tweets").mock(
+            return_value=httpx.Response(200, json=five_posts))
+        result = execute(environment)
+    assert older.call_count == 1 and newer.call_count == 0
+    assert (result["x_reads"], result["x_waiting_accounts"]) == (5, 1)
+    assert [check["status"] for check in result["source_checks"]] == ["new_items", "deferred"]
+    assert [check.status for check in run_checks(environment, result["id"])] == ["deferred", "new_items"]
+
+
 def test_x_is_checked_after_feed_and_pending_post_is_summarized_under_its_name(environment, monkeypatch):
     seed(environment, count=0)
     seed_x_accounts(environment, ("a",))

@@ -169,6 +169,48 @@ def seed_mixed_digest(client, language="en"):
         return digest.id, run.id, x_source.id
 
 
+def seed_two_x_digest_items_and_one_feed_item(client, *, orphan=False):
+    digest_id, _, x_source_id = seed_mixed_digest(client)
+    with client.app.state.session_factory() as session:
+        digest = session.get(Digest, digest_id)
+        rows = session.scalars(select(DigestItem).where(DigestItem.digest_id == digest_id)).all()
+        feed, x_item, capture = rows
+        session.delete(capture)
+        session.add(DigestItem(
+            digest_id=digest_id, topic_id=x_item.topic_id, position=3,
+            item_id=None if orphan else x_item.item_id, title="Second X post",
+            link="https://x.com/writer/status/4", source_name=x_item.source_name, source_kind="x",
+        ))
+        digest.source_count = 2
+        if orphan:
+            x_item.item_id = None
+            session.delete(session.get(Source, x_source_id))
+        session.commit()
+        assert session.get(DigestItem, feed.id) is not None
+        if orphan:
+            assert all(row.item_id is None for row in session.scalars(
+                select(DigestItem).where(DigestItem.source_kind == "x")).all())
+    return digest_id
+
+
+def test_delete_all_counts_one_x_source_not_two_x_digest_items(client):
+    digest_id = seed_two_x_digest_items_and_one_feed_item(client)
+    response = client.post("/api/settings/x/delete-all")
+    assert response.status_code == 200
+    assert response.json()["digest_items"] == 2
+    detail = client.get(f"/api/digests/{digest_id}").json()
+    assert (detail["item_count"], detail["source_count"]) == (1, 1)
+
+
+def test_delete_all_counts_orphaned_x_items_with_same_source_name_once(client):
+    digest_id = seed_two_x_digest_items_and_one_feed_item(client, orphan=True)
+    response = client.post("/api/settings/x/delete-all")
+    assert response.status_code == 200
+    assert response.json()["digest_items"] == 2
+    detail = client.get(f"/api/digests/{digest_id}").json()
+    assert (detail["item_count"], detail["source_count"]) == (1, 1)
+
+
 @pytest.mark.parametrize(("language", "title"), [("en", "Other"), ("zh-Hans", "其他")])
 def test_delete_all_x_data_preserves_non_x_items_and_scrubs_mixed_topics(client, language, title):
     client.put("/api/settings/x", json={"token": "test-" + "x" * 40})

@@ -134,6 +134,18 @@ def test_thread_replies_are_capped_at_ten_and_four_thousand_characters(app):
         assert len("\n\n".join(replies)) == 4000
 
 
+def test_short_thread_replies_keep_only_the_oldest_ten(app):
+    posts = [x_post(500)] + [
+        x_post(n, root=500, reply_to=UID, text=f"Reply {n}") for n in range(499, 488, -1)
+    ]
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(f"https://api.x.com/2/users/{UID}/tweets").mock(
+            return_value=httpx.Response(200, json=page(posts)))
+        check(app, XReadBudget(remaining=20), router)
+    with app.app.state.session_factory() as session:
+        assert session.scalar(select(Item)).captured_replies == [f"Reply {n}" for n in range(489, 499)]
+
+
 def test_error_after_page_rolls_back_items_and_ids_but_charges_reads(app):
     with respx.mock(assert_all_mocked=True) as router:
         route = router.get(f"https://api.x.com/2/users/{UID}/tweets").mock(

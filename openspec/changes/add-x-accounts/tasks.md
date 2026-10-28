@@ -330,7 +330,7 @@ Claude's review of run 1 confirmed the defects below, and the user approved this
   - every X code in `describeError` of `frontend/src/pages/Sources.tsx` shows the same text in the popup: the test lists the Sources texts literally, with a comment naming that file.
 
   Verify: the tests fail on the current head, except the guard; `npm run build` in `extension/` passes.
-- [ ] 6.7 **Spec checks no test pinned** (D4, D5, D13; guards, already green). Each test must fail under its named mutation, and pass without it:
+- [x] 6.7 **Spec checks no test pinned** (D4, D5, D13; guards, already green). Each test must fail under its named mutation, and pass without it:
   - **Ordering by last check** (`backend/tests/test_digest_runner.py`): with a limit of 5, account A checked at a later time than account B, both non-null, and each answering 5 posts with no `next_token`: B is read, and A is `deferred`. Mutation: order by `last_check_at` descending, nulls first.
   - **The reply cap** (`backend/tests/test_x_check.py`): 11 short replies in one thread give 10 `captured_replies`, the oldest 10. Mutation: cap at 100.
   - **Delete-all counts** (`backend/tests/test_x_settings_api.py`):

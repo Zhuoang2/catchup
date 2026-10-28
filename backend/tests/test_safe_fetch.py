@@ -84,7 +84,7 @@ def test_redirect_to_metadata_is_blocked_before_request(resolve):
 
 
 @pytest.mark.parametrize("url", ["https://x.com/a", "https://help.x.com./en"])
-def test_x_host_is_blocked_before_dns(resolve, url):
+def test_x_host_is_blocked_before_dns(url):
     with pytest.raises(FetchError) as error:
         safe_fetch(url)
     assert error.value.code == "blocked_address"

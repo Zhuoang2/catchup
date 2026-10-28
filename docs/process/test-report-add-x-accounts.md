@@ -171,3 +171,40 @@ was performed. The local Docker image was not published.
   - the host is normalized twice in `x_username` and in the popup's `isXHost`;
   - the popup's host line shows the normalized host.
 - **Docker smoke** on `catchup:review-41` at `b73b31d`: 11 passed.
+
+## Fix round 3 (2026-10-28)
+
+Tasks 8.1–8.7 were worked in order and committed separately. All X test data
+was invented and routed offline; no live X API or owner credential was used.
+
+| Task | Red-first result or already-green guard |
+| --- | --- |
+| 8.1 | **4 failed, 1 passed**: both non-ASCII PUTs returned 200 rather than 422; both Test calls raised `UnicodeEncodeError` before usage. The printable-character save guard passed. After validation, X settings **29 passed**. |
+| 8.2 | **4 safe-fetch failures**: initial X URLs failed at DNS instead of returning `blocked_address`, the redirect requested X, and the malformed URL raised `ValueError`. The article-text test first passed vacuously because DNS was blocked by the test fixture; after giving X a public mocked DNS answer, it failed by attempting the X route. After the central refusal, focused backend **185 passed**. The preview and related-link guards passed unchanged. An initial test command referenced nonexistent `test_links.py`; corrected it to `test_context_links.py`. |
+| 8.3 | **6 failed**: malformed 200 timeline answers returned an empty/success page; a gapped check tried a second page instead of failing. After validating JSON, errors and metadata, X API/check **42 passed**; the empty final page guard passed. |
+| 8.4 | Concurrent confirm finished while the test held `_start_lock`, so `alive` was false. The fresh-session, locked confirm passed, including the uncontended 201 guard; Sources **14 passed**. |
+| 8.5 | Failed-run usage test: **1 failed, 1 passed**; 12 reads were absent while zero counters stayed hidden. After adding the notes, Home **93 passed** and frontend build passed. |
+| 8.6 | The never-posted gap guard passed on unchanged code. Its named Phase A mutation failed with `KeyError: 'start_time'`; the restored guard passed. |
+| 8.7 | README contract: **1 failed, 3 passed** without “thread” in the X section; after the disclosure, **4 passed**. |
+
+Named mutations were run individually and reverted:
+
+- **8.2, remove `_check_address` X-host refusal:** redirect test requested the mocked X page and failed `AssertionError: X page must never be fetched`; restored test passed.
+- **8.4, write without `_start_lock`:** confirm finished during the held-lock interval (`alive` was false); restored tests passed.
+- **8.6, send `start_time=None` in Phase A:** the next request lacked `start_time`, and the guard failed with `KeyError`; restored test passed. No mutation remains.
+
+### Fix-round-3 final automated checks, in task 5.2 order
+
+| Command | Result |
+| --- | --- |
+| `cd frontend && npm run build` | Passed, 41 modules transformed. |
+| `cd backend && uv run --python 3.12 pytest --cov=catchup --cov-report=term` | **772 passed**, **96%** statement coverage: **3,024/3,137** covered (113 missed). `sources/x_check.py` 100%, `sources/x_api.py` 95%, `sources/x_accounts.py` 95%, `net/safe_fetch.py` 94%, `net/x_hosts.py` 100%. |
+| `cd frontend && npm test -- --run` | **256 passed** in 14 files. |
+| `cd extension && npm test -- --run` | **112 passed** in 8 files. |
+| `cd extension && npm run build` | Passed, including TypeScript and packaged-file checks. |
+| `docker build -t catchup:x-accounts-local .` | Passed locally. |
+| `scripts/docker-smoke.sh catchup:x-accounts-local` | Passed: 11 checks for health, API/UI/PWA, saved preference, non-root process, volume, image exclusions and restart persistence. |
+| `DO_NOT_TRACK=1 openspec validate add-x-accounts --strict` | Passed. |
+
+No live X API, authenticated extension-on-X, or real model-provider check was
+performed. The local Docker image was not published.

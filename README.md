@@ -183,6 +183,8 @@ followed accounts (including returned replies); set it to `0` to defer reads.
 **Waits for the next run** means an account ran out of this run's shared
 budget, not that its posts were discarded. CatchUp resumes it on a later
 manual run.
+If the read limit stops a read inside a thread, the author's replies read
+before the limit are dropped and are not added later.
 
 Read the [X Developer Policy](https://docs.x.com/developer-terms/policy)
 before using this feature. It says:

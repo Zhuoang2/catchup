@@ -38,7 +38,7 @@ it('documents X accounts, costs, limits and account ownership without old no-fol
   const section = readme.split('## X accounts')[1]?.split(/^## /m)[0]
   for (const text of ['console.x.com', 'Bearer token', 'spending limit',
     '2026-10-24', 'CATCHUP_X_READS_PER_RUN', 'Waits for the next run',
-    'Delete all X data', '24 hours', 'model provider']) {
+    'Delete all X data', '24 hours', 'model provider', 'thread']) {
     expect(section, text).toContain(text)
   }
   expect(readme).not.toContain('CatchUp does not follow X accounts')

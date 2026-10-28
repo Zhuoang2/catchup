@@ -423,7 +423,7 @@ An independent review of the whole change found the items below, Claude confirme
 
   Verify: the first test fails on the current head; `npm run build` passes.
 - [x] 8.6 **The gap's starting point when the account had never posted** (D5; guard, already green), in `backend/tests/test_x_check.py`: with `newest_id` `None`, a Phase B stopped by the budget sets `gap_since_id` `None`; the next call's first request (Phase A) has `start_time` equal to `followed_at`, no `since_id`, and `until_id` equal to the gap's. Mutation: send `start_time=None` in Phase A.
-- [ ] 8.7 **README and report.**
+- [x] 8.7 **README and report.**
   - **README.** In the "X accounts" section, add one sentence on the known limit (D5): when the read limit stops a read inside a thread, the author's replies read before the limit are dropped, and are not added later. Extend `extension/src/test/docs.test.ts` to require the word "thread" in that section, and see it fail first.
   - **Report.** Add a "Fix round 3" section to `docs/process/test-report-add-x-accounts.md`, with each task's observed red result and each named mutation's result.
   - **Checks:** run the six checks of task 5.2, in its order, with the OpenSpec check as `DO_NOT_TRACK=1 openspec validate add-x-accounts --strict`.

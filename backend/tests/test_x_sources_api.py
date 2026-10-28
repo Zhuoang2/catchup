@@ -164,6 +164,17 @@ def test_confirm_waits_for_delete_all_and_rechecks_token(client):
     save_token(client)
     with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
         lookup, by_id, timeline = mock_x(router, posts=[post("900")])
+        lookup.mock(side_effect=[
+            httpx.Response(200, json={"data": {"id": UID, "name": "Sample Writer",
+                                                 "username": "writer", "protected": False,
+                                                 "most_recent_tweet_id": "900"}}),
+            AssertionError("unexpected second account lookup"),
+        ])
+        by_id.mock(side_effect=AssertionError("unexpected lookup by id"))
+        timeline.mock(side_effect=[
+            httpx.Response(200, json={"data": [post("900")], "meta": {"result_count": 1}}),
+            AssertionError("unexpected second timeline read"),
+        ])
         preview = client.post("/api/sources/preview", json={"url": PROFILE})
         assert preview.status_code == 200
         results = []

@@ -6,8 +6,6 @@ from dataclasses import asdict
 from contextlib import closing
 from urllib.parse import urlsplit
 
-from cryptography.fernet import InvalidToken
-
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from sqlalchemy import func, select
@@ -17,8 +15,8 @@ from sqlalchemy.orm import Session
 from catchup.collection import article_text
 from catchup.db import get_session
 from catchup.errors import AppError
-from catchup.crypto import decrypt_key
-from catchup.models import AppSettings, Item, Source, SourceCheck, XAccount, XCredential, utc_now
+from catchup.models import AppSettings, Item, Source, SourceCheck, XAccount, utc_now
+from catchup.api.settings import _x_token
 from catchup.net.host_spacing import HostSpacer
 from catchup.net.rate_limit import is_rate_limited
 from catchup.net.safe_fetch import FetchError, safe_fetch
@@ -76,16 +74,6 @@ def _x_error(exc: XApiError) -> AppError:
         key: value for key, value in {"http_status": exc.http_status, "retry_after": exc.retry_after}.items()
         if value is not None
     })
-
-
-def _x_token(request: Request, session: Session) -> str:
-    row = session.get(XCredential, 1)
-    if row is None:
-        raise AppError("x_token_required", "X token needed.", 422)
-    try:
-        return decrypt_key(row.token_encrypted, request.app.state.settings.secret_key)
-    except (InvalidToken, AppError) as exc:
-        raise AppError("secret_invalid", "Check the X token and instance secret.", 400) from exc
 
 
 def _x_preview(request: Request, session: Session, *, username: str | None = None,

@@ -61,6 +61,16 @@ def _valid_x_token(value: str) -> str:
     return token
 
 
+def _x_token(request: Request, session: Session) -> str:
+    row = session.get(XCredential, 1)
+    if row is None:
+        raise AppError("x_token_required", "X token needed.", 422)
+    try:
+        return decrypt_key(row.token_encrypted, request.app.state.settings.secret_key)
+    except (InvalidToken, AppError) as exc:
+        raise AppError("secret_invalid", "Check the X token and instance secret.", 400) from exc
+
+
 @router.get("/x")
 def read_x(session: Session = Depends(get_session)) -> dict:
     return _public_x(session.get(XCredential, 1))
@@ -95,12 +105,7 @@ def delete_x(request: Request, session: Session = Depends(get_session)) -> None:
 
 @router.post("/x/test")
 def test_x(data: XTestInput, request: Request, session: Session = Depends(get_session)) -> dict:
-    row = session.get(XCredential, 1)
-    token = _valid_x_token(data.token) if data.token is not None else (
-        decrypt_key(row.token_encrypted, request.app.state.settings.secret_key) if row else ""
-    )
-    if not token:
-        raise AppError("x_token_required", "X token needed.", 422)
+    token = _valid_x_token(data.token) if data.token is not None else _x_token(request, session)
     try:
         with XClient(token) as client:
             client.usage()

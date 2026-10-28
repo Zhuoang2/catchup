@@ -1,5 +1,6 @@
 """X credentials are private, and the test endpoint reads no accounts or posts."""
 
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -107,6 +108,20 @@ def test_token_test_needs_token(client):
     response = client.post("/api/settings/x/test", json={})
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "x_token_required"
+
+
+def test_saved_token_with_changed_instance_secret_fails_before_usage_request(client):
+    assert client.put("/api/settings/x", json={"token": "test-" + "x" * 40}).status_code == 200
+    client.app.state.settings = replace(client.app.state.settings, secret_key="different-instance-secret")
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        usage = router.get("https://api.x.com/2/usage/tweets").mock(
+            return_value=httpx.Response(200, json={"data": {"project_usage": 0}}))
+        response = client.post("/api/settings/x/test", json={})
+        assert usage.call_count == 0
+    assert response.status_code == 400
+    assert response.json()["error"] == {
+        "code": "secret_invalid", "message": "Check the X token and instance secret.",
+    }
 
 
 def seed_mixed_digest(client, language="en"):

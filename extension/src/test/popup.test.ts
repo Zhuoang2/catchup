@@ -384,6 +384,8 @@ it('asks for an X API token, saves it through the API, and retries the preview w
   fireEvent.click(await screen.findByRole('button', { name: 'Follow this account' }))
   const field = await screen.findByLabelText('X API token')
   expect(field).toHaveAttribute('type', 'password')
+  // The x_token_required wording is shared with describeError in frontend/src/pages/Sources.tsx.
+  expect(screen.getByRole('status').textContent).toBe('X token needed.')
   expect(screen.getByText('Copy the Bearer token of your X App from console.x.com.')).toBeInTheDocument()
   expect(field).toHaveAccessibleDescription('Copy the Bearer token of your X App from console.x.com.')
   expect((await axe(document.body, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([])

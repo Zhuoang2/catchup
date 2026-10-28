@@ -340,7 +340,7 @@ Claude's review of run 1 confirmed the defects below, and the user approved this
   - **Remove in Settings** (`frontend/src/pages/Settings.test.tsx`): Remove sends `DELETE /api/settings/x`, and the group then reads as having no token. Mutation: remove the `DELETE` call.
 
   Verify: each test passes, and each named mutation fails it, and is reverted.
-- [ ] 6.8 **Report and checks.**
+- [x] 6.8 **Report and checks.**
   - **Report.** Add a "Fix round 1" section to `docs/process/test-report-add-x-accounts.md`, with each task's observed red result and each named mutation's result.
   - **Checks:** run the six checks of task 5.2, in its order. Run the OpenSpec check as `DO_NOT_TRACK=1 openspec validate add-x-accounts --strict`, which turns off the CLI's telemetry.
   - **Logs.** Update the coverage-summary line, and add your AI usage log entry for this round, with a faithful excerpt of the prompt you received. Leave out the session id.

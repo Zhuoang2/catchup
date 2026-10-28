@@ -2,6 +2,12 @@
 
 Real usage records for the technical spec, alpha reflection, and final report. Each entry: date, tool/model, purpose, prompt (verbatim or faithful excerpt), outcome, problems, adjustment. The user often wrote prompts in Chinese; those prompts are quoted here in English translation.
 
+## 2026-10-28 — X accounts fix round 1 (Factory Droid; model not exposed in this session)
+
+- Prompt (faithful excerpt of the fix-round request): "Implement OpenSpec change `add-x-accounts` (#41), fix round 1, using the amended plan in commit `218af0d`. Work in the new checkout ... Complete `tasks.md` 6.1–6.8 in order, using TDD: observe each new behavior red before implementation; checks marked guard (already green) must fail under their named mutation. Run every named mutation, record the failure, and revert it. Check off and commit after each task. For 6.1, re-derive `read_phase` from D5's gap invariant ... Do not edit `proposal.md`, `design.md`, or spec deltas; do not push, tag, or open a PR. Prefix every OpenSpec CLI command with `DO_NOT_TRACK=1`."
+- Outcome: Fixed gap completion, X API response handling, X host recognition, preview invalidation, secret errors, and popup guidance; added six mutation-proven guards. Full checks: **737 backend tests, 96% coverage**, **254 frontend tests**, **107 extension tests**, both builds, local Docker smoke, strict OpenSpec validation. See `test-report-add-x-accounts.md`.
+- Problems / adjustment: The first complete-read check timed out on an empty page with a continuation; the invariant-driven rewrite treats the empty page as terminal. Adjusted an orphan test fixture to make both X digest items truly orphaned, and corrected a processing-order expectation and optional mock route. The causes matched the approved plan, so no new diagnosis was needed. All mutations were reverted, with no live credentials or provider calls.
+
 ## 2026-10-27 — X accounts implementation (Factory Droid; model not exposed in this session)
 
 - Prompt (faithful excerpt): "Implement OpenSpec change `add-x-accounts` (#41) using `openspec-apply-change` and `tdd`. Work through `tasks.md` groups 1–5 in order; group 0 was already complete. Write failing tests before implementation, check off each task only after its verification passes, and commit after each group. Prefix every OpenSpec CLI command with `DO_NOT_TRACK=1`. Do not edit `proposal.md`, `design.md`, or spec deltas; do not push, tag, or open a PR."

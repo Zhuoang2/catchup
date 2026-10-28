@@ -1,5 +1,7 @@
 # Test coverage summary
 
+2026-10-28, add-x-accounts fix round 1: Built `frontend/dist` first; `cd backend && uv run --python 3.12 pytest --cov=catchup --cov-report=term` passed **737 tests**, **96% overall** (3,007/3,119 statements, 112 missed). `sources/x_check.py` **100%**, `sources/x_api.py` **94%**, `sources/x_accounts.py` **95%**, `digest/runner.py` **98%**. Frontend **254 tests** in 14 files; extension **107 tests** in 8 files. Both builds, local Docker build/smoke and strict OpenSpec validation passed. See the fix-round-1 section of `test-report-add-x-accounts.md` for observed failures, reverted mutations, and live-check limits.
+
 2026-10-27, add-x-accounts: Built `frontend/dist` first; `cd backend && uv run --python 3.12 pytest --cov=catchup --cov-report=term` passed **706 tests**, **96% overall** (2,984/3,101 statements, 117 missed). `sources/x_check.py` **98%**, `sources/x_api.py` **94%**, `sources/x_accounts.py` **94%**, `digest/runner.py` **98%**. Frontend **254 tests** in 14 files; extension **104 tests** in 8 files. Both builds, local Docker build/smoke and strict OpenSpec validation passed. See `test-report-add-x-accounts.md` for red-first checks and manual limits.
 
 2026-10-03, after task 4.1: `cd backend && uv run pytest --cov=catchup --cov-report=term` passed 113 tests. Backend statement coverage: **95% overall** (736/778), **100%** for `collection.py` (57/57). `cd frontend && npm test -- --run` passed 9 tests. This is an interim snapshot; the full spec-scenario report belongs to task 7.2.

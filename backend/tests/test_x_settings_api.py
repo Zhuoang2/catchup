@@ -49,6 +49,34 @@ def test_invalid_x_token_is_refused(client, token):
     assert client.get("/api/settings/x").json()["token_set"] is False
 
 
+@pytest.mark.parametrize("token", ["test-token\u200b", "test-\u00e9-token"])
+def test_non_printable_ascii_x_token_cannot_be_saved(client, token):
+    response = client.put("/api/settings/x", json={"token": token})
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_x_token"
+    with client.app.state.session_factory() as session:
+        assert session.get(XCredential, 1) is None
+
+
+@pytest.mark.parametrize("token", ["test-token\u200b", "test-\u00e9-token"])
+def test_non_printable_ascii_x_token_cannot_be_tested(client, token):
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        usage = router.get("https://api.x.com/2/usage/tweets").mock(
+            side_effect=AssertionError("invalid token must not request usage")
+        )
+        response = client.post("/api/settings/x/test", json={"token": token})
+        assert usage.call_count == 0
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_x_token"
+
+
+def test_printable_x_token_remains_valid(client):
+    token = "Ab3%-_=+/"
+    response = client.put("/api/settings/x", json={"token": token})
+    assert response.status_code == 200
+    assert response.json()["token_last4"] == token[-4:]
+
+
 def test_missing_instance_secret_refuses_x_token(test_settings):
     with TestClient(create_app(test_settings)) as client:
         response = client.put("/api/settings/x", json={"token": "test-" + "x" * 40})

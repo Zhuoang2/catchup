@@ -56,8 +56,8 @@ def _public_x(row: XCredential | None) -> dict:
 
 def _valid_x_token(value: str) -> str:
     token = value.strip()
-    if not token or len(token) > 1000 or any(char.isspace() for char in token):
-        raise AppError("invalid_x_token", "Enter an X API token without whitespace (at most 1,000 characters).", 422)
+    if not token or len(token) > 1000 or any(not "\x21" <= char <= "\x7e" for char in token):
+        raise AppError("invalid_x_token", "Enter a printable ASCII X API token without whitespace (at most 1,000 characters).", 422)
     return token
 
 

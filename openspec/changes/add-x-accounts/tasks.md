@@ -388,7 +388,7 @@ The review of fix round 1 confirmed the items below, and the user approved this 
 
 An independent review of the whole change found the items below, Claude confirmed them, and the user approved this round. Read the parts of `design.md` marked "Fix round 3" (the bullet near the top, D1, D2, D3, D4, D5, D9) and the amended lines of `specs/x-accounts/spec.md`. Work test-first, as before: every check must fail on the current branch head, except those marked "guard (already green)", which must instead fail under their named mutation when one is named. No test may hang: give any mocked route that could be called more often than expected a `side_effect` that fails the test on the extra call, and never hold a lock outside a `with` block.
 
-- [ ] 8.1 **Tokens are printable ASCII** (D1, fix round 3), in `backend/src/catchup/api/settings.py` (`_valid_x_token`). Tests first, in `backend/tests/test_x_settings_api.py`:
+- [x] 8.1 **Tokens are printable ASCII** (D1, fix round 3), in `backend/src/catchup/api/settings.py` (`_valid_x_token`). Tests first, in `backend/tests/test_x_settings_api.py`:
   - `PUT /api/settings/x` with a token ending in a zero-width space (`"​"`), and with one containing `"é"`, answers 422 `invalid_x_token`, and stores nothing;
   - `POST /api/settings/x/test` with such a `{token}` answers 422 `invalid_x_token`, and the usage route has `call_count == 0`;
   - a token made of letters, digits, and `%`, `-`, `_`, `=`, `+`, `/` is still saved (guard, already green).

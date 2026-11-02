@@ -120,6 +120,7 @@ export default function Sources() {
   const [pageError, setPageError] = useState('')
   const [message, setMessage] = useState('')
   const [needsXToken, setNeedsXToken] = useState(false)
+  const [xTokenError, setXTokenError] = useState('')
   const [xToken, setXToken] = useState('')
   const [confirmId, setConfirmId] = useState<number | null>(null)
   const [restoreFocusId, setRestoreFocusId] = useState<number | null>(null)
@@ -171,12 +172,14 @@ export default function Sources() {
 
   async function saveXAndPreview(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setFieldError(''); setMessage('')
+    setFieldError(''); setXTokenError(''); setMessage('')
     try {
       await request('/settings/x', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: xToken }),
       })
+    } catch (err) { setXTokenError(describeError(err)); return }
+    try {
       setXToken('')
       setNeedsXToken(false)
       setPreview(await request<Preview>('/sources/preview', {
@@ -228,8 +231,11 @@ export default function Sources() {
     {needsXToken && <form className="card" onSubmit={event => void saveXAndPreview(event)}>
       <label className="field-label" htmlFor="source-x-token">X API token</label>
       <input className="input" id="source-x-token" type="password" value={xToken}
-        autoComplete="new-password" aria-describedby="source-x-token-hint"
+        autoComplete="new-password" aria-invalid={xTokenError ? true : undefined}
+        aria-describedby={`${xTokenError ? 'source-x-token-error ' : ''}source-x-token-hint`}
         onChange={event => setXToken(event.target.value)} required/>
+      {xTokenError && <p className="field-error" id="source-x-token-error" role="alert">
+        <Icon name="alert"/>{xTokenError}</p>}
       <p className="field-hint" id="source-x-token-hint">Paste your own Bearer token.{' '}
         <a href="https://github.com/Zhuoang2/catchup#x-accounts">How to get one</a>.</p>
       <Button type="submit" variant="primary">Save and preview</Button>

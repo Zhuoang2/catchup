@@ -97,6 +97,29 @@ describe('sources', () => {
     expect(previewCount).toBe(2)
   })
 
+  it('marks the X token field, not the address, when saving the token fails', async () => {
+    fetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/sources') return respond([])
+      if (path === '/api/settings/x') return respond(
+        { error: { code: 'invalid_x_token', message: 'Enter a printable ASCII X API token.' } }, 422)
+      if (path === '/api/sources/preview') return respond(
+        { error: { code: 'x_token_required', message: 'X token needed.' } }, 422)
+      throw Error(path)
+    })
+    const { container } = page()
+    const url = screen.getByLabelText('Website or feed URL')
+    fireEvent.change(url, { target: { value: 'https://x.com/writer' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    const token = await screen.findByLabelText('X API token')
+    fireEvent.change(token, { target: { value: 'bad token' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save and preview' }))
+    expect(await screen.findByText('Enter a printable ASCII X API token.')).toBeInTheDocument()
+    expect(token).toHaveAttribute('aria-invalid', 'true')
+    expect(token).toHaveAccessibleDescription(/Enter a printable ASCII X API token/)
+    expect(url).not.toHaveAttribute('aria-invalid')
+    await expectAccessible(container)
+  })
+
   it.each([
     ['x_token_rejected', 'Replace the X token in CatchUp Settings'],
     ['x_account_protected', 'Protected X accounts cannot be followed'],

@@ -63,6 +63,7 @@ export default function Settings() {
   const [xToken, setXToken] = useState('')
   const [xLast4, setXLast4] = useState<string | null>(null)
   const [xError, setXError] = useState('')
+  const [xErrorOnToken, setXErrorOnToken] = useState(false)
   const [xMessage, setXMessage] = useState('')
   const [xDeleteConfirm, setXDeleteConfirm] = useState(false)
   const tokenRef = useRef<HTMLInputElement>(null)
@@ -107,7 +108,7 @@ export default function Settings() {
 
   async function saveX(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setXError(''); setXMessage('')
+    setXError(''); setXErrorOnToken(false); setXMessage('')
     try {
       const saved = await request<XSettings>('/settings/x', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -116,22 +117,22 @@ export default function Settings() {
       setXLast4(saved.token_last4)
       setXToken('')
       setXMessage('X token saved.')
-    } catch (err) { setXError(errorMessage(err)) }
+    } catch (err) { setXError(errorMessage(err)); setXErrorOnToken(true) }
   }
 
   async function testX() {
-    setXError(''); setXMessage('')
+    setXError(''); setXErrorOnToken(false); setXMessage('')
     try {
       await request<{ ok: true }>('/settings/x/test', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: xToken || undefined }),
       })
       setXMessage('X token works.')
-    } catch (err) { setXError(errorMessage(err)) }
+    } catch (err) { setXError(errorMessage(err)); setXErrorOnToken(true) }
   }
 
   async function removeX() {
-    setXError(''); setXMessage('')
+    setXError(''); setXErrorOnToken(false); setXMessage('')
     try {
       await request<void>('/settings/x', { method: 'DELETE' })
       setXLast4(null)
@@ -141,7 +142,7 @@ export default function Settings() {
   }
 
   async function deleteAllX() {
-    setXError(''); setXMessage('')
+    setXError(''); setXErrorOnToken(false); setXMessage('')
     try {
       const removed = await request<{ digest_items: number; digests: number; accounts: number }>(
         '/settings/x/delete-all', { method: 'POST' })
@@ -342,7 +343,9 @@ export default function Settings() {
           {xLast4 && <p className="key-saved" id="x-token-saved"><Icon name="check"/>
             Saved token ending in <code>{xLast4}</code></p>}
           <input className="input" id="x-token" type="password" value={xToken}
-            autoComplete="new-password" aria-describedby="x-token-note"
+            autoComplete="new-password" aria-invalid={xError && xErrorOnToken ? true : undefined}
+            aria-describedby={[xLast4 ? 'x-token-saved' : null, 'x-token-note',
+              xError && xErrorOnToken ? 'x-token-error' : null].filter(Boolean).join(' ')}
             onChange={event => setXToken(event.target.value)}/>
           <p className="field-hint" id="x-token-note">
             Your own X developer App's Bearer token is stored encrypted on this computer.
@@ -364,8 +367,8 @@ export default function Settings() {
           <Button type="button" variant="ghost" onClick={() => setXDeleteConfirm(false)}>Cancel</Button>
         </div>
       </div> : <Button type="button" variant="danger"
-        onClick={() => { setXError(''); setXMessage(''); setXDeleteConfirm(true) }}>Delete all X data</Button>}
-      {xError && <p className="field-error" role="alert"><Icon name="alert"/>{xError}</p>}
+        onClick={() => { setXError(''); setXErrorOnToken(false); setXMessage(''); setXDeleteConfirm(true) }}>Delete all X data</Button>}
+      {xError && <p className="field-error" id="x-token-error" role="alert"><Icon name="alert"/>{xError}</p>}
       {xMessage && <p className="inline-msg msg-ok" role="status"><Icon name="check"/>{xMessage}</p>}
     </SettingsSection>}
     {error && !errorField && <p className="field-error" role="alert"><Icon name="alert"/>{error}</p>}

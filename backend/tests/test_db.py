@@ -27,6 +27,8 @@ def test_startup_migrates_database_and_enables_wal(test_settings: Settings) -> N
             assert connection.execute(text("PRAGMA journal_mode")).scalar() == "wal"
             assert connection.execute(text("PRAGMA foreign_keys")).scalar() == 1
             assert connection.execute(text("PRAGMA busy_timeout")).scalar() == 5000
+            # Text cleared at delivery or deleted must not stay in free pages (X terms, D13).
+            assert connection.execute(text("PRAGMA secure_delete")).scalar() == 1
         assert inspect(engine).get_foreign_keys("digest_runs") == []
     assert (test_settings.data_dir / "catchup.sqlite3").exists()
 

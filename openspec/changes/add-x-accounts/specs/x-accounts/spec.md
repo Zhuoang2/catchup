@@ -139,7 +139,7 @@ Each run SHALL read at most `CATCHUP_X_READS_PER_RUN` posts from the X API, 200 
 - An account that the limit leaves unread SHALL be recorded with the outcome `deferred`, shown as "Waits for the next run".
 - When the limit is reached partway through an account, the posts already read SHALL be kept, and the account's remaining posts SHALL be read by later runs, before its newer posts.
 
-A post MUST NOT be lost because of the limit, unless the X API no longer returns it. The run SHALL report how many X posts it read, and how many accounts have posts waiting, also when the run fails after reading.
+A post MUST NOT be lost because of the limit, unless the X API no longer returns it. The run SHALL report how many X posts it read, and how many accounts have posts waiting. A run that fails after reading SHALL still report how many X posts it read.
 
 #### Scenario: Limit reached before an account
 - **WHEN** the limit is 200, and the first accounts read return 200 posts

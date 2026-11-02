@@ -32,6 +32,8 @@ Full RePPIT change for issue #41.
   - D4, D13: a confirm could store an account while "Delete all X data" ran;
   - D9: a failed run did not show the X reads already billed.
 
+- **After the user's live check (2026-11-01).** A system review of the branch (three sub-agents, findings filed as #66–#76) found four small gaps in this change. With the user's approval, Claude fixed them in its review commits: `PRAGMA secure_delete=ON` on every connection (`db.py`), not only during "Delete all X data", because text cleared at delivery otherwise stays in free pages when CatchUp runs from source (the Docker image's SQLite already defaults it on); the pre-commit hook also blocks X Bearer tokens and extension tokens; a failed token save marks the token field, not the address field; and the spec delta now matches D9's failed-run note.
+
   A fresh sub-agent checked group 8 before Droid ran. Claude verified its 6 findings and folded them in: an address parse in `safe_fetch` that still raised `ValueError`, a redirect test that could not fail, a lock test that could hang the suite, guards without mutations, a stale comment, and the reason a new session is needed.
 
   A fresh sub-agent checked group 7 before Droid ran. Claude verified its 3 findings and folded them in: a Phase A test that passed on the current head and would fail after the fix, a missing budget, and a guard not marked as one.

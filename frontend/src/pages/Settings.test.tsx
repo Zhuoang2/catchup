@@ -459,6 +459,25 @@ describe('X accounts settings', () => {
       && !(options as RequestInit | undefined)?.method)).toHaveLength(2)
   })
 
+  it('ties a failed X token save to the token field', async () => {
+    const original = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (url: string, options?: RequestInit) => {
+      if (url === '/api/settings/x' && options?.method === 'PUT') return respond(
+        { error: { code: 'invalid_x_token', message: 'Enter a printable ASCII X API token.' } }, 422)
+      if (url === '/api/settings/x') return respond({ token_set: true, token_last4: 'abcd' })
+      return original(url)
+    })
+    const { container } = render(<Settings/>)
+    const input = await screen.findByLabelText('X API token')
+    expect(input).toHaveAccessibleDescription(/Saved token ending in abcd/)
+    fireEvent.change(input, { target: { value: 'bad token' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save X token' }))
+    expect(await screen.findByText('Enter a printable ASCII X API token.')).toBeInTheDocument()
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(input).toHaveAccessibleDescription(/Enter a printable ASCII X API token/)
+    await expectAccessible(container)
+  })
+
   it('reports rejected tokens and remains accessible', async () => {
     const original = fetchMock.getMockImplementation()!
     fetchMock.mockImplementation(async (url: string, options?: RequestInit) =>

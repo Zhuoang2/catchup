@@ -354,8 +354,8 @@ export default function Settings() {
           <Button type="button" variant="ghost" onClick={() => void removeX()}>Remove X token</Button>
         </div>
       </form>
-      <p className="note">X API reads are billed to your X developer account. You can set a{' '}
-        <a href="https://github.com/Zhuoang2/catchup#x-accounts">spending limit in the X console</a>.</p>
+      <p className="note"><Icon name="info"/><span>X API reads are billed to your X developer account. You can set a{' '}
+        <a href="https://github.com/Zhuoang2/catchup#x-accounts">spending limit in the X console</a>.</span></p>
       {xDeleteConfirm ? <div role="group" aria-label="Confirm X data deletion">
         <p>Delete all X data? This removes your X token, followed X accounts, and their items in saved digests.
           {' '}Pages saved from X with the extension stay.</p>

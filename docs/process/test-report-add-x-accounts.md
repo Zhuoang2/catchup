@@ -222,3 +222,8 @@ performed. The local Docker image was not published.
   - the X-host refusal uses code `blocked_address`, which the Sources page and the popup show as "This address is not allowed.";
   - an errors-only timeline answer with `meta` now fails the account, by design (D2).
 - **Checks after the commit:** backend 776 passed; frontend 256 passed, build passed; extension unchanged.
+
+## The user's live check, and one layout fix (2026-11-01)
+
+- **Live check, part 1.** On a test instance (a copy of the user's data, migrated to `0007`), the user saved and tested their own token, followed one account, refused `https://help.x.com/en`, and ran a digest. The two recent posts held at follow were delivered under "X · <name>", linking to the posts; their stored text, replies, and contexts were cleared afterwards. The run read 0 posts, because none were newer than the follow.
+- **The billing note's layout.** The user saw the note in the "X accounts" group split into three columns: `.note` is a flex row, and the note's text, link, and period were three flex items. The note now wraps its sentence in one `<span>`, after the info icon, like the other notes. A new check in `loads a saved token without putting it in the field` failed first (the note had bare text nodes) and passes now.

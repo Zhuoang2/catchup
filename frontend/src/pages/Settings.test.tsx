@@ -408,6 +408,11 @@ describe('X accounts settings', () => {
       .toBe('Your model, digest language, YouTube options, browser extension, and X accounts.')
     expect(screen.getByRole('link', { name: /spending limit/i }))
       .toHaveAttribute('href', 'https://github.com/Zhuoang2/catchup#x-accounts')
+    // .note is a flex row: the sentence must be one item, not text, link, and period side by side.
+    const note = screen.getByRole('link', { name: /spending limit/i }).closest('.note')!
+    expect([...note.childNodes].every(node => node.nodeType === Node.ELEMENT_NODE)).toBe(true)
+    expect(note.querySelector('span')).toHaveTextContent(
+      'X API reads are billed to your X developer account. You can set a spending limit in the X console.')
     await expectAccessible(container)
   })
 

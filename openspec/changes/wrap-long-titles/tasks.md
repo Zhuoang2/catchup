@@ -62,7 +62,7 @@ Implementer notes:
 
 ## 3. Checks and report
 
-- [ ] 3.1 Run the full checks:
+- [x] 3.1 Run the full checks:
   - in `frontend/`: `npm run build`, then `npm test -- --run`;
   - in `backend/`: `uv run --python 3.12 pytest`, with `frontend/dist` present;
   - in `extension/`: `npm test -- --run`;

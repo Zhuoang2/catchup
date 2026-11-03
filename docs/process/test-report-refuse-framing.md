@@ -71,3 +71,9 @@ Run in this order.
 - **Installed app.** Open the installed app while CatchUp runs, then again while it is stopped: the app must open as before, and the offline page must appear.
 
 Both are left for Claude Code's review and the user's live check.
+
+## Claude's review and browser check (2026-11-04)
+
+- **Diff.** `main.py` adds the two headers in one middleware registered last, and an `Exception` handler that answers the same plain 500 with the headers, re-raising as before; the smoke script checks every response it already requests; README gains one sentence. Matches D1–D5.
+- **Browser check.** Claude ran the branch's backend on `localhost:8769`, and a static page on `localhost:5191` that frames `http://localhost:8769/settings` in an `<iframe>`. The built-in browser (Chromium) left the frame empty and logged: "Framing 'http://localhost:8769/' violates the following Content Security Policy directive: "frame-ancestors 'none'". The request has been blocked." Opening CatchUp directly still worked: the Latest page rendered, the service worker registered, and the console had no errors.
+- **Not checked:** Firefox and Safari, and the installed app with the server stopped.

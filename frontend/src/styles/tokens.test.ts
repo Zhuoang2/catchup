@@ -310,3 +310,38 @@ it('keeps image figures inside the summary cell, bounded and wrapping without gr
   expect(image).toMatch(/object-fit:\s*contain/)
   expect(image).toMatch(/border:\s*1px solid var\(--border\)/)
 })
+
+function declarations(body: string, names: string[]): [string, string][] {
+  return [...body.matchAll(/(?:^|;)\s*([\w-]+)\s*:\s*([^;]*)/g)]
+    .map(([, name, value]): [string, string] => [name.toLowerCase(), value.trim().toLowerCase()])
+    .filter(([name]) => names.includes(name))
+}
+
+it('lets unbroken text wrap from the app root', () => {
+  const root = layoutRules(readFileSync('src/styles/base.css', 'utf8'))
+    .filter(rule => rule.selector === '.app')
+  expect(root.length).toBeGreaterThan(0)
+  expect(root.some(rule => /(?:^|;)\s*overflow-wrap:\s*anywhere\s*(?:;|$)/.test(rule.body))).toBe(true)
+})
+
+it('does not turn wrapping back off for titles', () => {
+  const rules = ownedLayoutRules()
+  const wrapping = rules.flatMap(rule => declarations(rule.body, ['overflow-wrap', 'word-wrap'])
+    .filter(([, value]) => value !== 'anywhere')
+    .map(([name, value]) => `${rule.file}: ${rule.selector} { ${name}: ${value} }`))
+  expect(wrapping).toEqual([])
+  const titles = ['.item-title', '.creator-item', '.check-title', '.source-title', '.entry-list']
+  const unwrapping = rules
+    .filter(rule => splitSelectors(rule.selector).some(part => titles.some(title => part.includes(title))))
+    .flatMap(rule => declarations(rule.body, ['white-space', 'word-break'])
+      .filter(([name, value]) => name === 'white-space' ? value !== 'normal' : value === 'keep-all')
+      .map(([name, value]) => `${rule.file}: ${rule.selector} { ${name}: ${value} }`))
+  expect(unwrapping).toEqual([])
+})
+
+it('keeps the date beside a long preview entry title on one line', () => {
+  const date = ownedLayoutRules()
+    .filter(rule => splitSelectors(rule.selector).includes('.entry-list time'))
+  expect(date.length).toBeGreaterThan(0)
+  expect(date.some(rule => /(?:^|;)\s*flex:\s*none\s*(?:;|$)/.test(rule.body))).toBe(true)
+})

@@ -148,7 +148,7 @@
 .preview-urls dd { overflow-wrap: anywhere; }
 .entry-list { display: grid; }
 .entry-list li { display: flex; justify-content: space-between; gap: 1rem; padding: .4rem 0; border-bottom: 1px solid var(--border); }
-.entry-list time { color: var(--muted); }
+.entry-list time { color: var(--muted); flex: none; }
 .settings-form { display: grid; gap: 1rem; }
 .settings-title { font: 600 1.3rem var(--font-heading); display: flex; align-items: center; gap: .6rem; }
 .step-num { width: 1.6rem; height: 1.6rem; display: grid; place-items: center; font: .8em var(--font-body); background: var(--fg); color: var(--bg); }

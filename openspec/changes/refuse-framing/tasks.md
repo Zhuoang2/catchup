@@ -83,7 +83,7 @@ Implementer notes:
 
 ## 3. Checks and report
 
-- [ ] 3.1 Run the full checks:
+- [x] 3.1 Run the full checks:
   - in `frontend/`: `npm run build` first, so that backend coverage is measured with `frontend/dist` present, then `npm test -- --run`;
   - in `backend/`: `uv run --python 3.12 pytest --cov=catchup --cov-report=term`;
   - in `extension/`: `npm test -- --run`;

@@ -1649,3 +1649,9 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - **The review worktree under `/private/tmp` was partly cleaned** after three days. Every change was committed, so the worktree was recreated from the branch.
   - **A zsh loop did not split a label list,** so the first attempt to create the system-review issues failed before creating any. It was rerun with comma-separated labels.
 - **Not changed:** `&amp;` in titles was not observed; the provider's non-JSON 200 answer that failed one live run is the same bug class as #67.
+
+## 2026-11-03 — `isolate-source-check-failures` (#66): lean plan, overnight (Claude Code, Opus 5.5)
+
+- **Prompt** (translated from Chinese): "I'm going to sleep. Arrange tonight's tasks yourself, for example fix the issues that are open now." Then, mid-turn: "You can open worktrees yourself and let sub-conversations do the work; you only accept the results."
+- **What Claude did.** Chose #66 first (labelled `priority:next`, and found to fail every run). Wrote a lean OpenSpec change with the `openspec-propose` skill, from facts verified during the system review: unguarded `urljoin`/`urlsplit` on feed text, `httpx.InvalidURL` escaping `safe_fetch`, no per-source guard in the run, and deletion during a check. Design: one parsing helper, one guard per source in the runner, and a guard per item in the caption pass, rather than a `try` at each call site.
+- **Outcome.** The change validates with `--strict`. A fresh-eyes sub-agent checks the task groups before Droid runs (D-023).

@@ -159,6 +159,26 @@ it.each(['popup', 'options'])('links the styled %s page', page => {
   expect(css).toContain('var(--fg)')
 })
 
+const popupRules = () => [...readFileSync(resolve('src/popup.css'), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+  .map(([, selector, body]) => ({ selector: selector.trim(), body }))
+
+it('lets unbroken titles wrap from the popup body', () => {
+  const body = popupRules().filter(rule => rule.selector === 'body')
+  expect(body.length).toBeGreaterThan(0)
+  expect(body.some(rule => /(?:^|;)\s*overflow-wrap:\s*anywhere\s*(?:;|$)/.test(rule.body))).toBe(true)
+})
+
+it('does not turn wrapping back off in the popup', () => {
+  const unwrapping = popupRules().flatMap(rule =>
+    [...rule.body.matchAll(/(?:^|;)\s*(overflow-wrap|white-space)\s*:\s*([^;]*)/g)]
+      .map(([, name, value]) => [name, value.trim()])
+      .filter(([name, value]) => value !== (name === 'overflow-wrap' ? 'anywhere' : 'normal'))
+      .map(([name, value]) => `${rule.selector} { ${name}: ${value} }`))
+  expect(unwrapping).toEqual([])
+})
+
 it.each([
   ['duplicate', null, 'Already following this feed.', 'Already following this feed.'],
   ['no_feed', null, 'Backend text', 'No supported feed was found at this URL.'],

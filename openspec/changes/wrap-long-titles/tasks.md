@@ -47,14 +47,14 @@ Implementer notes:
 
 ## 2. The extension popup
 
-- [ ] 2.1 **Tests first**, in `extension/src/test/popup.test.ts`, next to "links the styled %s page" (`:153-159`):
+- [x] 2.1 **Tests first**, in `extension/src/test/popup.test.ts`, next to "links the styled %s page" (`:153-159`):
   1. **Wrap from the root.** In `src/popup.css`, the rule whose selector is exactly `body` (`:31`) declares `overflow-wrap: anywhere`.
   2. **Nothing turns it back off.** This is a guard. No rule in `src/popup.css` declares `overflow-wrap` with a value other than `anywhere`, or `white-space` with a value other than `normal`. Mutation G3: add `white-space: nowrap` to the `h2` rule (`:34`).
 
   Strip CSS comments before matching, because `popup.css:1` is a comment.
 
   Verify: check 1 fails before 2.2. Check 2 passes, and fails under G3.
-- [ ] 2.2 **Implement design D1** in `extension/src/popup.css:31`: add `overflow-wrap: anywhere` to the `body` rule.
+- [x] 2.2 **Implement design D1** in `extension/src/popup.css:31`: add `overflow-wrap: anywhere` to the `body` rule.
 
   Verify:
   - the 2.1 checks pass, and G3 is reverted;

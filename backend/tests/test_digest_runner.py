@@ -1385,3 +1385,44 @@ def test_rate_limited_run_check_is_visible_in_progress_and_source_list(environme
     assert "about 120 seconds" in check["error"]
     listed = environment.get("/api/sources").json()[0]
     assert (listed["last_check_status"], listed["http_status"], listed["rate_limited"]) == ("failed", 429, True)
+
+
+def public_dns(monkeypatch):
+    monkeypatch.setattr(socket, "getaddrinfo", lambda _host, port, *_args, **_kwargs: [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", port)),
+    ])
+
+
+def orchard_feed(guid="orchard-1", title="Pruning") -> bytes:
+    return (f"<rss version='2.0'><channel><title>Orchard</title><item><guid>{guid}</guid>"
+            f"<title>{title}</title><link>https://s1.example/{guid}</link>"
+            f"<description>{'Prune the apple trees in late winter. ' * 20}</description>"
+            f"</item></channel></rss>").encode()
+
+
+def test_malformed_address_in_one_entry_does_not_fail_the_run(environment, monkeypatch):
+    from test_feeds import malformed_entry_feed
+
+    seed(environment, count=0, sources=2)
+    environment.app.state.settings = replace(environment.app.state.settings, context_fetches_per_run=0)
+    public_dns(monkeypatch)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        garden = router.get("https://s0.example/feed").mock(return_value=httpx.Response(
+            200, content=malformed_entry_feed(), headers={"content-type": "application/rss+xml"},
+        ))
+        orchard = router.get("https://s1.example/feed").mock(return_value=httpx.Response(
+            200, content=orchard_feed(), headers={"content-type": "application/rss+xml"},
+        ))
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert (garden.call_count, orchard.call_count) == (1, 1)
+    assert [(check["source_id"], check["status"]) for check in result["source_checks"]] == [
+        (1, "new_items"), (2, "new_items"),
+    ]
+    assert [check.entries_seen for check in run_checks(environment, result["id"])] == [2, 1]
+    assert sorted(row.title for row in all_rows(environment, DigestItem)) == ["Planner 2.0", "Pruning", "Seeds"]
+    with environment.app.state.session_factory() as session:
+        planner = session.scalar(select(Item).where(Item.identity_key == "entry-1"))
+        assert [image["url"] for image in planner.image_candidates] == [
+            "https://garden.example/images/planner.png", "https://cdn.example/cover.png",
+        ]

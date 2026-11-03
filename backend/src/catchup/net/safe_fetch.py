@@ -199,4 +199,7 @@ def safe_fetch(url: str, *, same_origin: str | None = None, budget: list[int] | 
                     ) from exc
                 except httpx.HTTPError as exc:
                     raise FetchError("fetch_failed", "The source could not be fetched.") from exc
+                except httpx.InvalidURL as exc:
+                    # Not an HTTPError subclass: httpx rejects some URLs that urlsplit accepts.
+                    raise FetchError("invalid_url", "Enter a valid public HTTP or HTTPS URL.") from exc
     raise AssertionError("unreachable")

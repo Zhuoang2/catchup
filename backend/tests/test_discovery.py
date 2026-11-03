@@ -8,7 +8,9 @@ from pathlib import Path
 import httpx
 import pytest
 import respx
+from fastapi.testclient import TestClient
 
+from catchup.main import create_app
 from catchup.net.safe_fetch import FetchError, FetchResponse
 from catchup.sources.discovery import discover
 from catchup.sources.feeds import FeedParseError, _entry_title, parse_feed
@@ -389,6 +391,23 @@ def test_direct_feed_and_declared_html(public_dns):
     assert direct.feed.feed_url == declared.feed.feed_url == "https://site.example/feed.xml"
     assert not direct.follows_site_feed_notice
     assert not declared.follows_site_feed_notice
+
+
+def test_declared_feed_that_cannot_be_joined_is_skipped(public_dns):
+    with respx.mock(assert_all_mocked=True) as router:
+        page = router.get("https://site.example/").mock(return_value=httpx.Response(
+            200, content=declared_html("http://[x", "/feed.xml"), headers={"content-type": "text/html"},
+        ))
+        feed = router.get("https://site.example/feed.xml").mock(return_value=httpx.Response(
+            200, content=fixture("rss.xml"), headers={"content-type": "application/rss+xml"},
+        ))
+        found = discover("https://site.example/")
+        with TestClient(create_app()) as client:
+            response = client.post("/api/sources/preview", json={"url": "https://site.example/"})
+    assert found.feed.feed_url == "https://site.example/feed.xml"
+    assert response.status_code == 200
+    assert response.json()["feed_url"] == "https://site.example/feed.xml"
+    assert (page.call_count, feed.call_count) == (2, 2)
 
 
 def test_article_page_follows_whole_site(public_dns):

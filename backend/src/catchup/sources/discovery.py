@@ -4,10 +4,11 @@ import json
 import re
 from dataclasses import dataclass
 from html.parser import HTMLParser
-from urllib.parse import parse_qs, urljoin, urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from catchup.net.feed_cache import FeedCache
 from catchup.net.safe_fetch import FetchError, FetchResponse, safe_fetch
+from catchup.net.urls import join_url
 from catchup.sources.feeds import Feed, FeedParseError, parse_feed
 
 FEED_TYPES = ("application/rss+xml", "application/atom+xml")
@@ -115,7 +116,9 @@ def discover(url: str, *, cache: FeedCache | None = None, max_feed_bytes: int = 
             blocked_error = None
             unparseable = False
             for href in links.feeds:
-                candidate = urljoin(response.url, href)
+                candidate = join_url(response.url, href)
+                if candidate is None:
+                    continue
                 try:
                     return found_feed(safe_fetch(candidate, max_bytes=max_feed_bytes), notice)
                 except FetchError as exc:

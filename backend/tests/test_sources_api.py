@@ -204,6 +204,16 @@ def test_x_entry_link_keeps_feed_text_without_fetch(client, monkeypatch):
         assert x_page.call_count == 0
 
 
+def test_entry_link_httpx_rejects_keeps_feed_text(public_dns):
+    entry = FeedEntry("article", "https://site.example/a\x7fb", "Article", None, "Short feed excerpt")
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        page = router.route(host="site.example").mock(
+            side_effect=AssertionError("a URL httpx rejects must not be requested"),
+        )
+        assert article_text(entry, {FEED_URL}, 500) == ("Short feed excerpt", "feed")
+        assert page.call_count == 0
+
+
 def test_short_excerpt_not_in_extracted_article_keeps_both(client, monkeypatch):
     entry = FeedEntry(
         "article", "https://site.example/article", "Article", None,

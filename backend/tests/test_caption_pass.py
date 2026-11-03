@@ -2,7 +2,7 @@ from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import event, select
 
 from catchup.models import AppSettings, Item, Source
 from test_digest_runner import FakeModel, environment, execute, seed, stub_collection
@@ -208,3 +208,74 @@ def test_upgraded_youtube_feed_uses_caption_rules_for_old_items(ready, monkeypat
     assert model.calls == []
     with client.app.state.session_factory() as session:
         assert session.scalar(select(Item.transcript_status)) == "captions_off"
+
+
+def test_channel_deleted_during_caption_pass_is_skipped(ready, monkeypatch, caplog):
+    client, _ = ready
+    videos(client, 2)
+    with client.app.state.session_factory() as session:
+        other = Source(title="Other channel", kind="youtube", site_url="https://www.youtube.com/",
+                       feed_url="https://www.youtube.com/feeds/videos.xml?channel_id=def",
+                       input_url="https://www.youtube.com/channel/def")
+        session.add(other)
+        session.flush()
+        session.add(Item(
+            source_id=other.id, identity_key="yt:video:other0", link="https://www.youtube.com/watch?v=other0",
+            title="Other video", content_text="Description not spoken", content_origin="feed",
+            state="pending", transcript_status="to_fetch", discovered_at=NOW,
+        ))
+        session.commit()
+        channel_id = session.scalar(select(Source.id).where(Source.title == "Channel"))
+    called = []
+
+    def fetch(video_id, _spacer):
+        called.append(video_id)
+        if video_id == "video0":
+            with client.app.state.session_factory() as session:
+                session.delete(session.get(Source, channel_id))
+                session.commit()
+        return "found", f"Spoken {video_id}"
+
+    monkeypatch.setattr("catchup.digest.runner.fetch_captions", fetch)
+    with caplog.at_level("WARNING", logger="catchup.digest.runner"):
+        result = execute(client)
+    assert result["status"] == "succeeded"
+    assert called == ["video0", "other0"]
+    with client.app.state.session_factory() as session:
+        items = session.scalars(select(Item).order_by(Item.id)).all()
+        assert [(item.identity_key, item.transcript_status, item.content_text, item.state) for item in items] == [
+            ("yt:video:other0", "found", "Spoken other0", "delivered"),
+        ]
+    warnings = [record.getMessage() for record in caplog.records if record.levelname == "WARNING"]
+    assert [message for message in warnings if "item 2" in message] == []
+
+
+def test_caption_failure_for_one_item_keeps_its_status_and_goes_on(ready, monkeypatch, caplog):
+    client, _ = ready
+    videos(client, 2)
+    monkeypatch.setattr("catchup.digest.runner.fetch_captions",
+                        lambda video_id, _spacer: ("found", f"Spoken {video_id}"))
+    rejected = []
+
+    def reject_first_update(_mapper, _connection, target):
+        if target.identity_key == "yt:video:video0" and not rejected:
+            rejected.append(target.identity_key)
+            raise RuntimeError("caption text")
+
+    event.listen(Item, "before_update", reject_first_update)
+    try:
+        with caplog.at_level("WARNING", logger="catchup.digest.runner"):
+            result = execute(client)
+    finally:
+        event.remove(Item, "before_update", reject_first_update)
+    assert rejected == ["yt:video:video0"]
+    assert result["status"] == "succeeded"
+    assert result["deferred_count"] == 1
+    with client.app.state.session_factory() as session:
+        items = session.scalars(select(Item).order_by(Item.id)).all()
+        assert [(item.identity_key, item.transcript_status, item.state) for item in items] == [
+            ("yt:video:video0", "to_fetch", "pending"),
+            ("yt:video:video1", "found", "delivered"),
+        ]
+    assert "RuntimeError" in caplog.text
+    assert "caption text" not in caplog.text

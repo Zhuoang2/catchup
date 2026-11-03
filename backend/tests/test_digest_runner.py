@@ -17,7 +17,7 @@ from catchup.models import (
     XAccount,
 )
 from catchup.net.host_spacing import HostSpacer
-from catchup.net.safe_fetch import RATE_LIMIT_PREFIX
+from catchup.net.safe_fetch import RATE_LIMIT_PREFIX, FetchResponse
 import httpx
 import respx
 
@@ -1426,3 +1426,100 @@ def test_malformed_address_in_one_entry_does_not_fail_the_run(environment, monke
         assert [image["url"] for image in planner.image_candidates] == [
             "https://garden.example/images/planner.png", "https://cdn.example/cover.png",
         ]
+
+
+def test_unexpected_error_in_one_source_is_recorded_and_the_run_goes_on(environment, monkeypatch, caplog):
+    from catchup.collection import check_source as real_check
+
+    seed(environment, count=0, sources=2)
+    public_dns(monkeypatch)
+
+    def check(session, source, run_id, settings, *, spacer=None, transcripts=None):
+        if source.id == 1:
+            raise RuntimeError("boom")
+        return real_check(session, source, run_id, settings, spacer=spacer, transcripts=transcripts)
+
+    monkeypatch.setattr("catchup.digest.runner.check_source", check)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        broken = router.get("https://s0.example/feed").mock(
+            side_effect=AssertionError("the failing source is not fetched"),
+        )
+        orchard = router.get("https://s1.example/feed").mock(return_value=httpx.Response(
+            200, content=orchard_feed(), headers={"content-type": "application/rss+xml"},
+        ))
+        with caplog.at_level("WARNING", logger="catchup.digest.runner"):
+            result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert (broken.call_count, orchard.call_count) == (0, 1)
+    assert [(check.source_id, check.status, check.error, check.entries_seen, check.new_count)
+            for check in run_checks(environment, result["id"])] == [
+        (1, "failed", "Could not check this source.", 0, 0),
+        (2, "new_items", None, 1, 1),
+    ]
+    assert [(source["title"], source["last_check_status"]) for source in environment.get("/api/sources").json()] == [
+        ("Source 0", "failed"), ("Source 1", "new_items"),
+    ]
+    assert [row.title for row in all_rows(environment, DigestItem)] == ["Pruning"]
+    warnings = [record.getMessage() for record in caplog.records if record.levelname == "WARNING"]
+    assert any("RuntimeError" in message for message in warnings)
+    assert "boom" not in caplog.text
+
+
+def test_unexpected_error_in_one_x_account_keeps_its_charged_reads(environment, monkeypatch):
+    from catchup.sources.x_check import check_x_account as real_check
+
+    seed(environment, sources=0)
+    seed_x_accounts(environment, ("a", "b"))
+    assert environment.put("/api/settings/x", json={"token": "test-" + "x" * 40}).status_code == 200
+
+    def check(session, source, account, run_id, client, budget):
+        if account.username == "a":
+            budget.charge(3)
+            raise RuntimeError("X page text")
+        return real_check(session, source, account, run_id, client, budget)
+
+    monkeypatch.setattr("catchup.digest.runner.check_x_account", check)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        first = router.get("https://api.x.com/2/users/100/tweets").mock(
+            side_effect=AssertionError("the failing account is not read"),
+        )
+        second = router.get("https://api.x.com/2/users/101/tweets").mock(side_effect=[
+            httpx.Response(200, json=x_timeline(1100)),
+            AssertionError("the account is read once"),
+        ])
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert (first.call_count, second.call_count) == (0, 1)
+    assert [(check["source_id"], check["status"], check["error"]) for check in result["source_checks"]] == [
+        (1, "failed", "Could not check this source."), (2, "new_items", None),
+    ]
+    assert result["x_reads"] == 4
+    assert [(source["title"], source["last_check_status"]) for source in environment.get("/api/sources").json()] == [
+        ("Writer a", "failed"), ("Writer b", "new_items"),
+    ]
+
+
+def test_source_deleted_during_its_check_is_skipped(environment, monkeypatch):
+    seed(environment, count=0, sources=2)
+    deleted = []
+
+    def fetch(url, **_kwargs):
+        if url == "https://s0.example/feed":
+            deleted.append(1)
+            with environment.app.state.session_factory() as session:
+                session.delete(session.get(Source, 1))
+                session.commit()
+            return FetchResponse(url, orchard_feed("planting", "Planting"), "application/rss+xml", 200)
+        if url == "https://s1.example/feed":
+            return FetchResponse(url, orchard_feed(), "application/rss+xml", 200)
+        raise AssertionError(f"unexpected fetch of {url}")
+
+    monkeypatch.setattr("catchup.collection.safe_fetch", fetch)
+    result = execute(environment)
+    assert deleted == [1]
+    assert result["status"] == "succeeded"
+    assert [(check.source_id, check.status) for check in run_checks(environment, result["id"])] == [
+        (2, "new_items"),
+    ]
+    assert [source["title"] for source in environment.get("/api/sources").json()] == ["Source 1"]
+    assert [row.title for row in all_rows(environment, DigestItem)] == ["Pruning"]

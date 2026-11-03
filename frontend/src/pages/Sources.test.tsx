@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Sources from './Sources'
@@ -178,6 +178,22 @@ describe('sources', () => {
     expect(screen.getByRole('button', { name: 'Preview' })).toHaveClass('btn-secondary')
     expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
     await expectAccessible(container)
+  })
+  it('flows the captions-off method text and its Settings link as one text', async () => {
+    fetchMock.mockImplementation(async (path: string) => path === '/api/sources'
+      ? respond([])
+      : respond({ ...preview, kind: 'youtube', captions_enabled: false }))
+    page()
+    fireEvent.change(screen.getByLabelText('Website or feed URL'), {
+      target: { value: saved.feed_url },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    const region = await screen.findByRole('region', { name: 'Source preview' })
+    const method = region.querySelector('p.preview-method')!
+    expect([...method.children].map(child => child.tagName.toLowerCase())).toEqual(['svg', 'span'])
+    const text = method.children[1] as HTMLElement
+    expect(text).toHaveTextContent('Caption fetching is off; videos will be listed without summaries')
+    expect(within(text).getByRole('link', { name: 'Change in Settings' })).toHaveAttribute('href', '/settings')
   })
   it('previews a source and explains site scope before confirmation', async () => {
     page()

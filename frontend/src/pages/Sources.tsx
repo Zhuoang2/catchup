@@ -76,8 +76,8 @@ function SourcePreview({ preview, onConfirm, onCancel }: {
       : <><dt>Feed</dt><dd><a href={preview.feed_url}>{preview.feed_url}</a></dd></>}
       <dt>Site</dt><dd><a href={preview.site_url}>{preview.site_url}</a></dd></dl>
     <p className="preview-method"><Icon name={preview.kind === 'youtube' && !preview.captions_enabled ? 'info' : 'check'}/>
-      {method}{preview.kind === 'youtube' && !preview.captions_enabled && <>
-        {' '}<Link to="/settings">Change in Settings</Link></>}
+      <span>{method}{preview.kind === 'youtube' && !preview.captions_enabled && <>
+        {' '}<Link to="/settings">Change in Settings</Link></>}</span>
     </p>
     {preview.follows_site_feed_notice && <p className="notice"><Icon name="info"/>
       {preview.kind === 'podcast'

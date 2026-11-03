@@ -16,7 +16,7 @@ Implementer notes:
 
 ## 1. The web app
 
-- [ ] 1.1 **Tests first.**
+- [x] 1.1 **Tests first.**
 
   In `frontend/src/styles/tokens.test.ts`:
   1. **Wrap from the root.** The rule in `src/styles/base.css` whose selector is exactly `.app` declares `overflow-wrap: anywhere`.
@@ -34,7 +34,7 @@ Implementer notes:
   4. **The method line flows as one text.** For a YouTube preview with captions off, the `.preview-method` paragraph has exactly two element children: the icon's `svg`, then one `span`. That `span` contains the text "Caption fetching is off; videos will be listed without summaries" and the link "Change in Settings". The existing `it.each` (`:161-181`) still finds the paragraph by its text.
 
   Verify: checks 1, 3, and 4 fail before 1.2. Check 2 passes, and fails under G1 and under G2.
-- [ ] 1.2 **Implement design D1 and D2:**
+- [x] 1.2 **Implement design D1 and D2:**
   - `frontend/src/styles/base.css:4`: add `overflow-wrap: anywhere` to the `.app` rule;
   - `frontend/src/styles/components.css:151`: add `flex: none` to `.entry-list time`;
   - `frontend/src/pages/Sources.tsx:78-80`: wrap `{method}` and the optional `{' '}<Link to="/settings">Change in Settings</Link>` in one `<span>`, after the `<Icon>`, as `frontend/src/pages/Settings.tsx:301-303` does.

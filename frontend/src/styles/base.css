@@ -1,7 +1,7 @@
 html { background: var(--bg); color: var(--fg); }
 body { margin: 0; }
 *, *::before, *::after { box-sizing: border-box; }
-.app { min-height: 100vh; container-type: inline-size; background: var(--bg); color: var(--fg); font: var(--text)/1.6 var(--font-body); -webkit-font-smoothing: antialiased; }
+.app { min-height: 100vh; container-type: inline-size; background: var(--bg); color: var(--fg); font: var(--text)/1.6 var(--font-body); -webkit-font-smoothing: antialiased; overflow-wrap: anywhere; }
 .app h1, .app h2, .app h3, .app p, .app ul, .app ol, .app dl, .app dd, .app pre { margin: 0; }
 .app ul, .app ol { padding: 0; list-style: none; }
 .app a { color: var(--link); text-underline-offset: 2px; }

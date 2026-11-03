@@ -1649,3 +1649,14 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - **The review worktree under `/private/tmp` was partly cleaned** after three days. Every change was committed, so the worktree was recreated from the branch.
   - **A zsh loop did not split a label list,** so the first attempt to create the system-review issues failed before creating any. It was rerun with comma-separated labels.
 - **Not changed:** `&amp;` in titles was not observed; the provider's non-JSON 200 answer that failed one live run is the same bug class as #67.
+
+## 2026-11-03 — `refuse-framing` (#69): lean plan, overnight (Claude Code, Opus 5.5, as a planning sub-agent)
+
+- **Prompts** (translated from Chinese): "I'm going to sleep. Arrange tonight's tasks yourself, for example fix the issues that are open now." Then: "You can open worktrees yourself and let sub-conversations do the work; you only accept the results." Claude gave one planning sub-agent three small issues (#69, #74, #75), one lean change each, from `main` at `8faaed6`.
+- **Probe before the plan.** On a temporary dist, with a test-only route that raises, a header middleware registered last in `create_app` reached every response, including the SPA fallback, `/offline.html`, `/sw.js`, the host and cross-site refusals, and the 404. The one exception was the unhandled 500, which Starlette's `ServerErrorMiddleware` writes outside the app's middleware. A handler for `Exception` gave that 500 the headers, kept its body, and `TestClient` still raised the exception.
+- **Plan** (the `openspec-propose` skill):
+  - an ADDED `model-settings` requirement next to D-022, with four scenarios;
+  - `design.md` D1–D5: the middleware registered last, the same plain 500 with the headers, `DENY` and `'none'`, the service worker and offline page, and the Docker smoke;
+  - `tasks.md`: a 15-check test file with four named mutations, the smoke with a red run on an image from `8faaed6`, a README sentence, and the checks.
+- **Decided on the way:** the smoke checks the headers, because it is the only check that runs the shipped image with the real `offline.html` and `sw.js`. A fuller Content Security Policy stays out: digest images load from any source site.
+- **Outcome.** The plan validates with `--strict`. Claude reviews it before Droid runs.

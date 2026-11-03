@@ -1649,3 +1649,15 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - **The review worktree under `/private/tmp` was partly cleaned** after three days. Every change was committed, so the worktree was recreated from the branch.
   - **A zsh loop did not split a label list,** so the first attempt to create the system-review issues failed before creating any. It was rerun with comma-separated labels.
 - **Not changed:** `&amp;` in titles was not observed; the provider's non-JSON 200 answer that failed one live run is the same bug class as #67.
+
+## 2026-11-03 — `update-frontend-dev-deps` (#75): lean plan, overnight (Claude Code, Opus 5.5, as a planning sub-agent)
+
+- **Prompts** (translated from Chinese): "I'm going to sleep. Arrange tonight's tasks yourself, for example fix the issues that are open now." Then: "You can open worktrees yourself and let sub-conversations do the work; you only accept the results." This is the third of the three lean changes that Claude gave one planning sub-agent.
+- **Checks before the plan** (read-only, at `8faaed6`):
+  - `npm audit` in `frontend/` reported 1 high (`vite` 8.3.0–8.3.2) and 2 moderate (`@vitest/mocker` ≤ 4.1.11, and `vitest` through it), and `--omit=dev` reported 0;
+  - the extension's audit reported 0;
+  - the registry's newest versions were `vite` 8.3.5 and `vitest` 4.1.12 on 4.x.
+  - A dry run of `npm install --package-lock-only` on a copy of the two files, outside the repository, changed only packages in the `vite` and `vitest` trees, and its audit reported 0.
+- **Plan** (the `openspec-propose` skill, `skip_specs: true`, no design document): raise the two caret floors to `^8.3.5` and `^4.1.12`; a red `npm audit` baseline; checks that only those trees changed, a clean `npm ci`, the same test count, a dev-server request, and the Docker smoke.
+- **Left out on purpose:** `vitest` 5, a major upgrade, and the extension's floors, whose lockfile already resolves the fixed versions.
+- **Outcome.** The plan validates with `--strict`. Claude reviews it before Droid runs.

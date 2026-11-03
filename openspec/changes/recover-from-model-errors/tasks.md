@@ -22,7 +22,7 @@ Implementer notes:
 
 ## 1. Model calls: retry temporary errors and answers of the wrong shape
 
-- [ ] 1.1 **Add failing tests** in `backend/tests/test_llm_client.py` (D1, D2):
+- [x] 1.1 **Add failing tests** in `backend/tests/test_llm_client.py` (D1, D2):
   1. **Gateway errors are retried.** Parametrize 502 and 504. The first answer has that status, the second is `completion('{"ok": 1}')`. The result is `{"ok": 1}`, and `route.call_count == 2`.
   2. **Gateway errors exhaust the retries.** Add 502 and 504 to the parameters of `test_server_error_exhausts_retries` (`:164`). Each raises `ProviderError` after 3 calls.
   3. **Other statuses fail at once** (guard, already green). Parametrize 400, 404, and 422. Each raises `ProviderError` after 1 call. Mutation: "retry every status except 401 and 402".
@@ -50,7 +50,7 @@ Implementer notes:
   11. **Existing retry tests** (guards, already green): `test_empty_response_retries`, `test_empty_choices_retries`, `test_auth_and_balance_fail_immediately`, and `test_rate_limit_retries_then_succeeds` stay unchanged and pass.
 
   Verify: checks 1, 2 (the 502 and 504 cases), 4–8, and 10 fail before 1.2. Record each observed failure in the report: one call and an immediate `ProviderError`, or an `AttributeError` or `TypeError`.
-- [ ] 1.2 **Implement D1 and D2** in `backend/src/catchup/llm/client.py`:
+- [x] 1.2 **Implement D1 and D2** in `backend/src/catchup/llm/client.py`:
   - add 502 and 504 to the retried statuses (`:85`);
   - `chat()` reads `usage`, `choices`, `message`, and `content` with `getattr` and type checks, and returns `None` for an answer of the wrong shape;
   - `chat()` parses the JSON itself, and raises `ValueError` for text that is not valid JSON or not an object, so that `_call` retries it. `chat_json` returns what `_call` returns;

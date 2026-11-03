@@ -45,6 +45,12 @@ from urllib.request import Request, urlopen
 port = sys.argv[1]
 base = f"http://127.0.0.1:{port}"
 
+def assert_refuses_framing(path, response):
+    value = response.headers.get_all("X-Frame-Options")
+    assert value == ["DENY"], (path, "X-Frame-Options", value)
+    value = response.headers.get_all("Content-Security-Policy")
+    assert value == ["frame-ancestors 'none'"], (path, "Content-Security-Policy", value)
+
 def request(path, method="GET", data=None):
     body = json.dumps(data).encode() if data is not None else None
     headers = {"Host": "localhost"}
@@ -52,6 +58,7 @@ def request(path, method="GET", data=None):
         headers["Content-Type"] = "application/json"
     with urlopen(Request(base + path, data=body, headers=headers, method=method), timeout=5) as response:
         assert response.status == 200, response.status
+        assert_refuses_framing(path, response)
         return response.read().decode()
 
 assert json.loads(request("/api/health")) == {"status": "ok"}
@@ -65,6 +72,7 @@ for path, content_type in (
 ):
     with urlopen(Request(base + path, headers={"Host": "localhost"}), timeout=5) as response:
         assert response.status == 200, (path, response.status)
+        assert_refuses_framing(path, response)
         if content_type == "javascript":
             assert response.headers.get_content_type() in (
                 "text/javascript", "application/javascript"
@@ -80,6 +88,7 @@ assert json.loads(request("/api/settings/preferences", "PUT", {"digest_language"
     "show_images": True,
 }
 print("PASS: saved zh-Hans preference")
+print("PASS: responses refuse framing")
 PY
 
 test "$(docker exec "$name" id -u)" != 0

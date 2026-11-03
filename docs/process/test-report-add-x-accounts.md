@@ -238,3 +238,11 @@ A system review of the branch by three sub-agents (backend pipeline, security an
 - **The spec delta** now says a failed run reports its X reads, as D9 does.
 
 Checks: backend 776 passed; frontend 259 passed, build passed; `DO_NOT_TRACK=1 openspec validate add-x-accounts --strict` passed.
+
+## The user's live check, part 2 (2026-11-03)
+
+- **Reading new posts.** The next run read 9 posts from the followed account: 3 originals became items, and one of them got the author's thread reply. `newest_id` moved forward, no gap was left, and no account was waiting.
+- **A failed run.** That run then failed in the summary stage: one model call answered HTTP 200 with a body that was not JSON, the OpenAI SDK returned it as a string, and `llm/client.py:125` raised `AttributeError` on `result.usage`. A probe confirmed that `text/plain` and `text/html` answers come back as strings. The same code is on main; it belongs with #67. The failed run showed "9 X posts read" and nothing else, as D9 says, and its 18 items stayed pending.
+- **The retry** took 43 s and reused the 15 summaries already made. The 3 posts were delivered; the one with a reply had "Also read: Author replies (1)", and its summary used the reply. Afterwards their text, replies, and contexts were cleared.
+- **Delete all X data.** Every count matched the design: 5 X digest items removed; two digests kept, with `item_count` 55 → 53 and 18 → 15, and `source_count` lowered by 1; two mixed topics renamed "其他" with empty overviews; one X-only topic removed, and no empty topic left; the token, the account, its 5 items, contexts, and checks removed; the 194 other items and 141 other digest items unchanged. A byte search of the database and its write-ahead log found none of the posts' text or the account's username.
+- **Not observed:** `&amp;` in a post title. No post in either run contained `&`.

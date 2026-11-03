@@ -1614,3 +1614,38 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 
   One was not taken: the author's replies to commenters in their own thread are kept, as the user chose.
 - **Outcome.** The plan validates with `--strict`. Decision D-025 and a requirements row were added. The X field names will be settled by a probe that the user runs with their own token. Claude never handles it.
+
+## 2026-10-27 to 2026-11-03 — `add-x-accounts` (#41): review of the implementation and three fix rounds, an independent review, a system review, and the user's live check (Claude Code, Opus 5.5, with sub-agents; Factory Droid session `87abb68b`)
+
+- **Prompts** (translated from Chinese):
+  - "OK, start Droid."
+  - After the first review: "As you suggest, one more fix round." After the fix-round-1 review, the user chose "Droid fixes one more small round (recommended)".
+  - "I'll run it tomorrow in the daytime. First open a new review conversation to review the current system, and see whether there are problems." After that review, the user chose "Droid fixes one more round, all of it (recommended)", and "Record it as a known limit (recommended)" for author replies lost when the read limit splits a thread.
+  - After the fix-round-3 review: "You fix them in the review commit (recommended)".
+  - During the live check: "The run finished. There are four points: the layout in the first picture is not good; 178 linked pages read is a lot, and generating takes a while, is there a way to improve the experience; Tibo shows no new items; the images used in the digest feel meaningless." The user then chose "You fix it now and rebuild 8801 (recommended)" and "Open an issue for each, do them later (recommended)".
+  - "I'll test tomorrow. First open a code-review session to check our current system, and see whether issues are needed." The user chose "Create all (recommended)", "You do them in the review commit (recommended)", and "Follow the RFC, write it into an issue (recommended)".
+  - "Deleted it, go check."
+- **Process, after the implementation and each fix round** (D-016, D-023):
+  - `/code-review` on the round's diff;
+  - a spec sub-agent with mutations on the changed lines (44, then 29, 20, and 24 mutations);
+  - Claude verified every finding with the code or a probe, ran all suites, `openspec validate --strict`, and `scripts/docker-smoke.sh`;
+  - before each fix round, a fresh-eyes sub-agent checked the new task group. It found 8, 3, and 6 false assumptions, such as checks the test network block made vacuous, a mutation a rewrite would make equivalent, and a lock test that could hang the suite.
+- **What the rounds fixed:**
+  - **Fix round 1:** a stale gap after reading every page, which would re-read and re-bill posts; partial `errors` next to data; suspended accounts shown as not found (found in X's developer forum, not its docs); a cached preview confirmable after the token was removed or X data deleted; Test answering 500; other x.com hosts reaching feed discovery.
+  - **Fix round 2:** fix round 1's "an empty page ends a phase" rule (Claude's plan error) could skip posts for good; a 40-page cap replaced it. Trailing-dot hosts, and a 500 for an unparsable feed address.
+  - **The independent review** (a sub-agent asked to look for one patch patching another): the rule against requesting x.com lived in three callers while `safe_fetch` still followed redirects to x.com; fix round 3 moved it into one refusal in `safe_fetch`, and removed the callers' guards. Also a non-ASCII token that broke every run, answers without `meta` that cleared a gap, confirm racing "Delete all X data", and a failed run hiding billed reads.
+  - **Claude's review commits** (with the user's approval, recorded in D-025 as exceptions to D-023): an unparsable redirect target; failed-run notes; the billing note's layout and the danger button's background, both seen in the live check; `secure_delete` on every connection; the hook's token patterns; the token error's field.
+- **The system review.** Three sub-agents reviewed the whole branch: backend pipeline, security and deployment, frontend and extension. Claude checked each item, and with the user's approval filed #64–#76, and added comments to #60, #64, and #65. The most serious: one malformed URL in a feed fails every run (#66), grouping errors block later digests (#67), and DNS rebinding past `safe_fetch`'s address check (#68).
+- **The live check** (the user's own token, on a test instance holding a copy of their data). It covered:
+  - saving and testing the token;
+  - following an account, and refusing `help.x.com`;
+  - reading new posts, with the author's thread reply used in the summary;
+  - clearing delivered text;
+  - "Delete all X data", checked count by count, and by a byte search of the database files.
+
+  Claude never saw or handled the token.
+- **Problems:**
+  - **The shell cwd reset between commands,** so every command used absolute paths.
+  - **The review worktree under `/private/tmp` was partly cleaned** after three days. Every change was committed, so the worktree was recreated from the branch.
+  - **A zsh loop did not split a label list,** so the first attempt to create the system-review issues failed before creating any. It was rerun with comma-separated labels.
+- **Not changed:** `&amp;` in titles was not observed; the provider's non-JSON 200 answer that failed one live run is the same bug class as #67.

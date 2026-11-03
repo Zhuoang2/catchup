@@ -66,7 +66,7 @@ Implementer notes:
 
 ## 2. The Docker smoke and README
 
-- [ ] 2.1 **The smoke checks the headers** (design D5). In `scripts/docker-smoke.sh`, in the first Python block (`:40-83`), assert `response.headers.get_all("X-Frame-Options") == ["DENY"]` and `response.headers.get_all("Content-Security-Policy") == ["frame-ancestors 'none'"]` on every response the block reads:
+- [x] 2.1 **The smoke checks the headers** (design D5). In `scripts/docker-smoke.sh`, in the first Python block (`:40-83`), assert `response.headers.get_all("X-Frame-Options") == ["DENY"]` and `response.headers.get_all("Content-Security-Policy") == ["frame-ancestors 'none'"]` on every response the block reads:
   - in `request()` (`:48-55`), which covers `/api/health`, `/`, and the `PUT`;
   - in the file loop (`:61-77`), which covers `/manifest.webmanifest`, `/sw.js`, and `/offline.html`.
 
@@ -77,7 +77,7 @@ Implementer notes:
   - `scripts/docker-smoke.sh catchup:refuse-framing-before`.
 
   Verify: the smoke fails at the new header assertion, and the failure names the header. Then remove the image with `docker image rm catchup:refuse-framing-before`. The passing run is in 3.1.
-- [ ] 2.2 **README.** In the paragraph at `README.md:251-264`, after the sentence "A page on another site, or on another local port, is refused." (`:259-260`), add one sentence: other sites also cannot show CatchUp inside their own pages, so they cannot trick you into clicking its controls. Keep the paragraph's line wrapping.
+- [x] 2.2 **README.** In the paragraph at `README.md:251-264`, after the sentence "A page on another site, or on another local port, is refused." (`:259-260`), add one sentence: other sites also cannot show CatchUp inside their own pages, so they cannot trick you into clicking its controls. Keep the paragraph's line wrapping.
 
   Verify: `git diff README.md` shows only that sentence and the rewrapped lines around it.
 

@@ -1649,3 +1649,20 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - **The review worktree under `/private/tmp` was partly cleaned** after three days. Every change was committed, so the worktree was recreated from the branch.
   - **A zsh loop did not split a label list,** so the first attempt to create the system-review issues failed before creating any. It was rerun with comma-separated labels.
 - **Not changed:** `&amp;` in titles was not observed; the provider's non-JSON 200 answer that failed one live run is the same bug class as #67.
+
+## 2026-11-03 — `recover-from-model-errors` (#67): lean plan, overnight (Claude Code, Opus 5.5, as a planning sub-agent)
+
+- **Prompts** (translated from Chinese): "I'm going to sleep. Arrange tonight's tasks yourself, for example fix the issues that are open now." Then: "You can open worktrees yourself and let sub-conversations do the work; you only accept the results." The overnight session gave this sub-agent issue #67 with its verified facts, and these rules: the lean path, test-first tasks, no contact with model providers, and no edits near #66's runner lines.
+- **Probes before the plan** (D-023), through `httpx2.MockTransport`, with no provider contacted:
+  - The OpenAI SDK 3.24.0 returns a `str` for a `text/plain` or `text/html` 200 answer, and a `list` for JSON `[]`. `{"choices": [{}]}`, `{"choices": "busy"}`, and a string `usage` also crash `chat()`. 502 and 504 are `APIStatusError`s.
+  - A throwaway prototype of the whole plan, in the scratchpad, not in the repository:
+    - exactly five existing runner tests use a `ProviderError` to fail a run at grouping;
+    - a keyword `context_window` broke a sixth test's stub, so the plan passes it positionally;
+    - the two planned run tests were red on main and green on the prototype.
+- **Plan** (the `openspec-propose` skill):
+  - `proposal.md`;
+  - a `digest-generation` delta, with two modified requirements and one added;
+  - `design.md`, D1–D4: the retry set, reading answers without assuming their shape, the "Other" fallback inside `group_items`, and the grouping budget from the context window;
+  - `tasks.md`: four groups, with guards and named mutations.
+- **Left out on purpose:** `list_models` with a non-JSON answer (the Settings test), showing the fallback in the run, and splitting the merge call.
+- **Outcome.** `openspec validate --strict` passes. The plan waits for the overnight session's review and a fresh-eyes check before Factory Droid runs.

@@ -73,7 +73,14 @@ An independent review sub-agent (Claude Opus 5.5) checked the branch at `993a357
 | Catch `BaseException` in the guard. | `test_digest_runner.py::test_keyboard_interrupt_in_a_source_check_still_stops` | **Failed**: `DID NOT RAISE KeyboardInterrupt`; log "Check failed for source 1 in run 1 (KeyboardInterrupt)". |
 | Catch `BaseException` in the caption pass. | `test_caption_pass.py::test_keyboard_interrupt_during_captions_still_stops_the_run` (`fetch_captions` raises `KeyboardInterrupt`). | **Failed**: `DID NOT RAISE KeyboardInterrupt`; log "Caption pass failed for item 1 (KeyboardInterrupt)". |
 
-- **Left as equivalent or marginal** (the review's labels): D1, the `candidate is None` skip in discovery's declared-feed loop; L4, L5, L6, L8, R5, R10, and C7. No tests were added for them.
+- **Left as equivalent or marginal** (the review's labels). No tests were added for them:
+  - D1, dropping the `candidate is None` skip in discovery's declared-feed loop (equivalent: `safe_fetch(None)` raises `invalid_url`, which the loop catches);
+  - L4, setting the item's own address to `("", "", "")` when it cannot be parsed (equivalent);
+  - L5 and L6, dropping `rstrip("/")` or `netloc.lower()` when comparing a link to the item's own address (existing behavior, marginal);
+  - L8, dropping `or ""` on a site URL without a host (marginal);
+  - R5, keeping the source object from before the rollback (equivalent: the session returns the same object);
+  - R10, dropping the guard's early return for a source already deleted before its check (equivalent);
+  - C7, logging `item.id` instead of the collected id in the inner caption-fetch warning (marginal).
 - **The test network block is now absorbed.** The autouse fixture in `tests/conftest.py` makes `socket.getaddrinfo` and `socket.socket.connect` raise `AssertionError`. During a run, an unexpected network call in a source check (and a respx route mocked with `side_effect=AssertionError(...)`) now becomes that source's `failed` check instead of failing the test. Future run tests must assert route call counts or the check's status, as the tests in this change do.
 - **After the review commit:** the full backend suite passed **806 tests** (802 + 4 new), and `DO_NOT_TRACK=1 openspec validate isolate-source-check-failures --strict` reported the change valid.
 - **Not performed:** the live run with a real model was not performed overnight.

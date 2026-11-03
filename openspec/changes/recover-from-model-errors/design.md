@@ -68,15 +68,16 @@ A fresh-eyes sub-agent checked this plan against the code before implementation 
 
 ### D3. Grouping falls back to one "Other" topic
 - **Where.** `group_items` becomes a thin wrapper around the existing recursion, which is renamed (for example `_group`). Every recursive call goes to the inner function.
-  - On a `ProviderError`, the wrapper returns `[Topic(<Other title>, "", <every item id, in input order>)]`.
+  - On an `InvalidAnswer` (fix round 1; first drafted as any `ProviderError`), the wrapper returns `[Topic(<Other title>, "", <every item id, in input order>)]`.
   - It logs a warning with the exception type and the item count, never the exception text.
   - An empty item list still returns `[]` without a call.
-- **Which errors fall back:** `ProviderError` only: the model answered, but its answers stayed unusable after retries (no valid topics, invalid JSON, server errors, other statuses). Retrying the run would most likely fail the same way.
+- **Which errors fall back:** superseded by "Fix round 1" below. The first draft said `ProviderError` only, including server errors and other statuses.
 - **Fix round 1 (2026-11-04): only answers that are unusable fall back, not HTTP status errors.** The review found that, with the rule above, a run in which every model call fails with a status error (a wrong model ID answering 404, a 403, or a 5xx outage for the whole run) succeeds: the summary stage marks every item "summary unavailable", grouping falls back, and every item is delivered that way for good. Before this change, the grouping failure failed the run and kept the items pending, so the next run summarized them again. The grouping failure was the only thing protecting those items. So:
   - a new `InvalidAnswer(ProviderError)` in `llm/client.py` marks answers that are unusable: `_call`'s last attempt for an empty, invalid, or non-JSON answer (`client.py:94`) and `_valid_topics` in `group.py` (no valid list of topics) raise it;
   - the fallback catches `InvalidAnswer` only;
   - a status error after retries (`client.py:89`) stays a plain `ProviderError`, and still fails the run, with its items pending, as `RateLimited`, `ConnectionFailed`, `AuthFailed`, and `InsufficientBalance` do.
   - Because `InvalidAnswer` is a `ProviderError`, every existing `except ProviderError` and `except ModelError` (the summary stage, the runner's error kinds) treats it as before.
+  - A fresh-eyes sub-agent checked task group 5 on a prototype before implementation. Claude folded in its 6 findings: two existing checks that raise a plain `ProviderError` and a log assertion that names it, an import that would fail a whole test module, a column that lives on `DigestItem` and not `Item`, a mutation that failed by `TypeError`, and stale fallback lines in this design and the proposal.
 - **Which errors do not:**
   - `AuthFailed` and `InsufficientBalance` are re-raised, because the spec says they fail the run immediately.
   - `RateLimited` and `ConnectionFailed` are re-raised, and the run fails as today. These are temporary: the summaries are already stored, so the user's next run only repeats the grouping, and gets real topics. Falling back would mark the items delivered under one "Other" topic for good. (Claude's review of the plan, 2026-11-03, changed this from the planner's first draft, which also fell back on these two; the user can revisit it.)

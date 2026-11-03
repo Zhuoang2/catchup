@@ -27,9 +27,9 @@ One bad model answer can fail a whole digest run, and a failed grouping repeats 
   - All of these use the existing three attempts with backoff, then raise `ProviderError`.
 - **Read answers without assuming their shape.** An answer of the wrong shape counts as empty. Token counts are added only when they are integers.
 - **Fall back to one "Other" topic** (`digest/group.py`):
-  - The fallback applies when the model's grouping answers are still unusable after retries: no valid topics, invalid JSON, or a server error (`ProviderError`).
+  - The fallback applies when the model's grouping answers are still unusable after retries: no valid topics, or invalid, cut-off, or non-JSON answers (`InvalidAnswer`, a kind of `ProviderError`; fix round 1).
   - Then the run saves all its summarized items under one "Other" topic ("其他" in a Chinese digest), in run order, and succeeds.
-  - A rejected key, insufficient balance, rate limiting, or a failed connection still fails the run, and the items stay pending; their summaries are stored, so a later run only has to group them again.
+  - A rejected key, insufficient balance, rate limiting, a failed connection, or an HTTP error status that persists after retries still fails the run, and the items stay pending; their summaries are stored, so a later run only has to group them again.
 - **Size grouping from the context window** (`llm/prompts.py`, `digest/group.py`, `digest/runner.py:358`):
   - When the window is known, a grouping call's output budget is at most half of it.
   - A batch's text is at most the rest of the window, minus a 2,000-character prompt allowance, and never more than `CATCHUP_GROUPING_BATCH_CHARS`.
@@ -64,6 +64,6 @@ One bad model answer can fail a whole digest run, and a failed grouping repeats 
 - Tests:
   - `test_llm_client.py` and `test_digest_stages.py` get new tests;
   - a new `test_model_errors.py` holds the run-level tests;
-  - five tests in `test_digest_runner.py` change their grouping failure from `ProviderError` to `AuthFailed`, because a `ProviderError` no longer fails a run.
+  - five tests in `test_digest_runner.py` change their grouping failure from `ProviderError` to `AuthFailed`, because a `ProviderError` raised by the fake model no longer simply fails a run (fix round 1 keeps status errors failing it; `AuthFailed` keeps these tests independent of that rule).
 - `README.md`: one sentence on `CATCHUP_GROUPING_BATCH_CHARS`.
 - No API, database, frontend, or extension change.

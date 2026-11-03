@@ -24,7 +24,7 @@ Implementer notes:
   1. `git diff frontend/package.json` shows only two changed lines: `"vite": "^8.3.5"` and `"vitest": "^4.1.12"`.
   2. `npm audit` reports `found 0 vulnerabilities`, and exits 0.
   3. `npm ls vite vitest @vitest/mocker @vitejs/plugin-react` exits 0. It shows `vite` 8.3.5 or a later 8.x, `vitest` and `@vitest/mocker` 4.1.12 or a later 4.x, and `@vitejs/plugin-react` 6.1.1 with `vite` deduped.
-  4. **Only the vite and vitest trees changed.** Compare the `packages` versions of `git show 8faaed6:frontend/package-lock.json` with the new `package-lock.json`, for example with a short `python3` script. Every package whose version changed must appear under `vite` or `vitest` in `npm ls --all vite vitest`. A dry run in planning on 2026-11-03 changed:
+  4. **Only the vite and vitest trees changed.** Compare the `packages` versions of `git show 8faaed6:frontend/package-lock.json` with the new `package-lock.json`, for example with a short `python3` script. For every package whose version changed, `npm explain <name>` must show only paths that go through `vite` or `vitest`. (`npm ls --all vite vitest` does not expand those packages' own dependencies, so it cannot show this.) A dry run in planning on 2026-11-03 changed:
      - `vite` and `vitest`;
      - the seven `@vitest/*` packages;
      - `rolldown`, its `@rolldown/binding-*` packages, and `@oxc-project/types`;
@@ -36,7 +36,7 @@ Implementer notes:
   6. `npm run build` passes, and `npm test -- --run` passes with the same number of tests and files as the 1.1 baseline.
   7. **The dev server still serves.**
      - Start `npx vite --port 5199 --strictPort` in the background.
-     - `curl -sf http://localhost:5199/` returns the page, and the page contains `<div id="root">`.
+     - Retry `curl -sf http://localhost:5199/` for up to about 10 seconds until it answers; it returns the page, and the page contains `<div id="root">`. Stop the dev server afterwards.
      - Stop the server.
 
 ## 2. Checks and report

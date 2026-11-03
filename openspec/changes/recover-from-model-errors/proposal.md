@@ -27,9 +27,9 @@ One bad model answer can fail a whole digest run, and a failed grouping repeats 
   - All of these use the existing three attempts with backoff, then raise `ProviderError`.
 - **Read answers without assuming their shape.** An answer of the wrong shape counts as empty. Token counts are added only when they are integers.
 - **Fall back to one "Other" topic** (`digest/group.py`):
-  - The fallback applies when grouping fails with a model error, after retries, or its answer has no valid topics. A rejected key and insufficient balance are not part of it.
+  - The fallback applies when the model's grouping answers are still unusable after retries: no valid topics, invalid JSON, or a server error (`ProviderError`).
   - Then the run saves all its summarized items under one "Other" topic ("其他" in a Chinese digest), in run order, and succeeds.
-  - A rejected key or insufficient balance still fails the run, and the items stay pending.
+  - A rejected key, insufficient balance, rate limiting, or a failed connection still fails the run, and the items stay pending; their summaries are stored, so a later run only has to group them again.
 - **Size grouping from the context window** (`llm/prompts.py`, `digest/group.py`, `digest/runner.py:358`):
   - When the window is known, a grouping call's output budget is at most half of it.
   - A batch's text is at most the rest of the window, minus a 2,000-character prompt allowance, and never more than `CATCHUP_GROUPING_BATCH_CHARS`.
@@ -38,9 +38,8 @@ One bad model answer can fail a whole digest run, and a failed grouping repeats 
   - the summary stage's budgets, and its rule that one failed item does not fail the run;
   - the number of attempts and the backoff;
   - connection errors, which are not retried;
-  - the model list and the Settings connection test.
+- **The model list** (`list_models`, used by the Settings connection test and the run's context-window lookup) reads its answer the same way: an answer that is not a model list, such as a plain-text 200 page, is retried like empty content and then raises `ProviderError`, instead of `AttributeError` (a 500 in Settings).
 - **Out of scope:**
-  - A non-JSON 200 answer to the model list. It has the same bug class, but on another path. It does not affect runs, because the run's context-window lookup already catches every error (`digest/runner.py:202-215`).
   - Retrying a JSON answer that lacks `summary`.
   - Showing in the run that grouping fell back.
   - Splitting the call that combines batch topics.

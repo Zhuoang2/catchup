@@ -60,18 +60,20 @@ Lean change for issue #67. See `proposal.md` for the motivation, and the `digest
   - The content is `result.choices[0].message.content` only when `choices` is a non-empty list and the content is a string. Otherwise the answer counts as empty, and `_call` retries it.
   - Usage counts as reported when `result.usage` has a `prompt_tokens` or `completion_tokens` attribute. Each count is added only when its type is exactly `int`.
 - **It lives in `chat()`, not in `_call`,** because `_call` also serves `list_models`, and does not know which result type to expect.
+- **`list_models` does the same for its own type:** inside the operation `_call` retries, an answer whose `data` is not a list counts as empty (raise `ValueError`), so a plain-text 200 page is retried, and then raises `ProviderError` instead of `AttributeError`. The Settings connection test then reports a provider error instead of answering 500.
 - **Alternatives:**
   - `isinstance(result, ChatCompletion)`, as the issue comment suggests. Rejected on its own: the probe shows `ChatCompletion` objects that still crash (`choices` a string, `message` missing). Also, the existing usage test (`backend/tests/test_llm_client.py:92-109`) passes `SimpleNamespace` results, which it would turn into empty answers.
   - Catch `AttributeError` and `TypeError` in `_call`. Rejected: it would also turn bugs in CatchUp's own code into provider errors.
 
 ### D3. Grouping falls back to one "Other" topic
 - **Where.** `group_items` becomes a thin wrapper around the existing recursion, which is renamed (for example `_group`). Every recursive call goes to the inner function.
-  - On a `ModelError` other than `AuthFailed` and `InsufficientBalance`, the wrapper returns `[Topic(<Other title>, "", <every item id, in input order>)]`.
+  - On a `ProviderError`, the wrapper returns `[Topic(<Other title>, "", <every item id, in input order>)]`.
   - It logs a warning with the exception type and the item count, never the exception text.
   - An empty item list still returns `[]` without a call.
-- **Which errors fall back:** `ProviderError` (no valid topics, invalid JSON after retries, server errors after retries, other statuses), `RateLimited`, and `ConnectionFailed`. This is the set that the summary stage already absorbs (`summarize.py:128-131`).
+- **Which errors fall back:** `ProviderError` only: the model answered, but its answers stayed unusable after retries (no valid topics, invalid JSON, server errors, other statuses). Retrying the run would most likely fail the same way.
 - **Which errors do not:**
   - `AuthFailed` and `InsufficientBalance` are re-raised, because the spec says they fail the run immediately.
+  - `RateLimited` and `ConnectionFailed` are re-raised, and the run fails as today. These are temporary: the summaries are already stored, so the user's next run only repeats the grouping, and gets real topics. Falling back would mark the items delivered under one "Other" topic for good. (Claude's review of the plan, 2026-11-03, changed this from the planner's first draft, which also fell back on these two; the user can revisit it.)
   - Exceptions that are not `ModelError` propagate, and the run fails as `run_failed`, so bugs are not hidden.
 - **The whole grouping falls back,** also when only one batch, or only the merge call, fails. Batch topics already returned are dropped.
 - **The title** keeps the existing rule, moved into one helper used by `_valid_topics` and the fallback: "其他" when the digest language is `zh-Hans`, and "Other" otherwise, also for "original" and typed languages (pinned by `test_digest_stages.py:299-305`). The overview is empty, as for unplaced items.
@@ -80,7 +82,7 @@ Lean change for issue #67. See `proposal.md` for the motivation, and the `digest
 - **Alternatives:**
   - The fallback in the runner, around `group_items`. Rejected: it touches more runner lines next to #66's edits, and repeats the "Other" title rule.
   - Keep the batch topics already produced when only one batch or the merge fails. Rejected for this fix: a partial result needs its own merge rules. One "Other" topic is what the issue asks for.
-  - Fall back only on `ProviderError`, and keep failing the run on connection and rate-limit errors. Rejected: the summaries are already stored, the summary stage treats these errors the same way, and one rule is easier to state.
+  - Fall back on every `ModelError` except a rejected key and insufficient balance, as the summary stage does per item. Not chosen: for one item, an unavailable summary is the only outcome, but for grouping, a temporary error has a better one, a later run.
 
 ### D4. The grouping budget from the context window
 - **`grouping_max_tokens(count, context_window=None)`** in `llm/prompts.py` is `min(8192 + 24 × count, 32768, context_window // 2)`. Without a window, it is unchanged.

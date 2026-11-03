@@ -47,13 +47,15 @@ Implementer notes:
   7. **Not a chat completion on every attempt.** The plain-text answer three times raises `ProviderError`, not `AttributeError`, after 3 calls.
   8. **Usage of the wrong shape.** A valid completion with `"usage": "n/a"` returns its data after 1 call, and `usage_totals()` is `None`. With `"usage": {"prompt_tokens": "7", "completion_tokens": 3}`, it returns its data, and `usage_totals() == (0, 3)`.
   9. **Duck-typed results** (guard, already green). `test_usage_sums_concurrent_chat_calls_and_ignores_missing_usage` (`:92-109`) stays unchanged. Mutation: "treat every result that is not an `openai.types.chat.ChatCompletion` as empty".
-  10. **Existing retry tests** (guards, already green): `test_empty_response_retries`, `test_empty_choices_retries`, `test_auth_and_balance_fail_immediately`, and `test_rate_limit_retries_then_succeeds` stay unchanged and pass.
+  10. **A model list that is not a model list.** `list_models()` with a plain-text 200 answer `"upstream overloaded"` on every attempt raises `ProviderError` (not `AttributeError`) after 3 calls; with the plain-text answer first and a valid list second, it returns the list after 2 calls.
+  11. **Existing retry tests** (guards, already green): `test_empty_response_retries`, `test_empty_choices_retries`, `test_auth_and_balance_fail_immediately`, and `test_rate_limit_retries_then_succeeds` stay unchanged and pass.
 
-  Verify: checks 1, 2 (the 502 and 504 cases), and 4–8 fail before 1.2. Record each observed failure in the report: one call and an immediate `ProviderError`, or an `AttributeError` or `TypeError`.
+  Verify: checks 1, 2 (the 502 and 504 cases), 4–8, and 10 fail before 1.2. Record each observed failure in the report: one call and an immediate `ProviderError`, or an `AttributeError` or `TypeError`.
 - [ ] 1.2 **Implement D1 and D2** in `backend/src/catchup/llm/client.py`:
   - add 502 and 504 to the retried statuses (`:85`);
   - `chat()` reads `usage`, `choices`, `message`, and `content` with `getattr` and type checks, and returns `None` for an answer of the wrong shape;
   - `chat()` parses the JSON itself, and raises `ValueError` for text that is not valid JSON or not an object, so that `_call` retries it. `chat_json` returns what `_call` returns;
+  - `list_models` checks, inside the operation `_call` retries, that the answer's `data` is a list, and raises `ValueError` otherwise (D2);
   - the last-attempt message for empty or invalid answers becomes "The model provider returned an empty or invalid answer." (`:93`).
 
   Verify:
@@ -63,6 +65,7 @@ Implementer notes:
     - "parse the JSON after `_call` again, as at `client.py:133-139`" fails checks 4 and 5;
     - "read `result.usage` directly, as at `client.py:125`" fails checks 6, 7, and 8;
     - "read `result.choices[0].message.content` directly, as at `client.py:131`" fails the `{"choices": [{}]}` and `{"choices": "busy"}` cases of check 6;
+    - "read `result.data` in `list_models` without the check" fails check 10;
   - `uv run --python 3.12 pytest` passes in `backend/`.
 
 ## 2. Grouping falls back to one "Other" topic
@@ -77,10 +80,10 @@ Implementer notes:
 
   **In `backend/tests/test_digest_stages.py`,** with its `FakeModel`:
   1. **No list of topics.** Answers `{}` and `{"topics": "none"}`, for 3 items in `"en"`, each give `[("Other", "", [1, 2, 3])]` as `(title, overview, item_ids)`. In `"zh-Hans"`, the title is "其他".
-  2. **Model errors.** When `chat_json` raises `ProviderError`, `RateLimited`, or `ConnectionFailed`, the result is the same single topic.
+  2. **An unusable answer after retries.** When `chat_json` raises `ProviderError`, the result is the same single topic.
   3. **A failed batch.** 4 items with `batch_chars` 10: the first batch call answers a topic, and the second raises `ProviderError`. The result is one "Other" topic with `[1, 2, 3, 4]`, after exactly 2 calls, so no merge call is made.
   4. **A failed merge.** 4 items with `batch_chars` 10: four batch answers, then a merge answer `{"topics": None}`. The result is one "Other" topic with `[1, 2, 3, 4]`.
-  5. **Rejected key and balance** (guard, already green). `AuthFailed` and `InsufficientBalance` raised by `chat_json` propagate out of `group_items`. Mutation: "catch every `ModelError` in the fallback".
+  5. **Errors that still fail the run** (guard, already green). `AuthFailed`, `InsufficientBalance`, `RateLimited`, and `ConnectionFailed` raised by `chat_json` propagate out of `group_items`. Mutation: "catch every `ModelError` in the fallback".
   6. **Bugs are not hidden** (guard, already green). A `RuntimeError` raised by `chat_json` propagates. Mutation: "catch `Exception` in the fallback".
 
   **In the new `backend/tests/test_model_errors.py`:**
@@ -109,13 +112,13 @@ Implementer notes:
   Verify: checks 1–4, 7, and 8 fail before 2.3. Checks 5 and 6 are guards.
 - [ ] 2.3 **Implement D3** in `backend/src/catchup/digest/group.py`:
   - rename the recursion (for example `_group`), and send every recursive call to it;
-  - `group_items` wraps it: on a `ModelError` other than `AuthFailed` and `InsufficientBalance`, it returns one topic with the "Other" title, an empty overview, and every item id in input order. It logs a warning with the exception type and the item count, never the exception text;
+  - `group_items` wraps it: on a `ProviderError`, it returns one topic with the "Other" title, an empty overview, and every item id in input order. It logs a warning with the exception type and the item count, never the exception text;
   - one helper gives the "Other" title, used by `_valid_topics` (`:47`) and by the fallback.
 
   Verify:
   - the 2.1 and 2.2 checks pass;
   - each named mutation fails a check, and is reverted:
-    - "re-raise every `ModelError` in the wrapper" fails checks 1–4, 7, and 8;
+    - "re-raise `ProviderError` in the wrapper" fails checks 1–4, 7, and 8;
     - "catch the error around each batch call in `_group`, instead of in the wrapper" fails check 3;
   - `uv run --python 3.12 pytest` passes in `backend/`.
 

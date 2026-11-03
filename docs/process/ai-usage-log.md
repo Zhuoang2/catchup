@@ -1650,6 +1650,49 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - **A zsh loop did not split a label list,** so the first attempt to create the system-review issues failed before creating any. It was rerun with comma-separated labels.
 - **Not changed:** `&amp;` in titles was not observed; the provider's non-JSON 200 answer that failed one live run is the same bug class as #67.
 
+## 2026-11-03 — `update-frontend-dev-deps` (#75): lean plan, overnight (Claude Code, Opus 5.5, as a planning sub-agent)
+
+- **Prompts** (translated from Chinese): "I'm going to sleep. Arrange tonight's tasks yourself, for example fix the issues that are open now." Then: "You can open worktrees yourself and let sub-conversations do the work; you only accept the results." This is the third of the three lean changes that Claude gave one planning sub-agent.
+- **Checks before the plan** (read-only, at `8faaed6`):
+  - `npm audit` in `frontend/` reported 1 high (`vite` 8.3.0–8.3.2) and 2 moderate (`@vitest/mocker` ≤ 4.1.11, and `vitest` through it), and `--omit=dev` reported 0;
+  - the extension's audit reported 0;
+  - the registry's newest versions were `vite` 8.3.5 and `vitest` 4.1.12 on 4.x.
+  - A dry run of `npm install --package-lock-only` on a copy of the two files, outside the repository, changed only packages in the `vite` and `vitest` trees, and its audit reported 0.
+- **Plan** (the `openspec-propose` skill, `skip_specs: true`, no design document): raise the two caret floors to `^8.3.5` and `^4.1.12`; a red `npm audit` baseline; checks that only those trees changed, a clean `npm ci`, the same test count, a dev-server request, and the Docker smoke.
+- **Left out on purpose:** `vitest` 5, a major upgrade, and the extension's floors, whose lockfile already resolves the fixed versions.
+- **Outcome.** The plan validates with `--strict`. Claude reviews it before Droid runs.
+
+## 2026-11-03 — `update-frontend-dev-deps` (#75): implementation, overnight (Claude Code, Claude Opus 5.5, as an implementer sub-agent in place of Factory Droid)
+
+- **Why not Droid:** Factory Droid's login had expired, so Claude Code (a Claude Opus 5.5 sub-agent) implemented `tasks.md` under the same rules. Claude reviews the work independently afterwards.
+- **Prompt (faithful excerpt):** "You are the implementer for one small OpenSpec change in CatchUp ... The project's usual implementer (Factory Droid) is unavailable tonight because its login expired; you replace it, under the same rules. ... Follow `.claude/skills/openspec-apply-change/SKILL.md`. Work through `tasks.md` in order. For a dependency update the 'red' step is the plan's baseline (`npm audit` reporting the advisories before the change); record what you observe. Use `npm` only from the public npm registry, only in `frontend/`, and only for the packages the plan names; do not change `extension/` or backend dependencies. ... If a check fails, or the plan looks wrong, stop and report instead of improvising. Do not edit `proposal.md` or `design.md`. Check off each task only after its verification passes. ... Docker: you may build the image named in the plan and run `scripts/docker-smoke.sh` on it; remove it afterwards. ... Do not push, tag, or open a PR. ... Every OpenSpec CLI call MUST be prefixed with `DO_NOT_TRACK=1`. Do not use any API key or token."
+- **Outcome:**
+  - The red baseline matched the plan: `npm audit` exited 1 with 3 vulnerabilities (1 high in `vite` 8.3.2, 2 moderate in `@vitest/mocker` 4.1.11 and `vitest` through it), and `--omit=dev` reported 0.
+  - After `npm install --save-dev vite@^8.3.5 vitest@^4.1.12`, `package.json` had two changed lines and `npm audit` reported 0.
+  - 29 lockfile entries changed, none added or removed, all in the `vite` and `vitest` trees.
+  - A clean `npm ci` passed. Frontend tests stayed at 259 in 14 files, and the dev server served `index.html` on port 5199 and was stopped.
+  - Full checks: backend 776 tests, extension 112 tests, the frontend build, the Docker build and smoke (11 PASS), and strict OpenSpec validation passed. The image was removed afterwards. See `test-report-update-frontend-dev-deps.md`.
+- **Problems / adjustment:** `npm explain` reads the installed tree, so for the 14 `@rolldown/binding-*` packages for other platforms it reported `No dependencies found`. For those, I checked the new lockfile instead: each binding is listed only in `rolldown`'s `optionalDependencies`, and `npm explain rolldown` shows that `rolldown` comes only through `vite`. In the first draft of the report I miscounted the installed and not-installed packages (16/13 instead of 15/14). I recounted from the lockfile comparison and corrected the draft before committing. No live browser check with the backend.
+
+## 2026-11-03 — `wrap-long-titles` (#74): lean plan, overnight (Claude Code, Opus 5.5, as a planning sub-agent)
+
+- **Prompts** (translated from Chinese): "I'm going to sleep. Arrange tonight's tasks yourself, for example fix the issues that are open now." Then: "You can open worktrees yourself and let sub-conversations do the work; you only accept the results." This is the second of the three lean changes that Claude gave one planning sub-agent.
+- **Root or selectors.** #74 suggested `overflow-wrap: anywhere` on the app and popup roots. The sub-agent kept that, because unbroken text also reaches host-name source titles, fetch errors, and summaries, not only the six selectors in the issue. It then surveyed every flex rule against the markup, because `anywhere` lowers every element's min-content width. Two rows put two texts on one flex line, and their short text would break inside a word at 320 px: the preview's entry date ("3 Oct"), and the YouTube preview's "Change in Settings" link. The plan gives the date `flex: none`, and wraps the method text and the link in one `<span>`, as `.risk` already does.
+- **Plan** (the `openspec-propose` skill): `proposal.md`; a MODIFIED `user-interface` requirement with a new scenario; `design.md` D1–D3; `tasks.md` with CSS-text checks, a DOM check for the `<span>`, three named guard mutations, and the 320 px browser check left to Claude's review.
+- **Outcome.** The plan validates with `--strict`. Claude reviews it before Droid runs.
+
+## 2026-11-03 — `wrap-long-titles` (#74): implementation, overnight (Claude Code, Opus 5.5, as an implementing sub-agent in place of Factory Droid)
+
+- **Why not Droid.** Factory Droid's login had expired, so Claude gave the implementation to a Claude Code sub-agent (Claude Opus 5.5) under Droid's rules. Claude reviews the result independently.
+- **Prompt (faithful excerpt):** "You are the implementer for one small OpenSpec change in CatchUp ... The project's usual implementer (Factory Droid) is unavailable tonight because its login expired; you replace it, under the same rules. ... Follow `.claude/skills/openspec-apply-change/SKILL.md` and, for each task, `.claude/skills/tdd/SKILL.md` (read both first). Work through `tasks.md` in order. Test-first (D-016): write each task's checks as failing tests, run them and see them fail for the reason the task states, then implement until they pass. A check marked "guard (already green)" must instead fail under its named mutation ... Named mutations: apply each, run the named test, record the result, and revert it. Leave none in place. If a check is green before the change (other than a guard), or the plan looks wrong, stop and report instead of improvising. Do not edit `proposal.md`, `design.md`, or the spec delta. ... Commits: commit after each task group ... Do not push, tag, or open a PR. ... Every OpenSpec CLI call MUST be prefixed with `DO_NOT_TRACK=1`. Do not contact any network service except what Docker needs to build the image; do not use any API key or token."
+- **Outcome.** `overflow-wrap: anywhere` on `.app` and on the popup's `body`; `flex: none` on `.entry-list time`; the YouTube method line's text and "Change in Settings" link in one `<span>`. Six new tests: four in the frontend, two in the extension. Every non-guard check failed first for the reason the task states, and each of G1–G3 failed its guard and was reverted. Final checks: **776 backend tests**, **263 frontend tests**, **114 extension tests**, both builds, local Docker build and smoke, and strict OpenSpec validation. Two group commits, then a docs commit. See `test-report-wrap-long-titles.md`.
+- **Decisions / adjustment:**
+  - Task 1.1's guard (check 2) matches "selector contains" on each comma-separated part (`splitSelectors`), and reads values in lower case. The popup tests parse `popup.css` with a short regex after stripping comments, because the frontend helpers live in another package.
+  - The `<span>` wraps the method text for every source kind, as task 1.2 says, not only when captions are off.
+  - The backend suite ran with `UV_OFFLINE=1` and `-q -p no:cacheprovider`, so that uv made no network request and pytest left no cache in the checkout.
+  - The 320 px and popup browser checks were not run. A Playwright Chromium was installed locally, but the plan lists these checks as left to Claude's review.
+  - Nothing failed unexpectedly; the plan needed no change.
+
 ## 2026-11-03 — `refuse-framing` (#69): lean plan, overnight (Claude Code, Opus 5.5, as a planning sub-agent)
 
 - **Prompts** (translated from Chinese): "I'm going to sleep. Arrange tonight's tasks yourself, for example fix the issues that are open now." Then: "You can open worktrees yourself and let sub-conversations do the work; you only accept the results." Claude gave one planning sub-agent three small issues (#69, #74, #75), one lean change each, from `main` at `8faaed6`.

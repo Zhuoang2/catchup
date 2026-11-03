@@ -124,7 +124,7 @@ Implementer notes:
 
 ## 3. Size grouping from the context window
 
-- [ ] 3.1 **Add failing tests** (D4). Import `grouping_batch_chars` and the new `grouping_max_tokens` argument inside each test function (or reach them as `prompts.grouping_batch_chars`), not at module top: a top-level import of a name that does not exist yet fails the whole test module at collection, and hides the guards in this task:
+- [x] 3.1 **Add failing tests** (D4). Import `grouping_batch_chars` and the new `grouping_max_tokens` argument inside each test function (or reach them as `prompts.grouping_batch_chars`), not at module top: a top-level import of a name that does not exist yet fails the whole test module at collection, and hides the guards in this task:
 
   **In `backend/tests/test_digest_stages.py`:**
   1. **`grouping_max_tokens`.** `grouping_max_tokens(60)` is 9,632 (guard, already green). With a window:
@@ -163,7 +163,7 @@ Implementer notes:
   7. **A run with no known window** (guard, already green). The same seed, without setting `context_window`, groups the 60 items in one call, with `max_tokens` 9,632.
 
   Verify: checks 1 (the window cases), 2, 3, 5, and 6 fail before 3.2. Checks 4 and 7 are guards.
-- [ ] 3.2 **Implement D4:**
+- [x] 3.2 **Implement D4:**
   - in `backend/src/catchup/llm/prompts.py`, `grouping_max_tokens(count, context_window=None)` and `grouping_batch_chars(setting, context_window)`;
   - in `backend/src/catchup/digest/group.py`, `group_items(client, items, language, batch_chars, context_window=None)` applies `grouping_batch_chars` once, and passes `context_window` to every `grouping_max_tokens` call;
   - in `backend/src/catchup/digest/runner.py:358`, pass `context_window` as the fifth positional argument. A keyword argument would break the stub in `test_unexpected_failure_is_logged_without_key_or_collected_content` (`test_digest_runner.py:850`), which takes only `*_args`;

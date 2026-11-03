@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from catchup.llm.client import ModelClient, ProviderError
-from catchup.llm.prompts import group_messages, grouping_max_tokens, merge_messages
+from catchup.llm.prompts import group_messages, grouping_batch_chars, grouping_max_tokens, merge_messages
 
 logger = logging.getLogger(__name__)
 
@@ -63,11 +63,12 @@ def _payload(items: list[GroupItem]) -> str:
     ], ensure_ascii=False)
 
 
-def group_items(client: ModelClient, items: list[GroupItem], language: str, batch_chars: int) -> list[Topic]:
+def group_items(client: ModelClient, items: list[GroupItem], language: str, batch_chars: int,
+                context_window: int | None = None) -> list[Topic]:
     if not items:
         return []
     try:
-        return _group(client, items, language, batch_chars)
+        return _group(client, items, language, grouping_batch_chars(batch_chars, context_window), context_window)
     except ProviderError as exc:
         # The model answered, but its answers stayed unusable after retries, and a later run would
         # most likely fail the same way. Rate limits, connection errors, and bugs still propagate.
@@ -75,10 +76,12 @@ def group_items(client: ModelClient, items: list[GroupItem], language: str, batc
         return [Topic(_other_title(language), "", [item.id for item in items])]
 
 
-def _group(client: ModelClient, items: list[GroupItem], language: str, batch_chars: int) -> list[Topic]:
+def _group(client: ModelClient, items: list[GroupItem], language: str, batch_chars: int,
+           context_window: int | None) -> list[Topic]:
     payload = _payload(items)
     if len(payload) <= batch_chars or len(items) == 1:
-        response = client.chat_json(group_messages(payload, language), max_tokens=grouping_max_tokens(len(items)))
+        response = client.chat_json(group_messages(payload, language),
+                                    max_tokens=grouping_max_tokens(len(items), context_window))
         return _valid_topics(response, {f"i{n}": item.id for n, item in enumerate(items, 1)}, "item_refs", language)
 
     batches: list[list[GroupItem]] = []
@@ -92,18 +95,18 @@ def _group(client: ModelClient, items: list[GroupItem], language: str, batch_cha
         batches.append(current)
     if len(batches) == 1:
         # One oversized item cannot be split further.
-        return _group(client, items, language, len(payload))
+        return _group(client, items, language, len(payload), context_window)
 
     batch_topics: list[Topic] = []
     for batch in batches:
-        batch_topics.extend(_group(client, batch, language, len(_payload(batch))))
+        batch_topics.extend(_group(client, batch, language, len(_payload(batch)), context_window))
     refs = {f"b{n}": n for n in range(1, len(batch_topics) + 1)}
     merge_input = json.dumps([
         {"ref": ref, "title": topic.title, "overview": topic.overview}
         for ref, topic in zip(refs, batch_topics)
     ], ensure_ascii=False)
     merged = client.chat_json(merge_messages(merge_input, language),
-                              max_tokens=grouping_max_tokens(len(batch_topics)))
+                              max_tokens=grouping_max_tokens(len(batch_topics), context_window))
     placements = _valid_topics(merged, refs, "topic_refs", language)
     return [
         Topic(topic.title, topic.overview, [

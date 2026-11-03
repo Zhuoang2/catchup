@@ -9,8 +9,16 @@ import json
 SUMMARY_MAX_TOKENS = 4096
 
 
-def grouping_max_tokens(count: int) -> int:
-    return min(32768, 8192 + 24 * count)
+def grouping_max_tokens(count: int, context_window: int | None = None) -> int:
+    budget = min(32768, 8192 + 24 * count)
+    return budget if context_window is None else min(budget, context_window // 2)
+
+
+def grouping_batch_chars(setting: int, context_window: int | None) -> int:
+    """A grouping batch's text: the window minus the output cap and a prompt allowance, one character per token."""
+    if context_window is None:
+        return setting
+    return min(setting, max(2_000, context_window - min(32768, context_window // 2) - 2_000))
 
 
 def language_instruction(language: str, *, topics: bool = False) -> str:

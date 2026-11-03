@@ -16,7 +16,7 @@ Implementer notes:
 
 ## 1. Refuse framing on every response
 
-- [ ] 1.1 **Tests first**, in a new `backend/tests/test_framing.py`.
+- [x] 1.1 **Tests first**, in a new `backend/tests/test_framing.py`.
 
   **Setup.** A fixture builds a dist in `tmp_path` with:
   - `index.html` containing a marker such as `<html>CatchUp index</html>`;
@@ -49,7 +49,7 @@ Implementer notes:
   15. **Exceptions still propagate.** With a default `TestClient` (`raise_server_exceptions=True`) on the same app, `GET /api/test-crash` raises `RuntimeError`. This is a guard; it passes today.
 
   Verify: the header assertions of checks 1–14 fail before 1.2. The status, body, and type assertions, and check 15, pass. Record which tests failed, and how.
-- [ ] 1.2 **Implement design D1 and D2** in `backend/src/catchup/main.py`:
+- [x] 1.2 **Implement design D1 and D2** in `backend/src/catchup/main.py`:
   - a module constant with the two headers;
   - a `refuse_framing` `@app.middleware("http")` function, registered as the last registration in `create_app`, after the `if (frontend_dist / "index.html").is_file():` block (`:182-196`) and just before `return app`. Give it a short comment: it must stay the last registration so that it wraps the SPA fallback, and any future `Content-Security-Policy` must keep `frame-ancestors 'none'`;
   - a handler for `Exception`, registered in `create_app`, that returns `PlainTextResponse("Internal Server Error", status_code=500, headers=<the constant>)`.

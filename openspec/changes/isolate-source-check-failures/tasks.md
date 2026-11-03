@@ -46,13 +46,13 @@ Implementer notes:
 
 ## 3. Report and checks
 
-- [ ] 3.1 **Report.** Write `docs/process/test-report-isolate-source-check-failures.md`, with each task's observed red result, each named mutation's result, and the final numbers.
-- [ ] 3.2 **Checks, in this order:**
+- [x] 3.1 **Report.** Write `docs/process/test-report-isolate-source-check-failures.md`, with each task's observed red result, each named mutation's result, and the final numbers.
+- [x] 3.2 **Checks, in this order:**
   1. `npm run build` in `frontend/` (the backend tests serve the built frontend);
   2. `uv run --python 3.12 pytest --cov=catchup --cov-report=term` in `backend/`;
   3. `npm test -- --run` in `frontend/`, and `npm test -- --run` in `extension/` (unchanged, as a guard);
   4. `docker build -t catchup:isolate-local .` and `scripts/docker-smoke.sh catchup:isolate-local`;
   5. `DO_NOT_TRACK=1 openspec validate isolate-source-check-failures --strict`.
-- [ ] 3.3 **Logs.** Add the coverage-summary line to `docs/process/coverage-summary.md`, and your AI usage log entry to `docs/process/ai-usage-log.md`, with a faithful excerpt of the prompt you received. Leave out the session id.
+- [x] 3.3 **Logs.** Add the coverage-summary line to `docs/process/coverage-summary.md`, and your AI usage log entry to `docs/process/ai-usage-log.md`, with a faithful excerpt of the prompt you received. Leave out the session id.
 
   Verify: every command passes, and the report has the actual numbers.

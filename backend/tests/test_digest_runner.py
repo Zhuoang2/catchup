@@ -525,10 +525,10 @@ def test_long_gap_snapshots_every_item_once_and_delivers_atomically(environment,
 def test_group_failure_preserves_pending_and_retry_uses_cached_summary(environment, monkeypatch):
     seed(environment)
     stub_collection(monkeypatch)
-    first = FakeModel([{"summary": "Cached"}, ProviderError("group failed")])
+    first = FakeModel([{"summary": "Cached"}, AuthFailed("group failed")])
     environment.app.state.model_client_factory = lambda *_: first
     failed = execute(environment)
-    assert failed["status"] == "failed" and failed["error_kind"] == "provider_error"
+    assert failed["status"] == "failed" and failed["error_kind"] == "auth_failed"
     assert failed["digest_item_count"] is None and failed["digest_update_count"] is None
     assert all_rows(environment, Digest) == []
     assert all_rows(environment, Item)[0].state == "pending"
@@ -553,7 +553,7 @@ def test_record_persists_image_choices_and_retry_keeps_them(environment, monkeyp
         session.commit()
     first = FakeModel([
         {"summary": "Explains the chart.", "images": [{"ref": "I1", "alt": "Rising trend"}]},
-        ProviderError("group failed"),
+        AuthFailed("group failed"),
     ])
     environment.app.state.model_client_factory = lambda *_: first
     assert execute(environment)["status"] == "failed"
@@ -607,7 +607,7 @@ def test_record_marks_only_valid_context_refs_and_cache_preserves_flags(environm
         session.commit()
     first = FakeModel([
         {"summary": "From L1.", "used": ["L1", "invented"]},
-        ProviderError("group failed"),
+        AuthFailed("group failed"),
     ])
     environment.app.state.model_client_factory = lambda *_: first
     assert execute(environment)["status"] == "failed"
@@ -929,7 +929,7 @@ def test_failed_run_preserves_reported_usage(environment, monkeypatch):
             return (7, 2)
 
     environment.app.state.model_client_factory = lambda *_args: UsageModel([
-        {"summary": "Summary"}, ProviderError("group failed"),
+        {"summary": "Summary"}, AuthFailed("group failed"),
     ])
     result = execute(environment)
     assert result["status"] == "failed"
@@ -1212,7 +1212,7 @@ def test_failed_run_reuses_gathered_context_without_fetching_again(environment, 
     monkeypatch.setattr(socket, "getaddrinfo", lambda _host, port, **_kwargs: [
         (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", port)),
     ])
-    first = FakeModel([{"summary": "Cached"}, ProviderError("group failed")])
+    first = FakeModel([{"summary": "Cached"}, AuthFailed("group failed")])
     environment.app.state.model_client_factory = lambda *_: first
     with respx.mock(assert_all_mocked=True) as router:
         router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))

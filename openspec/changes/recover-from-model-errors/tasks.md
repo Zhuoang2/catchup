@@ -70,13 +70,13 @@ Implementer notes:
 
 ## 2. Grouping falls back to one "Other" topic
 
-- [ ] 2.1 **Move five existing tests off `ProviderError`** in `backend/tests/test_digest_runner.py`:
+- [x] 2.1 **Move five existing tests off `ProviderError`** in `backend/tests/test_digest_runner.py`:
   - These tests make a run fail during grouping by answering the grouping call with `ProviderError("group failed")`. After D3, that no longer fails a run; only a rejected key, insufficient balance, rate limiting, or a failed connection does.
   - Change `ProviderError("group failed")` to `AuthFailed("group failed")` at `:528`, `:556`, `:610`, `:932`, and `:1215`. At `:531`, expect `"auth_failed"` instead of `"provider_error"`.
   - Nothing else in these tests changes. A prototype of D3 on 2026-11-03 broke exactly these five, and no other existing test.
 
   Verify: the five tests pass on the current code. They are guards: they keep passing after 2.3.
-- [ ] 2.2 **Add failing tests** (D3):
+- [x] 2.2 **Add failing tests** (D3):
 
   **In `backend/tests/test_digest_stages.py`,** with its `FakeModel`:
   1. **No list of topics.** Answers `{}` and `{"topics": "none"}`, for 3 items in `"en"`, each give `[("Other", "", [1, 2, 3])]` as `(title, overview, item_ids)`. In `"zh-Hans"`, the title is "其他".
@@ -110,7 +110,7 @@ Implementer notes:
      This test needs group 1. Before 2.3, it fails with `provider_error`.
 
   Verify: checks 1–4, 7, and 8 fail before 2.3. Checks 5 and 6 are guards.
-- [ ] 2.3 **Implement D3** in `backend/src/catchup/digest/group.py`:
+- [x] 2.3 **Implement D3** in `backend/src/catchup/digest/group.py`:
   - rename the recursion (for example `_group`), and send every recursive call to it;
   - `group_items` wraps it: on a `ProviderError`, it returns one topic with the "Other" title, an empty overview, and every item id in input order. It logs a warning with the exception type and the item count, never the exception text;
   - one helper gives the "Other" title, used by `_valid_topics` (`:47`) and by the fallback.

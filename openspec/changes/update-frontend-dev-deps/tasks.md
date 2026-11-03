@@ -10,7 +10,7 @@ Implementer notes:
 
 ## 1. Update vite and vitest
 
-- [ ] 1.1 **Red baseline,** before any change:
+- [x] 1.1 **Red baseline,** before any change:
   - `npm ci`;
   - `npm audit`: it exits non-zero, and reports 3 vulnerabilities (2 moderate, 1 high), for `vite` and `@vitest/mocker` (with `vitest` through it);
   - `npm audit --omit=dev`: it reports 0;
@@ -18,7 +18,7 @@ Implementer notes:
   - `npm test -- --run`: record the number of tests and files, as the baseline for 1.2.
 
   Verify: the results match the above. If `npm audit` already reports 0, or other packages, stop and report.
-- [ ] 1.2 **Update the two packages:** `npm install --save-dev vite@^8.3.5 vitest@^4.1.12`.
+- [x] 1.2 **Update the two packages:** `npm install --save-dev vite@^8.3.5 vitest@^4.1.12`.
 
   Verify:
   1. `git diff frontend/package.json` shows only two changed lines: `"vite": "^8.3.5"` and `"vitest": "^4.1.12"`.

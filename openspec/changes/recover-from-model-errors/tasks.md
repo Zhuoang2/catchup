@@ -196,3 +196,19 @@ Implementer notes:
   - **Logs.** Add the coverage-summary line to `docs/process/coverage-summary.md`. Add your entry to `docs/process/ai-usage-log.md` after the latest entry, with a faithful excerpt of the prompt you received, and the tool and model. Leave out the session id; Claude Code adds it at review.
 
   Verify: every command passes, and the report has the actual numbers.
+
+## 5. Fix round 1 (review, 2026-11-04)
+
+The independent review found that grouping fell back also on HTTP status errors, so a run in which every model call fails (a wrong model ID, an outage) succeeded and delivered every item as "summary unavailable" for good. Read D3's "Fix round 1" and the new spec scenario "Every model call fails with a server error" first. Work test-first as before.
+
+- [ ] 5.1 **Add failing tests:**
+  1. **A run where every model call answers 500** (new test in `backend/tests/test_model_errors.py`, with a real `ModelClient` over `httpx2.MockTransport` as check 8 of 2.2 does, `GET …/models` answering a list): the run ends `failed` with error kind `provider_error`, no digest is saved, and both items are still `pending`, with `summary_unavailable` not stored. Parametrize 500 and 404. Red on the current head: the run succeeds and delivers both items.
+  2. **Status errors propagate out of `group_items`** (`backend/tests/test_digest_stages.py`): `chat_json` raising `ProviderError("The model provider returned an error.")` propagates; `InvalidAnswer` falls back to one "Other" topic. Red on the current head for the first part.
+  3. **Unusable answers still fall back** (guards, already green): checks 1, 3, 4, 7, and 8 of 2.2 stay green. Mutation: "catch `ProviderError` in the fallback again" fails check 1 of 5.1.
+  4. **Rate limiting during grouping keeps items pending** (run-level, guard, already green): grouping raising `RateLimited` fails the run, and the items stay `pending`. Mutation: "catch `ModelError` in the fallback" fails it.
+- [ ] 5.2 **Implement** the D3 "Fix round 1" bullet: `InvalidAnswer(ProviderError)` in `backend/src/catchup/llm/client.py`, raised by `_call`'s last attempt for an empty or invalid answer, and by `_valid_topics` in `backend/src/catchup/digest/group.py`; the fallback catches `InvalidAnswer` only. Check 2 of task 2.2 raises a plain `ProviderError("secret detail")` and expects the fallback; change it to raise `InvalidAnswer("secret detail")` (the plain `ProviderError` case is now check 2 of 5.1). Verify: 5.1 passes; the named mutations fail; the full backend suite passes.
+- [ ] 5.3 **Test gaps the review found** (guards, already green; each must fail under its mutation):
+  - `list_models` with `{"object": "list", "data": "busy"}` on every attempt raises `ProviderError` after 3 calls (add it to `test_model_list_that_is_not_a_model_list_exhausts_retries`). Mutation: drop the check that `data` is a list.
+  - A valid completion with `"usage": {"prompt_tokens": 7, "completion_tokens": "3"}` gives `usage_totals() == (7, 0)`. Mutation: add `completion_tokens` without the `int` check.
+  - 501 fails at once after 1 call (add it to `test_other_status_fails_at_once`). Mutation: add 501 to the retry set.
+- [ ] 5.4 **Report and checks.** Add a "Fix round 1" section to `docs/process/test-report-recover-from-model-errors.md` with each red result and mutation result; run the checks of task 4.1 again, in order (including the Docker smoke); add your AI usage log entry for this round.

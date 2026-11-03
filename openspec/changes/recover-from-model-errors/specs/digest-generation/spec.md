@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Summarize items once and group them by topic
-The system SHALL summarize each item that has text for summarization individually, and reuse a stored summary instead of summarizing the same item again. It SHALL then group the summarized items into topics, each with a title and a short overview. Every item in the run MUST appear in the digest exactly once: either in a topic or under Creator updates. Summarized items the grouping does not place MUST appear under an "Other" topic. When the grouping cannot be completed because the model's answers are still unusable after retries (no valid list of topics, invalid JSON, or a server error), the run MUST NOT fail: all of its summarized items MUST appear under one "Other" topic ("其他" in a Chinese digest), in the order the run lists them. A rejected API key, insufficient balance, rate limiting, or a failed connection during grouping MUST still fail the run, and its items stay pending, so a later run can group them (see "Retry transient model errors"). A summary produced before an item's transcript was found MUST NOT be reused once the transcript replaces the item's text. An item whose summary could not be produced after retries MUST still appear with its title and link and a note that its summary is unavailable.
+The system SHALL summarize each item that has text for summarization individually, and reuse a stored summary instead of summarizing the same item again. It SHALL then group the summarized items into topics, each with a title and a short overview. Every item in the run MUST appear in the digest exactly once: either in a topic or under Creator updates. Summarized items the grouping does not place MUST appear under an "Other" topic. When the grouping cannot be completed because the model's answers are still unusable after retries (no valid list of topics, invalid or cut-off JSON, or an answer that is not a chat completion), the run MUST NOT fail: all of its summarized items MUST appear under one "Other" topic ("其他" in a Chinese digest), in the order the run lists them. A rejected API key, insufficient balance, rate limiting, a failed connection, or an HTTP error status that persists after retries during grouping MUST still fail the run, and its items stay pending, so a later run can summarize or group them (see "Retry transient model errors"). A summary produced before an item's transcript was found MUST NOT be reused once the transcript replaces the item's text. An item whose summary could not be produced after retries MUST still appear with its title and link and a note that its summary is unavailable.
 
 #### Scenario: Retry after failure
 - **WHEN** a run fails during grouping because the provider rejects the API key, and the user starts a new run
@@ -14,6 +14,10 @@ The system SHALL summarize each item that has text for summarization individuall
 #### Scenario: Grouping cannot be completed
 - **WHEN** a run has summarized 2 items, and the grouping answer has no list of topics, or every attempt of the grouping call answers JSON that is cut off
 - **THEN** the run saves a digest with one "Other" topic holding both items, the items are delivered, and the next run does not group them again
+
+#### Scenario: Every model call fails with a server error
+- **WHEN** every summary and grouping call in a run answers HTTP 500, or every one answers 404 because the model ID is wrong
+- **THEN** the run fails with a provider error, no digest is saved, and the items stay pending for the next run
 
 #### Scenario: Transcript found after an earlier summary
 - **WHEN** an item was summarized from its description in a failed run and a later run finds its transcript

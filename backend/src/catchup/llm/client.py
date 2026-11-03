@@ -37,6 +37,10 @@ class ProviderError(ModelError):
     code = "provider_error"
 
 
+class InvalidAnswer(ProviderError):
+    """The provider answered, but the answer stayed empty or unusable after retries."""
+
+
 class ConnectionFailed(ModelError):
     code = "connection_failed"
 
@@ -91,7 +95,7 @@ class ModelClient:
                 raise ConnectionFailed(f"Could not connect to the model provider at {self.base_url}.") from exc
             except ValueError as exc:
                 if attempt == 2:
-                    raise ProviderError("The model provider returned an empty or invalid answer.") from exc
+                    raise InvalidAnswer("The model provider returned an empty or invalid answer.") from exc
             self._sleep(0.25 * (2 ** attempt))
         raise AssertionError("unreachable")
 

@@ -143,3 +143,70 @@ Dependencies were already installed in this checkout, so `uv sync` and `npm ci` 
 
 - A live run against a provider that answers 200 with a non-JSON body. Claude Code does the live check at review.
 - A test for `list_models` with a `data` field that is not a list (`client.py:107`). The plan names no check for it, so none was added.
+
+## Fix round 1 (task group 5)
+
+2026-11-04. Implemented by the same Claude Code sub-agent (Claude Opus 5.5), in place of Factory Droid, from plan commits `678e429` and `7241578`. Same setup and rules as above. The change: a new `InvalidAnswer(ProviderError)` in `llm/client.py`, raised by `_call`'s last attempt for an empty or invalid answer and by `_valid_topics` in `digest/group.py`. The grouping fallback now catches `InvalidAnswer` only, so an HTTP status error that persists after retries fails the run and its items stay pending.
+
+### Red before 5.2
+
+`tests/test_model_errors.py` and `tests/test_digest_stages.py` together: **4 failed, 55 passed**.
+
+| 5.1 check | Test | Observed before 5.2 |
+| --- | --- | --- |
+| 1 Every model call answers 500, or 404 | `test_run_where_every_model_call_fails_with_a_status_error_keeps_items_pending[500/404]` | `assert ('succeeded', None) == ('failed', 'provider_error')`: the run succeeded |
+| 2a A status error propagates out of `group_items` | `test_grouping_status_errors_propagate` | `Failed: DID NOT RAISE ProviderError`: the error fell back to "Other" |
+| 2b `InvalidAnswer` falls back | `test_grouping_invalid_answer_falls_back_to_one_topic` | `ImportError: cannot import name 'InvalidAnswer'`. It is imported inside the test, so the module still collected. |
+
+Guards that passed before 5.2:
+- check 3: checks 1, 4, 7, and 8 of 2.2;
+- check 4: `test_rate_limiting_during_grouping_keeps_items_pending`, where the run fails as `rate_limited` and both items stay `pending`.
+
+The task predicted that implementing 5.2 would turn checks 2 and 3 of 2.2 red, and it did: `test_grouping_unusable_after_retries_falls_back_and_logs_no_detail` and `test_failed_batch_falls_back_without_a_merge_call` failed with the plain `ProviderError` propagating. They were then changed to raise `InvalidAnswer`, and check 2's log assertion to `"InvalidAnswer"`. After that, those two files gave **59 passed**, and the full backend **837 passed**.
+
+### 5.3 test gaps (guards)
+
+All three passed before any mutation:
+- `test_model_list_that_is_not_a_model_list_exhausts_retries[data-string]`: `"data": "busy"` raises `ProviderError` after 3 calls;
+- `test_usage_of_the_wrong_shape_is_not_counted[completion-count-string]`: `usage_totals() == (7, 0)`;
+- `test_other_status_fails_at_once[501]`: 1 call.
+
+### Mutations
+
+The same restoring script was used as above; all mutations were reverted.
+
+| Mutation | Named target | Result under mutation |
+| --- | --- | --- |
+| Catch `ProviderError` in the fallback again | check 1 of 5.1 | 3 failed: both cases of check 1, and check 2a |
+| Catch `ModelError` in the fallback | check 4 of 5.1 | 1 failed |
+| Drop the check that `data` is a list | 5.3, model list | 1 failed (`data-string`); `plain-text` passed |
+| Use `int(completion)` instead of the type check | 5.3, usage | 1 failed, by assertion: `assert (7, 3) == (7, 0)` |
+| Add 501 to the retry set | 5.3, 501 | 1 failed (`501`); 400, 404, and 422 passed |
+
+### Checks (task 4.1, rerun in order)
+
+| # | Command | Result |
+| --- | --- | --- |
+| 1 | `cd frontend && npm run build` | Passed |
+| 2 | `cd backend && uv run --python 3.12 pytest -p no:cacheprovider --cov=catchup --cov-report=term-missing` | **840 passed**, **97% overall** (3,065/3,172 statements, 107 missed) |
+| 3 | `cd frontend && npm test -- --run` | **259 passed** in 14 files |
+| 4 | `cd extension && npm test -- --run`, then `npm run build` | **112 passed** in 8 files; build passed |
+| 5 | `docker build -t catchup:model-errors-local .`, then `scripts/docker-smoke.sh catchup:model-errors-local` | Build passed; smoke passed, all 11 PASS lines, exit 0. The script removed its container and volume, and the image was removed afterwards. |
+| 6 | `DO_NOT_TRACK=1 openspec validate recover-from-model-errors --strict` | Valid |
+
+**Coverage of the changed modules:**
+- `llm/client.py`: 99% (110/111). Only the unreachable `AssertionError` is missed. The earlier gap, `data` not a list, is now covered by 5.3.
+- `llm/prompts.py`: 100%.
+- `digest/group.py`: 97% (75/77). The two lines missed before are still missed.
+- `digest/runner.py`: 98% (302/308). The `except ModelError` branch is now covered by the status-error run test.
+
+### Choices made within the plan
+
+- Check 2 of 5.1 is split into two tests, so that both of its red reasons could be observed.
+- Check 4 of 5.1 also asserts the error kind `rate_limited`, and that no digest is saved.
+- `test_digest_stages.py` now imports `InvalidAnswer` at module top, for the two updated checks of 2.2, since it exists from 5.2 on. The 5.1 test written before 5.2 keeps its import inside the function, as the task says.
+- Coverage ran with `term-missing`, which shows what `term` shows plus the missed lines.
+
+### Not performed
+
+The live check against a provider is left for Claude Code's review, as before.

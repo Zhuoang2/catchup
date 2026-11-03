@@ -208,7 +208,7 @@ def test_gateway_error_retries_then_succeeds(mock_provider, status) -> None:
     client.close()
 
 
-@pytest.mark.parametrize("status", [400, 404, 422])
+@pytest.mark.parametrize("status", [400, 404, 422, 501])
 def test_other_status_fails_at_once(mock_provider, status) -> None:
     router, http_client = mock_provider
     route = router.post(f"{BASE}/chat/completions").mock(
@@ -285,7 +285,8 @@ def completion_with_usage(content: str, usage) -> httpx.Response:
 @pytest.mark.parametrize("usage,expected", [
     ("n/a", None),
     ({"prompt_tokens": "7", "completion_tokens": 3}, (0, 3)),
-], ids=["usage-string", "token-count-string"])
+    ({"prompt_tokens": 7, "completion_tokens": "3"}, (7, 0)),
+], ids=["usage-string", "token-count-string", "completion-count-string"])
 def test_usage_of_the_wrong_shape_is_not_counted(mock_provider, usage, expected) -> None:
     router, http_client = mock_provider
     route = router.post(f"{BASE}/chat/completions").mock(
@@ -298,9 +299,13 @@ def test_usage_of_the_wrong_shape_is_not_counted(mock_provider, usage, expected)
     client.close()
 
 
-def test_model_list_that_is_not_a_model_list_exhausts_retries(mock_provider) -> None:
+@pytest.mark.parametrize("answer", [
+    httpx.Response(200, text=PLAIN_TEXT),
+    httpx.Response(200, json={"object": "list", "data": "busy"}),
+], ids=["plain-text", "data-string"])
+def test_model_list_that_is_not_a_model_list_exhausts_retries(mock_provider, answer) -> None:
     router, http_client = mock_provider
-    route = router.get(f"{BASE}/models").mock(return_value=httpx.Response(200, text=PLAIN_TEXT))
+    route = router.get(f"{BASE}/models").mock(return_value=answer)
     client = ModelClient(BASE, "test-only-key", http_client=http_client, sleep=lambda _: None)
     with pytest.raises(ProviderError):
         client.list_models()

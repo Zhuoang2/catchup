@@ -1682,3 +1682,16 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - A zsh pipeline hid the smoke script's exit code, so the smoke ran again with its exit code captured. It returned 0.
   - An API rate limit stopped the sub-agent after the checks had run. On resuming, it confirmed the commits, the checkboxes, and the absence of mutations from `git log`, `git status`, `tasks.md`, and the committed source, then ran the full check sequence again in order.
   - No live provider check was attempted. Claude Code does it at review.
+
+## 2026-11-04 — `recover-from-model-errors` (#67): fix round 1, overnight (Claude Code, Opus 5.5, as the implementer sub-agent in place of Factory Droid)
+
+- **Prompt (faithful excerpt):** "Fix round 1 for #67: please implement the new task group 5 in the same checkout, under the same rules as before (test-first with the tdd skill, red first except guards, run and revert each named mutation, commit after the group, no push, DO_NOT_TRACK=1 on every OpenSpec call, Docker only for your own `catchup:model-errors-local` image). Why: an independent review found that the grouping fallback also caught plain `ProviderError` from HTTP status errors, so a run where every model call fails (a wrong model ID answering 404, or a 5xx outage) succeeded and delivered every item as 'summary unavailable' for good … Read first: `git diff a18a45f..7241578` …, the 'Fix round 1' bullet in `design.md` D3, the amended lines and the new scenario … and `tasks.md` group 5 (5.1–5.4). … Then rerun the checks of task 4.1 in order (including the Docker smoke), add the 'Fix round 1' section to the test report and your AI usage log entry for this round …"
+- **Outcome:**
+  - A new `InvalidAnswer(ProviderError)` marks answers that stay unusable after retries, and the grouping fallback catches only that error. A run in which every model call answers 500 or 404 now fails as `provider_error`, saves no digest, and keeps its items pending with no stored summary.
+  - The three test gaps from the review are guarded: `data` not a list, a string completion count, and 501.
+  - Every non-guard check was red first, and every named mutation failed its check and was reverted (see the fix-round-1 section of `test-report-recover-from-model-errors.md`).
+  - Checks: 840 backend tests at 97% coverage, 259 frontend tests, 112 extension tests, both builds, local Docker build and smoke (the image was removed afterwards), and `openspec validate --strict`.
+- **Problems / adjustment:**
+  - None blocked the round.
+  - The plan expected implementing 5.2 to break checks 2 and 3 of 2.2, and it did. They were then moved to `InvalidAnswer`, as task 5.2 says.
+  - One mutation's failure mode, an assertion rather than a `TypeError`, was confirmed by running it on its own, with the file restored from a copy afterwards.

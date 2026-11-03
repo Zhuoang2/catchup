@@ -8,7 +8,7 @@ import pytest
 from catchup.digest.group import GroupItem, group_items
 from catchup.digest.summarize import SummaryInput, split_parts, summarize_items
 from catchup.llm.client import (
-    AuthFailed, ConnectionFailed, InsufficientBalance, ProviderError, RateLimited,
+    AuthFailed, ConnectionFailed, InsufficientBalance, InvalidAnswer, ProviderError, RateLimited,
 )
 from catchup.llm.prompts import grouping_max_tokens, long_transcript_messages, summary_messages
 
@@ -335,13 +335,13 @@ def test_grouping_without_a_list_of_topics_falls_back_to_one_topic(answer, langu
 
 def test_grouping_unusable_after_retries_falls_back_and_logs_no_detail(caplog):
     items = [GroupItem(n, f"Title {n}", "Source", "Summary") for n in range(1, 4)]
-    client = FakeModel([ProviderError("secret detail")])
+    client = FakeModel([InvalidAnswer("secret detail")])
     with caplog.at_level(logging.WARNING):
         topics = group_items(client, items, "en", 10000)
     assert topic_rows(topics) == [("Other", "", [1, 2, 3])]
     warnings = [record for record in caplog.records if record.levelno == logging.WARNING]
     assert len(warnings) == 1
-    assert "ProviderError" in warnings[0].getMessage()
+    assert "InvalidAnswer" in warnings[0].getMessage()
     assert "3 items" in warnings[0].getMessage()
     assert "secret detail" not in caplog.text
 
@@ -350,7 +350,7 @@ def test_failed_batch_falls_back_without_a_merge_call():
     items = [GroupItem(n, f"Title {n}", "Source", "Summary") for n in range(1, 5)]
     client = FakeModel([
         {"topics": [{"title": "Batch 1", "overview": "Overview", "item_refs": ["i1"]}]},
-        ProviderError("batch failed"),
+        InvalidAnswer("batch failed"),
     ])
     assert topic_rows(group_items(client, items, "en", 10)) == [("Other", "", [1, 2, 3, 4])]
     assert len(client.calls) == 2
@@ -450,3 +450,17 @@ def test_grouping_setting_still_limits_batches_with_a_large_window():
     assert len(client.calls) == 5
     assert all(tokens == 8192 + 24 for _, tokens in client.calls[:-1])
     assert client.calls[-1][1] == 8192 + 24 * 4
+
+
+def test_grouping_status_errors_propagate():
+    items = [GroupItem(n, f"Title {n}", "Source", "Summary") for n in range(1, 4)]
+    with pytest.raises(ProviderError):
+        group_items(FakeModel([ProviderError("The model provider returned an error.")]), items, "en", 10000)
+
+
+def test_grouping_invalid_answer_falls_back_to_one_topic():
+    from catchup.llm.client import InvalidAnswer
+
+    items = [GroupItem(n, f"Title {n}", "Source", "Summary") for n in range(1, 4)]
+    client = FakeModel([InvalidAnswer("The model provider returned an empty or invalid answer.")])
+    assert topic_rows(group_items(client, items, "en", 10000)) == [("Other", "", [1, 2, 3])]

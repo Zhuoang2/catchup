@@ -5,7 +5,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from catchup.llm.client import ModelClient, ProviderError
+from catchup.llm.client import InvalidAnswer, ModelClient
 from catchup.llm.prompts import group_messages, grouping_batch_chars, grouping_max_tokens, merge_messages
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ def _other_title(language: str) -> str:
 def _valid_topics(response: dict[str, Any], refs: dict[str, int], field: str, language: str) -> list[Topic]:
     topics = response.get("topics")
     if not isinstance(topics, list):
-        raise ProviderError("The model provider returned invalid topics.")
+        raise InvalidAnswer("The model provider returned invalid topics.")
     placed: set[int] = set()
     result: list[Topic] = []
     for topic in topics:
@@ -69,9 +69,10 @@ def group_items(client: ModelClient, items: list[GroupItem], language: str, batc
         return []
     try:
         return _group(client, items, language, grouping_batch_chars(batch_chars, context_window), context_window)
-    except ProviderError as exc:
+    except InvalidAnswer as exc:
         # The model answered, but its answers stayed unusable after retries, and a later run would
-        # most likely fail the same way. Rate limits, connection errors, and bugs still propagate.
+        # most likely fail the same way. Status errors, rate limits, connection errors, and bugs
+        # still propagate: the run fails and its items stay pending.
         logger.warning("Topic grouping fell back to one topic for %d items (%s)", len(items), type(exc).__name__)
         return [Topic(_other_title(language), "", [item.id for item in items])]
 

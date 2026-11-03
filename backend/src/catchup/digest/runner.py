@@ -4,7 +4,7 @@ import logging
 import threading
 from urllib.parse import urlsplit
 from collections import Counter
-from contextlib import closing
+from contextlib import closing, nullcontext
 from datetime import timedelta
 
 from cryptography.fernet import InvalidToken
@@ -21,12 +21,14 @@ from catchup.errors import AppError
 from catchup.llm.client import AuthFailed, InsufficientBalance, ModelError
 from catchup.models import (
     AppSettings, Digest, DigestItem, DigestRun, DigestTopic, Item, ModelConfig,
-    Source, SourceCheck, utc_now,
+    Source, SourceCheck, XAccount, XCredential, utc_now,
 )
 from catchup.net.host_spacing import HostSpacer
 from catchup.net.rate_limit import is_rate_limited
 from catchup.transcripts.context import TranscriptContext
 from catchup.sources.feeds import is_short
+from catchup.sources.x_api import XClient
+from catchup.sources.x_check import XReadBudget, check_x_account
 from catchup.transcripts.youtube import fetch_captions
 
 ACTIVE = ("queued", "collecting", "summarizing", "grouping")
@@ -42,7 +44,7 @@ def select_pending(rows, now, transcript_wait_days: int, caption_wait_hours: int
     waiting = deferred = 0
     for item, source in rows:
         status = item.transcript_status
-        if status in ("found", "text") or (status is None and source.kind in ("feed", "capture")):
+        if status in ("found", "text") or (status is None and source.kind in ("feed", "capture", "x")):
             summaries.append((item, item.site_name or source.title))
         elif status in CREATOR_REASONS:
             updates.append((item.id, status))
@@ -182,8 +184,20 @@ def run_digest(app: FastAPI, run_id: int) -> None:
             base_url, model_id = config.base_url, config.model_id
             key = decrypt_key(config.api_key_encrypted, app.state.settings.secret_key)
             source_ids = session.scalars(
-                select(Source.id).where(Source.kind != "capture").order_by(Source.id)
+                select(Source.id).where(Source.kind.not_in(("capture", "x"))).order_by(Source.id)
             ).all()
+            x_source_ids = session.scalars(
+                select(Source.id).where(Source.kind == "x")
+                .order_by(Source.last_check_at.nulls_first(), Source.id)
+            ).all()
+            x_row = session.get(XCredential, 1)
+            x_token = None
+            x_token_error = "X token needed" if x_row is None else None
+            if x_row is not None:
+                try:
+                    x_token = decrypt_key(x_row.token_encrypted, app.state.settings.secret_key)
+                except (InvalidToken, AppError):
+                    x_token_error = "Check the X token and instance secret"
             context_window = config.context_window
         if context_window is None:
             try:
@@ -211,6 +225,36 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                 if source is not None:
                     check_source(session, source, run_id, app.state.settings,
                                  spacer=spacer, transcripts=transcripts)
+        budget = XReadBudget(remaining=app.state.settings.x_reads_per_run)
+        with closing(XClient(x_token)) if x_token is not None else nullcontext(None) as x_client:
+            for source_id in x_source_ids:
+                with factory() as session:
+                    source = session.get(Source, source_id)
+                    if source is None:
+                        continue
+                    if x_client is not None:
+                        check_x_account(session, source, session.get(XAccount, source.id),
+                                        run_id, x_client, budget)
+                    else:
+                        now = utc_now()
+                        source.last_check_at = now
+                        source.last_check_status = "failed"
+                        session.add(SourceCheck(
+                            run_id=run_id, source_id=source.id, status="failed", error=x_token_error,
+                            entries_seen=0, new_count=0, checked_at=now,
+                        ))
+                        session.commit()
+        with factory() as session:
+            run = session.get(DigestRun, run_id)
+            run.x_reads = budget.reads
+            run.x_waiting_accounts = sum(
+                check.status == "deferred" or account.gap_until_id is not None
+                for account, check in session.execute(
+                    select(XAccount, SourceCheck).join(SourceCheck, XAccount.source_id == SourceCheck.source_id)
+                    .where(SourceCheck.run_id == run_id)
+                )
+            )
+            session.commit()
         caption_pass(factory, transcripts)
         gather_context(factory, run_id, app.state.settings, spacer)
 
@@ -242,12 +286,16 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                 + [source_ids_by_item[item_id] for item_id, _ in creator_updates]
             )
             for check in session.scalars(
-                select(SourceCheck).where(SourceCheck.run_id == run_id, SourceCheck.status != "failed")
+                select(SourceCheck).where(
+                    SourceCheck.run_id == run_id, SourceCheck.status.not_in(("failed", "deferred"))
+                )
             ):
                 count = included_by_source[check.source_id]
                 status = "new_items" if count else "no_new_items"
                 changed = session.execute(
-                    update(SourceCheck).where(SourceCheck.id == check.id, SourceCheck.status != "failed")
+                    update(SourceCheck).where(
+                        SourceCheck.id == check.id, SourceCheck.status.not_in(("failed", "deferred"))
+                    )
                     .values(status=status, new_count=count)
                     .execution_options(synchronize_session=False)
                 )
@@ -364,6 +412,10 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                         images=(item.summary_images or []) if summary.summary and not summary.unavailable else [],
                     ))
                     item.state = "delivered"
+                    if source_kind == "x":
+                        item.content_text = ""
+                        item.captured_replies = None
+                        item.contexts.clear()
             if updates:
                 creator_topic = DigestTopic(
                     digest_id=digest.id, position=len(saved_topics),
@@ -425,6 +477,7 @@ def run_detail(session, run: DigestRun) -> dict:
         "items_done": run.items_done, "context_total": run.context_total,
         "context_done": run.context_done, "error_kind": run.error_kind,
         "waiting_count": run.waiting_count, "deferred_count": run.deferred_count,
+        "x_reads": run.x_reads, "x_waiting_accounts": run.x_waiting_accounts,
         "prompt_tokens": run.prompt_tokens, "completion_tokens": run.completion_tokens,
         "error_message": run.error_message, "digest_id": run.digest_id,
         "digest_item_count": digest.item_count if digest is not None else None,

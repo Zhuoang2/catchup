@@ -26,6 +26,7 @@ from catchup.errors import register_error_handlers
 from catchup.llm.client import ModelClient
 from catchup.models import ExtensionToken, utc_now
 from catchup.net.feed_cache import FeedCache
+from catchup.sources.x_accounts import XPreviewCache
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,7 @@ def _touch_extension_token(factory: sessionmaker, token_id: int) -> None:
 def _extension_operation(method: str, path: str) -> bool:
     return (
         (method == "POST" and path in {"/api/sources", "/api/sources/preview", "/api/captures"})
+        or (method == "PUT" and path == "/api/settings/x")
         or (method == "GET" and path in {"/api/captures", "/api/extension/status"})
         or (method == "DELETE" and path.startswith("/api/captures/") and path.count("/") == 3)
     )
@@ -101,6 +103,7 @@ def create_app(settings: Settings | None = None, dist_dir: Path | None = None) -
     app = FastAPI(lifespan=lifespan)
     app.state.settings = instance_settings
     app.state.feed_cache = FeedCache()
+    app.state.x_preview_cache = XPreviewCache()
     app.state.model_client_factory = ModelClient
     register_error_handlers(app)
     app.include_router(settings_router)

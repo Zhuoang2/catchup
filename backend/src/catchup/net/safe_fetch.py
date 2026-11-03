@@ -14,6 +14,7 @@ from urllib.parse import urljoin, urlsplit
 import httpx
 
 from catchup.config import validate_user_agent_contact
+from catchup.net.x_hosts import is_x_host
 
 MAX_BYTES = 5 * 1024 * 1024
 MAX_REDIRECTS = 5
@@ -78,6 +79,9 @@ def _check_address(url: str) -> None:
     except ValueError as exc:
         raise FetchError("invalid_url", "Enter a valid public HTTP or HTTPS URL.") from exc
 
+    if is_x_host(parts.hostname):
+        raise FetchError("blocked_address", "X pages are read only through the X API.")
+
     try:
         answers = socket.getaddrinfo(parts.hostname, port, type=socket.SOCK_STREAM)
     except (OSError, UnicodeError) as exc:
@@ -115,7 +119,10 @@ def safe_fetch(url: str, *, same_origin: str | None = None, budget: list[int] | 
         for hop in range(MAX_REDIRECTS + 1):
             while True:
                 remaining()
-                parts = urlsplit(current)
+                try:
+                    parts = urlsplit(current)
+                except ValueError as exc:
+                    raise FetchError("invalid_url", "Enter a valid public HTTP or HTTPS URL.") from exc
                 if same_origin is not None and f"{parts.scheme}://{parts.netloc}" != same_origin:
                     raise FetchError("fetch_failed", "Feed probing must stay on the same origin.")
                 _check_address(current)
@@ -154,7 +161,10 @@ def safe_fetch(url: str, *, same_origin: str | None = None, budget: list[int] | 
                                 raise FetchError(
                                     "fetch_failed", "The source redirected too many times.", response.status_code,
                                 )
-                            current = urljoin(current, location)
+                            try:
+                                current = urljoin(current, location)
+                            except ValueError as exc:
+                                raise FetchError("invalid_url", "Enter a valid public HTTP or HTTPS URL.") from exc
                             break
                         response.raise_for_status()
                         length = response.headers.get("content-length")

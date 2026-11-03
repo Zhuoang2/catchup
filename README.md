@@ -82,7 +82,8 @@ for `localhost` and `127.0.0.1` if you have used both.
 ## Browser extension
 
 The optional Chrome and Edge extension lets you **Follow this site** when it
-has a supported feed, or **Add this page to my next digest** without a feed.
+has a supported feed, **Follow this account** on a public X profile or post,
+or **Add this page to my next digest** without a feed.
 Saved pages wait for your next manual digest run; the extension does not start
 one. This extension is separate from the installable web app above.
 
@@ -121,8 +122,10 @@ after confirmation. `storage` keeps the local address and connection token.
 The only `host_permissions` are for `http://127.0.0.1/*` and
 `http://localhost/*`; they let the popup contact your local CatchUp API.
 The extension never runs a background worker or content script, reads pages
-automatically, follows an X account, schedules digest generation, or sends
-the page to any other server. CatchUp may send saved page content to your
+automatically, calls the X API itself, schedules digest generation, or sends
+the page to any other server. Follow this account sends the tab's URL to
+your local server; see [X accounts](#x-accounts) for token setup and costs.
+CatchUp may send saved page content to your
 configured model provider during a later digest run.
 
 It never reads cookies, saved passwords, or site storage. It does no
@@ -146,7 +149,8 @@ Known limits:
 
 **X's terms prohibit scraping in any form.** Saving an X page is at your
 own risk and only reads what your browser currently displays after you press
-Add. CatchUp does not follow X accounts or log in on your behalf.
+Add. This saved-page capture is separate from following through the X API;
+CatchUp does not log in to X on your behalf.
 
 ## Privacy
 
@@ -158,6 +162,55 @@ shown, including the latest digest on the home page. This contacts those
 sites with your IP address but sends no referrer. In Settings → Digest,
 **Show images from source sites** is on by default; turn it off to prevent
 these image requests. If CatchUp cannot read that setting, images are shown.
+
+## X accounts
+
+To follow a public account, create an App under your own developer account at
+[console.x.com](https://console.x.com/), then copy the App's **Bearer token**.
+Paste it into **Settings → X accounts**, into the prompt on the **Sources**
+page, or into the extension's prompt when you choose **Follow this account**.
+CatchUp encrypts the token on your computer using `CATCHUP_SECRET_KEY`. The
+extension sends it only to your local CatchUp server and does not store it in
+browser storage. You cannot follow protected accounts or your home timeline.
+
+**As of 2026-10-24**, X's pay-per-use prices are **$0.005 per post read** and
+**$0.010 per user read**, deduplicated per UTC day. Previewing an account
+performs a user lookup and reads up to five posts; each digest run may read
+more posts. Replies returned by the API can count as reads even when CatchUp
+does not include them in the digest. Set a **spending limit** in the X console
+as a hard ceiling. `CATCHUP_X_READS_PER_RUN` defaults to 200 posts across all
+followed accounts (including returned replies); set it to `0` to defer reads.
+**Waits for the next run** means an account ran out of this run's shared
+budget, not that its posts were discarded. CatchUp resumes it on a later
+manual run.
+If the read limit stops a read inside a thread, the author's replies read
+before the limit are dropped and are not added later.
+
+Read the [X Developer Policy](https://docs.x.com/developer-terms/policy)
+before using this feature. It says:
+
+> You must keep all API keys or other access credentials private.
+
+Developers “may not use … API keys or other access credentials owned by
+others” or “request that people provide their X password, account credentials,
+or developer application information (including consumer key) to you directly”.
+Our reading is that this self-hosted instance uses the **owner's own token**,
+held on their computer; CatchUp's authors never receive it. X's policy does
+not explicitly address this arrangement. You are responsible for complying
+with X's terms and controlling access to your instance.
+
+X requires stored content deleted or changed on X to be removed or updated
+as soon as reasonably possible, or **within 24 hours** of a request from X or
+the account owner. CatchUp clears an X post's raw text, replies, and linked
+context after delivery, but keeps its title, summary, and link in saved
+digests. It does **not** monitor later edits or deletions. In **Settings →
+X accounts**, **Delete all X data** removes your token, followed X accounts,
+their collected items, and their entries in saved digests (including derived
+summaries and affected topic text). Use it to comply with a deletion request
+or when your X access ends. Pages saved separately with the extension's
+**Add this page** remain. X post text may be sent to your chosen
+**model provider** for summarization, as with other sources. X's rules do not
+explicitly say whether such a provider counts as a third party.
 
 ## Run with Docker
 
@@ -300,8 +353,8 @@ Source requests identify the client as
 `CATCHUP_USER_AGENT_CONTACT` to append a contact inside the parentheses,
 for example `CatchUp/0.1.0 (+https://github.com/Zhuoang2/catchup; by /u/example)`.
 The contact must be printable ASCII, no longer than 100 characters.
-Following X accounts, automatically collecting pages without feeds, and
-fetching content behind a login or paywall are not supported. You can save
+Automatically collecting pages without feeds and fetching content behind
+a login or paywall are not supported. You can save
 an individual page through the optional browser extension. CatchUp does not
 transcribe audio or summarize video visuals.
 

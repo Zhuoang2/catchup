@@ -3,6 +3,7 @@
 from urllib.parse import urlsplit
 
 from catchup.sources.feeds import EntryLink
+from catchup.net.x_hosts import is_x_host
 
 
 TAXONOMY = {"tag", "tags", "category", "categories", "author", "page", "search", "archive"}
@@ -30,9 +31,8 @@ def related_links(item_link: str, site_url: str, links: list[EntryLink] | tuple[
                 continue
             if _site_host(host) == site_host and path.lstrip("/").split("/", 1)[0] in TAXONOMY:
                 continue
-            social_host = _site_host(host).removeprefix("mobile.")
             video_host = _site_host(host).removeprefix("m.")
-            if (social_host in ("x.com", "twitter.com")
+            if (is_x_host(host)
                     or video_host == "youtube.com" and path == "/watch"
                     or video_host == "youtu.be"
                     or video_host == "vimeo.com" and path.strip("/").split("/", 1)[0].isdigit()

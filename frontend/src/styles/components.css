@@ -19,8 +19,8 @@
 .btn-primary:disabled { background: var(--disabled); color: var(--muted) !important; cursor: not-allowed; }
 .btn-secondary { background: var(--surface); color: var(--fg) !important; border-color: var(--border-strong); }
 .btn-ghost { background: transparent; color: var(--muted) !important; }
-.btn-ghost:not(:disabled):hover, .btn-secondary:not(:disabled):hover { background: var(--hover); }
-.btn-danger { color: var(--error) !important; }
+.btn-ghost:not(:disabled):hover, .btn-secondary:not(:disabled):hover, .btn-danger:not(:disabled):hover { background: var(--hover); }
+.btn-danger { background: transparent; color: var(--error) !important; }
 .btn-danger-solid { background: var(--error); color: var(--surface) !important; }
 .btn-lg { padding: .8rem 1.5rem; font-size: 1.02em; }
 .btn-sm { padding: .3rem .6rem; font-size: .85em; }

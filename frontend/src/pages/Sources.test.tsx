@@ -35,6 +35,108 @@ afterEach(() => {
 })
 
 describe('sources', () => {
+  it('previews an X account with a public profile instead of its internal id', async () => {
+    const xPreview = { feed_url: 'x:user:123', site_url: 'https://x.com/writer',
+      title: 'Sample Writer', username: 'writer', kind: 'x', captions_enabled: false,
+      follows_site_feed_notice: false, entries: [] }
+    fetchMock.mockImplementation(async (path: string) => path === '/api/sources'
+      ? respond([{ ...saved, id: 3, title: 'Sample Writer', kind: 'x',
+        feed_url: 'x:user:123', site_url: 'https://x.com/writer', last_check_status: 'deferred',
+        rate_limited: false, possible_gap: false }])
+      : respond(xPreview))
+    const { container } = page()
+    const row = (await screen.findByRole('button', { name: 'Delete Sample Writer' })).closest('li')!
+    expect(row).toHaveTextContent('https://x.com/writer')
+    expect(row).toHaveTextContent('Waits for the next run')
+    fireEvent.change(screen.getByLabelText('Website or feed URL'),
+      { target: { value: 'https://x.com/writer' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    const region = await screen.findByRole('region', { name: 'Source preview' })
+    expect(region).toHaveTextContent('X account')
+    expect(region).toHaveTextContent('Posts read through the X API with your token')
+    expect(region).toHaveTextContent('@writer')
+    expect(region).toHaveTextContent('https://x.com/writer')
+    expect(container).not.toHaveTextContent('x:user:')
+    await expectAccessible(container)
+  })
+
+  it('asks for a token in place, saves it, and repeats the same preview', async () => {
+    let previewCount = 0
+    fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+      if (path === '/api/sources') return respond([])
+      if (path === '/api/settings/x') {
+        expect(options?.method).toBe('PUT')
+        expect(JSON.parse(options?.body as string)).toEqual({ token: 'test-x-token' })
+        return respond({ token_set: true, token_last4: 'oken' })
+      }
+      if (path === '/api/sources/preview') {
+        expect(JSON.parse(options?.body as string)).toEqual({ url: 'https://x.com/writer' })
+        return ++previewCount === 1
+          ? respond({ error: { code: 'x_token_required', message: 'X token needed.' } }, 422)
+          : respond({ feed_url: 'x:user:123', site_url: 'https://x.com/writer',
+            title: 'Sample Writer', username: 'writer', kind: 'x',
+            follows_site_feed_notice: false, captions_enabled: false, entries: [] })
+      }
+      throw Error(path)
+    })
+    const { container } = page()
+    fireEvent.change(screen.getByLabelText('Website or feed URL'),
+      { target: { value: 'https://x.com/writer' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    const input = await screen.findByLabelText('X API token')
+    expect(input).toHaveAttribute('type', 'password')
+    expect(input).toHaveAccessibleDescription(/Bearer token/i)
+    expect(screen.getByRole('link', { name: /how to get/i })).toHaveAttribute('href',
+      'https://github.com/Zhuoang2/catchup#x-accounts')
+    await expectAccessible(container)
+    fireEvent.change(input, { target: { value: 'test-x-token' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save and preview' }))
+    expect(await screen.findByRole('region', { name: 'Source preview' })).toHaveTextContent('@writer')
+    expect(screen.getByRole('status')).toHaveTextContent('X token saved.')
+    expect(screen.queryByLabelText('X API token')).toBeNull()
+    expect(previewCount).toBe(2)
+  })
+
+  it('marks the X token field, not the address, when saving the token fails', async () => {
+    fetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/sources') return respond([])
+      if (path === '/api/settings/x') return respond(
+        { error: { code: 'invalid_x_token', message: 'Enter a printable ASCII X API token.' } }, 422)
+      if (path === '/api/sources/preview') return respond(
+        { error: { code: 'x_token_required', message: 'X token needed.' } }, 422)
+      throw Error(path)
+    })
+    const { container } = page()
+    const url = screen.getByLabelText('Website or feed URL')
+    fireEvent.change(url, { target: { value: 'https://x.com/writer' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    const token = await screen.findByLabelText('X API token')
+    fireEvent.change(token, { target: { value: 'bad token' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save and preview' }))
+    expect(await screen.findByText('Enter a printable ASCII X API token.')).toBeInTheDocument()
+    expect(token).toHaveAttribute('aria-invalid', 'true')
+    expect(token).toHaveAccessibleDescription(/Enter a printable ASCII X API token/)
+    expect(url).not.toHaveAttribute('aria-invalid')
+    await expectAccessible(container)
+  })
+
+  it.each([
+    ['x_token_rejected', 'Replace the X token in CatchUp Settings'],
+    ['x_account_protected', 'Protected X accounts cannot be followed'],
+    ['x_account_not_found', 'X account not found'],
+    ['x_account_suspended', 'X account suspended'],
+    ['not_an_x_account', 'This is not an X account address'],
+  ])('explains X error %s', async (code, expected) => {
+    fetchMock.mockImplementation(async (path: string) => path === '/api/sources'
+      ? respond([])
+      : respond({ error: { code, message: 'Backend error' } }, 422))
+    page()
+    fireEvent.change(screen.getByLabelText('Website or feed URL'),
+      { target: { value: 'https://x.com/writer' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(expected)
+  })
+
   it('shows captures as pages waiting without feed or check and confirms deletion', async () => {
     const capture = { ...saved, id: 8, title: 'Saved from browser', kind: 'capture',
       feed_url: 'catchup:captures', waiting_count: 2, last_check_status: null, last_check_at: null }

@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import OperationalError
 
 from catchup.main import create_app
-from catchup.models import Digest, DigestItem, DigestRun, DigestTopic, ExtensionToken, Item, ItemContext, Source
+from catchup.models import Digest, DigestItem, DigestRun, DigestTopic, ExtensionToken, Item, ItemContext, Source, XCredential
 
 FEED = "https://site.example/feed"
 ORIGIN = {"Origin": "chrome-extension://abcdefghijklmnop"}
@@ -115,6 +115,33 @@ def test_token_cannot_change_preferences(client, connected):
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "cross_site_request"
     assert client.get("/api/settings/preferences").json()["digest_language"] == "en"
+
+
+def test_connected_extension_saves_only_first_x_token(client, connected, monkeypatch):
+    from catchup.config import Settings
+    monkeypatch.setenv("CATCHUP_SECRET_KEY", "test-instance-secret")
+    with TestClient(create_app(Settings.from_env()), base_url="http://localhost:8000") as api:
+        own_token = api.post("/api/settings/extension-tokens", json={"name": "Chrome"}).json()["token"]
+        headers = {**ORIGIN, "Authorization": f"Bearer {own_token}"}
+        first = "test-" + "x" * 40
+        second = "test-" + "y" * 40
+        response = api.put("/api/settings/x", json={"token": first}, headers=headers)
+        assert response.status_code == 200
+        assert response.json() == {"token_set": True, "token_last4": first[-4:]}
+        rejected = api.put("/api/settings/x", json={"token": second}, headers=headers)
+        assert rejected.status_code == 409
+        assert rejected.json()["error"]["code"] == "x_token_exists"
+        with api.app.state.session_factory() as session:
+            from catchup.crypto import decrypt_key
+            assert decrypt_key(session.get(XCredential, 1).token_encrypted, "test-instance-secret") == first
+        # No other settings operation is on the extension's allow-list.
+        assert api.get("/api/settings/x", headers=headers).status_code == 403
+        assert api.delete("/api/settings/x", headers=headers).status_code == 403
+        assert api.post("/api/settings/x/test", json={}, headers=headers).status_code == 403
+        assert api.put("/api/settings/x", json={"token": second},
+                       headers={"Origin": "http://localhost:8000"}).status_code == 200
+        with api.app.state.session_factory() as session:
+            assert decrypt_key(session.get(XCredential, 1).token_encrypted, "test-instance-secret") == second
 
 
 def test_token_cannot_start_run(client, connected):

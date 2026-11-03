@@ -1,5 +1,6 @@
 import warnings
 from pathlib import Path
+from shutil import copy2
 
 from fastapi.testclient import TestClient
 from alembic import command
@@ -20,12 +21,14 @@ def test_startup_migrates_database_and_enables_wal(test_settings: Settings) -> N
         assert set(inspect(engine).get_table_names()) == {
             "alembic_version", "model_config", "app_settings", "sources", "items",
             "source_checks", "digest_runs", "digests", "digest_topics", "digest_items", "item_contexts",
-            "extension_tokens",
+            "extension_tokens", "x_credentials", "x_accounts",
         }
         with engine.connect() as connection:
             assert connection.execute(text("PRAGMA journal_mode")).scalar() == "wal"
             assert connection.execute(text("PRAGMA foreign_keys")).scalar() == 1
             assert connection.execute(text("PRAGMA busy_timeout")).scalar() == 5000
+            # Text cleared at delivery or deleted must not stay in free pages (X terms, D13).
+            assert connection.execute(text("PRAGMA secure_delete")).scalar() == 1
         assert inspect(engine).get_foreign_keys("digest_runs") == []
     assert (test_settings.data_dir / "catchup.sqlite3").exists()
 
@@ -47,6 +50,7 @@ def test_migrations_live_inside_package() -> None:
     assert (migrations / "versions" / "0004_item_context.py").is_file()
     assert (migrations / "versions" / "0005_item_images.py").is_file()
     assert (migrations / "versions" / "0006_captures.py").is_file()
+    assert (migrations / "versions" / "0007_x_accounts.py").is_file()
 
 
 def test_existing_database_at_old_revision_is_unchanged(tmp_path) -> None:
@@ -64,7 +68,7 @@ def test_existing_database_at_old_revision_is_unchanged(tmp_path) -> None:
             ).scalars().all()
         migrate(engine)
         with engine.connect() as connection:
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0006_captures"
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0007_x_accounts"
             assert connection.execute(text("SELECT digest_language FROM app_settings WHERE id=1")).scalar_one() == "zh-Hans"
             assert connection.execute(
                 text("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -233,7 +237,7 @@ def test_image_migration_from_0004_preserves_rows_and_downgrades(tmp_path) -> No
             ))
         command.upgrade(config, "head")
         with engine.connect() as connection:
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0006_captures"
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0007_x_accounts"
             assert connection.execute(text(
                 "SELECT image_candidates, summary_images FROM items WHERE id=1"
             )).one() == (None, None)
@@ -273,7 +277,7 @@ def test_capture_migration_preserves_rows_and_removes_capture_sources_on_downgra
             ))
         command.upgrade(config, "head")
         with engine.connect() as connection:
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0006_captures"
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0007_x_accounts"
             assert connection.execute(text("SELECT title, site_name, captured_replies FROM items WHERE id=1")).one() == (
                 "Post", None, None,
             )
@@ -323,3 +327,98 @@ def test_capture_migration_preserves_rows_and_removes_capture_sources_on_downgra
             assert connection.execute(text("SELECT item_id FROM digest_items")).scalar_one() == 1
     finally:
         engine.dispose()
+
+
+def test_x_migration_upgrades_0006_and_preserves_other_sources_on_downgrade(tmp_path) -> None:
+    engine = make_engine(tmp_path)
+    config = Config()
+    config.set_main_option("script_location", str(Path(catchup.__file__).resolve().parent / "migrations"))
+    config.attributes["connection"] = engine
+    try:
+        command.upgrade(config, "0006_captures")
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO sources (id, title, site_url, feed_url, input_url, kind, created_at) VALUES "
+                "(1, 'News', 'https://site.example', 'https://site.example/feed', "
+                "'https://site.example/feed', 'feed', '2026-10-04')"
+            ))
+            connection.execute(text(
+                "INSERT INTO items (id, source_id, identity_key, link, title, discovered_at, "
+                "content_text, content_origin, state) VALUES "
+                "(1, 1, 'one', 'https://site.example/one', 'Post', '2026-10-04', "
+                "'Text', 'feed', 'delivered')"
+            ))
+            connection.execute(text(
+                "INSERT INTO digest_runs (id, status, items_total, items_done, started_at) "
+                "VALUES (1, 'succeeded', 1, 1, '2026-10-04')"
+            ))
+            connection.execute(text(
+                "INSERT INTO digests (id, run_id, created_at, model_id, item_count, source_count) "
+                "VALUES (1, 1, '2026-10-04', 'model', 1, 1)"
+            ))
+            connection.execute(text(
+                "INSERT INTO digest_topics (id, digest_id, position, title, overview) "
+                "VALUES (1, 1, 0, 'Topic', 'Overview')"
+            ))
+            connection.execute(text(
+                "INSERT INTO digest_items (id, digest_id, topic_id, position, item_id, title, "
+                "link, source_name, summary_unavailable) VALUES "
+                "(1, 1, 1, 0, 1, 'Post', 'https://site.example/one', 'News', 0)"
+            ))
+        migrate(engine)
+        assert {"x_credentials", "x_accounts"} <= set(inspect(engine).get_table_names())
+        assert {"x_reads", "x_waiting_accounts"} <= {
+            column["name"] for column in inspect(engine).get_columns("digest_runs")
+        }
+        with engine.begin() as connection:
+            assert connection.execute(text("SELECT x_reads, x_waiting_accounts FROM digest_runs")).one() == (0, 0)
+            connection.execute(text(
+                "INSERT INTO sources (id, title, site_url, feed_url, input_url, kind, created_at) VALUES "
+                "(2, 'Author', 'https://x.com/author', 'x:user:123', 'https://x.com/author', 'x', '2026-10-04')"
+            ))
+            connection.execute(text(
+                "INSERT INTO x_accounts (source_id, user_id, username, followed_at) "
+                "VALUES (2, '123', 'author', '2026-10-04')"
+            ))
+            connection.execute(text(
+                "INSERT INTO items (id, source_id, identity_key, link, title, discovered_at, "
+                "content_text, content_origin, state) VALUES "
+                "(2, 2, '456', 'https://x.com/author/status/456', 'Post', '2026-10-04', "
+                "'Text', 'x', 'pending')"
+            ))
+        command.downgrade(config, "0006_captures")
+        assert {"x_credentials", "x_accounts"}.isdisjoint(inspect(engine).get_table_names())
+        assert {"x_reads", "x_waiting_accounts"}.isdisjoint(
+            {column["name"] for column in inspect(engine).get_columns("digest_runs")}
+        )
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT id FROM sources")).scalars().all() == [1]
+            assert connection.execute(text("SELECT id FROM items")).scalars().all() == [1]
+            assert connection.execute(text("SELECT item_id, title FROM digest_items")).all() == [(1, "Post")]
+    finally:
+        engine.dispose()
+
+
+def test_migrate_copy_of_0006_database(tmp_path) -> None:
+    original = tmp_path / "original"
+    engine = make_engine(original)
+    config = Config()
+    config.set_main_option("script_location", str(Path(catchup.__file__).resolve().parent / "migrations"))
+    config.attributes["connection"] = engine
+    try:
+        command.upgrade(config, "0006_captures")
+        with engine.connect() as connection:
+            connection.execute(text("PRAGMA wal_checkpoint(TRUNCATE)"))
+    finally:
+        engine.dispose()
+    copy_dir = tmp_path / "copy"
+    copy_dir.mkdir()
+    copy2(original / "catchup.sqlite3", copy_dir / "catchup.sqlite3")
+    copied = make_engine(copy_dir)
+    try:
+        migrate(copied)
+        with copied.connect() as connection:
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0007_x_accounts"
+        assert {"x_accounts", "x_credentials"} <= set(inspect(copied).get_table_names())
+    finally:
+        copied.dispose()

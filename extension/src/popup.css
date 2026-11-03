@@ -38,6 +38,16 @@ h2 { font-size: 1.18rem; line-height: 1.25; margin: 0; }
 #popup section { padding: .9rem; border: 1px solid var(--border); background: var(--surface); }
 #popup ul { margin: 0; padding-left: 1.25rem; }
 #popup li + li { margin-top: .3rem; }
+#popup label { display: grid; gap: .3rem; }
+#popup input {
+  font: inherit;
+  width: 100%;
+  padding: .5rem;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border-strong);
+}
+#popup input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 button {
   font: 600 .94rem var(--font-body);
   padding: .55rem 1rem;

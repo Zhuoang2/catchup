@@ -37,6 +37,11 @@ const preview = {
   site_url: 'https://site.example', follows_site_feed_notice: true,
   entries: [{ title: 'Latest', link: 'https://site.example/latest', published_at: null }],
 }
+const xPreview = {
+  ...preview, title: 'Sample Writer', kind: 'x', feed_url: 'x:user:123',
+  site_url: 'https://x.com/writer', username: 'writer',
+  follows_site_feed_notice: false,
+}
 const captured = {
   url: 'https://site.example/post', title: 'A post', site_name: 'Example Site',
   author: 'Sam', published_at: null, content_text: 'The page text.',
@@ -182,13 +187,29 @@ it('treats a revoked token as disconnected and does not make other requests', as
   expect(await axe(document.body, { rules: { 'color-contrast': { enabled: false } } }).then(r => r.violations)).toEqual([])
 })
 
-it('does not offer Follow this site or preview on X tabs', async () => {
+it('offers Follow this account alongside Add on an X profile', async () => {
   connect()
-  chromeMock.tabs.query.mockResolvedValue([{ id: 1, url: 'https://x.com/someone', title: 'Someone on X' }])
+  chromeMock.tabs.query.mockResolvedValue([{ id: 1, url: 'https://x.com/writer', title: 'Someone on X' }])
+  fetchMock.mockImplementation(async (url: string) => url.endsWith('/preview')
+    ? response(200, xPreview)
+    : url.endsWith('/sources') ? response(201, { id: 8 })
+      : response(200, { name: 'My browser', waiting: 3 }))
   initPopup()
-  await screen.findByText(/cannot be followed/i)
-  expect(screen.queryByRole('button', { name: 'Follow this site' })).not.toBeInTheDocument()
-  expect(fetchMock).toHaveBeenCalledTimes(1)
+  fireEvent.click(await screen.findByRole('button', { name: 'Follow this account' }))
+  const section = await screen.findByRole('region', { name: 'Source preview' })
+  expect(section).toHaveTextContent('X account')
+  expect(section).toHaveTextContent('@writer')
+  expect(section).toHaveTextContent('https://x.com/writer')
+  expect(section).not.toHaveTextContent('x:user:')
+  expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:8000/api/sources/preview',
+    expect.objectContaining({ method: 'POST', body: JSON.stringify({ url: 'https://x.com/writer' }) }))
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+    'http://127.0.0.1:8000/api/sources',
+    expect.objectContaining({ method: 'POST', body: JSON.stringify({ feed_url: 'x:user:123' }) }),
+  ))
+  expect(screen.queryByText(/cannot be followed/i)).toBeNull()
+  expect(await screen.findByRole('button', { name: 'Add this page to my next digest' })).toBeInTheDocument()
   expect(await axe(document.body, { rules: { 'color-contrast': { enabled: false } } }).then(r => r.violations)).toEqual([])
 })
 
@@ -259,7 +280,7 @@ it('disables Add while saving and shows a run_active conflict', async () => {
   expect((await axe(document.body, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([])
 })
 
-it('offers Add instead of Follow for X profiles, and saves the generic page', async () => {
+it('still saves an X profile as a generic page when Add is chosen', async () => {
   connect()
   chromeMock.tabs.query.mockResolvedValue([{ id: 8, url: 'https://x.com/someone', title: 'Someone' }])
   genericResult({ ...captured, url: 'https://x.com/someone' })
@@ -267,7 +288,7 @@ it('offers Add instead of Follow for X profiles, and saves the generic page', as
     ? response(201, { id: 43, waiting: 4 })
     : response(200, { name: 'My browser', waiting: 3 }))
   initPopup()
-  await screen.findByText(/cannot be followed/i)
+  await screen.findByRole('button', { name: 'Follow this account' })
   fireEvent.click(screen.getByRole('button', { name: 'Add this page to my next digest' }))
   await screen.findByText('Saved. It will be in your next digest.')
   expect(chromeMock.scripting.executeScript).toHaveBeenCalledWith({
@@ -277,6 +298,172 @@ it('offers Add instead of Follow for X profiles, and saves the generic page', as
     details.files ? 'readability.js' : details.func.name))
     .toEqual(['readability.js', 'extractReadable', 'extractGeneric'])
   expect(saves()).toHaveLength(1)
+  expect((await axe(document.body, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([])
+})
+
+it.each(['https://x.com/writer/status/1', 'https://x.com./writer/status/1'])(
+  'offers Follow on post page %s but keeps Add using the X extractor', async url => {
+  connect()
+  chromeMock.tabs.query.mockResolvedValue([{ id: 9, url, title: 'Post' }])
+  chromeMock.scripting.executeScript.mockResolvedValue([{ result: {
+    ...captured, url,
+  } }])
+  fetchMock.mockImplementation(async (url: string) => url.endsWith('/captures')
+    ? response(201, { id: 46, waiting: 4 })
+    : response(200, { name: 'My browser', waiting: 3 }))
+  initPopup()
+  await screen.findByRole('button', { name: 'Follow this account' })
+  fireEvent.click(screen.getByRole('button', { name: 'Add this page to my next digest' }))
+  await screen.findByText('Saved. It will be in your next digest.')
+  expect(chromeMock.scripting.executeScript.mock.calls[0][0].func.name).toBe('extractX')
+})
+
+it('only offers Add on X home pages', async () => {
+  connect()
+  chromeMock.tabs.query.mockResolvedValue([{ id: 10, url: 'https://x.com/home', title: 'Home' }])
+  initPopup()
+  await screen.findByRole('button', { name: 'Add this page to my next digest' })
+  expect(screen.queryByRole('button', { name: /Follow/ })).toBeNull()
+  expect(screen.queryByText(/cannot be followed/i)).toBeNull()
+  expect((await axe(document.body, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([])
+})
+
+it('offers only Add on a help.x.com page', async () => {
+  connect()
+  chromeMock.tabs.query.mockResolvedValue([{ id: 8, url: 'https://help.x.com/en', title: 'Help' }])
+  initPopup()
+  await screen.findByRole('button', { name: 'Add this page to my next digest' })
+  expect(screen.queryByRole('button', { name: /Follow/ })).toBeNull()
+})
+
+it.each([
+  ['https://x.com./simonw', 'Follow this account'],
+  ['https://help.x.com./en', null],
+])('recognizes a trailing-dot X host on %s', async (url, follow) => {
+  connect()
+  chromeMock.tabs.query.mockResolvedValue([{ id: 8, url, title: 'X tab' }])
+  initPopup()
+  await screen.findByRole('button', { name: 'Add this page to my next digest' })
+  if (follow) expect(screen.getByRole('button', { name: follow })).toBeInTheDocument()
+  else expect(screen.queryByRole('button', { name: /Follow/ })).toBeNull()
+})
+
+it.each(['https://notx.com/simonw', 'https://x.com.example.org/simonw'])(
+  'offers Follow this site for look-alike host %s', async url => {
+    connect()
+    chromeMock.tabs.query.mockResolvedValue([{ id: 8, url, title: 'Other site' }])
+    initPopup()
+    await screen.findByRole('button', { name: 'Add this page to my next digest' })
+    expect(screen.getByRole('button', { name: 'Follow this site' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Follow this account' })).toBeNull()
+  })
+
+it('uses generic page extraction for a help.x.com URL that looks like a post', async () => {
+  connect()
+  chromeMock.tabs.query.mockResolvedValue([{ id: 8, url: 'https://help.x.com/a/status/1', title: 'Help' }])
+  genericResult({ ...captured, url: 'https://help.x.com/a/status/1' })
+  fetchMock.mockImplementation(async (url: string) => url.endsWith('/captures')
+    ? response(201, { id: 50, waiting: 4 })
+    : response(200, { name: 'My browser', waiting: 3 }))
+  initPopup()
+  fireEvent.click(await screen.findByRole('button', { name: 'Add this page to my next digest' }))
+  await screen.findByText('Saved. It will be in your next digest.')
+  expect(chromeMock.scripting.executeScript.mock.calls.map(([details]) =>
+    details.files ? 'readability.js' : details.func.name))
+    .toEqual(['readability.js', 'extractReadable', 'extractGeneric'])
+})
+
+it.each([
+  ['https://twitter.com/Writer/status/123', true],
+  ['https://www.x.com/Writer', true],
+  ['https://mobile.twitter.com/Writer', true],
+  ['https://x.com/i/flow/login', false],
+  ['https://x.com/HOME', false],
+  ['https://x.com/1234567890123456', false],
+  ['https://x.com/a-b', false],
+])('matches backend X username recognition for %s', async (url, follows) => {
+  connect()
+  chromeMock.tabs.query.mockResolvedValue([{ id: 3, url, title: 'X tab' }])
+  initPopup()
+  await screen.findByRole('button', { name: 'Add this page to my next digest' })
+  expect(Boolean(screen.queryByRole('button', { name: 'Follow this account' }))).toBe(follows)
+  expect(screen.queryByRole('button', { name: 'Follow this site' })).toBeNull()
+})
+
+it('asks for an X API token, saves it through the API, and retries the preview without browser storage', async () => {
+  connect()
+  chromeMock.tabs.query.mockResolvedValue([{ id: 1, url: 'https://x.com/writer', title: 'Writer' }])
+  let tokenSaved = false
+  fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+    if (url.endsWith('/preview')) return tokenSaved ? response(200, xPreview)
+      : response(422, { error: { code: 'x_token_required', message: 'X token needed.' } })
+    if (url.endsWith('/settings/x')) {
+      tokenSaved = true
+      return response(200, { token_set: true, token_last4: 'xxxx' })
+    }
+    return response(200, { name: 'My browser', waiting: 3 })
+  })
+  initPopup()
+  fireEvent.click(await screen.findByRole('button', { name: 'Follow this account' }))
+  const field = await screen.findByLabelText('X API token')
+  expect(field).toHaveAttribute('type', 'password')
+  // The x_token_required wording is shared with describeError in frontend/src/pages/Sources.tsx.
+  expect(screen.getByRole('status').textContent).toBe('X token needed.')
+  expect(screen.getByText('Copy the Bearer token of your X App from console.x.com.')).toBeInTheDocument()
+  expect(field).toHaveAccessibleDescription('Copy the Bearer token of your X App from console.x.com.')
+  expect((await axe(document.body, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([])
+  fireEvent.input(field, { target: { value: 'invented-x-token' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  await screen.findByText('@writer')
+  expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:8000/api/settings/x',
+    expect.objectContaining({
+      method: 'PUT', body: JSON.stringify({ token: 'invented-x-token' }),
+      headers: expect.objectContaining({ Authorization: 'Bearer fake-browser-token' }),
+    }))
+  expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/preview'))).toHaveLength(2)
+  expect(chromeMock.storage.local.set).not.toHaveBeenCalled()
+})
+
+it.each([
+  ['x_token_exists', 'save', 'Replace the X token in CatchUp Settings.'],
+  ['x_token_rejected', 'preview', 'X rejected the token. Replace the X token in CatchUp Settings.'],
+])('directs %s to CatchUp Settings and offers Open CatchUp', async (code, stage, wording) => {
+  connect()
+  chromeMock.tabs.query.mockResolvedValue([{ id: 1, url: 'https://x.com/writer', title: 'Writer' }])
+  fetchMock.mockImplementation(async (url: string) => url.endsWith('/preview')
+    ? response(422, { error: { code: stage === 'save' ? 'x_token_required' : code, message: 'No token' } })
+    : url.endsWith('/settings/x') ? response(409, { error: { code, message: 'Replace in settings' } })
+      : response(200, { name: 'My browser', waiting: 3 }))
+  initPopup()
+  fireEvent.click(await screen.findByRole('button', { name: 'Follow this account' }))
+  if (stage === 'save') {
+    fireEvent.input(await screen.findByLabelText('X API token'),
+      { target: { value: 'invented-x-token' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  }
+  await waitFor(() => expect(screen.getByRole('status').textContent).toBe(wording))
+  fireEvent.click(screen.getByRole('button', { name: 'Open CatchUp' }))
+  expect(chromeMock.tabs.create).toHaveBeenCalledWith({ url: 'http://127.0.0.1:8000' })
+  expect((await axe(document.body, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([])
+})
+
+// These strings mirror describeError in frontend/src/pages/Sources.tsx.
+it.each([
+  ['x_token_rejected', 'X rejected the token. Replace the X token in CatchUp Settings.'],
+  ['x_account_protected', 'Protected X accounts cannot be followed.'],
+  ['x_account_not_found', 'X account not found.'],
+  ['x_account_suspended', 'X account suspended.'],
+  ['not_an_x_account', 'This is not an X account address.'],
+  ['rate_limited', 'Rate limited — try again later (about 60 seconds).'],
+])('shows the Sources wording for %s', async (code, expected) => {
+  connect()
+  chromeMock.tabs.query.mockResolvedValue([{ id: 1, url: 'https://x.com/writer', title: 'Writer' }])
+  fetchMock.mockImplementation(async (url: string) => url.endsWith('/preview')
+    ? response(422, { error: { code, message: 'Backend message', retry_after: 60 } })
+    : response(200, { name: 'My browser', waiting: 3 }))
+  initPopup()
+  fireEvent.click(await screen.findByRole('button', { name: 'Follow this account' }))
+  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(expected))
   expect((await axe(document.body, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([])
 })
 

@@ -25,7 +25,7 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
         rows = session.execute(
             select(Item, Source).join(Source, Item.source_id == Source.id)
             .where(Item.state == "pending", Item.context_status.is_(None),
-                   Source.kind.in_(("feed", "podcast", "capture")))
+                   Source.kind.in_(("feed", "podcast", "capture", "x")))
             .order_by(Item.id)
         ).all()
         plan = []
@@ -33,15 +33,15 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
             if source.kind == "podcast" and item.transcript_status != "text":
                 continue
             site_url = (f"{urlsplit(item.link).scheme}://{urlsplit(item.link).netloc}"
-                        if source.kind == "capture" else source.site_url)
+                        if source.kind in ("capture", "x") else source.site_url)
             links = related_links(
                 item.link, site_url,
                 [EntryLink(**link) for link in (item.entry_links or [])],
                 settings.links_per_item,
             )
-            comments = bool(source.kind != "capture" and settings.author_replies
+            comments = bool(source.kind not in ("capture", "x") and settings.author_replies
                             and item.comment_count and item.comment_count > 0)
-            captured_replies = item.captured_replies or [] if source.kind == "capture" else []
+            captured_replies = item.captured_replies or [] if source.kind in ("capture", "x") else []
             plan.append((item.id, site_url, links, comments, captured_replies))
         run = session.get(DigestRun, run_id)
         run.context_total = sum(

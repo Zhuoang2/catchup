@@ -321,3 +321,32 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Firefox, Safari, and Web Store publishing come later.
   - A fresh-eyes check (D-023) before Droid's run found 12 false assumptions in the first plan, all corrected. For example: extractor functions lose their module scope when Chrome injects them; jsdom has no `innerText`; the new Settings section would have submitted the model form.
 
+
+## D-025 Follow X accounts through the X API, with the user's own app-only token — accepted (2026-10-24)
+
+- **Decision.** CatchUp follows X accounts as a fifth source kind, "X account".
+  - It reads them only through the official X API, with an app-only Bearer token from the user's own X developer account.
+  - The token is stored encrypted like the model key. It is asked for in place the first time an account is followed: on the Sources page, or in the extension, which may save it only when none is saved. Settings manages it.
+  - Each run reads each account's posts since the last read. Retweets and the creator's replies to other people are left out; the creator's replies in their own thread are kept as author replies.
+  - At most `CATCHUP_X_READS_PER_RUN` posts are read per run (default 200, about $1). Posts that do not fit wait for the next run, and the run reports the reads and the accounts waiting.
+  - A delivered post's text is cleared.
+
+  Planned as OpenSpec change `add-x-accounts` (issue #41), a full RePPIT change.
+- **Why.**
+  - After the manual check of #58, the user said that adding single posts has little value, because they can read them directly; following accounts is the need (2026-10-22).
+  - Reading X without the API is against its terms, and scripting the site risks the user's own account (D-024).
+  - On 2026-10-24 the user chose Proposal 1. They also chose to skip replies to other people, a 200-post limit with waiting posts, and a token prompt in the extension.
+- **Alternatives:**
+  - **Sign in with X (OAuth 2.0 with PKCE),** through the user's own public-client App, with a following-list picker (Proposal 2). Not chosen for now:
+    - a loopback callback is unverified;
+    - refresh tokens and expiry add work;
+    - the picker costs $0.010 per account listed.
+  - **The extension calling the X API itself.** Rejected: posts would be read only on a click, and the extension would need access to `api.x.com`.
+  - **Scraping, or a logged-in collector.** Rejected (D-024).
+  - **Dropping posts beyond the limit.** Rejected by the user.
+- **Consequences:**
+  - Migration `0007_x_accounts`, a new X API client, and the extension token's allow-list gains `PUT /api/settings/x`.
+  - X API reads are billed to the user's developer account. README advises a spending limit in the X console, and quotes X's Developer Policy on credentials, with the reading that the token belongs to the instance's owner and never leaves their computer.
+  - X's field names are settled by a probe that the user runs with their own token, before Droid runs.
+  - X's Developer Agreement counts summaries as derived X Content, which must be deleted when access ends, or on request. CatchUp cannot delete single digests, so Settings gains "Delete all X data" (user decision, 2026-10-26).
+  - **Fix rounds, and one exception to D-023 (2026-10-28).** Three Droid fix rounds followed the review of the first run; the third came from an independent review of the whole change, which the user asked for. After the review of round 3, the user chose to have Claude make two small behavior fixes in its review commit, about 5 source lines with tests and named mutations, instead of a fourth Droid round: `safe_fetch` mapping an unparsable redirect target to `invalid_url`, and a failed run showing only its X reads. After the user's live check and a system review (2026-11-01), the user again chose review-commit fixes for small items in this change: the billing note's layout, the danger button's background, `secure_delete` on every connection, the hook's token patterns, and the token error's field.

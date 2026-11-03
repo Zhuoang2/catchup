@@ -46,6 +46,15 @@ class ModelConfig(Base):
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
 
 
+class XCredential(Base):
+    __tablename__ = "x_credentials"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    token_encrypted: Mapped[str] = mapped_column(Text)
+    token_last4: Mapped[str] = mapped_column(String(4))
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
+
+
 class AppSettings(Base):
     __tablename__ = "app_settings"
 
@@ -79,6 +88,18 @@ class Source(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
     last_check_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     last_check_status: Mapped[str | None] = mapped_column(String(32))
+
+
+class XAccount(Base):
+    __tablename__ = "x_accounts"
+
+    source_id: Mapped[int] = mapped_column(ForeignKey("sources.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(32))
+    username: Mapped[str] = mapped_column(String(15))
+    newest_id: Mapped[str | None] = mapped_column(String(32))
+    gap_since_id: Mapped[str | None] = mapped_column(String(32))
+    gap_until_id: Mapped[str | None] = mapped_column(String(32))
+    followed_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
 
 
 class Item(Base):
@@ -156,6 +177,8 @@ class DigestRun(Base):
     completion_tokens: Mapped[int | None] = mapped_column(Integer)
     waiting_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     deferred_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    x_reads: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    x_waiting_accounts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     error_kind: Mapped[str | None] = mapped_column(String(64))
     error_message: Mapped[str | None] = mapped_column(Text)
     digest_id: Mapped[int | None] = mapped_column(Integer)

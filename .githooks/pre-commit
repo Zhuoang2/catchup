@@ -1,7 +1,7 @@
 #!/bin/bash
 # Block commits whose added lines look like real credentials.
 added=$(git diff --cached -U0 --no-color -- . ':(exclude)package-lock.json' ':(exclude)*.lock' | grep -v '^+++ ' | grep '^+')
-if grep -Eq 'sk-[A-Za-z0-9_-]{20,}|CATCHUP_SECRET_KEY=[A-Za-z0-9_=-]{20,}|BEGIN [A-Z ]*PRIVATE KEY' <<<"$added"; then
+if grep -Eq 'sk-[A-Za-z0-9_-]{20,}|CATCHUP_SECRET_KEY=[A-Za-z0-9_=-]{20,}|BEGIN [A-Z ]*PRIVATE KEY|AAAAAAAAAAAAAAAAAAAAA[A-Za-z0-9%]{30,}|cu_[A-Za-z0-9_-]{40,}|X_BEARER_TOKEN=[^[:space:]]{20,}' <<<"$added"; then
   echo "pre-commit: staged changes look like they contain an API key or secret; commit blocked." >&2
   exit 1
 fi

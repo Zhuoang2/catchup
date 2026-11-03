@@ -6,10 +6,14 @@ import { extractX } from './extract/x'
 type Tab = { id?: number; url?: string; title?: string }
 type Preview = {
   title: string; kind: string; feed_url: string; site_url: string
+  username?: string
   follows_site_feed_notice: boolean
   entries: { title: string; link: string; published_at: string | null }[]
 }
-type ApiError = { status: number; code: string; message: string; http_status: number | null }
+type ApiError = {
+  status: number; code: string; message: string; http_status: number | null
+  retry_after?: number | null
+}
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag)
@@ -24,8 +28,30 @@ function button(label: string, action: () => void): HTMLButtonElement {
   return node
 }
 
+// Copy of the account rules in backend/src/catchup/sources/x_accounts.py
+// and the host rule in backend/src/catchup/net/x_hosts.py.
+const xHosts = new Set(['x.com', 'twitter.com', 'www.x.com', 'www.twitter.com',
+  'mobile.x.com', 'mobile.twitter.com'])
+const normalizedHost = (host: string) => host.toLowerCase().replace(/\.$/, '')
+const isXHost = (host: string) => ['x.com', 'twitter.com']
+  .some(domain => normalizedHost(host) === domain || normalizedHost(host).endsWith(`.${domain}`))
+const xReserved = new Set(['home', 'explore', 'search', 'i', 'settings', 'notifications',
+  'messages', 'compose', 'login', 'logout', 'signup', 'tos', 'privacy', 'hashtag',
+  'intent', 'share', 'account', 'jobs'])
+function xUsername(url: string): string | null {
+  try {
+    const parsed = new URL(url)
+    if (!xHosts.has(normalizedHost(parsed.hostname))) return null
+    const first = parsed.pathname.replace(/^\/+|\/+$/g, '').split('/')[0]
+    return /^[A-Za-z0-9_]{1,15}$/.test(first) && !xReserved.has(first.toLowerCase())
+      ? first : null
+  } catch { return null }
+}
+
 // Copy of the error wording in frontend/src/pages/Sources.tsx (describeError).
 function sourceError(error: ApiError): string {
+  if (error.code === 'rate_limited')
+    return `Rate limited — try again later${error.retry_after != null ? ` (about ${error.retry_after} seconds)` : ''}.`
   if (error.code === 'fetch_failed' && error.http_status !== null && error.http_status >= 400) {
     const status = error.http_status
     if (status === 401 || status === 403)
@@ -42,6 +68,13 @@ function sourceError(error: ApiError): string {
     fetch_failed: 'Could not fetch the source. Check the URL and try again.',
     no_feed: 'No supported feed was found at this URL.',
     not_a_feed: 'The URL did not return a parsable feed.',
+    x_token_required: 'X token needed.',
+    x_token_exists: 'Replace the X token in CatchUp Settings.',
+    x_token_rejected: 'X rejected the token. Replace the X token in CatchUp Settings.',
+    x_account_protected: 'Protected X accounts cannot be followed.',
+    x_account_not_found: 'X account not found.',
+    x_account_suspended: 'X account suspended.',
+    not_an_x_account: 'This is not an X account address.',
   }
   return messages[error.code] ?? error.message
 }
@@ -92,14 +125,14 @@ export async function initPopup(): Promise<void> {
   if (!token || !validServer(server)) { disconnected(); return }
   root.textContent = 'Connecting to CatchUp…'
 
-  async function api<T>(path: string, body?: object, method?: 'DELETE'): Promise<T> {
+  async function api<T>(path: string, body?: object, method?: 'DELETE' | 'PUT'): Promise<T> {
     const connectionError: ApiError = {
       status: 0, code: 'connection_failed', message: 'Could not connect to CatchUp.', http_status: null,
     }
     let response: Response
     try {
       response = await fetch(`${server}/api${path}`, {
-        ...(body ? { method: 'POST', body: JSON.stringify(body) } : method ? { method } : {}),
+        ...(body ? { method: method ?? 'POST', body: JSON.stringify(body) } : method ? { method } : {}),
         headers: {
           Authorization: `Bearer ${token}`,
           ...(body ? { 'Content-Type': 'application/json' } : {}),
@@ -115,6 +148,7 @@ export async function initPopup(): Promise<void> {
         status: response.status, code: result.error?.code ?? '',
         message: result.error?.message ?? 'Could not connect to CatchUp.',
         http_status: result.error?.http_status ?? null,
+        retry_after: result.error?.retry_after ?? null,
       } satisfies ApiError
     }
     return result
@@ -136,22 +170,22 @@ export async function initPopup(): Promise<void> {
   const statusText = element('p')
   statusText.setAttribute('role', 'status')
   statusText.setAttribute('aria-live', 'polite')
-  const host = (() => { try { return new URL(tab.url ?? '').hostname } catch { return '' } })()
-  const isX = host === 'x.com' || host === 'twitter.com'
-  const xPost = isX && /^\/[^/]+\/status\/\d+(?:\/|$)/.test((() => {
+  const host = (() => { try { return normalizedHost(new URL(tab.url ?? '').hostname) } catch { return '' } })()
+  const isX = isXHost(host)
+  const username = xUsername(tab.url ?? '')
+  const xPost = xHosts.has(host) && /^\/[^/]+\/status\/\d+(?:\/|$)/.test((() => {
     try { return new URL(tab.url ?? '').pathname } catch { return '' }
   })())
 
   function connected() {
-    const follow = button('Follow this site', () => { void previewSite() })
+    const follow = button(username ? 'Follow this account' : 'Follow this site',
+      () => { void previewSite() })
     const add = button('Add this page to my next digest', () => { void savePage(add) })
     root.replaceChildren(
       element('h2', tab.title || 'Current tab'),
       element('p', host),
       element('p', `${waiting} ${waiting === 1 ? 'page' : 'pages'} waiting`),
-      ...(isX
-        ? [element('p', 'X accounts cannot be followed. You can save an individual post instead.')]
-        : tab.url?.startsWith('http') ? [follow] : []),
+      ...(tab.url?.startsWith('http') && (!isX || username) ? [follow] : []),
       add,
       button('Open CatchUp', () => { void chrome.tabs.create({ url: server }) }),
       statusText,
@@ -226,12 +260,14 @@ export async function initPopup(): Promise<void> {
       const entries = element('ul')
       for (const entry of preview.entries.slice(0, 5)) entries.append(element('li', entry.title))
       const kindLabels: Record<string, string> = {
-        feed: 'Website feed', podcast: 'Podcast', youtube: 'YouTube channel',
+        feed: 'Website feed', podcast: 'Podcast', youtube: 'YouTube channel', x: 'X account',
       }
+      const xDisplay = preview.kind === 'x' && !!preview.username
       section.append(
         element('h2', preview.title),
         element('p', kindLabels[preview.kind] ?? preview.kind),
-        element('p', preview.feed_url),
+        ...(xDisplay ? [element('p', `@${preview.username}`), element('p', preview.site_url)]
+          : [element('p', preview.feed_url)]),
         ...(preview.follows_site_feed_notice
           ? [element('p', preview.kind === 'podcast'
             ? 'CatchUp will follow the whole show, not only this episode.'
@@ -243,8 +279,42 @@ export async function initPopup(): Promise<void> {
       root.replaceChildren(section, statusText)
       section.querySelector('button')!.className = 'primary'
     } catch (error) {
-      if ((error as ApiError).status === 401) disconnected()
+      if ((error as ApiError).status === 401 && (error as ApiError).code !== 'x_token_rejected') disconnected()
+      else if ((error as ApiError).code === 'x_token_required') showXTokenPrompt()
       else statusText.textContent = sourceError(error as ApiError)
+    }
+  }
+
+  function showXTokenPrompt() {
+    const section = element('section')
+    section.setAttribute('aria-label', 'Set up X account access')
+    const label = element('label', 'X API token')
+    const input = element('input')
+    input.type = 'password'
+    input.autocomplete = 'off'
+    input.setAttribute('aria-describedby', 'x-token-hint')
+    label.append(input)
+    const hint = element('p', 'Copy the Bearer token of your X App from console.x.com.')
+    hint.id = 'x-token-hint'
+    const save = button('Save', () => { void saveXToken() })
+    section.append(label, hint, save,
+      button('Open CatchUp', () => { void chrome.tabs.create({ url: server }) }))
+    root.replaceChildren(section, statusText)
+    statusText.textContent = 'X token needed.'
+
+    async function saveXToken() {
+      if (save.disabled) return
+      save.disabled = true
+      statusText.textContent = ''
+      try {
+        await api('/settings/x', { token: input.value }, 'PUT')
+        input.value = ''
+        await previewSite()
+      } catch (error) {
+        if ((error as ApiError).status === 401 && (error as ApiError).code !== 'x_token_rejected')
+          disconnected()
+        else statusText.textContent = sourceError(error as ApiError)
+      } finally { save.disabled = false }
     }
   }
 

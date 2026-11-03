@@ -2,6 +2,30 @@
 
 Real usage records for the technical spec, alpha reflection, and final report. Each entry: date, tool/model, purpose, prompt (verbatim or faithful excerpt), outcome, problems, adjustment. The user often wrote prompts in Chinese; those prompts are quoted here in English translation.
 
+## 2026-10-28 — X accounts fix round 3 (Factory Droid; model not exposed in this session)
+
+- Prompt (faithful excerpt of the request): "Implement tasks 8.1–8.7 in order on branch `add-x-accounts`. Read the 'Fix round 3' passages of design.md and amended lines in specs/x-accounts/spec.md. Use TDD: each new behavior must first fail; tests marked guard (already green) must instead fail under their named mutation where one is specified. Run, record, and revert each named mutation. For 8.2, re-derive the X-host rule as one refusal in `safe_fetch`, not another caller guard. Prevent hanging tests: any mock route that could be overcalled needs a `side_effect` that fails on the extra call; never hold a lock outside a `with` block. Check off and commit after each task. Do not edit proposal.md, design.md, or spec deltas; do not push, tag, or open a PR. Prefix every OpenSpec CLI command `DO_NOT_TRACK=1`."
+- Outcome: Refused non-ASCII X tokens, centralized X-host refusal at the fetch boundary, rejected malformed timeline pages without clearing gaps, serialized X confirmation with deletion, displayed billed reads on failed runs, pinned the never-posted gap start time, and disclosed the split-thread reply limit. Final checks: **772 backend tests, 96% coverage**, **256 frontend tests**, **112 extension tests**, both builds, local Docker smoke, strict OpenSpec validation. See `test-report-add-x-accounts.md`.
+- Problems / adjustment: The first article-text test passed vacuously because the fixture blocked DNS; changed it to resolve X to a mocked public address and fail on a request. An initial focused test command used a nonexistent filename and was rerun with the correct one. Each of the three named mutations failed its test and was reverted. No live X token, provider call, push, or published image.
+
+## 2026-10-28 — X accounts fix round 2 (Factory Droid, GPT-6 Sol)
+
+- Prompt (faithful excerpt): "Implement OpenSpec add-x-accounts (#41) fix round 2, the last round, using the amended plan in commit 555053c. ... Read the parts of design.md marked 'Fix round 2' (the bullet near the top, D3, and D5) and tasks.md group 7. Complete 7.1-7.5 in order with the tdd skill: every check must go red first, through a failing test, except the checks marked 'guard (already green)', which must instead fail under their named mutation. No test may hang: give any mocked X route that could be called more often than expected a side_effect that fails the test on the extra call. Run each named mutation, record its result, and revert it. ... Check off each task only after its verification passes, and commit after each task. Do not edit proposal.md, design.md, or the spec deltas. Do not push, tag, or open a PR. If a task is blocked or the plan looks wrong, stop and report instead of improvising."
+- Outcome: Replaced the empty-page stop with a 40-page phase cap, normalized fully qualified X hosts in backend and extension, returned 422 for an unparseable feed confirm, and pinned missing-secret and title-only suspension behavior. Final checks: **754 backend tests, 96% coverage**, **254 frontend tests**, **111 extension tests**, both builds, local Docker smoke, strict OpenSpec validation. See `test-report-add-x-accounts.md`.
+- Problems / adjustment: An old empty-page test could hang under a pagination change, so its replacement mocks fail on extra requests. The 40-page tests failed safely on request 41 before the cap; guards failed under named mutations and passed after reversion. The plan's causes matched the observed failures. No live X token, provider calls, push, or published Docker image.
+
+## 2026-10-28 — X accounts fix round 1 (Factory Droid; model not exposed in this session)
+
+- Prompt (faithful excerpt of the fix-round request): "Implement OpenSpec change `add-x-accounts` (#41), fix round 1, using the amended plan in commit `218af0d`. Work in the new checkout ... Complete `tasks.md` 6.1–6.8 in order, using TDD: observe each new behavior red before implementation; checks marked guard (already green) must fail under their named mutation. Run every named mutation, record the failure, and revert it. Check off and commit after each task. For 6.1, re-derive `read_phase` from D5's gap invariant ... Do not edit `proposal.md`, `design.md`, or spec deltas; do not push, tag, or open a PR. Prefix every OpenSpec CLI command with `DO_NOT_TRACK=1`."
+- Outcome: Fixed gap completion, X API response handling, X host recognition, preview invalidation, secret errors, and popup guidance; added six mutation-proven guards. Full checks: **737 backend tests, 96% coverage**, **254 frontend tests**, **107 extension tests**, both builds, local Docker smoke, strict OpenSpec validation. See `test-report-add-x-accounts.md`.
+- Problems / adjustment: The first complete-read check timed out on an empty page with a continuation; the invariant-driven rewrite treats the empty page as terminal. Adjusted an orphan test fixture to make both X digest items truly orphaned, and corrected a processing-order expectation and optional mock route. The causes matched the approved plan, so no new diagnosis was needed. All mutations were reverted, with no live credentials or provider calls.
+
+## 2026-10-27 — X accounts implementation (Factory Droid; model not exposed in this session)
+
+- Prompt (faithful excerpt): "Implement OpenSpec change `add-x-accounts` (#41) using `openspec-apply-change` and `tdd`. Work through `tasks.md` groups 1–5 in order; group 0 was already complete. Write failing tests before implementation, check off each task only after its verification passes, and commit after each group. Prefix every OpenSpec CLI command with `DO_NOT_TRACK=1`. Do not edit `proposal.md`, `design.md`, or spec deltas; do not push, tag, or open a PR."
+- Outcome: Added encrypted X token settings and extension-first-token permission, fixed-host X API client, follow/preview/confirm, budgeted digest collection and gaps, X UI, deletion of derived digest data, extension Follow and inline token prompt, and README policy/cost guidance. Four implementation-group commits, followed by docs/checks. Final checks: **706 backend tests, 96% coverage**, **254 frontend tests**, **104 extension tests**, two builds, local Docker smoke, strict OpenSpec validation. See `test-report-add-x-accounts.md`.
+- Problems / adjustment: Installed missing extension test dependencies with `npm ci`; selected Python 3.12 because an unchanged test cannot be collected by Python 3.11. Adjusted the prompt section's ARIA name after a duplicate-label test failure. Docker `npm ci` reported three existing audit findings; this feature did not update dependencies. Tests used invented X fixtures; no token or live provider was contacted.
+
 ## 2026-10-07 — UI redesign final review fixes (Factory Droid, GPT-6 Sol)
 
 - Prompt (faithful excerpt): "Implement tasks 13.1 through 13.12 in order: use diagnosing-bugs for 13.1-13.6 (show the failing check first, then fix, keep the regression test) and tdd for 13.7-13.11 ... check off a task only after its verification passes; commit after each task; do not edit proposal.md, design.md, specs/, or prototypes/; add no runtime dependencies; keep tests free of real network and real sleeps; never push, tag, or open a PR."
@@ -1556,3 +1580,72 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 
   The extension was hard to find in Chrome's puzzle-piece menu on sites it cannot read before a click, so README now says to pin it.
 - **Not changed:** the extractor rewrite and hidden text (#62). Following X accounts with the user's own X API key (#41) is the next change, per the user's decision.
+
+## 2026-10-24 — `add-x-accounts` (#41): research, two proposals, and plan, with a fresh-eyes check (Claude Code, Opus 5.5, with five sub-agents)
+
+- **Prompts** (translated from Chinese):
+  - "Rebuild the 8800 container first, then start #41."
+  - "Start on the two proposals."
+  - The user answered four questions:
+    - "Proposal 1: paste an app token (recommended)";
+    - replies to other people's posts: "Skip (recommended)";
+    - "The extension asks you to paste it in place (recommended)";
+    - "200 posts, about $1 (recommended)".
+  - "Approve the plan; commit, then write the probe script."
+- **Research** (the `reppit-research` skill). Four sub-agents worked in parallel: the source pipeline and limits; key storage and the extension; specs and docs; and external X API facts from docs.x.com, the OpenAPI spec, and the policies.
+  - Claude checked the code facts.
+  - Claude also checked the policy clauses on credentials in the downloaded pages.
+  - One sub-agent claim was not in the source ("requiring users to register their own apps could result in enforcement"). It was written down as unaddressed.
+- **Proposals** (the `reppit-proposal` skill):
+  - Proposal 1: an app-only Bearer token, pasted once.
+  - Proposal 2: Sign in with X (OAuth 2.0 with PKCE), with a following-list picker.
+  - Claude checked the OpenAPI spec, and corrected one claim: the following list also accepts an app-only token.
+- **Plan** (the `reppit-plan` skill):
+  - `proposal.md`;
+  - a new `x-accounts` capability, and deltas to seven capabilities;
+  - `design.md`, D1–D12;
+  - `tasks.md`: a probe group run by Claude and the user, then five groups for Droid.
+- **The fresh-eyes check (D-023).** A sub-agent that saw only the code and the plan reported 15 issues. Claude verified them against the code, and folded in 14:
+  - a deferred account must keep its `last_check_at`, or it would be read last again;
+  - the migration's downgrade must use `recreate="never"`, which the sub-agent proved with a probe;
+  - the preview must not show `x:user:<id>`;
+  - tests that already pass are marked as guards;
+  - `CATCHUP_X_READS_PER_RUN` needs a parser that accepts 0.
+
+  One was not taken: the author's replies to commenters in their own thread are kept, as the user chose.
+- **Outcome.** The plan validates with `--strict`. Decision D-025 and a requirements row were added. The X field names will be settled by a probe that the user runs with their own token. Claude never handles it.
+
+## 2026-10-27 to 2026-11-03 — `add-x-accounts` (#41): review of the implementation and three fix rounds, an independent review, a system review, and the user's live check (Claude Code, Opus 5.5, with sub-agents; Factory Droid session `87abb68b`)
+
+- **Prompts** (translated from Chinese):
+  - "OK, start Droid."
+  - After the first review: "As you suggest, one more fix round." After the fix-round-1 review, the user chose "Droid fixes one more small round (recommended)".
+  - "I'll run it tomorrow in the daytime. First open a new review conversation to review the current system, and see whether there are problems." After that review, the user chose "Droid fixes one more round, all of it (recommended)", and "Record it as a known limit (recommended)" for author replies lost when the read limit splits a thread.
+  - After the fix-round-3 review: "You fix them in the review commit (recommended)".
+  - During the live check: "The run finished. There are four points: the layout in the first picture is not good; 178 linked pages read is a lot, and generating takes a while, is there a way to improve the experience; Tibo shows no new items; the images used in the digest feel meaningless." The user then chose "You fix it now and rebuild 8801 (recommended)" and "Open an issue for each, do them later (recommended)".
+  - "I'll test tomorrow. First open a code-review session to check our current system, and see whether issues are needed." The user chose "Create all (recommended)", "You do them in the review commit (recommended)", and "Follow the RFC, write it into an issue (recommended)".
+  - "Deleted it, go check."
+- **Process, after the implementation and each fix round** (D-016, D-023):
+  - `/code-review` on the round's diff;
+  - a spec sub-agent with mutations on the changed lines (44, then 29, 20, and 24 mutations);
+  - Claude verified every finding with the code or a probe, ran all suites, `openspec validate --strict`, and `scripts/docker-smoke.sh`;
+  - before each fix round, a fresh-eyes sub-agent checked the new task group. It found 8, 3, and 6 false assumptions, such as checks the test network block made vacuous, a mutation a rewrite would make equivalent, and a lock test that could hang the suite.
+- **What the rounds fixed:**
+  - **Fix round 1:** a stale gap after reading every page, which would re-read and re-bill posts; partial `errors` next to data; suspended accounts shown as not found (found in X's developer forum, not its docs); a cached preview confirmable after the token was removed or X data deleted; Test answering 500; other x.com hosts reaching feed discovery.
+  - **Fix round 2:** fix round 1's "an empty page ends a phase" rule (Claude's plan error) could skip posts for good; a 40-page cap replaced it. Trailing-dot hosts, and a 500 for an unparsable feed address.
+  - **The independent review** (a sub-agent asked to look for one patch patching another): the rule against requesting x.com lived in three callers while `safe_fetch` still followed redirects to x.com; fix round 3 moved it into one refusal in `safe_fetch`, and removed the callers' guards. Also a non-ASCII token that broke every run, answers without `meta` that cleared a gap, confirm racing "Delete all X data", and a failed run hiding billed reads.
+  - **Claude's review commits** (with the user's approval, recorded in D-025 as exceptions to D-023): an unparsable redirect target; failed-run notes; the billing note's layout and the danger button's background, both seen in the live check; `secure_delete` on every connection; the hook's token patterns; the token error's field.
+- **The system review.** Three sub-agents reviewed the whole branch: backend pipeline, security and deployment, frontend and extension. Claude checked each item, and with the user's approval filed #64–#76, and added comments to #60, #64, and #65. The most serious: one malformed URL in a feed fails every run (#66), grouping errors block later digests (#67), and DNS rebinding past `safe_fetch`'s address check (#68).
+- **The live check** (the user's own token, on a test instance holding a copy of their data). It covered:
+  - saving and testing the token;
+  - following an account, and refusing `help.x.com`;
+  - reading new posts, with the author's thread reply used in the summary;
+  - clearing delivered text;
+  - "Delete all X data", checked count by count, and by a byte search of the database files.
+
+  Claude never saw or handled the token.
+- **Problems:**
+  - **The shell cwd reset between commands,** so every command used absolute paths.
+  - **The review worktree under `/private/tmp` was partly cleaned** after three days. Every change was committed, so the worktree was recreated from the branch.
+  - **A zsh loop did not split a label list,** so the first attempt to create the system-review issues failed before creating any. It was rerun with comma-separated labels.
+- **Not changed:** `&amp;` in titles was not observed; the provider's non-JSON 200 answer that failed one live run is the same bug class as #67.

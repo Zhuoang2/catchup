@@ -106,6 +106,13 @@ it('styles disabled secondary buttons with the disabled and muted tokens', () =>
   expect(disabled).toMatch(/color:\s*var\(--muted\)/)
 })
 
+it('gives danger buttons a transparent background, not the browser default', () => {
+  const components = readFileSync('src/styles/components.css', 'utf8')
+  const danger = components.match(/\.btn-danger\s*\{([^}]+)\}/)?.[1]
+  expect(danger).toMatch(/background:\s*transparent/)
+  expect(danger).toMatch(/color:\s*var\(--error\)/)
+})
+
 it('does not restyle disabled buttons on hover', () => {
   const components = readFileSync('src/styles/components.css', 'utf8')
   const hoverRules = [...components.matchAll(/([^{}]*\.btn[^{}]*:hover[^{}]*)\{([^{}]+)\}/g)]

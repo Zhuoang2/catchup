@@ -104,6 +104,16 @@ def test_confirm_stores_pending_item_links_and_comment_metadata(client):
         assert saved.comment_feed_url == "https://site.example/articles/0/comments/feed"
 
 
+def test_confirm_unparseable_feed_url_is_invalid_before_fetch(client, monkeypatch):
+    response = client.post("/api/sources", json={"feed_url": "http://[abc/feed"})
+    assert response.status_code == 422
+    assert response.json()["error"] == {
+        "code": "invalid_url", "message": "Enter a valid public HTTP or HTTPS URL.",
+    }
+    with client.app.state.session_factory() as session:
+        assert session.scalar(select(Source)) is None
+
+
 def test_confirm_stores_image_candidates_without_fetching_images(client):
     raw = entries_xml(1).replace(
         b"</item>", b"<description>&lt;img src='https://site.example/chart.png' alt='Chart'&gt;"
@@ -181,6 +191,17 @@ def test_large_article_keeps_feed_text(client):
             200, content=b"x" * (MAX_BYTES + 1),
         ))
         assert article_text(entry, {FEED_URL}, 500) == ("Excerpt", "feed")
+
+
+def test_x_entry_link_keeps_feed_text_without_fetch(client, monkeypatch):
+    entry = FeedEntry("x-post", "https://x.com/someone/status/1", "Post", None, "Feed excerpt")
+    monkeypatch.setattr(socket, "getaddrinfo", lambda host, port, **_kw: [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.4.4", port))
+    ])
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        x_page = router.get(entry.link).mock(side_effect=AssertionError("X entry must not be fetched"))
+        assert article_text(entry, {FEED_URL}, 500) == ("Feed excerpt", "feed")
+        assert x_page.call_count == 0
 
 
 def test_short_excerpt_not_in_extracted_article_keeps_both(client, monkeypatch):

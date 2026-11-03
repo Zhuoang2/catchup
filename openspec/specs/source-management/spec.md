@@ -11,10 +11,11 @@ The system SHALL accept a pasted URL and identify an RSS or Atom feed for it:
 - If the URL is an Apple Podcasts show or episode page, the system looks up the show's feed URL through Apple's public lookup service.
 - If the URL is an HTML page, the system looks for a feed the page declares. If the page declares none, the system tries a bounded list of common feed locations on the same site.
 - If the pasted page itself answers an HTTP error, the system still tries the same bounded list of common feed locations on the same site. A timeout, an unresolvable host, a blocked address, or a rate limit stops the search as before.
+- If the URL is an X account address, the system previews that X account through the X API instead, as the `x-accounts` capability describes, and requests nothing from x.com or twitter.com.
 
 The preview MUST show:
 - the feed's title, the feed URL, and the site URL
-- whether the source is a website feed, a podcast, or a YouTube channel, and for podcasts and YouTube channels how transcripts will be obtained
+- whether the source is a website feed, a podcast, a YouTube channel, or an X account, and for podcasts and YouTube channels how transcripts will be obtained
 - up to five recent entries (title, link, and publish date when available)
 
 Previewing MUST NOT save anything.
@@ -58,6 +59,10 @@ Previewing MUST NOT save anything.
 #### Scenario: Pasting a YouTube channel URL
 - **WHEN** the user pastes a YouTube channel page that declares its channel feed
 - **THEN** the preview marks the source as a YouTube channel and states whether captions will be fetched under the current setting
+
+#### Scenario: Pasting an X profile URL
+- **WHEN** the user pastes `https://x.com/simonw`
+- **THEN** the system previews the X account `simonw` through the X API, without looking for a feed
 
 ### Requirement: Explain unsupported and duplicate sources
 The system SHALL tell the user why a URL cannot be added:

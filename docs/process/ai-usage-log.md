@@ -1649,3 +1649,10 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - **The review worktree under `/private/tmp` was partly cleaned** after three days. Every change was committed, so the worktree was recreated from the branch.
   - **A zsh loop did not split a label list,** so the first attempt to create the system-review issues failed before creating any. It was rerun with comma-separated labels.
 - **Not changed:** `&amp;` in titles was not observed; the provider's non-JSON 200 answer that failed one live run is the same bug class as #67.
+
+## 2026-11-03 — `wrap-long-titles` (#74): lean plan, overnight (Claude Code, Opus 5.5, as a planning sub-agent)
+
+- **Prompts** (translated from Chinese): "I'm going to sleep. Arrange tonight's tasks yourself, for example fix the issues that are open now." Then: "You can open worktrees yourself and let sub-conversations do the work; you only accept the results." This is the second of the three lean changes that Claude gave one planning sub-agent.
+- **Root or selectors.** #74 suggested `overflow-wrap: anywhere` on the app and popup roots. The sub-agent kept that, because unbroken text also reaches host-name source titles, fetch errors, and summaries, not only the six selectors in the issue. It then surveyed every flex rule against the markup, because `anywhere` lowers every element's min-content width. Two rows put two texts on one flex line, and their short text would break inside a word at 320 px: the preview's entry date ("3 Oct"), and the YouTube preview's "Change in Settings" link. The plan gives the date `flex: none`, and wraps the method text and the link in one `<span>`, as `.risk` already does.
+- **Plan** (the `openspec-propose` skill): `proposal.md`; a MODIFIED `user-interface` requirement with a new scenario; `design.md` D1–D3; `tasks.md` with CSS-text checks, a DOM check for the `<span>`, three named guard mutations, and the 320 px browser check left to Claude's review.
+- **Outcome.** The plan validates with `--strict`. Claude reviews it before Droid runs.

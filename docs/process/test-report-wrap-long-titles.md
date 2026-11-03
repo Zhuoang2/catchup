@@ -55,3 +55,9 @@ These are the browser checks from design D3. They are left to Claude Code's revi
 - At 320 px, replace the text of the first `.item-title a`, `.creator-item > a`, `.check-title`, `.source-title`, and `.entry-list a` with an 80-character string without spaces, and check that `document.documentElement.scrollWidth` is 320.
 - Open the popup at its 340 px width with such a title in its `h2` and in an entry `li`, and check that it does not scroll horizontally.
 - Check that the source preview's entry date stays on one line beside a long title, and that the "Change in Settings" link flows after its text in the YouTube captions-off method line.
+
+## Claude's review and browser check (2026-11-04)
+
+- **Diff.** 4 source lines in `frontend/` (`overflow-wrap: anywhere` on `.app`, `flex: none` on `.entry-list time`, one `<span>` in `Sources.tsx`) and 1 in `extension/src/popup.css`; the rest are tests and docs.
+- **Browser check at 320 px.** Claude ran the branch's backend and built frontend locally with a seeded database: one digest whose topic title, item title, item link, source name, and overview were unbroken strings of 60 to 192 characters, and one source with a 75-character unbroken title. At a 320 × 800 viewport, `document.documentElement.scrollWidth` was 320 on `/`, `/digests`, `/digests/1`, `/sources`, and `/settings`, and no element extended past the right edge. With `.app { overflow-wrap: normal !important }` injected on `/digests/1`, `scrollWidth` rose to 1,542, so the check could fail.
+- **Not checked in a browser:** the extension popup at 340 px, and the preview's entry date on one line; the CSS checks in `tokens.test.ts` and `popup.test.ts` cover the rules.

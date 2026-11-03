@@ -210,3 +210,10 @@ The same restoring script was used as above; all mutations were reverted.
 ### Not performed
 
 The live check against a provider is left for Claude Code's review, as before.
+
+## Claude's review (2026-11-04)
+
+- **Independent review of `de2db74..a18a45f`** (a sub-agent that did not write the change): 41 mutations on the changed lines; it found one high-severity plan error and four test gaps, all handled by fix round 1 above. The plan error: falling back on every `ProviderError` let a run in which every model call fails with a status error (a wrong model ID answering 404, a 5xx outage) succeed and deliver every item as "summary unavailable" for good; it reproduced this on the new code, and the old behavior (the run fails, items stay pending) on `de2db74`.
+- **Live check, localhost only, before fix round 1.** A stub OpenAI-compatible server answered the first summary call with HTTP 200 `text/plain` "upstream overloaded", later summaries normally, and every grouping call with cut-off JSON. Settings' connection test and save succeeded; a run over two seeded saved-page items succeeded with one "Other" topic holding both items with their summaries, after one summary retry and three grouping attempts; the next run made no chat call. Fix round 1 does not change that path (the cut-off answer is an `InvalidAnswer`), so it was not repeated.
+- **Delta review of fix round 1** (`7241578..6c5d0da`): the source change is a new `InvalidAnswer(ProviderError)`, its two raise sites, and the fallback's `except`. Two extra mutations, each run against `test_digest_stages.py`, `test_model_errors.py`, and `test_llm_client.py`: `_call` raising plain `ProviderError` for an invalid answer (1 failed) and `_valid_topics` raising plain `ProviderError` (6 failed). Full backend suite: 840 passed.
+- **Not checked:** a run against a real provider.

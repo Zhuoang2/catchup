@@ -7,7 +7,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
@@ -29,6 +29,12 @@ from catchup.net.feed_cache import FeedCache
 from catchup.sources.x_accounts import XPreviewCache
 
 logger = logging.getLogger(__name__)
+
+# Tell browsers never to show any CatchUp response inside another page's frame (#69).
+REFUSE_FRAMING_HEADERS = {
+    "X-Frame-Options": "DENY",
+    "Content-Security-Policy": "frame-ancestors 'none'",
+}
 
 
 def _lookup_extension_token(factory: sessionmaker, token: str) -> int | None:
@@ -194,6 +200,21 @@ def create_app(settings: Settings | None = None, dist_dir: Path | None = None) -
             if candidate.is_relative_to(frontend_dist.resolve()) and candidate.is_file():
                 return FileResponse(candidate)
             return FileResponse(frontend_dist / "index.html")
+
+    # Replaces Starlette's own plain 500 so it carries the headers; the exception is still re-raised.
+    def internal_error(_request: Request, _exc: Exception) -> PlainTextResponse:
+        return PlainTextResponse("Internal Server Error", status_code=500, headers=REFUSE_FRAMING_HEADERS)
+
+    app.add_exception_handler(Exception, internal_error)
+
+    # Must stay the last registration: Starlette runs it first, so it also wraps the SPA fallback's
+    # responses. Any future Content-Security-Policy must keep frame-ancestors 'none'.
+    @app.middleware("http")
+    async def refuse_framing(request: Request, call_next):
+        response = await call_next(request)
+        for name, value in REFUSE_FRAMING_HEADERS.items():
+            response.headers[name] = value
+        return response
 
     return app
 

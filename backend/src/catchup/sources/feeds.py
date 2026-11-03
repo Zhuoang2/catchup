@@ -5,12 +5,13 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from html.parser import HTMLParser
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urlsplit
 
 import feedparser
 from lxml import etree
 
 from catchup.net.safe_fetch import FetchResponse
+from catchup.net.urls import join_url, split_url
 
 
 class FeedParseError(Exception):
@@ -119,10 +120,9 @@ def filter_image_urls(
     result: list[EntryImage] = []
     seen: set[str] = set()
     for image in candidates:
-        url = urljoin(base, image.url.strip())
-        try:
-            parts = urlsplit(url)
-        except ValueError:
+        url = join_url(base, image.url.strip())
+        parts = split_url(url) if url is not None else None
+        if parts is None:
             continue
         if (parts.scheme.lower() not in ("http", "https") or not parts.hostname
                 or "/avatar/" in parts.path.lower() or "/blavatar/" in parts.path.lower()
@@ -221,8 +221,8 @@ class _Links(HTMLParser):
 
     def handle_endtag(self, tag: str) -> None:
         if tag == "a" and self.href is not None:
-            url = urljoin(self.base, self.href)
-            if url not in self.seen:
+            url = join_url(self.base, self.href)
+            if url is not None and url not in self.seen:
                 self.links.append(EntryLink(url, " ".join(" ".join(self.fragments).split())))
                 self.seen.add(url)
             self.href = None

@@ -28,7 +28,7 @@
 }
 * { box-sizing: border-box; }
 html, body { width: 340px; margin: 0; }
-body { background: var(--bg); color: var(--fg); font: 16px/1.5 var(--font-body); }
+body { background: var(--bg); color: var(--fg); font: 16px/1.5 var(--font-body); overflow-wrap: anywhere; }
 main { padding: 1.25rem; }
 h1 { font-size: 1.6rem; margin: 0 0 1rem; }
 h2 { font-size: 1.18rem; line-height: 1.25; margin: 0; }

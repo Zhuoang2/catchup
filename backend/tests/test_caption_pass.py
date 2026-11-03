@@ -279,3 +279,15 @@ def test_caption_failure_for_one_item_keeps_its_status_and_goes_on(ready, monkey
         ]
     assert "RuntimeError" in caplog.text
     assert "caption text" not in caplog.text
+
+
+def test_keyboard_interrupt_during_captions_still_stops_the_run(ready, monkeypatch):
+    client, _ = ready
+    videos(client, 1)
+
+    def interrupt(*_args):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("catchup.digest.runner.fetch_captions", interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        execute(client)

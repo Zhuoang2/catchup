@@ -40,6 +40,11 @@ def test_filter_image_urls_skips_addresses_that_cannot_be_joined():
     assert [(image.url, image.alt) for image in kept] == [("https://blog.example/images/good.png", "Good")]
 
 
+def test_filter_image_urls_skips_an_address_that_cannot_be_split_without_a_base():
+    # With no base, urljoin returns the text unparsed, so only the split can reject it.
+    assert filter_image_urls([EntryImage("http://[x")]) == ()
+
+
 def test_parse_feed_keeps_entry_with_malformed_image_media_and_link():
     feed = parse_feed(FetchResponse(GARDEN_FEED, malformed_entry_feed(), "application/rss+xml", 200))
     assert [entry.identity_key for entry in feed.entries] == ["entry-1", "entry-2"]

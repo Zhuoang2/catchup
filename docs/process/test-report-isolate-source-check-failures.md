@@ -59,3 +59,21 @@ Each mutation was applied to the implemented code, the named test was run, and t
 - **Caption pass.** An item whose channel is deleted while its captions are fetched fails at its commit (`StaleDataError`) and is logged as a warning with its id; the later items of that channel are skipped without a log.
 - **Not covered:** `check_one_source`'s early return when a source is already gone before its check starts (`runner.py:131`), the same skip the loop's `if source is not None` made before.
 - **Manual check not performed:** a run on a local instance with a real feed that has a malformed image address.
+
+## Claude's review (2026-11-04)
+
+An independent review sub-agent (Claude Opus 5.5) checked the branch at `993a357` and ran 42 mutations on the changed lines. Its findings were test gaps where the behavior is already correct (D-023 classification (c)), and one wording error in `proposal.md`: it said an unexpected error in a source's YouTube captions rolls back the source's work and records it `failed`. D4 and the code roll back and log only that item; the source keeps its outcome. The reviewer's commit rewords that sentence and adds the tests below (40 non-blank lines of test code). Each mutation was applied alone, its test was run, and the file was restored.
+
+| Survivor found by the review | Test that now kills it | Observed result |
+| --- | --- | --- |
+| Stop setting `last_check_status` in the guard (`check_one_source`). | `test_digest_runner.py::test_unexpected_error_in_one_source_is_recorded_and_the_run_goes_on`, new assertion on the source row | **Failed**: `assert (None, datetime(...)) == ('failed', datetime(...))`. The Sources list reads the latest check, so the existing API assertion could not see the column. |
+| Stop setting `last_check_at` in the guard. | The same assertion (`last_check_at` equals the failed check's `checked_at` and is not earlier than the run's start). | **Failed**: `assert ('failed', None) == ('failed', datetime(...))`. |
+| Remove `session.rollback()` from the guard. | `test_digest_runner.py::test_unexpected_error_rolls_back_the_source_partial_work` (the check adds an item, renames the source, flushes, then raises `RuntimeError`). | **Failed by an assertion**: the flushed item was committed with the failed check (`assert [<Item>] == []`); no `PendingRollbackError`. |
+| Use `urlsplit` in place of `split_url` in `filter_image_urls`. | `test_feeds.py::test_filter_image_urls_skips_an_address_that_cannot_be_split_without_a_base` (`http://[x`, no base, so `urljoin` returns it unparsed). | **Failed** with `ValueError: Invalid IPv6 URL`. |
+| Catch `BaseException` in the guard. | `test_digest_runner.py::test_keyboard_interrupt_in_a_source_check_still_stops` | **Failed**: `DID NOT RAISE KeyboardInterrupt`; log "Check failed for source 1 in run 1 (KeyboardInterrupt)". |
+| Catch `BaseException` in the caption pass. | `test_caption_pass.py::test_keyboard_interrupt_during_captions_still_stops_the_run` (`fetch_captions` raises `KeyboardInterrupt`). | **Failed**: `DID NOT RAISE KeyboardInterrupt`; log "Caption pass failed for item 1 (KeyboardInterrupt)". |
+
+- **Left as equivalent or marginal** (the review's labels): D1, the `candidate is None` skip in discovery's declared-feed loop; L4, L5, L6, L8, R5, R10, and C7. No tests were added for them.
+- **The test network block is now absorbed.** The autouse fixture in `tests/conftest.py` makes `socket.getaddrinfo` and `socket.socket.connect` raise `AssertionError`. During a run, an unexpected network call in a source check (and a respx route mocked with `side_effect=AssertionError(...)`) now becomes that source's `failed` check instead of failing the test. Future run tests must assert route call counts or the check's status, as the tests in this change do.
+- **After the review commit:** the full backend suite passed **806 tests** (802 + 4 new), and `DO_NOT_TRACK=1 openspec validate isolate-source-check-failures --strict` reported the change valid.
+- **Not performed:** the live run with a real model was not performed overnight.

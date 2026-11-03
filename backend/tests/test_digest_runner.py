@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import event, select, text
 
 from catchup.crypto import encrypt_key
-from catchup.digest.runner import run_digest, start_run
+from catchup.digest.runner import check_one_source, run_digest, start_run
 from catchup.llm.client import AuthFailed, InsufficientBalance, ProviderError
 from catchup.llm.client import ModelInfo
 from catchup.main import create_app
@@ -1447,6 +1447,7 @@ def test_unexpected_error_in_one_source_is_recorded_and_the_run_goes_on(environm
         orchard = router.get("https://s1.example/feed").mock(return_value=httpx.Response(
             200, content=orchard_feed(), headers={"content-type": "application/rss+xml"},
         ))
+        started = datetime.now(timezone.utc)
         with caplog.at_level("WARNING", logger="catchup.digest.runner"):
             result = execute(environment)
     assert result["status"] == "succeeded"
@@ -1456,6 +1457,12 @@ def test_unexpected_error_in_one_source_is_recorded_and_the_run_goes_on(environm
         (1, "failed", "Could not check this source.", 0, 0),
         (2, "new_items", None, 1, 1),
     ]
+    with environment.app.state.session_factory() as session:
+        source = session.get(Source, 1)
+        failed = session.scalar(select(SourceCheck).where(SourceCheck.source_id == 1))
+        # The source row too: the Sources list below reads the latest check, not these columns.
+        assert (source.last_check_status, source.last_check_at) == ("failed", failed.checked_at)
+        assert source.last_check_at >= started
     assert [(source["title"], source["last_check_status"]) for source in environment.get("/api/sources").json()] == [
         ("Source 0", "failed"), ("Source 1", "new_items"),
     ]
@@ -1523,3 +1530,32 @@ def test_source_deleted_during_its_check_is_skipped(environment, monkeypatch):
     ]
     assert [source["title"] for source in environment.get("/api/sources").json()] == ["Source 1"]
     assert [row.title for row in all_rows(environment, DigestItem)] == ["Pruning"]
+
+
+def test_unexpected_error_rolls_back_the_source_partial_work(environment):
+    seed(environment, count=0)
+    run = start_run(environment.app, background=False)
+
+    def check(session, source):
+        session.add(Item(source_id=source.id, identity_key="partial", link="https://s0.example/partial",
+                         title="Partial", content_text="Partial", content_origin="feed", state="pending"))
+        source.title = "Renamed"
+        session.flush()
+        raise RuntimeError("after a flush")
+
+    check_one_source(environment.app.state.session_factory, run.id, 1, check)
+    with environment.app.state.session_factory() as session:
+        assert session.scalars(select(Item)).all() == []
+        assert session.get(Source, 1).title == "Source 0"
+        assert [(row.source_id, row.status) for row in session.scalars(select(SourceCheck))] == [(1, "failed")]
+
+
+def test_keyboard_interrupt_in_a_source_check_still_stops(environment):
+    seed(environment, count=0)
+    run = start_run(environment.app, background=False)
+
+    def check(_session, _source):
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        check_one_source(environment.app.state.session_factory, run.id, 1, check)

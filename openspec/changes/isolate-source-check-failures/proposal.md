@@ -7,7 +7,7 @@ One malformed address in one feed entry fails every digest run (#66). For exampl
 ## What Changes
 
 - **Parsing an address never raises.** Where feeds, discovery, linked-page selection, and saved pages turn text into an address, an address that cannot be parsed is skipped, and everything else in the entry or page is kept. `safe_fetch` reports an address `httpx` rejects as `invalid_url`, like one it rejects itself.
-- **One source's unexpected error stays with that source.** During a run, if checking one source (its feed, its YouTube captions, or an X account) raises an error nobody expected, that source's work is rolled back and recorded as `failed` with a fixed message, and the run goes on to the next source. Only the exception's class is logged.
+- **One source's unexpected error stays with that source.** During a run, if checking one source (its feed or an X account) raises an error nobody expected, that source's work is rolled back and recorded as `failed` with a fixed message, and the run goes on to the next source. If one YouTube video's captions raise such an error, only that item's work is rolled back and logged: the item keeps its previous status, so the next run tries it again, and its source keeps its outcome. Only the exception's class is logged.
 - **Deleting a source during a run** no longer fails the run: the deleted source is skipped.
 - **Preview and saving a page** answer with an error the page can show, instead of 500, for such input.
 

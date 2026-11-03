@@ -3,7 +3,7 @@
 Implementer notes:
 - **Read first.** Read `proposal.md`, `design.md` (D1–D4), and `specs/digest-generation/spec.md`. Line numbers are at main `8faaed6`, so re-check them before editing. If something looks wrong or contradictory, stop and report instead of redesigning.
 - **Work test-first with the `tdd` skill** (D-016). For each task, write its checks as failing tests, watch them fail, then implement until they pass. The seams named in each task count as agreed.
-- **Guards.** A check marked "guard (already green)" passes before the change, because earlier code already enforces it. Write it and see it pass. Then apply its named mutation by hand, see the check fail, and revert the mutation. Every other check must be red first.
+- **Guards.** A check marked "guard (already green)" passes before the change, because earlier code already enforces it. Write it and see it pass. Then apply its named mutation by hand, see the check fail, and revert the mutation. A guard with no named mutation only has to pass. Every other check must be red first.
 - **Test rules:**
   - **Model client:** use the `mock_provider` fixture and `completion()` in `backend/tests/test_llm_client.py:18-43`. They bridge OpenAI's `httpx2` transport to a `respx` router.
     - Build a non-JSON body with `httpx.Response(200, text=...)` (plain text) or `httpx.Response(200, html=...)`.
@@ -13,7 +13,6 @@ Implementer notes:
   - **Runs:** put new run tests in a new file, `backend/tests/test_model_errors.py`. Import `FakeModel`, `all_rows`, `environment`, `execute`, `seed`, and `stub_collection` from `test_digest_runner`, as `test_creator_updates.py:8` does. Do not append tests to `test_digest_runner.py`: #66 adds runner tests on another branch.
   - **Network.** The autouse network block stays (`backend/tests/conftest.py:8-21`). `httpx2.MockTransport` opens no sockets. Never contact a model provider, and use only clearly fake keys, such as the seed's.
 - **Out of scope:**
-  - `list_models` and the Settings connection test;
   - the summary budget;
   - retrying a JSON answer without `summary`;
   - showing the fallback in the run or the UI;
@@ -47,7 +46,7 @@ Implementer notes:
   7. **Not a chat completion on every attempt.** The plain-text answer three times raises `ProviderError`, not `AttributeError`, after 3 calls.
   8. **Usage of the wrong shape.** A valid completion with `"usage": "n/a"` returns its data after 1 call, and `usage_totals()` is `None`. With `"usage": {"prompt_tokens": "7", "completion_tokens": 3}`, it returns its data, and `usage_totals() == (0, 3)`.
   9. **Duck-typed results** (guard, already green). `test_usage_sums_concurrent_chat_calls_and_ignores_missing_usage` (`:92-109`) stays unchanged. Mutation: "treat every result that is not an `openai.types.chat.ChatCompletion` as empty".
-  10. **A model list that is not a model list.** `list_models()` with a plain-text 200 answer `"upstream overloaded"` on every attempt raises `ProviderError` (not `AttributeError`) after 3 calls; with the plain-text answer first and a valid list second, it returns the list after 2 calls.
+  10. **A model list that is not a model list.** `list_models()` with a plain-text 200 answer `"upstream overloaded"` on every attempt raises `ProviderError` (not `AttributeError`) after 3 calls; with the plain-text answer first and a valid list second, it returns the list after 2 calls. An answer `{"object": "list", "data": [1, {"id": "m"}]}` returns only the model `m`. (With openai 3.24.0, `models.list()` itself raises `AttributeError` in the SDK's post-parser for a `str` answer, before CatchUp reads `data`.)
   11. **Existing retry tests** (guards, already green): `test_empty_response_retries`, `test_empty_choices_retries`, `test_auth_and_balance_fail_immediately`, and `test_rate_limit_retries_then_succeeds` stay unchanged and pass.
 
   Verify: checks 1, 2 (the 502 and 504 cases), 4–8, and 10 fail before 1.2. Record each observed failure in the report: one call and an immediate `ProviderError`, or an `AttributeError` or `TypeError`.
@@ -55,7 +54,7 @@ Implementer notes:
   - add 502 and 504 to the retried statuses (`:85`);
   - `chat()` reads `usage`, `choices`, `message`, and `content` with `getattr` and type checks, and returns `None` for an answer of the wrong shape;
   - `chat()` parses the JSON itself, and raises `ValueError` for text that is not valid JSON or not an object, so that `_call` retries it. `chat_json` returns what `_call` returns;
-  - `list_models` checks, inside the operation `_call` retries, that the answer's `data` is a list, and raises `ValueError` otherwise (D2);
+  - `list_models`'s operation turns an `AttributeError` raised by the SDK call `self._client.models.list(...)` itself (and only that call) into `ValueError`, checks that the answer's `data` is a list (`ValueError` otherwise), and skips entries that are not model objects (D2);
   - the last-attempt message for empty or invalid answers becomes "The model provider returned an empty or invalid answer." (`:93`).
 
   Verify:
@@ -63,15 +62,16 @@ Implementer notes:
   - each named mutation fails at least one check, and is reverted:
     - "remove 502 and 504 from the retry set" fails checks 1 and 2;
     - "parse the JSON after `_call` again, as at `client.py:133-139`" fails checks 4 and 5;
-    - "read `result.usage` directly, as at `client.py:125`" fails checks 6, 7, and 8;
+    - "read `result.usage` directly, as at `client.py:125`" fails checks 6 and 7;
+    - "add the token counts without the `int` checks" fails check 8;
     - "read `result.choices[0].message.content` directly, as at `client.py:131`" fails the `{"choices": [{}]}` and `{"choices": "busy"}` cases of check 6;
-    - "read `result.data` in `list_models` without the check" fails check 10;
+    - "remove the `AttributeError` → `ValueError` mapping around the SDK call in `list_models`" fails check 10;
   - `uv run --python 3.12 pytest` passes in `backend/`.
 
 ## 2. Grouping falls back to one "Other" topic
 
 - [ ] 2.1 **Move five existing tests off `ProviderError`** in `backend/tests/test_digest_runner.py`:
-  - These tests make a run fail during grouping by answering the grouping call with `ProviderError("group failed")`. After D3, that no longer fails a run; only a rejected key or insufficient balance does.
+  - These tests make a run fail during grouping by answering the grouping call with `ProviderError("group failed")`. After D3, that no longer fails a run; only a rejected key, insufficient balance, rate limiting, or a failed connection does.
   - Change `ProviderError("group failed")` to `AuthFailed("group failed")` at `:528`, `:556`, `:610`, `:932`, and `:1215`. At `:531`, expect `"auth_failed"` instead of `"provider_error"`.
   - Nothing else in these tests changes. A prototype of D3 on 2026-11-03 broke exactly these five, and no other existing test.
 
@@ -80,7 +80,7 @@ Implementer notes:
 
   **In `backend/tests/test_digest_stages.py`,** with its `FakeModel`:
   1. **No list of topics.** Answers `{}` and `{"topics": "none"}`, for 3 items in `"en"`, each give `[("Other", "", [1, 2, 3])]` as `(title, overview, item_ids)`. In `"zh-Hans"`, the title is "其他".
-  2. **An unusable answer after retries.** When `chat_json` raises `ProviderError`, the result is the same single topic.
+  2. **An unusable answer after retries.** When `chat_json` raises `ProviderError("secret detail")`, the result is the same single topic, and `caplog` holds one warning that names `ProviderError` and the item count, and does not contain "secret detail".
   3. **A failed batch.** 4 items with `batch_chars` 10: the first batch call answers a topic, and the second raises `ProviderError`. The result is one "Other" topic with `[1, 2, 3, 4]`, after exactly 2 calls, so no merge call is made.
   4. **A failed merge.** 4 items with `batch_chars` 10: four batch answers, then a merge answer `{"topics": None}`. The result is one "Other" topic with `[1, 2, 3, 4]`.
   5. **Errors that still fail the run** (guard, already green). `AuthFailed`, `InsufficientBalance`, `RateLimited`, and `ConnectionFailed` raised by `chat_json` propagate out of `group_items`. Mutation: "catch every `ModelError` in the fallback".
@@ -124,7 +124,7 @@ Implementer notes:
 
 ## 3. Size grouping from the context window
 
-- [ ] 3.1 **Add failing tests** (D4):
+- [ ] 3.1 **Add failing tests** (D4). Import `grouping_batch_chars` and the new `grouping_max_tokens` argument inside each test function (or reach them as `prompts.grouping_batch_chars`), not at module top: a top-level import of a name that does not exist yet fails the whole test module at collection, and hides the guards in this task:
 
   **In `backend/tests/test_digest_stages.py`:**
   1. **`grouping_max_tokens`.** `grouping_max_tokens(60)` is 9,632 (guard, already green). With a window:

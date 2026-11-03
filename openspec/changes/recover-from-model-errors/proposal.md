@@ -57,7 +57,7 @@ One bad model answer can fail a whole digest run, and a failed grouping repeats 
 
 ## Impact
 
-- `backend/src/catchup/llm/client.py`: the retry set, and `chat()` inside `chat_json`.
+- `backend/src/catchup/llm/client.py`: the retry set, `chat()` inside `chat_json`, and `list_models`.
 - `backend/src/catchup/llm/prompts.py`: `grouping_max_tokens` takes the context window, and a new `grouping_batch_chars`.
 - `backend/src/catchup/digest/group.py`: the fallback around the existing recursion, and the context window passed through.
 - `backend/src/catchup/digest/runner.py:358`: passes `context_window` to `group_items`. This is the only runner line this change touches.

@@ -47,7 +47,7 @@ The system SHALL retry model calls that return empty content, rate-limit errors,
 ### Requirement: Fit topic grouping in the model's context window
 When the model's context window is known, the system SHALL size topic grouping calls from it, counting one character per token:
 - each grouping call's output budget is the usual grouping budget, but at most half the context window;
-- the items are split into batches whose text fits in the rest of the window after a fixed prompt allowance. Each batch is grouped, and then the batch topics are combined in one more call.
+- the items are split into batches whose text fits in the rest of the window after a fixed prompt allowance, but is never less than 2,000 characters, so a window under about 8,000 tokens may still be exceeded. Each batch is grouped, and then the batch topics are combined in one more call.
 
 The instance's grouping batch setting MUST remain an upper limit on a batch's text. When the context window is unknown, batches MUST be limited by that setting alone, as before. The call that combines batch topics is not split; when it cannot be completed, the grouping falls back to one "Other" topic (see "Summarize items once and group them by topic").
 

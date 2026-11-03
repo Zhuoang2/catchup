@@ -2,6 +2,8 @@
 
 Lean change for issue #67. See `proposal.md` for the motivation, and the `digest-generation` delta for the requirements. Line numbers are at main `8faaed6`.
 
+A fresh-eyes sub-agent checked this plan against the code before implementation (D-023). Claude folded in its 8 findings: a `list_models` check the SDK never reaches, two scope sentences that contradicted Claude's own amendment, three fallback sentences that still named rate limiting and connection errors as falling back, a mutation that could not fail its check, an import that would fail a whole test module, guards without mutations, a log check, and a spec number.
+
 ## Context
 
 - **`ModelClient._call(operation)`** (`backend/src/catchup/llm/client.py:73-95`):
@@ -36,12 +38,11 @@ Lean change for issue #67. See `proposal.md` for the motivation, and the `digest
 ## Goals / Non-Goals
 
 **Goals:**
-- No answer shape, and no grouping failure other than a rejected key or insufficient balance, fails a run.
+- No answer shape fails a run, and a grouping whose answers stay unusable after retries does not either. A rejected key, insufficient balance, rate limiting, or a failed connection still fails the run.
 - A grouping call fits the model's context window when the window is known.
 
 **Non-Goals:**
 - Changing the summary budget, the number of attempts, or the backoff.
-- Making `list_models` tolerate a non-JSON answer (see `proposal.md`, Out of scope).
 
 ## Decisions
 
@@ -60,7 +61,7 @@ Lean change for issue #67. See `proposal.md` for the motivation, and the `digest
   - The content is `result.choices[0].message.content` only when `choices` is a non-empty list and the content is a string. Otherwise the answer counts as empty, and `_call` retries it.
   - Usage counts as reported when `result.usage` has a `prompt_tokens` or `completion_tokens` attribute. Each count is added only when its type is exactly `int`.
 - **It lives in `chat()`, not in `_call`,** because `_call` also serves `list_models`, and does not know which result type to expect.
-- **`list_models` does the same for its own type:** inside the operation `_call` retries, an answer whose `data` is not a list counts as empty (raise `ValueError`), so a plain-text 200 page is retried, and then raises `ProviderError` instead of `AttributeError`. The Settings connection test then reports a provider error instead of answering 500.
+- **`list_models` does the same for its own type.** With openai 3.24.0, `models.list()` raises `AttributeError` inside the SDK's post-parser when the answer is a `str` (a plain-text, HTML, or JSON `[]` page sent with 200), before CatchUp can read `data`. So the operation `_call` retries catches `AttributeError` from that one SDK call only, and raises `ValueError`; it also raises `ValueError` when `data` is not a list, and skips entries that are not model objects. A plain-text 200 page is then retried, and raises `ProviderError` instead of `AttributeError`, and the Settings connection test reports a provider error instead of answering 500. Catching `AttributeError` only around the SDK call keeps CatchUp's own bugs visible.
 - **Alternatives:**
   - `isinstance(result, ChatCompletion)`, as the issue comment suggests. Rejected on its own: the probe shows `ChatCompletion` objects that still crash (`choices` a string, `message` missing). Also, the existing usage test (`backend/tests/test_llm_client.py:92-109`) passes `SimpleNamespace` results, which it would turn into empty answers.
   - Catch `AttributeError` and `TypeError` in `_call`. Rejected: it would also turn bugs in CatchUp's own code into provider errors.
@@ -113,7 +114,7 @@ Lean change for issue #67. See `proposal.md` for the motivation, and the `digest
 ## Risks / Trade-offs
 
 - [A cut-off grouping answer costs two more calls before the fallback, each with up to 32,768 output tokens] → The cost is bounded at three calls, and batches now fit the window, which makes cut-off answers rarer.
-- [A connection drop during grouping saves the digest under "Other", where a failed run would have let a later run group the items] → The digest keeps every summary, and the rule matches the summary stage.
+- [Rate limiting or a connection drop during grouping still fails the run] → The summaries are stored, so the next run only repeats the grouping, and gets real topics (D3).
 - [The fallback is not shown in the run] → The run succeeds with one "Other" topic, and only the log says why. Showing it is out of scope.
 - [On a small window with many batches, the merge input may not fit] → The grouping falls back to "Other".
 - [A small local model that reports no window still gets 200,000-character batches] → The README tells such users to lower `CATCHUP_GROUPING_BATCH_CHARS`, next to the existing `CATCHUP_SINGLE_CALL_CHARS` advice.

@@ -1,7 +1,7 @@
 # browser-extension Specification
 
 ## Purpose
-Lets the user connect a Chrome or Edge extension to their local CatchUp, so that, only when they click, they can follow the site they are viewing, or add the page they are reading to the next digest. An X post is added with its author's own visible replies.
+Lets the user connect a Chrome or Edge extension to their local CatchUp, so that, only when they click, they can follow the site or X account they are viewing, or add the page they are reading to the next digest. An X post is added with its author's own visible replies.
 
 ## Requirements
 
@@ -21,7 +21,7 @@ Settings SHALL offer "Connect a browser". It creates a connection token for a br
 - **THEN** the extension in that browser can no longer save sources or pages, and is told it is not connected
 
 ### Requirement: Follow the current site from the browser
-The extension's popup SHALL offer "Follow this site" for the active tab. It MUST preview the tab's address with the same preview the Sources page uses, show the same details and error messages, and save the source only after the user confirms. On an X page, it MUST say that X accounts cannot be followed, and offer "Add this page to my next digest" instead.
+The extension's popup SHALL offer "Follow this site" for the active tab. It MUST preview the tab's address with the same preview the Sources page uses, show the same details and error messages, and save the source only after the user confirms. On an X page whose address identifies an X account (a profile or a post), it SHALL offer "Follow this account" in place of "Follow this site", with the same preview, error messages, and confirmation. When CatchUp reports that no X token is saved, the popup SHALL ask for the token in a password field, send it to CatchUp, and preview again. When CatchUp already has a token that X rejected, the popup MUST say to replace it in CatchUp's Settings. The popup MUST NOT contact X itself. On other X pages it SHALL offer only "Add this page to my next digest".
 
 #### Scenario: Follow a blog
 - **WHEN** the user is reading a blog post and chooses "Follow this site", then confirms
@@ -32,8 +32,16 @@ The extension's popup SHALL offer "Follow this site" for the active tab. It MUST
 - **THEN** the popup says the site is already followed, and saves nothing
 
 #### Scenario: X profile
-- **WHEN** the user chooses "Follow this site" on an X profile
-- **THEN** the popup says X accounts cannot be followed, and offers adding the page instead
+- **WHEN** the user opens the popup on `https://x.com/simonw`, while an X token is saved
+- **THEN** the popup offers "Follow this account", and confirming it follows the account
+
+#### Scenario: X profile without a token
+- **WHEN** the user chooses "Follow this account" while no X token is saved
+- **THEN** the popup asks for the X token, saves it in CatchUp, and shows the account's preview
+
+#### Scenario: X home page
+- **WHEN** the user opens the popup on `https://x.com/home`
+- **THEN** the popup offers only "Add this page to my next digest"
 
 ### Requirement: Add the current page to the next digest
 The popup SHALL offer "Add this page to my next digest". The extension MUST read the page only when the user chooses this, and only as it is rendered in the active tab at that moment. It reads:

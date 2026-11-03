@@ -89,7 +89,7 @@ The system MUST refuse any request that changes data or starts work (`POST`, `PU
 
 A page on another port of the same machine is another origin. Requests from CatchUp's own pages, and requests that carry neither header (such as command-line tools), are accepted as before. Read-only requests are not affected.
 
-A request that carries a valid browser connection token (see the `browser-extension` capability) MUST be accepted for the extension's operations, even when it comes from the extension's origin. These are: previewing and saving a source, and saving, listing, and removing pages saved from the browser. A token MUST NOT allow any other request that changes data or starts work. A request with an invalid or disconnected token MUST be refused, and MUST perform none of the requested action.
+A request that carries a valid browser connection token (see the `browser-extension` capability) MUST be accepted for the extension's operations, even when it comes from the extension's origin. These are: previewing and saving a source; saving, listing, and removing pages saved from the browser; and saving the X API token when none is saved. A token MUST NOT allow any other request that changes data or starts work. A request with an invalid or disconnected token MUST be refused, and MUST perform none of the requested action.
 
 #### Scenario: Another site tries to start a digest run
 - **WHEN** a page on another site submits a form to CatchUp's digest-run address, while a model is configured
@@ -122,3 +122,11 @@ A request that carries a valid browser connection token (see the `browser-extens
 #### Scenario: Token used for another write
 - **WHEN** a request with a valid token tries to change CatchUp's settings
 - **THEN** it is refused, and the settings are unchanged
+
+#### Scenario: Connected extension saves the first X token
+- **WHEN** no X token is saved, and the connected extension sends one with its token
+- **THEN** the X token is saved
+
+#### Scenario: Connected extension tries to replace the X token
+- **WHEN** an X token is saved, and the connected extension sends another one with its token
+- **THEN** it is refused, and the saved X token is unchanged

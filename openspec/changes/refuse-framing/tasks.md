@@ -25,17 +25,17 @@ Implementer notes:
   - `manifest.webmanifest` containing `{}`;
   - `assets/app.js`.
 
-  It creates `create_app(test_settings, dist_dir=dist)`, adds a test-only route `GET /api/test-crash` that raises `RuntimeError`, and opens `TestClient(app, base_url="http://localhost:8000", raise_server_exceptions=False)`.
+  It creates `create_app(test_settings, dist_dir=dist)`, adds a test-only route `GET /api/test-crash` that raises `RuntimeError`, and opens `TestClient(app, base_url="http://localhost:8000", raise_server_exceptions=False)` in a `with` block, so the lifespan creates `session_factory` (checks 11 and 12 need it). Compare media types without parameters (`content-type` carries `; charset=utf-8`): use `.split(";")[0]` or `startswith`, as `test_static.py` does.
 
   A helper `assert_refuses_framing(response)` asserts:
   - `response.headers.get_list("x-frame-options") == ["DENY"]`;
   - `response.headers.get_list("content-security-policy") == ["frame-ancestors 'none'"]`.
 
   **Checks.** Each response passes `assert_refuses_framing`, and keeps the status, type, and body given:
-  1. `GET /`: 200, `text/html`, the index marker.
+  1. `GET /`: 200, media type `text/html`, the index marker.
   2. `GET /digests/3` (the SPA fallback): 200, the index marker.
-  3. `GET /offline.html`: 200, `text/html`, the offline marker.
-  4. `GET /sw.js`: 200, a JavaScript type (`text/javascript` or `application/javascript`).
+  3. `GET /offline.html`: 200, media type `text/html`, the offline marker.
+  4. `GET /sw.js`: 200, a JavaScript media type (`text/javascript` or `application/javascript`).
   5. `GET /manifest.webmanifest`: 200, `application/manifest+json`.
   6. `GET /assets/app.js`: 200.
   7. `GET /api/health`: 200, `{"status": "ok"}`.
@@ -44,7 +44,7 @@ Implementer notes:
   10. `PUT /api/settings/preferences` with `Origin: https://evil.example` and a valid JSON body: 403, code `cross_site_request`.
   11. `GET /api/extension/status` with `Authorization: Bearer cu_unknown`: 401, code `invalid_token`.
   12. `PUT /api/settings/preferences` with `Content-Type: application/json` and the body `b"{"`: 422, code `invalid_request`.
-  13. `GET /api/test-crash`: 500, `text/plain`, and the body is exactly `Internal Server Error`.
+  13. `GET /api/test-crash`: 500, media type `text/plain`, and the body is exactly `Internal Server Error`.
   14. **Without a built frontend**, using `create_app(replace(test_settings, frontend_dist=tmp_path / "missing"))`: `GET /` returns 404 and `GET /api/health` returns 200, and both pass `assert_refuses_framing`.
   15. **Exceptions still propagate.** With a default `TestClient` (`raise_server_exceptions=True`) on the same app, `GET /api/test-crash` raises `RuntimeError`. This is a guard; it passes today.
 
@@ -70,7 +70,7 @@ Implementer notes:
   - in `request()` (`:48-55`), which covers `/api/health`, `/`, and the `PUT`;
   - in the file loop (`:61-77`), which covers `/manifest.webmanifest`, `/sw.js`, and `/offline.html`.
 
-  Print `PASS: responses refuse framing` once, after the file loop. Change nothing else in the script.
+  Give every new assertion a message naming the path, the header, and the value, for example `assert value == ["DENY"], (path, "X-Frame-Options", value)`: the script runs Python from a heredoc, so a bare `assert` prints no source line. Print `PASS: responses refuse framing` once, at the end of the block, after the `PUT` assertion. Change nothing else in the script.
 
   Red step: build an image from the commit before this change, and run the new smoke against it:
   - `git archive 8faaed6 | docker build -t catchup:refuse-framing-before -`, from the repository root;

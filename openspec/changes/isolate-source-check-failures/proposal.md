@@ -27,6 +27,6 @@ None.
   - `sources/feeds.py` (image and link helpers, entry and channel links), `sources/discovery.py`, and `context/links.py`;
   - `net/safe_fetch.py` (`httpx.InvalidURL`);
   - `digest/runner.py` (the source, caption, and X loops);
-  - `api/sources.py` and `api/extension.py` (preview and captures).
+  - `api/sources.py` and `api/extension.py` (preview and captures) change behavior through the helpers above; they need no edits.
 - **Tests:** backend only. No API shape changes, no migration, no frontend change.
 - **Closes** #66.

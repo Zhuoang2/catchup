@@ -2,6 +2,8 @@
 
 Lean change for issue #66. See `proposal.md` for why. Planned by Claude on 2026-11-03 while the user slept, under their instruction to fix open issues overnight; the user reviews the result before anything is pushed.
 
+A fresh-eyes sub-agent checked the tasks against the code before Droid ran (D-023). Claude folded in its 12 findings: checks that would already pass (an empty `base`, a link `try` that already exists, a `media:content` without an image type), a `href` that feedparser empties, two missing seams, `ObjectDeletedError` after a rollback, how to patch an imported name, two stubs that return `None`, a missing preview check, DNS mocking for `article_text`, and one line number.
+
 ## Context
 
 Line numbers are at main `8faaed6`; re-check them before editing.
@@ -13,7 +15,7 @@ Line numbers are at main `8faaed6`; re-check them before editing.
   - `context/links.py:19-21`: `urlsplit(item_link)` and `urlsplit(site_url)`. `site_url` can be a feed's channel link (`feeds.py:356`).
   - Already guarded: `feeds.py:121-126` (after the join), `feeds.py:321-324` (entry links), `api/extension.py:101-106`.
 - **`safe_fetch`** maps `httpx.HTTPError` (`net/safe_fetch.py:200-201`), but `httpx.InvalidURL`, raised for a URL with a character such as `\x7f`, is not an `HTTPError` subclass, so it escapes. `article_text` (`collection.py:55-62`) catches only `FetchError`.
-- **No guard per source.** `check_source` (`collection.py:76-95`) catches `FetchError` and `FeedParseError`. The run's loops (`digest/runner.py:221-226` for feeds, podcasts, and YouTube; `:228-246` for X; `caption_pass`, `:66-112`, for YouTube captions) have no `try`. Anything else propagates to `run_digest`'s outer handler, which fails the run with "Digest generation failed. Try again." (`error_kind` `run_failed`).
+- **No guard per source.** `check_source` (`collection.py:76-95`) catches `FetchError` and `FeedParseError`. The run's loops (`digest/runner.py:222-227` for feeds, podcasts, and YouTube; `:228-246` for X; `caption_pass`, `:66-112`, for YouTube captions) have no `try`. Anything else propagates to `run_digest`'s outer handler, which fails the run with "Digest generation failed. Try again." (`error_kind` `run_failed`).
 - **Deletion during a check.** The delete route (`api/sources.py`, `delete_source`) deletes at once. A check that then commits a `SourceCheck` or items for the deleted source raises `IntegrityError` (foreign keys are on); the caption pass raises `StaleDataError` committing a deleted item. Later stages already tolerate deletion (`test_digest_runner.py:790-956`, `context/gather.py:164-167`).
 
 ## Goals / Non-Goals
@@ -43,7 +45,7 @@ Line numbers are at main `8faaed6`; re-check them before editing.
 ### D3. One guard per source in the run
 - **What.** A helper in `digest/runner.py`, used by the feed loop and the X loop, runs one source's check in its own session. On any `Exception` that escapes the check:
   1. roll back the session;
-  2. if the source no longer exists, skip it (log at info, with the source id);
+  2. if the source no longer exists, skip it (log at info, with the loop's source id; reading `source.id` after a rollback of a deleted row raises `ObjectDeletedError`);
   3. otherwise record a `SourceCheck` with `status="failed"`, `error="Could not check this source."`, `entries_seen=0`, `new_count=0`, and set the source's `last_check_at` and `last_check_status`, as `check_source` does for a fetch failure;
   4. log a warning with the run id, the source id, and the exception's class only (no message, which could hold page text).
 - **Scope.** `Exception` only: `KeyboardInterrupt` and `SystemExit` still stop the run.
@@ -52,7 +54,7 @@ Line numbers are at main `8faaed6`; re-check them before editing.
 - **Alternative:** catch `Exception` inside `check_source` only. Rejected: it would not cover X accounts, and it would be a second pattern next to `check_x_account`'s.
 
 ### D4. The caption pass is guarded per item
-- Each YouTube item's work and commit run in a `try`. On an `Exception`: roll back, log the class with the item id, and go on. An item deleted with its source is simply skipped. An item that failed for another reason keeps its previous `transcript_status`, so the next run tries again.
+- The pass collects the item ids first, and loads each item with `session.get` inside the loop, skipping one that no longer exists. Each item's work and commit run in a `try`. On an `Exception`: roll back, log the class with the item's id from the collected list, and go on. An item deleted with its source is simply skipped. An item that failed for another reason keeps its previous `transcript_status`, so the next run tries again.
 
 ### D5. Deleting a source during a run stays allowed
 - The checks tolerate it (D3, D4), as the later stages already do. Refusing deletion during a run, as "Delete all X data" does, was considered and not chosen: removing a source is a common action, and a run can take minutes (#64).

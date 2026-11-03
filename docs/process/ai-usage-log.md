@@ -1666,3 +1666,19 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - `tasks.md`: four groups, with guards and named mutations.
 - **Left out on purpose:** `list_models` with a non-JSON answer (the Settings test), showing the fallback in the run, and splitting the merge call.
 - **Outcome.** `openspec validate --strict` passes. The plan waits for the overnight session's review and a fresh-eyes check before Factory Droid runs.
+
+## 2026-11-03 — `recover-from-model-errors` (#67): implementation, overnight (Claude Code, Opus 5.5, as the implementer sub-agent in place of Factory Droid)
+
+- **Why Claude Code implemented it:** Factory Droid's login had expired, and the user was asleep. The overnight session gave the implementation to a Claude Opus 5.5 sub-agent under Droid's rules. Claude Code reviews the run independently afterwards.
+- **Prompt (faithful excerpt):** "You are the implementer for one OpenSpec change in CatchUp … The project's usual implementer (Factory Droid) is unavailable tonight because its login expired; you replace it, under the same rules. … Follow `.claude/skills/openspec-apply-change/SKILL.md` and, for each task, `.claude/skills/tdd/SKILL.md` … Work through `tasks.md` in order. Test-first (D-016): write each task's checks as failing tests, run them and see them fail for the reason the task states, then implement until they pass. A check marked 'guard (already green)' must instead fail under its named mutation; a guard with no named mutation only has to pass. Named mutations: apply each, run the named test, record the result, and revert it. Leave none in place. If a check is green before the change (other than a guard), or the plan looks wrong or contradictory, stop and report instead of improvising. … Commit after each task group … Do not push, tag, or open a PR. … Every OpenSpec CLI call MUST be prefixed with `DO_NOT_TRACK=1`. Never contact a model provider; do not contact any network service except what Docker needs to build the image; do not use any real API key or token." After an API rate limit interrupted the run, the continuation said: "First confirm with `git log`, `git status`, and `tasks.md` which tasks are checked off and committed, and that no mutation is left in place. Then finish the remaining tasks (group 4 …)."
+- **Outcome:**
+  - Three group commits: `e1ebd2e` (retry 502/504, invalid JSON, and answers that are not chat completions; read answers and the model list without assuming their shape), `9783cf0` (one "Other" topic when grouping stays unusable after retries), and `8ef6301` (grouping budget and batches from the context window). The test report and these logs were added in a fourth commit.
+  - Every non-guard check was red first, for the reason the task states. Each guard and named mutation failed its named check and was reverted. Details are in `test-report-recover-from-model-errors.md`.
+  - Final checks: 832 backend tests at 97% coverage, 259 frontend tests, 112 extension tests, both builds, local Docker build and smoke (the image was removed afterwards), and `openspec validate --strict`.
+- **Problems / adjustment:**
+  - A short SDK probe ran before group 1 (D-023), and it confirmed the plan's claims about `models.list()`.
+  - To see a red run test's error kind, its assertion message was changed temporarily; the file was then restored from a copy.
+  - macOS has no `timeout` command, so the suite ran without it. No test hung.
+  - A zsh pipeline hid the smoke script's exit code, so the smoke ran again with its exit code captured. It returned 0.
+  - An API rate limit stopped the sub-agent after the checks had run. On resuming, it confirmed the commits, the checkboxes, and the absence of mutations from `git log`, `git status`, `tasks.md`, and the committed source, then ran the full check sequence again in order.
+  - No live provider check was attempted. Claude Code does it at review.

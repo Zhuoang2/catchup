@@ -180,7 +180,7 @@ Implementer notes:
 
 ## 4. Checks and report
 
-- [ ] 4.1 **The test report, checks, and logs.**
+- [x] 4.1 **The test report, checks, and logs.**
   - **Report.** Write `docs/process/test-report-recover-from-model-errors.md`. It holds:
     - each task's observed red result;
     - the guards, and each named mutation with its result;

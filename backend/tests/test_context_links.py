@@ -1,3 +1,5 @@
+import pytest
+
 from catchup.context.links import related_links
 from catchup.sources.feeds import EntryLink
 
@@ -79,3 +81,18 @@ def test_fully_qualified_x_link_is_not_related_context():
     x_link = EntryLink("https://x.com./a/status/1", "X post")
     article = EntryLink("https://news.example/post", "Article")
     assert related_links(ITEM, SITE, [x_link, article], 8) == [article]
+
+
+@pytest.mark.parametrize("item_link,site_url", [
+    ("http://[x", SITE),
+    (ITEM, "https://[object Object]/"),
+])
+def test_unparsable_item_link_or_site_url_matches_nothing(item_link, site_url):
+    good = EntryLink("https://docs.example/changelog", "Changelog")
+    assert related_links(item_link, site_url, [good], 8) == [good]
+
+
+def test_unparsable_link_is_skipped():
+    bad = EntryLink("http://[x", "Bad")
+    good = EntryLink("https://docs.example/changelog", "Changelog")
+    assert related_links(ITEM, SITE, [bad, good], 8) == [good]

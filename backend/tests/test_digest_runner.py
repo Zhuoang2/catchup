@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import event, select, text
 
 from catchup.crypto import encrypt_key
-from catchup.digest.runner import run_digest, start_run
+from catchup.digest.runner import check_one_source, run_digest, start_run
 from catchup.llm.client import AuthFailed, InsufficientBalance, ProviderError
 from catchup.llm.client import ModelInfo
 from catchup.main import create_app
@@ -17,7 +17,7 @@ from catchup.models import (
     XAccount,
 )
 from catchup.net.host_spacing import HostSpacer
-from catchup.net.safe_fetch import RATE_LIMIT_PREFIX
+from catchup.net.safe_fetch import RATE_LIMIT_PREFIX, FetchResponse
 import httpx
 import respx
 
@@ -1385,3 +1385,177 @@ def test_rate_limited_run_check_is_visible_in_progress_and_source_list(environme
     assert "about 120 seconds" in check["error"]
     listed = environment.get("/api/sources").json()[0]
     assert (listed["last_check_status"], listed["http_status"], listed["rate_limited"]) == ("failed", 429, True)
+
+
+def public_dns(monkeypatch):
+    monkeypatch.setattr(socket, "getaddrinfo", lambda _host, port, *_args, **_kwargs: [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", port)),
+    ])
+
+
+def orchard_feed(guid="orchard-1", title="Pruning") -> bytes:
+    return (f"<rss version='2.0'><channel><title>Orchard</title><item><guid>{guid}</guid>"
+            f"<title>{title}</title><link>https://s1.example/{guid}</link>"
+            f"<description>{'Prune the apple trees in late winter. ' * 20}</description>"
+            f"</item></channel></rss>").encode()
+
+
+def test_malformed_address_in_one_entry_does_not_fail_the_run(environment, monkeypatch):
+    from test_feeds import malformed_entry_feed
+
+    seed(environment, count=0, sources=2)
+    environment.app.state.settings = replace(environment.app.state.settings, context_fetches_per_run=0)
+    public_dns(monkeypatch)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        garden = router.get("https://s0.example/feed").mock(return_value=httpx.Response(
+            200, content=malformed_entry_feed(), headers={"content-type": "application/rss+xml"},
+        ))
+        orchard = router.get("https://s1.example/feed").mock(return_value=httpx.Response(
+            200, content=orchard_feed(), headers={"content-type": "application/rss+xml"},
+        ))
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert (garden.call_count, orchard.call_count) == (1, 1)
+    assert [(check["source_id"], check["status"]) for check in result["source_checks"]] == [
+        (1, "new_items"), (2, "new_items"),
+    ]
+    assert [check.entries_seen for check in run_checks(environment, result["id"])] == [2, 1]
+    assert sorted(row.title for row in all_rows(environment, DigestItem)) == ["Planner 2.0", "Pruning", "Seeds"]
+    with environment.app.state.session_factory() as session:
+        planner = session.scalar(select(Item).where(Item.identity_key == "entry-1"))
+        assert [image["url"] for image in planner.image_candidates] == [
+            "https://garden.example/images/planner.png", "https://cdn.example/cover.png",
+        ]
+
+
+def test_unexpected_error_in_one_source_is_recorded_and_the_run_goes_on(environment, monkeypatch, caplog):
+    from catchup.collection import check_source as real_check
+
+    seed(environment, count=0, sources=2)
+    public_dns(monkeypatch)
+
+    def check(session, source, run_id, settings, *, spacer=None, transcripts=None):
+        if source.id == 1:
+            raise RuntimeError("boom")
+        return real_check(session, source, run_id, settings, spacer=spacer, transcripts=transcripts)
+
+    monkeypatch.setattr("catchup.digest.runner.check_source", check)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        broken = router.get("https://s0.example/feed").mock(
+            side_effect=AssertionError("the failing source is not fetched"),
+        )
+        orchard = router.get("https://s1.example/feed").mock(return_value=httpx.Response(
+            200, content=orchard_feed(), headers={"content-type": "application/rss+xml"},
+        ))
+        started = datetime.now(timezone.utc)
+        with caplog.at_level("WARNING", logger="catchup.digest.runner"):
+            result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert (broken.call_count, orchard.call_count) == (0, 1)
+    assert [(check.source_id, check.status, check.error, check.entries_seen, check.new_count)
+            for check in run_checks(environment, result["id"])] == [
+        (1, "failed", "Could not check this source.", 0, 0),
+        (2, "new_items", None, 1, 1),
+    ]
+    with environment.app.state.session_factory() as session:
+        source = session.get(Source, 1)
+        failed = session.scalar(select(SourceCheck).where(SourceCheck.source_id == 1))
+        # The source row too: the Sources list below reads the latest check, not these columns.
+        assert (source.last_check_status, source.last_check_at) == ("failed", failed.checked_at)
+        assert source.last_check_at >= started
+    assert [(source["title"], source["last_check_status"]) for source in environment.get("/api/sources").json()] == [
+        ("Source 0", "failed"), ("Source 1", "new_items"),
+    ]
+    assert [row.title for row in all_rows(environment, DigestItem)] == ["Pruning"]
+    warnings = [record.getMessage() for record in caplog.records if record.levelname == "WARNING"]
+    assert any("RuntimeError" in message for message in warnings)
+    assert "boom" not in caplog.text
+
+
+def test_unexpected_error_in_one_x_account_keeps_its_charged_reads(environment, monkeypatch):
+    from catchup.sources.x_check import check_x_account as real_check
+
+    seed(environment, sources=0)
+    seed_x_accounts(environment, ("a", "b"))
+    assert environment.put("/api/settings/x", json={"token": "test-" + "x" * 40}).status_code == 200
+
+    def check(session, source, account, run_id, client, budget):
+        if account.username == "a":
+            budget.charge(3)
+            raise RuntimeError("X page text")
+        return real_check(session, source, account, run_id, client, budget)
+
+    monkeypatch.setattr("catchup.digest.runner.check_x_account", check)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        first = router.get("https://api.x.com/2/users/100/tweets").mock(
+            side_effect=AssertionError("the failing account is not read"),
+        )
+        second = router.get("https://api.x.com/2/users/101/tweets").mock(side_effect=[
+            httpx.Response(200, json=x_timeline(1100)),
+            AssertionError("the account is read once"),
+        ])
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert (first.call_count, second.call_count) == (0, 1)
+    assert [(check["source_id"], check["status"], check["error"]) for check in result["source_checks"]] == [
+        (1, "failed", "Could not check this source."), (2, "new_items", None),
+    ]
+    assert result["x_reads"] == 4
+    assert [(source["title"], source["last_check_status"]) for source in environment.get("/api/sources").json()] == [
+        ("Writer a", "failed"), ("Writer b", "new_items"),
+    ]
+
+
+def test_source_deleted_during_its_check_is_skipped(environment, monkeypatch):
+    seed(environment, count=0, sources=2)
+    deleted = []
+
+    def fetch(url, **_kwargs):
+        if url == "https://s0.example/feed":
+            deleted.append(1)
+            with environment.app.state.session_factory() as session:
+                session.delete(session.get(Source, 1))
+                session.commit()
+            return FetchResponse(url, orchard_feed("planting", "Planting"), "application/rss+xml", 200)
+        if url == "https://s1.example/feed":
+            return FetchResponse(url, orchard_feed(), "application/rss+xml", 200)
+        raise AssertionError(f"unexpected fetch of {url}")
+
+    monkeypatch.setattr("catchup.collection.safe_fetch", fetch)
+    result = execute(environment)
+    assert deleted == [1]
+    assert result["status"] == "succeeded"
+    assert [(check.source_id, check.status) for check in run_checks(environment, result["id"])] == [
+        (2, "new_items"),
+    ]
+    assert [source["title"] for source in environment.get("/api/sources").json()] == ["Source 1"]
+    assert [row.title for row in all_rows(environment, DigestItem)] == ["Pruning"]
+
+
+def test_unexpected_error_rolls_back_the_source_partial_work(environment):
+    seed(environment, count=0)
+    run = start_run(environment.app, background=False)
+
+    def check(session, source):
+        session.add(Item(source_id=source.id, identity_key="partial", link="https://s0.example/partial",
+                         title="Partial", content_text="Partial", content_origin="feed", state="pending"))
+        source.title = "Renamed"
+        session.flush()
+        raise RuntimeError("after a flush")
+
+    check_one_source(environment.app.state.session_factory, run.id, 1, check)
+    with environment.app.state.session_factory() as session:
+        assert session.scalars(select(Item)).all() == []
+        assert session.get(Source, 1).title == "Source 0"
+        assert [(row.source_id, row.status) for row in session.scalars(select(SourceCheck))] == [(1, "failed")]
+
+
+def test_keyboard_interrupt_in_a_source_check_still_stops(environment):
+    seed(environment, count=0)
+    run = start_run(environment.app, background=False)
+
+    def check(_session, _source):
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        check_one_source(environment.app.state.session_factory, run.id, 1, check)

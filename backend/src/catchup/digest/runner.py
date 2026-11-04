@@ -35,6 +35,7 @@ ACTIVE = ("queued", "collecting", "summarizing", "grouping")
 _start_lock = threading.Lock()
 logger = logging.getLogger(__name__)
 CREATOR_REASONS = {"captions_off", "no_captions", "blocked", "captions_failed", "no_transcript"}
+CHECK_FAILED_MESSAGE = "Could not check this source."
 
 
 def select_pending(rows, now, transcript_wait_days: int, caption_wait_hours: int):
@@ -67,48 +68,85 @@ def caption_pass(factory, context: TranscriptContext) -> None:
     """Resolve YouTube items in recording order, committing every attempted item."""
     now = utc_now()
     with factory() as session:
-        items = session.scalars(
-            select(Item).join(Source, Item.source_id == Source.id)
+        item_ids = session.scalars(
+            select(Item.id).join(Source, Item.source_id == Source.id)
             .where(Source.kind == "youtube", Item.state == "pending")
             .where(Item.transcript_status.in_((
                 "to_fetch", "caption_wait", "unplayable_wait", "captions_off",
             )) | Item.transcript_status.is_(None))
             .order_by(Item.discovered_at, Item.id)
         ).all()
-        for item in items:
-            if context.youtube_skip_shorts and item.transcript_status in (None, "to_fetch") and is_short(item.link):
-                item.state = "baseline"
-                session.commit()
+        for item_id in item_ids:
+            # Load each item here: one deleted with its channel since the query is skipped.
+            item = session.get(Item, item_id)
+            if item is None:
                 continue
-            if item.transcript_status in ("caption_wait", "unplayable_wait") and (
-                item.discovered_at + timedelta(hours=context.settings.caption_wait_hours) <= now
-            ):
-                continue
-            if not context.youtube_captions:
-                item.transcript_status = "captions_off"
-            elif context.captions_blocked or context.captions_remaining == 0:
-                if item.transcript_status not in ("caption_wait", "unplayable_wait"):
-                    item.transcript_status = "to_fetch"
-            else:
-                context.captions_remaining -= 1
-                video_id = (item.identity_key.removeprefix("yt:video:")
-                            if item.identity_key.startswith("yt:video:") else "")
-                if video_id:
-                    try:
-                        status, text = fetch_captions(video_id, context.spacer)
-                    except Exception as exc:
-                        logger.warning("Caption fetch failed for item %s (%s)", item.id, type(exc).__name__)
-                        status, text = "captions_failed", None
+            try:
+                if (context.youtube_skip_shorts and item.transcript_status in (None, "to_fetch")
+                        and is_short(item.link)):
+                    item.state = "baseline"
+                    session.commit()
+                    continue
+                if item.transcript_status in ("caption_wait", "unplayable_wait") and (
+                    item.discovered_at + timedelta(hours=context.settings.caption_wait_hours) <= now
+                ):
+                    continue
+                if not context.youtube_captions:
+                    item.transcript_status = "captions_off"
+                elif context.captions_blocked or context.captions_remaining == 0:
+                    if item.transcript_status not in ("caption_wait", "unplayable_wait"):
+                        item.transcript_status = "to_fetch"
                 else:
-                    status, text = "captions_failed", None
-                item.transcript_status = status
-                if status == "blocked":
-                    context.captions_blocked = True
-                if status == "found" and text:
-                    item.content_text = text
-                    item.content_origin = "transcript"
-                    item.summary = None
-                    item.summary_language = None
+                    context.captions_remaining -= 1
+                    video_id = (item.identity_key.removeprefix("yt:video:")
+                                if item.identity_key.startswith("yt:video:") else "")
+                    if video_id:
+                        try:
+                            status, text = fetch_captions(video_id, context.spacer)
+                        except Exception as exc:
+                            logger.warning("Caption fetch failed for item %s (%s)", item_id, type(exc).__name__)
+                            status, text = "captions_failed", None
+                    else:
+                        status, text = "captions_failed", None
+                    item.transcript_status = status
+                    if status == "blocked":
+                        context.captions_blocked = True
+                    if status == "found" and text:
+                        item.content_text = text
+                        item.content_origin = "transcript"
+                        item.summary = None
+                        item.summary_language = None
+                session.commit()
+            except Exception as exc:
+                # The item keeps its previous status, so the next run tries it again.
+                session.rollback()
+                logger.warning("Caption pass failed for item %s (%s)", item_id, type(exc).__name__)
+
+
+def check_one_source(factory, run_id: int, source_id: int, check) -> None:
+    """Run one source's check in its own session; an unexpected error stays with that source."""
+    with factory() as session:
+        source = session.get(Source, source_id)
+        if source is None:
+            return
+        try:
+            check(session, source)
+        except Exception as exc:
+            session.rollback()
+            # After a rollback, use source_id: reading a deleted row raises ObjectDeletedError.
+            source = session.get(Source, source_id)
+            if source is None:
+                logger.info("Source %s was deleted during run %s", source_id, run_id)
+                return
+            # Only the class: the message could hold page text.
+            logger.warning("Check failed for source %s in run %s (%s)", source_id, run_id, type(exc).__name__)
+            now = utc_now()
+            source.last_check_at = now
+            source.last_check_status = "failed"
+            session.add(SourceCheck(
+                run_id=run_id, source_id=source_id, status="failed", possible_gap=False,
+                error=CHECK_FAILED_MESSAGE, entries_seen=0, new_count=0, checked_at=now,
+            ))
             session.commit()
 
 
@@ -219,31 +257,31 @@ def run_digest(app: FastAPI, run_id: int) -> None:
             spacer=spacer, settings=app.state.settings, youtube_captions=captions_enabled,
             youtube_skip_shorts=skip_shorts, captions_remaining=app.state.settings.captions_per_run,
         )
+
+        def check_feed(session, source) -> None:
+            check_source(session, source, run_id, app.state.settings,
+                         spacer=spacer, transcripts=transcripts)
+
         for source_id in source_ids:
-            with factory() as session:
-                source = session.get(Source, source_id)
-                if source is not None:
-                    check_source(session, source, run_id, app.state.settings,
-                                 spacer=spacer, transcripts=transcripts)
+            check_one_source(factory, run_id, source_id, check_feed)
         budget = XReadBudget(remaining=app.state.settings.x_reads_per_run)
         with closing(XClient(x_token)) if x_token is not None else nullcontext(None) as x_client:
+            def check_x(session, source) -> None:
+                if x_client is not None:
+                    check_x_account(session, source, session.get(XAccount, source.id),
+                                    run_id, x_client, budget)
+                else:
+                    now = utc_now()
+                    source.last_check_at = now
+                    source.last_check_status = "failed"
+                    session.add(SourceCheck(
+                        run_id=run_id, source_id=source.id, status="failed", error=x_token_error,
+                        entries_seen=0, new_count=0, checked_at=now,
+                    ))
+                    session.commit()
+
             for source_id in x_source_ids:
-                with factory() as session:
-                    source = session.get(Source, source_id)
-                    if source is None:
-                        continue
-                    if x_client is not None:
-                        check_x_account(session, source, session.get(XAccount, source.id),
-                                        run_id, x_client, budget)
-                    else:
-                        now = utc_now()
-                        source.last_check_at = now
-                        source.last_check_status = "failed"
-                        session.add(SourceCheck(
-                            run_id=run_id, source_id=source.id, status="failed", error=x_token_error,
-                            entries_seen=0, new_count=0, checked_at=now,
-                        ))
-                        session.commit()
+                check_one_source(factory, run_id, source_id, check_x)
         with factory() as session:
             run = session.get(DigestRun, run_id)
             run.x_reads = budget.reads

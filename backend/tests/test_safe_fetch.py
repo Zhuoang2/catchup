@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import httpx
 import pytest
 import respx
+from fastapi.testclient import TestClient
 
 from catchup.config import Settings
 from catchup.main import create_app
@@ -122,6 +123,32 @@ def test_unparseable_current_url_is_invalid_url():
     with pytest.raises(FetchError) as error:
         safe_fetch("http://[abc/feed")
     assert error.value.code == "invalid_url"
+
+
+def test_url_httpx_rejects_is_invalid_url_without_a_request(resolve):
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        route = router.route(host="public.example").mock(
+            side_effect=AssertionError("a URL httpx rejects must not be requested"),
+        )
+        with pytest.raises(FetchError) as error:
+            safe_fetch("https://public.example/a\x7fb")
+        assert route.call_count == 0
+    assert error.value.code == "invalid_url"
+    assert str(error.value) == "Enter a valid public HTTP or HTTPS URL."
+
+
+def test_preview_of_url_httpx_rejects_is_invalid_url(resolve):
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        route = router.route(host="public.example").mock(
+            side_effect=AssertionError("a URL httpx rejects must not be requested"),
+        )
+        with TestClient(create_app()) as client:
+            response = client.post("/api/sources/preview", json={"url": "https://public.example/a\x7fb"})
+        assert route.call_count == 0
+    assert response.status_code == 422
+    assert response.json()["error"] == {
+        "code": "invalid_url", "message": "Enter a valid public HTTP or HTTPS URL.",
+    }
 
 
 @pytest.mark.parametrize("url", ["file:///tmp/a", "http://user:pass@public.example/feed",

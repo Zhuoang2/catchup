@@ -295,6 +295,21 @@ def test_capture_drops_unsafe_links_and_images_before_caps(client, connected):
         assert [image["url"] for image in item.image_candidates] == ["https://example.com/photo.png"]
 
 
+def test_capture_skips_image_whose_address_cannot_be_parsed(client, connected):
+    response = save_page(
+        client, connected,
+        images=[{"url": "https://[object Object]", "alt": "Broken"},
+                {"url": "https://example.com/photo.png", "alt": "Photo"}],
+    )
+    assert response.status_code == 201
+    with client.app.state.session_factory() as session:
+        item = session.get(Item, response.json()["id"])
+        assert (item.title, item.content_text) == ("A post", "The post text")
+        assert [(image["url"], image["alt"]) for image in item.image_candidates] == [
+            ("https://example.com/photo.png", "Photo"),
+        ]
+
+
 def test_capture_normalizes_url_and_uses_host_for_missing_site_name(client, connected):
     response = save_page(client, connected, url="HTTPS://Example.COM/a#x", site_name="  ")
     assert response.status_code == 201

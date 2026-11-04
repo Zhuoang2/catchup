@@ -3,6 +3,7 @@
 from urllib.parse import urlsplit
 
 from catchup.sources.feeds import EntryLink
+from catchup.net.urls import split_url
 from catchup.net.x_hosts import is_x_host
 
 
@@ -16,9 +17,11 @@ def _site_host(host: str) -> str:
 
 def related_links(item_link: str, site_url: str, links: list[EntryLink] | tuple[EntryLink, ...],
                   limit: int) -> list[EntryLink]:
-    item = urlsplit(item_link)
-    own = (item.scheme.lower(), item.netloc.lower(), item.path.rstrip("/"))
-    site_host = _site_host(urlsplit(site_url).hostname or "")
+    # An address that cannot be parsed matches nothing.
+    item = split_url(item_link)
+    own = (item.scheme.lower(), item.netloc.lower(), item.path.rstrip("/")) if item is not None else None
+    site = split_url(site_url)
+    site_host = _site_host(site.hostname or "") if site is not None else ""
     chosen = []
     for link in links:
         try:

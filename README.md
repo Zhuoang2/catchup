@@ -341,6 +341,9 @@ Feed documents may be up to `CATCHUP_MAX_FEED_BYTES` (default 33554432,
 than a model call's budget is summarized in parts and combined; if a small
 local model does not report its context window, set
 `CATCHUP_SINGLE_CALL_CHARS` to a positive budget that fits the model.
+Topic grouping is sized from the same context window, in batches of at
+most `CATCHUP_GROUPING_BATCH_CHARS` characters (default 200000); with such
+a model, lower that setting too.
 `CATCHUP_LONG_ITEM_CHARS` (default 20000) sets when transcript summaries
 include an overview and key points. **Configuration change:**
 `CATCHUP_MAX_ITEM_CHARS` has been removed; use

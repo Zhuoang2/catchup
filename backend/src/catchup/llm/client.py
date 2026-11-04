@@ -10,6 +10,7 @@ from typing import Any
 
 import httpx2
 import openai
+from openai.types import Model
 
 # Neither SDK debug logging nor transport logging should contain request headers.
 for name in ("openai", "httpx2", "httpcore2"):
@@ -34,6 +35,10 @@ class RateLimited(ModelError):
 
 class ProviderError(ModelError):
     code = "provider_error"
+
+
+class InvalidAnswer(ProviderError):
+    """The provider answered, but the answer stayed empty or unusable after retries."""
 
 
 class ConnectionFailed(ModelError):
@@ -82,7 +87,7 @@ class ModelClient:
             except openai.APIStatusError as exc:
                 if exc.status_code == 402:
                     raise InsufficientBalance("The provider account has insufficient balance.") from exc
-                if exc.status_code not in (429, 500, 503) or attempt == 2:
+                if exc.status_code not in (429, 500, 502, 503, 504) or attempt == 2:
                     if exc.status_code == 429:
                         raise RateLimited("The provider is rate limiting requests.") from exc
                     raise ProviderError("The model provider returned an error.") from exc
@@ -90,14 +95,26 @@ class ModelClient:
                 raise ConnectionFailed(f"Could not connect to the model provider at {self.base_url}.") from exc
             except ValueError as exc:
                 if attempt == 2:
-                    raise ProviderError("The model provider returned empty content.") from exc
+                    raise InvalidAnswer("The model provider returned an empty or invalid answer.") from exc
             self._sleep(0.25 * (2 ** attempt))
         raise AssertionError("unreachable")
 
     def list_models(self) -> list[ModelInfo]:
-        result = self._call(lambda: self._client.models.list(timeout=15.0))
+        def fetch() -> list[Any]:
+            try:
+                result = self._client.models.list(timeout=15.0)
+            except AttributeError as exc:
+                # openai 3.24.0 fails in its post-parser when a 200 answer is not a JSON object.
+                raise ValueError("model list answer is not a model list") from exc
+            data = getattr(result, "data", None)
+            if not isinstance(data, list):
+                raise ValueError("model list answer has no list of models")
+            return data
+
         models = []
-        for entry in result.data:
+        for entry in self._call(fetch):
+            if not isinstance(entry, Model):
+                continue
             extra = entry.model_extra or {}
             value = extra.get("context_window")
             if value is None:
@@ -114,7 +131,9 @@ class ModelClient:
             return self._prompt_tokens, self._completion_tokens
 
     def chat_json(self, messages: list[dict[str, str]], max_tokens: int) -> dict[str, Any]:
-        def chat() -> str | None:
+        def chat() -> dict[str, Any] | None:
+            # The SDK returns a str, list, or partly built object for answers that are not
+            # chat completions, so nothing about the result's shape is assumed.
             result = self._client.chat.completions.create(
                 model=self.model,
                 messages=messages,
@@ -122,19 +141,23 @@ class ModelClient:
                 response_format={"type": "json_object"},
                 timeout=httpx2.Timeout(connect=10.0, read=300.0, write=10.0, pool=10.0),
             )
-            usage = result.usage
-            if usage is not None:
+            usage = getattr(result, "usage", None)
+            if hasattr(usage, "prompt_tokens") or hasattr(usage, "completion_tokens"):
+                prompt = getattr(usage, "prompt_tokens", None)
+                completion = getattr(usage, "completion_tokens", None)
                 with self._usage_lock:
                     self._usage_reported = True
-                    self._prompt_tokens += usage.prompt_tokens or 0
-                    self._completion_tokens += usage.completion_tokens or 0
-            return result.choices[0].message.content if result.choices else None
-
-        content = self._call(chat)
-        try:
+                    self._prompt_tokens += prompt if type(prompt) is int else 0
+                    self._completion_tokens += completion if type(completion) is int else 0
+            choices = getattr(result, "choices", None)
+            if not isinstance(choices, list) or not choices:
+                return None
+            content = getattr(getattr(choices[0], "message", None), "content", None)
+            if not isinstance(content, str) or not content.strip():
+                return None
             data = json.loads(content)
-        except (ValueError, TypeError) as exc:
-            raise ProviderError("The model provider returned invalid JSON.") from exc
-        if not isinstance(data, dict):
-            raise ProviderError("The model provider returned invalid JSON.")
-        return data
+            if not isinstance(data, dict):
+                raise ValueError("model answer is not a JSON object")
+            return data
+
+        return self._call(chat)

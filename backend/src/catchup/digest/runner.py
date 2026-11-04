@@ -393,7 +393,8 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                                 select(Item).where(Item.id.in_([entry.id for entry in inputs])).order_by(Item.id)
                             )
                         ]
-                    topics = group_items(client, group_inputs, language, app.state.settings.grouping_batch_chars)
+                    topics = group_items(client, group_inputs, language, app.state.settings.grouping_batch_chars,
+                                         context_window)
                 finally:
                     usage = getattr(client, "usage_totals", lambda: None)()
 

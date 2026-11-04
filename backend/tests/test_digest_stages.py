@@ -1,11 +1,15 @@
+import itertools
 import json
+import logging
 import threading
 
 import pytest
 
 from catchup.digest.group import GroupItem, group_items
 from catchup.digest.summarize import SummaryInput, split_parts, summarize_items
-from catchup.llm.client import AuthFailed, ProviderError
+from catchup.llm.client import (
+    AuthFailed, ConnectionFailed, InsufficientBalance, InvalidAnswer, ProviderError, RateLimited,
+)
 from catchup.llm.prompts import grouping_max_tokens, long_transcript_messages, summary_messages
 
 
@@ -314,3 +318,149 @@ def test_unplaced_batch_topic_title_follows_digest_language():
     topics = group_items(client, [GroupItem(n, "Title", "Source", "Summary") for n in (1, 2)],
                          "zh-Hans", 10)
     assert [(topic.title, topic.item_ids) for topic in topics] == [("其他", [1, 2])]
+
+
+def topic_rows(topics):
+    return [(topic.title, topic.overview, topic.item_ids) for topic in topics]
+
+
+@pytest.mark.parametrize("answer", [{}, {"topics": "none"}], ids=["no-topics", "topics-string"])
+@pytest.mark.parametrize("language, title", [("en", "Other"), ("zh-Hans", "其他")])
+def test_grouping_without_a_list_of_topics_falls_back_to_one_topic(answer, language, title):
+    items = [GroupItem(n, f"Title {n}", "Source", "Summary") for n in range(1, 4)]
+    client = FakeModel([answer])
+    assert topic_rows(group_items(client, items, language, 10000)) == [(title, "", [1, 2, 3])]
+    assert len(client.calls) == 1
+
+
+def test_grouping_unusable_after_retries_falls_back_and_logs_no_detail(caplog):
+    items = [GroupItem(n, f"Title {n}", "Source", "Summary") for n in range(1, 4)]
+    client = FakeModel([InvalidAnswer("secret detail")])
+    with caplog.at_level(logging.WARNING):
+        topics = group_items(client, items, "en", 10000)
+    assert topic_rows(topics) == [("Other", "", [1, 2, 3])]
+    warnings = [record for record in caplog.records if record.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    assert "InvalidAnswer" in warnings[0].getMessage()
+    assert "3 items" in warnings[0].getMessage()
+    assert "secret detail" not in caplog.text
+
+
+def test_failed_batch_falls_back_without_a_merge_call():
+    items = [GroupItem(n, f"Title {n}", "Source", "Summary") for n in range(1, 5)]
+    client = FakeModel([
+        {"topics": [{"title": "Batch 1", "overview": "Overview", "item_refs": ["i1"]}]},
+        InvalidAnswer("batch failed"),
+    ])
+    assert topic_rows(group_items(client, items, "en", 10)) == [("Other", "", [1, 2, 3, 4])]
+    assert len(client.calls) == 2
+
+
+def test_failed_merge_falls_back_to_one_topic():
+    items = [GroupItem(n, f"Title {n}", "Source", "Summary") for n in range(1, 5)]
+    client = FakeModel([
+        {"topics": [{"title": f"Batch {n}", "overview": "Overview", "item_refs": ["i1"]}]}
+        for n in range(1, 5)
+    ] + [{"topics": None}])
+    assert topic_rows(group_items(client, items, "en", 10)) == [("Other", "", [1, 2, 3, 4])]
+    assert len(client.calls) == 5
+
+
+@pytest.mark.parametrize("error", [
+    AuthFailed("rejected"), InsufficientBalance("no balance"), RateLimited("slow down"),
+    ConnectionFailed("unreachable"),
+], ids=lambda error: type(error).__name__)
+def test_grouping_errors_that_fail_the_run_propagate(error):
+    items = [GroupItem(n, f"Title {n}", "Source", "Summary") for n in range(1, 3)]
+    with pytest.raises(type(error)):
+        group_items(FakeModel([error]), items, "en", 10000)
+
+
+def test_grouping_bugs_are_not_hidden():
+    items = [GroupItem(n, f"Title {n}", "Source", "Summary") for n in range(1, 3)]
+    with pytest.raises(RuntimeError):
+        group_items(FakeModel([RuntimeError("bug")]), items, "en", 10000)
+
+
+@pytest.mark.parametrize("count, window, expected", [
+    (60, None, 9632), (60, 4096, 2048), (60, 8192, 4096), (60, 16384, 8192),
+    (60, 1_000_000, 9632), (2000, 1_000_000, 32768),
+])
+def test_grouping_budget_is_at_most_half_the_context_window(count, window, expected):
+    if window is None:
+        assert grouping_max_tokens(count) == expected
+    else:
+        assert grouping_max_tokens(count, window) == expected
+
+
+@pytest.mark.parametrize("setting, window, expected", [
+    (200_000, None, 200_000), (200_000, 4096, 2_000), (200_000, 8192, 2_096), (200_000, 32_768, 14_384),
+    (200_000, 128_000, 93_232), (200_000, 1_000_000, 200_000), (10, 1_000_000, 10),
+])
+def test_grouping_batch_chars_fit_the_context_window(setting, window, expected):
+    from catchup.llm.prompts import grouping_batch_chars
+
+    assert grouping_batch_chars(setting, window) == expected
+
+
+def sixty_items():
+    return [GroupItem(n, f"Item {n}", "Source 0", ("word " * 120).strip()) for n in range(1, 61)]
+
+
+def everything_answer():
+    return {"topics": [{
+        "title": "Everything", "overview": "All items",
+        "item_refs": [f"i{n}" for n in range(1, 61)], "topic_refs": [f"b{n}" for n in range(1, 61)],
+    }]}
+
+
+def test_grouping_batches_fit_a_small_context_window():
+    model = FakeModel(itertools.repeat(everything_answer()))
+    topics = group_items(model, sixty_items(), "en", 200_000, 8192)
+    assert len(model.calls) > 1
+    for messages, max_tokens in model.calls:
+        system, user = messages[0]["content"], messages[1]["content"]
+        assert len(system) + len(user) + max_tokens <= 8192
+        assert max_tokens <= 4096
+        if "item_refs" in system:
+            assert len(user) <= 2096
+    placed = [item_id for topic in topics for item_id in topic.item_ids]
+    assert sorted(placed) == list(range(1, 61))
+
+
+def test_grouping_with_unknown_context_window_makes_one_call():
+    model = FakeModel(itertools.repeat(everything_answer()))
+    topics = group_items(model, sixty_items(), "en", 200_000)
+    assert [max_tokens for _, max_tokens in model.calls] == [9632]
+    assert [topic.item_ids for topic in topics] == [list(range(1, 61))]
+
+
+def test_grouping_setting_still_limits_batches_with_a_large_window():
+    items = [GroupItem(n, f"Title {n}", "Source", "Summary") for n in range(1, 5)]
+    client = FakeModel([
+        {"topics": [{"title": f"Batch {n}", "overview": "Overview", "item_refs": ["i1"]}]}
+        for n in range(1, 5)
+    ] + [{"topics": [
+        {"title": "Merged", "overview": "Combined", "topic_refs": ["b1", "b2", "b1", "b999"]},
+    ]}])
+    topics = group_items(client, items, "original", 10, 1_000_000)
+    assert [(topic.title, topic.item_ids) for topic in topics] == [
+        ("Merged", [1, 2]), ("Other", [3, 4]),
+    ]
+    assert len(client.calls) == 5
+    assert all(tokens == 8192 + 24 for _, tokens in client.calls[:-1])
+    assert client.calls[-1][1] == 8192 + 24 * 4
+
+
+def test_grouping_status_errors_propagate():
+    items = [GroupItem(n, f"Title {n}", "Source", "Summary") for n in range(1, 4)]
+    with pytest.raises(ProviderError):
+        group_items(FakeModel([ProviderError("The model provider returned an error.")]), items, "en", 10000)
+
+
+def test_grouping_invalid_answer_falls_back_to_one_topic():
+    from catchup.llm.client import InvalidAnswer
+
+    items = [GroupItem(n, f"Title {n}", "Source", "Summary") for n in range(1, 4)]
+    client = FakeModel([InvalidAnswer("The model provider returned an empty or invalid answer.")])
+    assert topic_rows(group_items(client, items, "en", 10000)) == [("Other", "", [1, 2, 3])]

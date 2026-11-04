@@ -1733,3 +1733,49 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - **One extra mutation,** not named in the plan, showed that the caption test's "skipped without an error" assertion fails when the deleted-item skip is removed.
   - **The plan held:** no check was green before its change except the planned guard, so nothing was stopped or redesigned.
   - **No live feed, model, X token, push, or published image.** Docker was used only to build and smoke-test a local image, which was removed afterwards.
+
+## 2026-11-03 — `recover-from-model-errors` (#67): lean plan, overnight (Claude Code, Opus 5.5, as a planning sub-agent)
+
+- **Prompts** (translated from Chinese): "I'm going to sleep. Arrange tonight's tasks yourself, for example fix the issues that are open now." Then: "You can open worktrees yourself and let sub-conversations do the work; you only accept the results." The overnight session gave this sub-agent issue #67 with its verified facts, and these rules: the lean path, test-first tasks, no contact with model providers, and no edits near #66's runner lines.
+- **Probes before the plan** (D-023), through `httpx2.MockTransport`, with no provider contacted:
+  - The OpenAI SDK 3.24.0 returns a `str` for a `text/plain` or `text/html` 200 answer, and a `list` for JSON `[]`. `{"choices": [{}]}`, `{"choices": "busy"}`, and a string `usage` also crash `chat()`. 502 and 504 are `APIStatusError`s.
+  - A throwaway prototype of the whole plan, in the scratchpad, not in the repository:
+    - exactly five existing runner tests use a `ProviderError` to fail a run at grouping;
+    - a keyword `context_window` broke a sixth test's stub, so the plan passes it positionally;
+    - the two planned run tests were red on main and green on the prototype.
+- **Plan** (the `openspec-propose` skill):
+  - `proposal.md`;
+  - a `digest-generation` delta, with two modified requirements and one added;
+  - `design.md`, D1–D4: the retry set, reading answers without assuming their shape, the "Other" fallback inside `group_items`, and the grouping budget from the context window;
+  - `tasks.md`: four groups, with guards and named mutations.
+- **Left out on purpose:** `list_models` with a non-JSON answer (the Settings test), showing the fallback in the run, and splitting the merge call.
+- **Outcome.** `openspec validate --strict` passes. The plan waits for the overnight session's review and a fresh-eyes check before Factory Droid runs.
+
+## 2026-11-03 — `recover-from-model-errors` (#67): implementation, overnight (Claude Code, Opus 5.5, as the implementer sub-agent in place of Factory Droid)
+
+- **Why Claude Code implemented it:** Factory Droid's login had expired, and the user was asleep. The overnight session gave the implementation to a Claude Opus 5.5 sub-agent under Droid's rules. Claude Code reviews the run independently afterwards.
+- **Prompt (faithful excerpt):** "You are the implementer for one OpenSpec change in CatchUp … The project's usual implementer (Factory Droid) is unavailable tonight because its login expired; you replace it, under the same rules. … Follow `.claude/skills/openspec-apply-change/SKILL.md` and, for each task, `.claude/skills/tdd/SKILL.md` … Work through `tasks.md` in order. Test-first (D-016): write each task's checks as failing tests, run them and see them fail for the reason the task states, then implement until they pass. A check marked 'guard (already green)' must instead fail under its named mutation; a guard with no named mutation only has to pass. Named mutations: apply each, run the named test, record the result, and revert it. Leave none in place. If a check is green before the change (other than a guard), or the plan looks wrong or contradictory, stop and report instead of improvising. … Commit after each task group … Do not push, tag, or open a PR. … Every OpenSpec CLI call MUST be prefixed with `DO_NOT_TRACK=1`. Never contact a model provider; do not contact any network service except what Docker needs to build the image; do not use any real API key or token." After an API rate limit interrupted the run, the continuation said: "First confirm with `git log`, `git status`, and `tasks.md` which tasks are checked off and committed, and that no mutation is left in place. Then finish the remaining tasks (group 4 …)."
+- **Outcome:**
+  - Three group commits: `e1ebd2e` (retry 502/504, invalid JSON, and answers that are not chat completions; read answers and the model list without assuming their shape), `9783cf0` (one "Other" topic when grouping stays unusable after retries), and `8ef6301` (grouping budget and batches from the context window). The test report and these logs were added in a fourth commit.
+  - Every non-guard check was red first, for the reason the task states. Each guard and named mutation failed its named check and was reverted. Details are in `test-report-recover-from-model-errors.md`.
+  - Final checks: 832 backend tests at 97% coverage, 259 frontend tests, 112 extension tests, both builds, local Docker build and smoke (the image was removed afterwards), and `openspec validate --strict`.
+- **Problems / adjustment:**
+  - A short SDK probe ran before group 1 (D-023), and it confirmed the plan's claims about `models.list()`.
+  - To see a red run test's error kind, its assertion message was changed temporarily; the file was then restored from a copy.
+  - macOS has no `timeout` command, so the suite ran without it. No test hung.
+  - A zsh pipeline hid the smoke script's exit code, so the smoke ran again with its exit code captured. It returned 0.
+  - An API rate limit stopped the sub-agent after the checks had run. On resuming, it confirmed the commits, the checkboxes, and the absence of mutations from `git log`, `git status`, `tasks.md`, and the committed source, then ran the full check sequence again in order.
+  - No live provider check was attempted. Claude Code does it at review.
+
+## 2026-11-04 — `recover-from-model-errors` (#67): fix round 1, overnight (Claude Code, Opus 5.5, as the implementer sub-agent in place of Factory Droid)
+
+- **Prompt (faithful excerpt):** "Fix round 1 for #67: please implement the new task group 5 in the same checkout, under the same rules as before (test-first with the tdd skill, red first except guards, run and revert each named mutation, commit after the group, no push, DO_NOT_TRACK=1 on every OpenSpec call, Docker only for your own `catchup:model-errors-local` image). Why: an independent review found that the grouping fallback also caught plain `ProviderError` from HTTP status errors, so a run where every model call fails (a wrong model ID answering 404, or a 5xx outage) succeeded and delivered every item as 'summary unavailable' for good … Read first: `git diff a18a45f..7241578` …, the 'Fix round 1' bullet in `design.md` D3, the amended lines and the new scenario … and `tasks.md` group 5 (5.1–5.4). … Then rerun the checks of task 4.1 in order (including the Docker smoke), add the 'Fix round 1' section to the test report and your AI usage log entry for this round …"
+- **Outcome:**
+  - A new `InvalidAnswer(ProviderError)` marks answers that stay unusable after retries, and the grouping fallback catches only that error. A run in which every model call answers 500 or 404 now fails as `provider_error`, saves no digest, and keeps its items pending with no stored summary.
+  - The three test gaps from the review are guarded: `data` not a list, a string completion count, and 501.
+  - Every non-guard check was red first, and every named mutation failed its check and was reverted (see the fix-round-1 section of `test-report-recover-from-model-errors.md`).
+  - Checks: 840 backend tests at 97% coverage, 259 frontend tests, 112 extension tests, both builds, local Docker build and smoke (the image was removed afterwards), and `openspec validate --strict`.
+- **Problems / adjustment:**
+  - None blocked the round.
+  - The plan expected implementing 5.2 to break checks 2 and 3 of 2.2, and it did. They were then moved to `InvalidAnswer`, as task 5.2 says.
+  - One mutation's failure mode, an assertion rather than a `TypeError`, was confirmed by running it on its own, with the file restored from a copy afterwards.

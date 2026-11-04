@@ -161,7 +161,7 @@ def test_rate_limit_retries_then_succeeds(mock_provider) -> None:
     client.close()
 
 
-@pytest.mark.parametrize("status", [500, 503])
+@pytest.mark.parametrize("status", [500, 502, 503, 504])
 def test_server_error_exhausts_retries(mock_provider, status) -> None:
     router, http_client = mock_provider
     route = router.post(f"{BASE}/chat/completions").mock(
@@ -189,4 +189,148 @@ def test_rate_limit_exhaustion(mock_provider) -> None:
     client = ModelClient(BASE, "test-only-key", http_client=http_client, sleep=lambda _: None)
     with pytest.raises(RateLimited):
         client.list_models()
+    client.close()
+
+
+CUT_OFF = '{"topics": [{"title": "Tech'
+PLAIN_TEXT = "upstream overloaded"
+HTML_PAGE = "<html><body>Bad gateway</body></html>"
+
+
+@pytest.mark.parametrize("status", [502, 504])
+def test_gateway_error_retries_then_succeeds(mock_provider, status) -> None:
+    router, http_client = mock_provider
+    route = router.post(f"{BASE}/chat/completions")
+    route.side_effect = [httpx.Response(status, json={"error": {"message": "bad gateway"}}), completion('{"ok": 1}')]
+    client = ModelClient(BASE, "test-only-key", "test-model", http_client=http_client, sleep=lambda _: None)
+    assert client.chat_json([], 20) == {"ok": 1}
+    assert route.call_count == 2
+    client.close()
+
+
+@pytest.mark.parametrize("status", [400, 404, 422, 501])
+def test_other_status_fails_at_once(mock_provider, status) -> None:
+    router, http_client = mock_provider
+    route = router.post(f"{BASE}/chat/completions").mock(
+        return_value=httpx.Response(status, json={"error": {"message": "not temporary"}}),
+    )
+    client = ModelClient(BASE, "test-only-key", "test-model", http_client=http_client, sleep=lambda _: None)
+    with pytest.raises(ProviderError):
+        client.chat_json([], 20)
+    assert route.call_count == 1
+    client.close()
+
+
+@pytest.mark.parametrize("content", [CUT_OFF, "not json", "[1, 2]"], ids=["cut-off", "not-json", "json-list"])
+def test_invalid_json_retries_then_succeeds(mock_provider, content) -> None:
+    router, http_client = mock_provider
+    route = router.post(f"{BASE}/chat/completions")
+    route.side_effect = [completion(content), completion('{"ok": true}')]
+    sleeps = []
+    client = ModelClient(BASE, "test-only-key", "test-model", http_client=http_client, sleep=sleeps.append)
+    assert client.chat_json([], 20) == {"ok": True}
+    assert route.call_count == 2
+    assert sleeps == [0.25]
+    client.close()
+
+
+def test_invalid_json_exhausts_retries(mock_provider) -> None:
+    router, http_client = mock_provider
+    route = router.post(f"{BASE}/chat/completions").mock(return_value=completion(CUT_OFF))
+    sleeps = []
+    client = ModelClient(BASE, "test-only-key", "test-model", http_client=http_client, sleep=sleeps.append)
+    with pytest.raises(ProviderError):
+        client.chat_json([], 20)
+    assert route.call_count == 3
+    assert sleeps == [0.25, 0.5]
+    client.close()
+
+
+@pytest.mark.parametrize("answer", [
+    httpx.Response(200, text=PLAIN_TEXT),
+    httpx.Response(200, html=HTML_PAGE),
+    httpx.Response(200, json=[]),
+    httpx.Response(200, json="busy"),
+    httpx.Response(200, json={"choices": "busy"}),
+    httpx.Response(200, json={"choices": [{}]}),
+    httpx.Response(200, json={"choices": [{"message": "busy"}]}),
+], ids=["plain-text", "html", "json-list", "json-string", "choices-string", "choice-without-message",
+        "message-string"])
+def test_answer_that_is_not_a_chat_completion_retries(mock_provider, answer) -> None:
+    router, http_client = mock_provider
+    route = router.post(f"{BASE}/chat/completions")
+    route.side_effect = [answer, completion('{"ok": true}')]
+    client = ModelClient(BASE, "test-only-key", "test-model", http_client=http_client, sleep=lambda _: None)
+    assert client.chat_json([], 20) == {"ok": True}
+    assert route.call_count == 2
+    client.close()
+
+
+def test_answer_that_is_not_a_chat_completion_exhausts_retries(mock_provider) -> None:
+    router, http_client = mock_provider
+    route = router.post(f"{BASE}/chat/completions").mock(return_value=httpx.Response(200, text=PLAIN_TEXT))
+    client = ModelClient(BASE, "test-only-key", "test-model", http_client=http_client, sleep=lambda _: None)
+    with pytest.raises(ProviderError):
+        client.chat_json([], 20)
+    assert route.call_count == 3
+    client.close()
+
+
+def completion_with_usage(content: str, usage) -> httpx.Response:
+    body = json.loads(completion(content).content)
+    body["usage"] = usage
+    return httpx.Response(200, json=body)
+
+
+@pytest.mark.parametrize("usage,expected", [
+    ("n/a", None),
+    ({"prompt_tokens": "7", "completion_tokens": 3}, (0, 3)),
+    ({"prompt_tokens": 7, "completion_tokens": "3"}, (7, 0)),
+], ids=["usage-string", "token-count-string", "completion-count-string"])
+def test_usage_of_the_wrong_shape_is_not_counted(mock_provider, usage, expected) -> None:
+    router, http_client = mock_provider
+    route = router.post(f"{BASE}/chat/completions").mock(
+        return_value=completion_with_usage('{"summary": "ok"}', usage),
+    )
+    client = ModelClient(BASE, "test-only-key", "test-model", http_client=http_client, sleep=lambda _: None)
+    assert client.chat_json([], 20) == {"summary": "ok"}
+    assert route.call_count == 1
+    assert client.usage_totals() == expected
+    client.close()
+
+
+@pytest.mark.parametrize("answer", [
+    httpx.Response(200, text=PLAIN_TEXT),
+    httpx.Response(200, json={"object": "list", "data": "busy"}),
+], ids=["plain-text", "data-string"])
+def test_model_list_that_is_not_a_model_list_exhausts_retries(mock_provider, answer) -> None:
+    router, http_client = mock_provider
+    route = router.get(f"{BASE}/models").mock(return_value=answer)
+    client = ModelClient(BASE, "test-only-key", http_client=http_client, sleep=lambda _: None)
+    with pytest.raises(ProviderError):
+        client.list_models()
+    assert route.call_count == 3
+    client.close()
+
+
+def test_model_list_that_is_not_a_model_list_retries_then_succeeds(mock_provider) -> None:
+    router, http_client = mock_provider
+    route = router.get(f"{BASE}/models")
+    route.side_effect = [
+        httpx.Response(200, text=PLAIN_TEXT),
+        httpx.Response(200, json={"object": "list", "data": [{"id": "latest", "object": "model"}]}),
+    ]
+    client = ModelClient(BASE, "test-only-key", http_client=http_client, sleep=lambda _: None)
+    assert client.list_models() == [ModelInfo("latest")]
+    assert route.call_count == 2
+    client.close()
+
+
+def test_model_list_skips_entries_that_are_not_models(mock_provider) -> None:
+    router, http_client = mock_provider
+    router.get(f"{BASE}/models").mock(return_value=httpx.Response(200, json={
+        "object": "list", "data": [1, {"id": "m"}],
+    }))
+    client = ModelClient(BASE, "test-only-key", http_client=http_client, sleep=lambda _: None)
+    assert client.list_models() == [ModelInfo("m")]
     client.close()

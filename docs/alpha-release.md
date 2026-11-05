@@ -10,7 +10,7 @@ CatchUp is an open-source personal digest that runs on the user's own computer. 
 
 The alpha is commit `f832bb4` on the main branch (2026-11-03); the README explains setup. Its tests need no network or model account: 885 backend tests exercise 97% of the backend code, plus 263 web-app and 114 extension tests, and the backend, web-app, and Docker checks must pass before a change merges.
 
-There are no placeholder screens: features not built yet are absent from the app and tracked as issues.
+No screen is a placeholder; unbuilt features are absent from the app and tracked as issues.
 
 | Feature | Status | Notes |
 |---|---|---|
@@ -20,7 +20,7 @@ There are no placeholder screens: features not built yet are absent from the app
 | Reading linked pages and author replies | Partial | Slow, and its progress count overstates the work (#64) |
 | Images from source sites | Partial | Some chosen images mean little without the article (#65) |
 | Browser extension | Partial | Chrome and Edge, installed by hand; on short pages it can save sponsor text (#62) |
-| Local install and security | Partial | No login; by default it answers only requests addressed to localhost and refuses changes sent from other websites. One known gap (#68); clean-machine install test pending (#13) |
+| Local install and security | Partial | No user accounts; by default it answers only requests addressed to localhost and refuses changes sent from other websites. One known gap (#68); clean-machine install test pending (#13) |
 | Accessibility | Partial | Contrast and automated accessibility checks pass; keyboard focus is lost on some screen updates (#72) |
 | Bookmarks (#8), top-N items (#9), link depth (#54), Bilibili (#40) | Not started | |
 
@@ -30,8 +30,8 @@ Screenshots of `f832bb4` on a local test instance with English digests.
 
 | | |
 |---|---|
-| ![Latest digest](../assets/alpha/home-latest.png)<br>**Latest:** the newest digest, grouped by topic, under the Generate bar. | ![Run in progress](../assets/alpha/run-progress.png)<br>**A run:** progress and the result for each source. |
-| ![Sources preview](../assets/alpha/sources-preview.png)<br>**Sources:** a pasted address is previewed before it is saved. | ![Extension popup](../assets/alpha/extension-popup.png)<br>**Extension:** follow this site, or add this page to the next digest. |
+| ![Latest digest](../assets/alpha/home-latest.png)<br>**Latest:** the newest digest under the Generate bar, with its six topics and the first summaries. | ![Run in progress](../assets/alpha/run-progress.png)<br>**A first run:** the stages, items summarized so far, and a result for each source. |
+| ![Sources preview](../assets/alpha/sources-preview.png)<br>**Sources:** a pasted address is previewed before it is saved, above two saved sources. | ![Extension popup](../assets/alpha/extension-popup.png)<br>**Extension:** follow this site, or add this page to the next digest (popup and page captured separately). |
 
 ## Backlog
 
@@ -49,7 +49,7 @@ On 2026-11-04 the board has 57 items: 23 Todo, 1 In Progress (#17, this document
 | #70 | Pages saved while a run reads linked pages are summarized without their linked pages | Todo | Medium |
 
 ![Project board](../assets/alpha/backlog-board.png)
-**The project board**, with Title, Status, and Priority.
+**The project board** (table view): the 24 open tasks by priority, with Title, Status, linked pull requests, Priority (column "P…"), and Labels.
 
 ## AI tool integration
 
@@ -60,7 +60,7 @@ On 2026-11-04 the board has 57 items: 23 Todo, 1 In Progress (#17, this document
 | Factory Droid (GPT-6 Sol where reported) | Writes the code and tests for each plan, in a separate copy of the repository |
 | OpenSpec, GitHub Actions | Written requirements and task lists; automatic checks on every pull request |
 
-**How the process works.** Context is written once for people and agents: one instruction file for both coding tools (`AGENTS.md`), OpenSpec specs (101 requirements, 305 example scenarios), and a task list per change that names each task's test. New features get research and two proposals for me to choose from (11 of the 26 changes so far), small fixes a one-step plan; I approve plans and merges, or authorize an overnight queue in advance. Since 2026-10-07 every Droid run is to get a bug review (`/code-review`) and a spec review by a separate helper agent.
+**How the process works.** Context is written once for people and agents: one instruction file for both coding tools (`AGENTS.md`), OpenSpec specs (101 requirements, 305 example scenarios), and a task list per change that names each task's test. New features get research and two proposals for me to choose from (11 of 26 changes), small fixes a one-step plan; I approve plans and merges, or authorize an overnight queue in advance. Since 2026-10-07 the rules require a bug review (`/code-review`) and a spec review by another helper agent after every Droid run. In about five weeks (2026-10-01 to 2026-11-03) this produced 26 changes and 28 merged pull requests; every one of the 455 commits on `main` (merges aside) was co-written by Droid or Claude Code, while I chose, approved, and tested.
 
 **How prompts changed** (real excerpts):
 
@@ -70,16 +70,16 @@ On 2026-11-04 the board has 57 items: 23 Todo, 1 In Progress (#17, this document
 **Successes.**
 
 - **Security bugs caught in review and research.** A review found that a malicious web page could make CatchUp send the stored model key to the page's own server, a flaw in Claude's own design (2026-10-03). Extension research found that any website could start a run that spends the user's model credit (#59).
-- **Independent plan review.** A helper agent that had not seen the planning reported 20 possible problems in the podcast and YouTube plan; 17 were confirmed and fixed. In a second round, an item it could not verify, tested on live feeds, showed that some Substack newsletters would have been treated as podcasts for good (2026-10-05).
+- **Independent plan review.** A helper agent that had not seen the planning reported 20 possible problems in the podcast and YouTube plan, and 17 were fixed. A second-round item it could not verify, tested on live feeds, showed that some Substack newsletters would have become podcasts for good (2026-10-05).
 - **Overnight work.** On 2026-11-03 I wrote, "I'm going to sleep. Arrange tonight's tasks yourself, for example fix the issues that are open now" (translated). Helper agents planned four of five small fixes and, because Droid's login had expired, implemented all five; Claude Code planned the fifth and reviewed them all (PRs #78–#82).
 
 **Challenges and adjustments.**
 
-- **Passing tests did not prove the behavior.** 147 tests with a simulated model passed, yet the first real DeepSeek run returned 4 of 11 summaries empty: summaries had a short length limit, and DeepSeek's documentation says its step-by-step "thinking" mode is on by default (2026-10-03). A layout test that only checked that a style rule existed passed while titles overlapped summaries (#25). Now a new check must fail before its fix, an existing check must fail when the code is deliberately broken, and a check in the running app is required, though real-model runs for #66 and #67 are still pending.
+- **Passing tests did not prove the behavior.** 147 tests with a simulated model passed, yet the first real DeepSeek run returned 4 of 11 summaries empty: summaries had a short length limit, and DeepSeek's documentation says its step-by-step "thinking" mode is on by default (2026-10-03). A layout test that only checked that a style rule existed passed while titles overlapped summaries (#25). Now a new check must fail before its fix, an existing check must fail when the code is deliberately broken, and a check in the running app is required. It is not always on time: the real-model run for #66 and #67 came only after their merge (2026-11-04: one run, 50 items, 10 topics, the new error handling was not needed).
 - **Fix rounds piled up.** I worried that "one patch is patching another patch" (2026-10-21, translated). A review of about 75 fix-round items found 18 real defects, 6 errors in Claude's plans, about 45 extra tests added only to catch deliberately broken code, and 2 needless changes. Stop rules followed: sort findings first, one fix round by default, and a fresh agent checks each task list before implementation.
-- **Plan errors.** On the redesign, Droid stopped twice before writing code because the plan contradicted itself, such as a color test that the planned colors failed (2026-10-06). Plan numbers are now checked before hand-off; the prompt's "stop and report instead of improvising" (used since 2026-10-02) kept these errors cheap.
+- **Plan errors.** On the redesign, Droid stopped twice before writing code because the plan contradicted itself, such as a color test that the planned colors failed (2026-10-06). Plan numbers are now checked before hand-off; the prompt's "stop and report instead of improvising" kept these errors cheap.
 
 **Unexpected insights.**
 
-- Checks in the running app and reasoning, not more simulated tests, found most real defects: the 18 were "mostly found by live checks and by reasoning about the code".
+- Most of the 18 real defects were "found by live checks and by reasoning about the code", not by more simulated tests.
 - Several of the costliest defects started in the plan, not in the generated code: the model-key leak above, and 12 false assumptions that a fresh agent found in the extension plan before any code was written.

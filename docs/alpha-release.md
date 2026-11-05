@@ -40,7 +40,9 @@ The backlog is the public issue list (<https://github.com/Zhuoang2/catchup/issue
 ![Project board](../assets/alpha/backlog-board.png)
 **The project board** (table view): the first 12 of the 24 open tasks (all 6 High and 6 of the 10 Medium) with Title, Status, Priority, and Labels, sorted by priority. The older `priority:next` label predates the Priority field.
 
-On 2026-11-04 the board has 57 items: 23 Todo, 1 In Progress (#17, this document), and 33 Done. The 24 open issues are 6 High, 10 Medium, and 8 Low priority. No assignees are used (one-person team). Not in the screenshot: Medium #71, #72, #73, #76; Low #4, #9, #11, #12, #40, #43, #54, #60. Done tasks have no priority: the field was added on 2026-11-04, after they closed.
+On 2026-11-04 the board has 57 items: 23 Todo, 1 In Progress (#17, this document), and 33 Done. The 24 open issues are 6 High, 10 Medium, and 8 Low priority. No assignees are used (one-person team).
+
+Not in the screenshot: Medium #71, #72, #73, #76; Low #4, #9, #11, #12, #40, #43, #54, #60. Done tasks have no priority: the field was added on 2026-11-04, after they closed.
 
 The next tasks (their titles are in the board screenshot):
 
@@ -61,7 +63,7 @@ The next tasks (their titles are in the board screenshot):
 | Claude Code (Opus 5.5) | Research, plans, UI prototypes and their design reviews, code reviews, live checks, helper agents |
 | Factory Droid (mostly GPT-6 Sol) | Writes the code and tests for most plans, in a separate copy of the repository |
 
-**How the process works.** Context is written once for people and agents: one instruction file for both coding tools (`AGENTS.md`), requirements with 305 example scenarios, and per-change task lists that name each task's test. Every feature or fix is a planned change: for a new feature I choose between two proposals (11 of the 26 changes so far), and a small fix gets a one-step plan. I approve each plan and merge, or a whole overnight queue in advance. After every Droid run the rules require a bug review (`/code-review`) and a helper agent's requirements review. In about five weeks (2026-10-01 to 2026-11-03) this produced 26 planned changes and 28 merged pull requests; all 455 non-merge commits on `main` were co-written by Droid or Claude Code. For scale, once its plan was fixed, Droid built the 14-task interface redesign in about 49 minutes (2026-10-06).
+**How the process works.** Context is written once for people and agents: one instruction file for both coding tools (`AGENTS.md`), requirements with 305 example scenarios, and task lists naming each task's test. Most work starts as a written plan: a larger feature gets two proposals for me to choose from (11 of the 26 planned changes so far), and a small feature or fix gets a one-step plan. I approve each plan and each merge, or approve a whole overnight queue in advance. After every Droid run the rules require a bug review (`/code-review`) and a helper agent's requirements review. In about five weeks (2026-10-01 to 2026-11-03) this produced 26 changes and 28 merged pull requests; all 455 non-merge commits on `main` were co-written by Droid or Claude Code. For scale, Droid's first pass over the 14-task interface redesign took about 49 minutes (2026-10-06); review fix rounds followed.
 
 **Successes.**
 
@@ -71,9 +73,9 @@ The next tasks (their titles are in the board screenshot):
 
 **Challenges and adjustments.**
 
-- **Passing tests did not prove the behavior.** 147 tests with a simulated model passed, but the first real DeepSeek run left 4 of 11 summaries empty: its step-by-step "thinking" mode, on by default per DeepSeek's documentation, used up the length limit (2026-10-03). Work became test-first (2026-10-07): "write the task's checks as failing tests and watch them fail, then implement until they pass" (prompt for #59, 2026-10-20). A running-app check is also required, but #66 and #67 had their real-model run only after merging (2026-11-04).
+- **Passing tests did not prove the behavior.** 147 simulated-model tests passed, but the first real DeepSeek run left 4 of 11 summaries empty: its step-by-step "thinking" mode, on by default per DeepSeek's documentation, used up the length limit (2026-10-03). A running-app check is now required, though #66 and #67 had their real-model run only after merging (2026-11-04). Work also became test-first (2026-10-07): "write the task's checks as failing tests and watch them fail, then implement until they pass" (prompt for #59, 2026-10-20).
 - **Fix rounds piled up.** I worried that "one patch is patching another patch" (2026-10-21, translated). Of about 75 fix-round items, 18 were real defects, 6 errors in Claude's plans, about 45 tests added only because a deliberately broken copy of the code still passed them (mutation testing), and 2 needless. We then adopted stop rules: sort findings first, one fix round by default, and a fresh helper agent checks each task list.
-- **Plan errors.** Droid stopped twice before coding the redesign: the plan contradicted itself, e.g. a color test the planned colors failed (2026-10-06); the prompt line "stop and report instead of improvising" (since 2026-10-02) kept this cheap; every numeric check in a plan is now computed against the planned values before hand-off.
+- **Plan errors.** Droid stopped twice before coding the redesign because the plan contradicted itself, e.g. a color test that the planned colors failed (2026-10-06). The prompt line "stop and report instead of improvising" (since 2026-10-02) kept this cheap, and every numeric check in a plan is now computed before hand-off.
 
 **Unexpected insights.**
 

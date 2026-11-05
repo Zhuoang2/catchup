@@ -1779,3 +1779,37 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - None blocked the round.
   - The plan expected implementing 5.2 to break checks 2 and 3 of 2.2, and it did. They were then moved to `InvalidAnswer`, as task 5.2 says.
   - One mutation's failure mode, an assertion rather than a `TypeError`, was confirmed by running it on its own, with the file restored from a copy afterwards.
+
+## 2026-11-04 — Merging the five overnight fixes and rebuilding the user's instance (Claude Code, Opus 5.5)
+
+- **Prompts** (translated from Chinese): "As you suggested, open the PRs one at a time and merge them", with the answer "Open them all; merge method: merge" for auto-merge on all five. Later, several times: "Has the merge finished?" Then: "OK, back up first, then rebuild 8800."
+- **Outcome:**
+  - PRs #78–#82 merged in the proposed order (#75 → #74 → #69 → #66 → #67), each with all checks green. Before opening each PR, Claude merged the previous branch into the next one locally, so each PR showed only its own change once its predecessor merged. Conflicts in the shared process logs were resolved by keeping both sides. The five issues were closed and moved to Done; the branches and worktrees were removed.
+  - The user's own instance was rebuilt from `main` at `f832bb4`. Its data volume was first copied to a backup and compared byte for byte (same SHA-256, `integrity_check` ok). The new image passed `scripts/docker-smoke.sh` (12/12) before the old container was stopped, and the stored secret key was passed to the new container without being printed. The database migrated to `0007_x_accounts`; sources, digests, and the saved model key were intact.
+  - The user then ran one digest with their DeepSeek model: it succeeded with 50 items from all 4 sources (one YouTube feed answered 404 and was marked failed) in 10 topics, with no grouping fallback. This is the post-merge live check recorded in the #66 and #67 test reports.
+- **Problems / adjustment:**
+  - Claude did not notice that PR #79 had merged, because no merge event arrived, and the user had to ask. Following the rule not to poll CI, Claude now checks a PR's state once each time the user asks.
+  - A container name kept from an earlier rebuild was already taken. Claude kept that container and gave the stopped one a new name instead of deleting anything.
+  - Opening the backup read-only failed on a read-only mount until SQLite's `immutable=1` was used.
+  - In one reply Claude said the digest had 11 topics; the database showed 10, and the reply was corrected.
+  - Later that day Docker Desktop had quit, so the instance showed its offline page. Claude restarted Docker and the container; the container has no restart policy.
+
+## 2026-11-04 — Alpha release document (#17) (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents; Claude reviewed only)
+
+- **Prompts** (translated from Chinese):
+  - Claude first asked three questions about the submission format in a dialog; the user declined the dialog and wrote instead: "Tell me how to test on the rebuilt 8800. As for the Alpha, you can open a new worktree for it; you only do the review. Here are the project's requirements and the Alpha's requirements", with links to the course's two documents.
+  - After the first review: "As you suggested, add the Priority field and use 8810 for the screenshots. Also, Docker for testing doesn't seem to be running."
+  - On a settings problem found while taking screenshots: "I think it could save automatically after the test."
+- **Brief to the drafting sub-agent (faithful excerpt):** "Do not invent anything. If a claim cannot be checked, leave it out or flag it in your report. … Re-derive numbers yourself", with the course text saved from the two documents, the facts already established (the board is private and has no Priority field), and outputs: the document, a priority proposal, a screenshot plan, and a fact-check file mapping each claim to its evidence.
+- **Outcome:**
+  - `docs/alpha-release.md` in four rounds, with five screenshots, and a PDF built from it for submission (Markdown rendered to HTML with a print stylesheet, printed by Playwright's Chromium). Test counts were re-run for it (885 backend tests at 97% coverage, 263 frontend, 114 extension), and `coverage-summary.md` gained a row for `f832bb4`.
+  - The user approved the proposed priorities. Claude added a Priority field (High / Medium / Low) to the project board, set it on all 24 open issues (6 High, 10 Medium, 8 Low), and added labels to the six unlabeled ones.
+  - Screenshots came from a throwaway instance on port 8810 with English digests, where the user entered their own model key. A second sub-agent took four of them with Playwright and started one digest run; the user took the board screenshot.
+- **Reviews:**
+  - An independent sub-agent reviewed the first draft against the course text and the repository: 1 blocker (the board link is private), 5 major (priority not recorded in the task system, about 4 pages instead of 1–2, unexplained internal shorthand, "every change now gets a live check" overstated, "I approve every merge" contradicted by overnight queues), and 13 minor (dates, attributions, wording). Claude checked each against the logs, test reports, and `gh`; all were confirmed and fixed.
+  - Claude reviewed each revision and every image. A final independent review of the complete document with its images found no blocker and confirmed every number, date, and quote. Its 3 major findings: the screenshots in a 2×2 grid would print at about 3 pt, the length was still about 3.5 pages, and the backlog section did not say where each task's description is. Its minor findings included a second known security gap recorded on #65, a YouTube sentence that misread the README, and Droid credited with all implementation. Claude verified them; the user chose a PDF submission (images cropped for print) and retook the board screenshot.
+- **Problems / adjustment:**
+  - The first draft followed the guideline's structure but read like an internal report: decision ids, file names, and testing terms throughout. The revision brief asked for plain language and a length budget per section.
+  - The drafting sub-agent narrowed two requested edits where the evidence did not support Claude's wording (which fixes had a late live check, and "agents wrote most of the code", which commit trailers cannot show). Claude agreed with both.
+  - The user's first settings on 8810 were tested but never saved (the server log shows two test calls and no save), so the Generate button stayed disabled. The screenshot sub-agent stopped and reported instead of working around it; the user saved again. The user's suggestion, saving automatically after a successful test, is to be filed as an issue after the alpha is submitted, so the document's issue counts stay true.
+  - Branded Chrome no longer loads unpacked extensions, so the popup was opened in Playwright's own Chromium through the DevTools protocol (equivalent to clicking the toolbar icon) and then placed over a separate capture of the article page. The caption says the image is a composite.

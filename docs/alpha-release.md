@@ -35,11 +35,14 @@ The alpha is commit `f832bb4` (2026-11-03); setup is in the README. 885 backend 
 
 ## Backlog
 
-The backlog is the public issue list (<https://github.com/Zhuoang2/catchup/issues>), organized on a private GitHub Projects board shown below. Each issue's text is its description, usually what happens, why it matters, and the fix; most issues have type and area labels, and the pull request that implements an issue closes it.
+The backlog is the public issue list (<https://github.com/Zhuoang2/catchup/issues>), organized on a private GitHub Projects board, shown here. Each issue's text is its description, usually what happens, why it matters, and the fix; most issues have type and area labels, and the pull request that implements an issue closes it.
 
-On 2026-11-04 the board has 57 items: 23 Todo, 1 In Progress (#17, this document), and 33 Done. The 24 open issues are 6 High, 10 Medium, and 8 Low priority. No assignees are used (one-person team). The next tasks:
+![Project board](../assets/alpha/backlog-board.png)
+**The project board** (table view): the first 12 of the 24 open tasks (all 6 High and 6 of the 10 Medium) with Title, Status, Priority, and Labels, sorted by priority. The older `priority:next` label predates the Priority field.
 
-| Issue | Description (plain language) | Status | Priority |
+On 2026-11-04 the board has 57 items: 23 Todo, 1 In Progress (#17, this document), and 33 Done. The 24 open issues are 6 High, 10 Medium, and 8 Low priority. No assignees are used (one-person team).
+
+| Next task | Description (plain language) | Status | Priority |
 |---|---|---|---|
 | [#68](https://github.com/Zhuoang2/catchup/issues/68) | Stop a followed page from making CatchUp read the user's local network (security) | Todo | High |
 | [#13](https://github.com/Zhuoang2/catchup/issues/13) | Install on a clean machine using only the README | Todo | High |
@@ -48,30 +51,27 @@ On 2026-11-04 the board has 57 items: 23 Todo, 1 In Progress (#17, this document
 | [#18](https://github.com/Zhuoang2/catchup/issues/18) | Final release, report, and demo, due 2026-12-10 | Todo | High |
 | [#70](https://github.com/Zhuoang2/catchup/issues/70) | Pages saved while a run reads linked pages are summarized without their linked pages | Todo | Medium |
 
-![Project board](../assets/alpha/backlog-board.png)
-**The project board** (table view): the 24 open tasks with Title, Status, Priority, and Labels, sorted by priority. The older `priority:next` label predates the Priority field.
-
 ## AI tool integration
 
 | Tool | Role |
 |---|---|
 | Codex | Product discussion and the proposal (2026-10-01) |
-| Claude Code (Opus 5.5) | Research, plans, HTML prototypes of the interface with a design and accessibility review, code reviews, checks in the running app; helper agents for research and independent reviews |
+| Claude Code (Opus 5.5) | Research, plans, interface prototypes with design and accessibility reviews, code reviews, live checks, helper agents |
 | Factory Droid | Writes the code and tests for most plans, in a separate copy of the repository |
 
-**How the process works.** Context is written once for people and agents: one instruction file for both coding tools (`AGENTS.md`), written requirements with 305 example scenarios, and a task list per change that names each task's test. A new feature gets two proposals for me to choose from (11 of 26 changes); a small fix gets a one-step plan. I approve each plan and each merge, or approve a whole overnight queue in advance. After every Droid run the rules require a bug review (`/code-review`) and a review against the requirements by another helper agent. In about five weeks (2026-10-01 to 2026-11-03) this produced 26 changes and 28 merged pull requests; all 455 commits on `main`, not counting merges, were co-written by Droid or Claude Code.
+**How the process works.** Context is written once for people and agents: one instruction file for both coding tools (`AGENTS.md`), requirements with 305 example scenarios, and per-change task lists that name each task's test. A new feature gets two proposals for me to choose from (11 of 26 changes); a small fix gets a one-step plan. I approve each plan and merge, or approve a whole overnight queue in advance. After every Droid run the rules require a bug review (`/code-review`) and a requirements review by another helper agent. In about five weeks (2026-10-01 to 2026-11-03) this produced 26 changes and 28 merged pull requests; all 455 commits on `main`, not counting merges, were co-written by Droid or Claude Code.
 
 **Successes.**
 
-- **Security bugs caught.** A review found that a malicious web page could make CatchUp send the stored model key to the page's server, a flaw in Claude's own design (2026-10-03); research for the extension found that any website could start a paid digest run (#59).
-- **Independent plan review.** A helper agent that had not seen the planning reported 20 problems in the podcast and YouTube plan, 17 confirmed. In a second round, one it could not verify, tested on live feeds, showed that some Substack newsletters would never have been summarized (2026-10-05).
-- **Overnight work.** On 2026-11-03 I wrote, "I'm going to sleep. Arrange tonight's tasks yourself, for example fix the issues that are open now" (translated). Helper agents implemented five small fixes (PRs #78–#82) while Droid's login was expired; an independent review of #67 caught a plan error that would have let a run look successful even when every model call failed; it was fixed before the merge.
+- **Security bugs caught.** A review found a malicious web page could make CatchUp send it the stored model key, a flaw in Claude's design (2026-10-03); extension research found any website could start a paid run (#59).
+- **Independent plan review.** A fresh helper agent reported 20 problems in the podcast and YouTube plan, 17 confirmed; a second-round item it could not verify, tested live, showed some Substack newsletters would go unsummarized (2026-10-05).
+- **Overnight work.** On 2026-11-03 I wrote, "I'm going to sleep. Arrange tonight's tasks yourself, for example fix the issues that are open now" (translated). Helper agents implemented five small fixes (PRs #78–#82) while Droid's login was expired; an independent review of #67 caught, before the merge, a plan error that would have let a run look successful even when every model call failed.
 
 **Challenges and adjustments.**
 
-- **Passing tests did not prove the behavior.** 147 tests with a simulated model passed, yet the first real DeepSeek run returned 4 of 11 summaries empty: its step-by-step "thinking" mode, on by default per DeepSeek's documentation, used up the short length limit (2026-10-03). A layout test that only checked a style rule's text passed while titles overlapped summaries (#25). Work became test-first (2026-10-07): "write the task's checks as failing tests and watch them fail, then implement until they pass" (prompt for #59, 2026-10-20). A check in the running app is also required, but for #66 and #67 the real-model run came only after the merge (2026-11-04: 50 items, 10 topics).
-- **Fix rounds piled up.** I worried that "one patch is patching another patch" (2026-10-21, translated). Of about 75 fix-round items, 18 were real defects, 6 were errors in Claude's plans, about 45 were extra tests written only to catch deliberately broken code, and 2 were needless. We then adopted stop rules: sort findings first, one fix round by default, and a fresh agent checks each task list before implementation.
-- **Plan errors.** Droid stopped twice before coding the interface redesign because the plan contradicted itself, for example a color test that the planned colors failed (2026-10-06). The prompt line "stop and report instead of improvising", used since the first hand-off (2026-10-02), kept this cheap; plan numbers are now checked first.
+- **Passing tests did not prove the behavior.** 147 tests with a simulated model passed, yet the first real DeepSeek run returned 4 of 11 summaries empty: its step-by-step "thinking" mode, on by default per DeepSeek's documentation, used up the length limit (2026-10-03). A layout test checking only a style rule's text passed while titles overlapped summaries (#25). Work became test-first (2026-10-07): "write the task's checks as failing tests and watch them fail, then implement until they pass" (prompt for #59, 2026-10-20). A running-app check is also required, but for #66 and #67 the real-model run came only after merging (2026-11-04).
+- **Fix rounds piled up.** I worried that "one patch is patching another patch" (2026-10-21, translated). Of about 75 fix-round items, 18 were real defects, 6 errors in Claude's plans, about 45 extra tests against deliberately broken code, and 2 needless. We then adopted stop rules: sort findings first, one fix round by default, and a fresh agent checks each task list.
+- **Plan errors.** Droid stopped twice before coding the interface redesign because the plan contradicted itself, for example a color test that the planned colors failed (2026-10-06); the prompt line "stop and report instead of improvising", used since 2026-10-02, kept this cheap, and plan numbers are now checked first.
 
 **Unexpected insights.**
 

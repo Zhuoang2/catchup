@@ -227,11 +227,11 @@ or previously saved model credentials cannot be decrypted. Compose pins
 `CATCHUP_DATA_DIR=/data` and `CATCHUP_FRONTEND_DIST=/app/frontend`, even if
 `.env` contains values intended for development.
 
-The `latest` tag is the newest release, available after the first `vX.Y.Z`
-release tag. The `edge` tag tracks `main`; `X.Y.Z` pins a specific release.
-Until the first release, build from this checkout, or change the image in
-`compose.yaml` to `ghcr.io/zhuoang2/catchup:edge` after it is published.
-Start from the published image when available, or build from this checkout:
+The `latest` tag is the newest `vX.Y.Z` release and can lag behind `main`;
+`X.Y.Z` pins a specific release, and the `edge` tag tracks `main`. To run
+the current `main`, build from this checkout, or change the image in
+`compose.yaml` to `ghcr.io/zhuoang2/catchup:edge`. Start from the published
+image, or build from this checkout:
 
 ```sh
 docker compose up -d

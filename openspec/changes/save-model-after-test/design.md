@@ -44,7 +44,7 @@ The page keeps `savedBaseUrl: string | null`, which starts as `null`. It is set 
 
 The Model menu's change handler always updates the selection. It also saves when both of these hold:
 - the key field is empty;
-- `savedBaseUrl !== null && baseUrl.trim() === savedBaseUrl`.
+- `baseUrl.trim() === savedBaseUrl`. This is false while `savedBaseUrl` is `null`, so no separate null check is needed.
 
 This save is `PUT /api/settings/model` with `{ base_url: savedBaseUrl, model_id: <choice>, api_key: '' }`, so `save_model` keeps the stored key. When the fields do not match, nothing is sent. The next successful test or **Save** saves the choice.
 

@@ -82,7 +82,7 @@ Implementer notes:
      - no second PUT is sent;
      - the select shows `live-b`.
   3. **Edited base URL waits** (*guard*; covers the base-URL comparison of D3). Same as 2, but the base URL is changed instead of the key.
-  4. **Nothing saved yet** (*guard*; covers the `savedBaseUrl !== null` condition of D3). GET reports no saved key. The user pastes a key. A test lists `['live-a', 'live-b']`, but its PUT answers 400 `secret_not_configured`, so the key stays in the field. The user then clears the key field and selects `live-b`. Assert:
+  4. **Nothing saved yet** (*guard*; covers that `savedBaseUrl` stays `null` until a save succeeds, D3). GET reports no saved key. The user pastes a key. A test lists `['live-a', 'live-b']`, but its PUT answers 400 `secret_not_configured`, so the key stays in the field. The user then clears the key field and selects `live-b`. Assert:
      - no PUT is sent after the failed one.
   5. **In order.** A test lists `['live-a', 'live-b', 'live-c']` and saves `live-a`. The user selects `live-b`, and its PUT is held open; then the user selects `live-c`. Assert, in this order:
      - first `await waitFor` until the PUT for `live-b` appears in `fetchMock.mock.calls`;
@@ -99,7 +99,7 @@ Implementer notes:
 
   Verify:
   - the 2.1 tests pass, all of `Settings.test.tsx` passes, and `npm test -- --run` and `npm run build` pass;
-  - mutations for the guard tests: removing the key-field condition makes 2.1.2 fail; removing the base-URL comparison makes 2.1.3 fail; removing the `savedBaseUrl !== null` condition makes 2.1.4 fail; starting each save without waiting for the previous one makes 2.1.5 fail.
+  - mutations for the guard tests: removing the key-field condition makes 2.1.2 fail; removing the base-URL comparison makes 2.1.3 fail; setting `savedBaseUrl` from the GET response even when it does not report `key_set` makes 2.1.4 fail, and so does setting it when a save fails; starting each save without waiting for the previous one makes 2.1.5 fail.
 
 ## 3. Integration checks and report
 

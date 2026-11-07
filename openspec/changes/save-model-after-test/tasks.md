@@ -103,7 +103,7 @@ Implementer notes:
 
 ## 3. Integration checks and report
 
-- [ ] 3.1 Run the full checks:
+- [x] 3.1 Run the full checks:
   - `npm test -- --run` and `npm run build` in `frontend/` (record the counts);
   - `uv run pytest` in `backend/` (unchanged code; record the count);
   - `DO_NOT_TRACK=1 openspec validate save-model-after-test --strict`;

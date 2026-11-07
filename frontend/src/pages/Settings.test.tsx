@@ -426,7 +426,7 @@ describe('saving after a model test', () => {
   })
 
   it('replaces the saved key while keeping a listed selected model', async () => {
-    mockModelProvider({ test: () => respond({ ok: true, models: ['saved-model', 'other'] }) })
+    mockModelProvider({ test: () => respond({ ok: true, models: ['other', 'saved-model'] }) })
     render(<Settings/>)
     fireEvent.change(await screen.findByLabelText('API key'), { target: { value: 'new-key-9999' } })
     fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
@@ -450,13 +450,22 @@ describe('saving after a model test', () => {
       .toBe('Connection succeeded. Saved model saved-model.'))
   })
 
+  it('does not offer another model when the fallback is the only listed model', async () => {
+    mockModelProvider({ test: () => respond({ ok: true, models: ['only-model'] }) })
+    render(<Settings/>)
+    await screen.findByLabelText('API key')
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    await waitFor(() => expect(within(modelSection()).getByRole('status').textContent)
+      .toBe('Connection succeeded. Saved model only-model.'))
+  })
+
   it('saves nothing and explains when the provider lists no models', async () => {
     mockModelProvider({ test: () => respond({ ok: true, models: [] }) })
     render(<Settings/>)
     await screen.findByLabelText('API key')
     fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
-    expect(await screen.findByText('Connection succeeded, but the provider listed no models. Nothing was saved.'))
-      .toBeInTheDocument()
+    await waitFor(() => expect(within(modelSection()).getByRole('status').textContent)
+      .toBe('Connection succeeded, but the provider listed no models. Nothing was saved.'))
     expect(modelPuts()).toEqual([])
     expect(screen.getByLabelText('Model')).toBeDisabled()
   })
@@ -589,6 +598,17 @@ describe('saving model choices', () => {
       .toBe('Saved model live-b.'))
   })
 
+  it('saves a model choice after a first-setup test', async () => {
+    mockModelProvider({ saved: { base_url: 'https://api.deepseek.com', model_id: '', key_set: false, api_key_last4: null } })
+    render(<Settings/>)
+    fireEvent.change(await screen.findByLabelText('API key'), { target: { value: 'secret-3f9a' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    await waitFor(() => expect(screen.getByLabelText('API key')).toHaveValue(''))
+    fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'live-b' } })
+    await waitFor(() => expect(modelPuts()[1]).toEqual(
+      { base_url: 'https://api.deepseek.com', model_id: 'live-b', api_key: '' }))
+  })
+
   it('saves quick successive model choices in order', async () => {
     let finishChoice!: (response: ReturnType<typeof respond>) => void
     const pending = new Promise<ReturnType<typeof respond>>(resolve => { finishChoice = resolve })
@@ -632,6 +652,7 @@ describe('saving model choices', () => {
     fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'live-b' } })
     expect(await within(modelSection()).findByRole('alert')).toHaveTextContent(
       'The model was not saved. Could not connect to CatchUp.')
+    expect(within(modelSection()).getByRole('status')).toBeEmptyDOMElement()
     expect(screen.getByLabelText('Model')).toHaveValue('live-b')
     fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'live-c' } })
     await waitFor(() => expect(within(modelSection()).getByRole('status').textContent)

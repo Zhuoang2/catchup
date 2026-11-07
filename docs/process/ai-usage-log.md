@@ -1885,7 +1885,22 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 
 ## 2026-11-06 — `save-model-after-test` (#85): implementation (Factory Droid, GPT-6.1 Sol)
 
+- **Session:** `420b5b68-fba4-4561-b55c-449e73d2a830` (run 2). Run 1 (`1ccaa6a3-b1c8-47e7-80cc-ca3cabdc78fc`) stopped before coding; see the planning entry above.
+
 - **Prompt excerpt:** "Implement OpenSpec change save-model-after-test using the openspec-apply-change skill. Work through openspec/changes/save-model-after-test/tasks.md in order and check off each task only after its verification passes. Do not edit proposal.md, design.md, or the spec deltas. Commit after each task group. If a task is blocked or the plan looks wrong, stop and report instead of improvising. When you run the OpenSpec CLI, prefix it with DO_NOT_TRACK=1." The prompt also identified `cd2dc16` as the correction to the previous equivalent mutation.
 - **Outcome:** Used `openspec-apply-change` and `tdd`. Added 16 fetch-boundary/UI tests and updated the two existing tests named by the plan. Observed group 1 red (11 failures, including the two updated tests) and group 2 red (three failures); the guard tests passed before implementation. Implemented separate automatic model PUTs after successful tests, saved-state guards, ordered model-choice saves, persistent model status, local error alerts, and the key hint. All six required mutations failed their targeted tests and were restored, including both corrected unsaved-state mutations. Group 1 and group 2 were committed separately as `953f8cf` and `92804ce`. Planning artifacts were unchanged apart from verified task checkboxes.
 - **Validation:** 279 frontend tests, 885 backend tests on Python 3.12, TypeScript/Vite build, strict OpenSpec validation with `DO_NOT_TRACK=1`, and local Docker build/smoke passed. Results and all delta scenarios are mapped in `test-report-save-model-after-test.md`; the coverage summary is updated without claiming a new percentage measurement.
 - **Problems / adjustment:** `uv run pytest` initially chose Python 3.11.4 and stopped during collection on an existing f-string requiring Python 3.12. Reran with the installed Python 3.12 interpreter (`UV_PYTHON=3.12 uv run pytest`), matching Docker, without changing backend files. No plan change was needed. The live stub-provider/browser flow and independent Claude Code review remain for review, as the plan specifies; no user instance was touched.
+
+## 2026-11-06 — `save-model-after-test` (#85): review (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
+
+- **Prompt** (translated from Chinese): "OK, commit the plan, then start running Droid." The review follows the D-016 and D-023 steps in `AGENTS.md`.
+- **Outcome:**
+  - **Bugs.** `/code-review` (high) found no real defect and raised 6 findings: 2 edge cases around the order of saves, 2 UX points, 1 issue that existed before, and 1 simplification.
+  - **Spec.** An independent spec reviewer, which had not seen the design discussion, checked the diff against the spec delta, D1–D5, and the tasks. It found no missing or wrong behavior. It ran 42 mutations: the 6 guard mutations from the tasks were all killed, and 7 survivors were real test gaps.
+  - **Checks by Claude.** Claude re-ran the frontend suite (279), the build, the backend suite (885), the Docker build, and the smoke script.
+  - **Live check.** Claude ran a throwaway container with a stub provider and fake keys, and did not touch port 8800. A rejected key saved nothing. A test alone saved the settings, and Home offered Generate. A model choice was kept after a reload.
+  - **Review commit.** Claude added the 5 most useful missing tests: a choice after first setup (the exact case in #85), a selected model listed second, the no-models message in the status region, no suffix with a single model, and a stale status after a failed choice. Each was verified by a named mutation that now fails. The rest are recorded in the test report.
+- **Problems / adjustment:**
+  - The first frontend run after `npm ci` had one failure whose name was not captured. Thirteen later runs passed, 8 of them under 4× parallel load, so it is recorded as an unidentified flake.
+  - The task list's guard tests all started from a saved key. The core case of #85, a fresh instance, was therefore covered only by the live check until the review test was added. Next time, the plan will name the starting state (saved or not) for each test of a stateful guard.

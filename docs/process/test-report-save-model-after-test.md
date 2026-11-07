@@ -96,3 +96,53 @@ The Docker smoke check does not replace this browser/live flow or verify
 screen-reader announcements. No external provider, real key, hosted service,
 extension, or X-account flow was exercised. No new statement-coverage
 measurement was taken; backend and extension code are unchanged.
+
+## Claude Code review (2026-11-06)
+
+Review of `cd2dc16..2b22004` (Droid run 2, session `420b5b68-fba4-4561-b55c-449e73d2a830`), in a separate worktree. Droid's first run (session `1ccaa6a3-b1c8-47e7-80cc-ca3cabdc78fc`) stopped before coding, because the plan asked for an equivalent mutation; the plan was corrected in `cd2dc16`.
+
+### Checks re-run by Claude Code
+
+| Check | Result |
+| --- | --- |
+| `npx vitest run` (frontend) | First run after `npm ci`: **1 failed, 278 passed**; the failing test name was not captured. The next 13 full runs passed **279/279**, 8 of them as 4 parallel suites. Recorded as an unidentified one-off flake. |
+| Same, after the review tests below | **281 passed** (Settings: 42). |
+| `npm run build` | Passed. |
+| `uv run -p 3.12 pytest -q` (backend, unchanged) | **885 passed**. |
+| `docker build -t catchup:review-85 .` and `scripts/docker-smoke.sh catchup:review-85` | Passed (all PASS lines). |
+| `DO_NOT_TRACK=1 openspec validate save-model-after-test --strict` | Valid (also re-run by the spec reviewer). |
+
+### Live check (performed)
+
+On an isolated container (`catchup:review-85`, port 8786, a random secret passed by process substitution), with a stub OpenAI-compatible provider on the host that accepts only fake keys. One public feed (Simon Willison's Weblog) was added as the source. The user's instance on port 8800 was not touched.
+
+1. **Rejected key.** In Settings, a fake rejected key and the stub's base URL were entered, and Test connection was clicked. The server log shows one `POST /api/settings/model/test` (401) and no PUT. `GET /api/settings/model` still reported `key_set: false`. The page showed "The provider rejected the API key." at the key field.
+2. **Test only.** With a fake accepted key, Test connection showed "Connection succeeded. Saved key ending in 1111 with model stub-a. Choose another model to change it." The log shows the 200 test and one `PUT /api/settings/model` (200), and the API reported `stub-a`, `key_set: true`. Save was not clicked. Home then offered **Generate digest** as its action, and "Set up your model" was gone.
+3. **Model choice.** Choosing `stub-b` showed "Saved model stub-b." and sent one more PUT. After reloading Settings and Home, the API still reported `stub-b`.
+
+The container log contained no part of the fake keys. Screen-reader announcements were not checked with a screen reader; the tests check that the status region stays mounted.
+
+### Findings and outcomes
+
+`/code-review` (6 findings) and an independent spec reviewer (42 mutations: 25 killed, 4 equivalent, 7 real test gaps, 6 marginal) found no real defect in behavior. Each finding was checked against the code.
+
+- **Fixed in the review commit (test-only gaps, each verified by a named mutation that now fails a test):**
+  - M23: a model choice after a **first-setup** test (`savedBaseUrl` comes from the automatic save's response, not from GET). Every earlier choice test started from a saved key. New test: `saves a model choice after a first-setup test`.
+  - M39: keeping a listed selection was tested only when it was listed first. `replaces the saved key while keeping a listed selected model` now lists it second.
+  - M21: the no-models message is now asserted in the model group's status region, not by any element's text.
+  - M08: a fallback when only one model is listed has no "Choose another model" sentence. New test: `does not offer another model when the fallback is the only listed model`.
+  - M16a: a failed model choice clears the earlier success message (assertion added to the rejected-fetch test).
+- **Recorded, not fixed:**
+  - Plan gap, low (`/code-review` 1, spec reviewer §3). If the menu changes while a test or its automatic save is running, the user's pick is not kept.
+    - During the test, the save sets the menu back to the saved model, as D2 intends.
+    - During the save's own PUT, which takes milliseconds locally, a pick while the new key is still in the field leaves the menu showing a model that was not saved.
+    - M22 (menu always set to the saved model) has no test for the same reason.
+  - The bottom **Save** sends its PUT outside the queue (`/code-review` 2). It usually carries the same model as a pending choice save.
+  - The no-models message uses the success style and check icon of the status region (`/code-review` 3). The design puts it there.
+  - An empty model list clears the selection, so a later **Save** sends an empty model ID and shows the error at the bottom of the page (`/code-review` 4). This behavior existed before; it is #71's area.
+  - The status still reads "Saved …" while the user edits the key or base URL afterwards (`/code-review` 5). The spec accepts that these edits wait for a test.
+  - M24 (`savedBaseUrl` set by the bottom Save) is not tested, and neither are the marginal M13 and M25–M30.
+  - Equivalent mutations: M15 and M18 (the queue's second `then` argument is unreachable, because each save catches its own errors), and M35 and M38 (whitespace in the base URL, which the server strips). So the "queue recovery" test shows that a later choice still saves after a failed one, not that the second argument matters.
+  - Simplification (`/code-review` 6): the remaining `message` state and the `showError` flag. Churn; skipped.
+
+Mutation details: `scratchpad/mutation-results-85.txt` from the spec reviewer (not committed).

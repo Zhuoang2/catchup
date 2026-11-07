@@ -74,7 +74,7 @@ Implementer notes:
 
 ## 2. Choosing a model saves it
 
-- [ ] 2.1 In `frontend/src/pages/Settings.test.tsx`, add failing tests:
+- [x] 2.1 In `frontend/src/pages/Settings.test.tsx`, add failing tests:
   1. **Choice after a test.** A test saves `live-a`, with the list `['live-a', 'live-b']`. The user then selects `live-b` (`fireEvent.change` on the Model select). Assert:
      - a second PUT is sent with body `{ base_url: 'https://api.deepseek.com', model_id: 'live-b', api_key: '' }`;
      - the status reads `Saved model live-b.`
@@ -95,7 +95,7 @@ Implementer notes:
      - a later choice still saves (the queue is not broken).
 
   Verify: 1, 5, and 6 fail before 2.2; the guard tests 2–4 pass already.
-- [ ] 2.2 Implement design D3 and the model-choice part of D4 in `frontend/src/pages/Settings.tsx`.
+- [x] 2.2 Implement design D3 and the model-choice part of D4 in `frontend/src/pages/Settings.tsx`.
 
   Verify:
   - the 2.1 tests pass, all of `Settings.test.tsx` passes, and `npm test -- --run` and `npm run build` pass;

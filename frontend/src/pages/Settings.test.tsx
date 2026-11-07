@@ -522,6 +522,129 @@ describe('saving after a model test', () => {
   })
 })
 
+describe('saving model choices', () => {
+  async function testAndSave() {
+    render(<Settings/>)
+    await screen.findByLabelText('API key')
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    await screen.findByText('Connection succeeded. Saved model live-a. Choose another model to change it.')
+  }
+
+  it('waits to save a model choice when the key was edited', async () => {
+    mockModelProvider()
+    await testAndSave()
+    fireEvent.change(screen.getByLabelText('API key'), { target: { value: 'untested-key' } })
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'live-b' } })
+    })
+    expect(modelPuts()).toEqual([{
+      base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: '',
+    }])
+    expect(screen.getByLabelText('Model')).toHaveValue('live-b')
+  })
+
+  it('waits to save a model choice when the base URL was edited', async () => {
+    mockModelProvider()
+    await testAndSave()
+    fireEvent.change(screen.getByLabelText('Base URL'), { target: { value: 'https://untested.example' } })
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'live-b' } })
+    })
+    expect(modelPuts()).toEqual([{
+      base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: '',
+    }])
+    expect(screen.getByLabelText('Model')).toHaveValue('live-b')
+  })
+
+  it('does not save a choice when no configuration has ever been saved', async () => {
+    mockModelProvider({
+      saved: { base_url: 'https://api.deepseek.com', model_id: '', key_set: false, api_key_last4: null },
+      put: () => respond({ error: { code: 'secret_not_configured', message: 'No secret' } }, 400),
+    })
+    render(<Settings/>)
+    const key = await screen.findByLabelText('API key')
+    fireEvent.change(key, { target: { value: 'secret-3f9a' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    await within(modelSection()).findByRole('alert')
+    expect(key).toHaveValue('secret-3f9a')
+    fireEvent.change(key, { target: { value: '' } })
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'live-b' } })
+    })
+    expect(modelPuts()).toEqual([{
+      base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: 'secret-3f9a',
+    }])
+    expect(screen.getByLabelText('Model')).toHaveValue('live-b')
+  })
+
+  it('saves another model choice immediately after a test', async () => {
+    mockModelProvider()
+    await testAndSave()
+    fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'live-b' } })
+    await waitFor(() => expect(modelPuts()).toEqual([
+      { base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: '' },
+      { base_url: 'https://api.deepseek.com', model_id: 'live-b', api_key: '' },
+    ]))
+    await waitFor(() => expect(within(modelSection()).getByRole('status').textContent)
+      .toBe('Saved model live-b.'))
+  })
+
+  it('saves quick successive model choices in order', async () => {
+    let finishChoice!: (response: ReturnType<typeof respond>) => void
+    const pending = new Promise<ReturnType<typeof respond>>(resolve => { finishChoice = resolve })
+    mockModelProvider({
+      test: () => respond({ ok: true, models: ['live-a', 'live-b', 'live-c'] }),
+      put: body => body.model_id === 'live-b' ? pending : respond({
+        base_url: body.base_url, model_id: body.model_id, key_set: true,
+        api_key_last4: body.api_key ? body.api_key.slice(-4) : '1234',
+      }),
+    })
+    await testAndSave()
+    fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'live-b' } })
+    await waitFor(() => expect(modelPuts().map(body => body.model_id)).toEqual(['live-a', 'live-b']))
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'live-c' } })
+    })
+    expect(modelPuts().map(body => body.model_id)).toEqual(['live-a', 'live-b'])
+    await act(async () => {
+      finishChoice(respond({ base_url: 'https://api.deepseek.com', model_id: 'live-b',
+        key_set: true, api_key_last4: '1234' }))
+    })
+    await waitFor(() => expect(modelPuts()).toEqual([
+      { base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: '' },
+      { base_url: 'https://api.deepseek.com', model_id: 'live-b', api_key: '' },
+      { base_url: 'https://api.deepseek.com', model_id: 'live-c', api_key: '' },
+    ]))
+    await waitFor(() => expect(within(modelSection()).getByRole('status').textContent)
+      .toBe('Saved model live-c.'))
+  })
+
+  it('keeps a failed model choice and saves a later choice after a rejected fetch', async () => {
+    mockModelProvider({
+      test: () => respond({ ok: true, models: ['live-a', 'live-b', 'live-c'] }),
+      put: body => {
+        if (body.model_id === 'live-b') return Promise.reject(new Error('Offline'))
+        return respond({ base_url: body.base_url, model_id: body.model_id, key_set: true,
+          api_key_last4: body.api_key ? body.api_key.slice(-4) : '1234' })
+      },
+    })
+    await testAndSave()
+    fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'live-b' } })
+    expect(await within(modelSection()).findByRole('alert')).toHaveTextContent(
+      'The model was not saved. Could not connect to CatchUp.')
+    expect(screen.getByLabelText('Model')).toHaveValue('live-b')
+    fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'live-c' } })
+    await waitFor(() => expect(within(modelSection()).getByRole('status').textContent)
+      .toBe('Saved model live-c.'))
+    expect(modelPuts()).toEqual([
+      { base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: '' },
+      { base_url: 'https://api.deepseek.com', model_id: 'live-b', api_key: '' },
+      { base_url: 'https://api.deepseek.com', model_id: 'live-c', api_key: '' },
+    ])
+    expect(within(modelSection()).queryByRole('alert')).toBeNull()
+  })
+})
+
 describe('X accounts settings', () => {
   it('asks before deleting all X data, preserves saved pages, and announces counts', async () => {
     const original = fetchMock.getMockImplementation()!

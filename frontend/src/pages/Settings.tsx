@@ -258,6 +258,14 @@ export default function Settings() {
     } catch (err) { showError(err, true) }
   }
 
+  function chooseModel(choice: string) {
+    setModel(choice)
+    if (!key && baseUrl.trim() === savedBaseUrl) {
+      void queueModelSave({ base_url: savedBaseUrl, model_id: choice, api_key: '' },
+        () => `Saved model ${choice}.`, 'The model was not saved. ')
+    }
+  }
+
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(''); setErrorField(null); setMessage('')
@@ -318,7 +326,7 @@ export default function Settings() {
           <Icon name="alert"/>{modelError}</p>}
         <div className="field"><label className="field-label" htmlFor="model">Model</label>
           <select className="input select" id="model" value={model}
-            onChange={event => setModel(event.target.value)} disabled={!models.length} required>
+            onChange={event => chooseModel(event.target.value)} disabled={!models.length} required>
             {!model && <option value="">Test the connection to list models</option>}
             {models.map(id => <option key={id} value={id}>{id}</option>)}
           </select></div>

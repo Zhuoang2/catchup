@@ -20,7 +20,7 @@ Implementer notes:
 
 ## 1. Save after a successful test
 
-- [ ] 1.1 In `frontend/src/pages/Settings.test.tsx`, add failing tests. Each test mocks `/api/settings/model` GET and PUT separately (check `options?.method`).
+- [x] 1.1 In `frontend/src/pages/Settings.test.tsx`, add failing tests. Each test mocks `/api/settings/model` GET and PUT separately (check `options?.method`).
   1. **First setup.** GET reports no saved key and `model_id: ''`. The user pastes `secret-3f9a`. The test lists `['live-a', 'live-b']`, and PUT answers `api_key_last4: '3f9a'`, `model_id: 'live-a'`. Assert all of these:
      - exactly one PUT `/api/settings/model`, with body `{ base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: 'secret-3f9a' }`;
      - no PUT `/api/settings/preferences`;
@@ -58,7 +58,7 @@ Implementer notes:
   - "shows the first-run key hint and saves preferences without exposing the key": the recorded PUT calls become `['/api/settings/model', '/api/settings/model', '/api/settings/preferences']` (automatic save, then **Save**).
 
   Verify: the new tests, except the guard test, fail before 1.2 for the expected reason (missing request or text), not because of a mock error.
-- [ ] 1.2 Implement design D1, D2, the save-after-test part of D4, and D5 in `frontend/src/pages/Settings.tsx`. This means:
+- [x] 1.2 Implement design D1, D2, the save-after-test part of D4, and D5 in `frontend/src/pages/Settings.tsx`. This means:
   - `modelStatus`, `modelError`, and `savedBaseUrl`;
   - the persistent status region in the Test connection row;
   - the group alert;

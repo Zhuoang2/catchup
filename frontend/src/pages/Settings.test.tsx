@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Settings from './Settings'
 import { expectAccessible } from '../test/accessibility'
@@ -7,6 +7,48 @@ const fetchMock = vi.fn()
 
 function respond(data: unknown, status = 200) {
   return { ok: status < 400, status, json: async () => data }
+}
+
+type ModelBody = { base_url: string; model_id: string; api_key: string }
+
+function mockModelProvider({
+  saved = { base_url: 'https://api.deepseek.com', model_id: 'saved-model',
+    key_set: true, api_key_last4: '1234' as string | null },
+  test = () => respond({ ok: true, models: ['live-a', 'live-b'] }),
+  put,
+}: {
+  saved?: { base_url: string; model_id: string; key_set: boolean; api_key_last4: string | null }
+  test?: () => ReturnType<typeof respond> | Promise<ReturnType<typeof respond>>
+  put?: (body: ModelBody) => ReturnType<typeof respond> | Promise<ReturnType<typeof respond>>
+} = {}) {
+  const original = fetchMock.getMockImplementation()!
+  fetchMock.mockImplementation(async (url: string, options?: RequestInit) => {
+    if (url === '/api/settings/model' && options?.method === 'PUT') {
+      const body = JSON.parse(options.body as string) as ModelBody
+      return put ? put(body) : respond({ base_url: body.base_url, model_id: body.model_id,
+        key_set: true, api_key_last4: body.api_key ? body.api_key.slice(-4) : saved.api_key_last4 })
+    }
+    if (url === '/api/settings/model' && !options?.method) return respond(saved)
+    if (url === '/api/settings/model/test' && options?.method === 'POST') return test()
+    return original(url, options)
+  })
+}
+
+function modelPuts(): ModelBody[] {
+  return fetchMock.mock.calls.filter(([url, options]) =>
+    url === '/api/settings/model' && options?.method === 'PUT')
+    .map(([, options]) => JSON.parse(options.body as string) as ModelBody)
+}
+
+function modelSection() {
+  return screen.getByRole('heading', { name: 'Step 1: Model provider' }).closest('section')!
+}
+
+function expectNoBottomAlert() {
+  const xSection = screen.getByRole('heading', { name: 'Step 5: X accounts' }).closest('section')!
+  for (const alert of screen.queryAllByRole('alert')) {
+    expect(xSection.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(0)
+  }
 }
 
 beforeEach(() => {
@@ -226,13 +268,11 @@ describe('model settings', () => {
   })
 
   it('fills model options from a successful provider test', async () => {
-    fetchMock.mockImplementation(async (url: string) => {
-      if (url === '/api/settings/model/test') return respond({ ok: true, models: ['live-a', 'live-b'] })
-      if (url === '/api/settings/model') return respond({
+    mockModelProvider({
+      saved: {
         base_url: 'https://api.deepseek.com', model_id: '',
         key_set: false, api_key_last4: null,
-      })
-      return respond({ digest_language: 'en', youtube_captions: false, youtube_skip_shorts: true })
+      },
     })
     const { container } = render(<Settings />)
     await screen.findByRole('button', { name: 'Test connection' })
@@ -241,8 +281,8 @@ describe('model settings', () => {
     expect(await screen.findByRole('option', { name: 'live-b' })).toBeInTheDocument()
     expect(screen.getByLabelText('Model')).toHaveValue('live-a')
     expect(screen.getByLabelText('API key')).toHaveValue('')
-    // The Save button can sit below the fold, so the success message names it.
-    expect(screen.getByText('Connection succeeded. Choose a model, then click Save.')).toBeInTheDocument()
+    expect(await screen.findByText('Connection succeeded. Saved model live-a. Choose another model to change it.'))
+      .toBeInTheDocument()
     await expectAccessible(container)
   })
 
@@ -347,9 +387,138 @@ describe('model settings', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'Skip Shorts' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(await screen.findByText('Settings saved.')).toBeInTheDocument()
-    expect(calls).toEqual(['/api/settings/model', '/api/settings/preferences'])
+    expect(calls).toEqual(['/api/settings/model', '/api/settings/model', '/api/settings/preferences'])
     expect(key).toHaveValue('')
     expect(key).not.toHaveAttribute('placeholder', expect.stringContaining('3f9a'))
+  })
+})
+
+describe('saving after a model test', () => {
+  it('does not save a failed test and links the rejection to the key', async () => {
+    mockModelProvider({ test: () => respond({ error: { code: 'auth_failed', message: 'Rejected' } }, 401) })
+    render(<Settings/>)
+    await screen.findByLabelText('API key')
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    expect(await within(modelSection()).findByRole('alert')).toHaveTextContent('The provider rejected the API key.')
+    expect(modelPuts()).toEqual([])
+    expect(screen.getByLabelText('API key')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByLabelText('API key')).toHaveAttribute('aria-describedby', 'key-saved key-hint key-error')
+  })
+
+  it('saves first setup with the fallback model without saving preferences', async () => {
+    mockModelProvider({ saved: { base_url: 'https://api.deepseek.com', model_id: '',
+      key_set: false, api_key_last4: null } })
+    const { container } = render(<Settings/>)
+    const key = await screen.findByLabelText('API key')
+    fireEvent.change(key, { target: { value: 'secret-3f9a' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    await waitFor(() => expect(modelPuts()).toEqual([{
+      base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: 'secret-3f9a',
+    }]))
+    expect(await within(modelSection()).findByRole('status')).toHaveTextContent(
+      'Connection succeeded. Saved key ending in 3f9a with model live-a. Choose another model to change it.')
+    expect(fetchMock.mock.calls.filter(([url, options]) =>
+      url === '/api/settings/preferences' && options?.method === 'PUT')).toEqual([])
+    expect(key).toHaveValue('')
+    expect(document.getElementById('key-saved')).toHaveTextContent('Saved key ending in 3f9a')
+    expect(screen.getByLabelText('Model')).toHaveValue('live-a')
+    await expectAccessible(container)
+  })
+
+  it('replaces the saved key while keeping a listed selected model', async () => {
+    mockModelProvider({ test: () => respond({ ok: true, models: ['saved-model', 'other'] }) })
+    render(<Settings/>)
+    fireEvent.change(await screen.findByLabelText('API key'), { target: { value: 'new-key-9999' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    await waitFor(() => expect(modelPuts()).toEqual([{
+      base_url: 'https://api.deepseek.com', model_id: 'saved-model', api_key: 'new-key-9999',
+    }]))
+    await waitFor(() => expect(within(modelSection()).getByRole('status').textContent)
+      .toBe('Connection succeeded. Saved key ending in 9999 with model saved-model.'))
+    expect(document.getElementById('key-saved')).toHaveTextContent('Saved key ending in 9999')
+  })
+
+  it('keeps the saved key when testing with an empty key field', async () => {
+    mockModelProvider({ test: () => respond({ ok: true, models: ['saved-model'] }) })
+    render(<Settings/>)
+    await screen.findByLabelText('API key')
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    await waitFor(() => expect(modelPuts()).toEqual([{
+      base_url: 'https://api.deepseek.com', model_id: 'saved-model', api_key: '',
+    }]))
+    await waitFor(() => expect(within(modelSection()).getByRole('status').textContent)
+      .toBe('Connection succeeded. Saved model saved-model.'))
+  })
+
+  it('saves nothing and explains when the provider lists no models', async () => {
+    mockModelProvider({ test: () => respond({ ok: true, models: [] }) })
+    render(<Settings/>)
+    await screen.findByLabelText('API key')
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    expect(await screen.findByText('Connection succeeded, but the provider listed no models. Nothing was saved.'))
+      .toBeInTheDocument()
+    expect(modelPuts()).toEqual([])
+    expect(screen.getByLabelText('Model')).toBeDisabled()
+  })
+
+  it('reports a save failure in the model group and keeps the entered key', async () => {
+    mockModelProvider({ put: () => respond({ error: { code: 'secret_not_configured', message: 'No secret' } }, 400) })
+    render(<Settings/>)
+    const key = await screen.findByLabelText('API key')
+    fireEvent.change(key, { target: { value: 'secret-3f9a' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    expect(await within(modelSection()).findByRole('alert')).toHaveTextContent(
+      'Connection succeeded, but nothing was saved. Set CATCHUP_SECRET_KEY on the server before saving an API key.')
+    expectNoBottomAlert()
+    expect(key).toHaveValue('secret-3f9a')
+    expect(key).not.toHaveAttribute('aria-invalid')
+  })
+
+  it('saves the tested values without clearing a key typed while testing', async () => {
+    let finishTest!: (response: ReturnType<typeof respond>) => void
+    const pending = new Promise<ReturnType<typeof respond>>(resolve => { finishTest = resolve })
+    mockModelProvider({ test: () => pending })
+    render(<Settings/>)
+    const key = await screen.findByLabelText('API key')
+    fireEvent.change(key, { target: { value: 'tested-key-1111' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    fireEvent.change(key, { target: { value: 'typed-later' } })
+    fireEvent.change(screen.getByLabelText('Base URL'), { target: { value: 'https://later.example' } })
+    await act(async () => { finishTest(respond({ ok: true, models: ['live-a', 'live-b'] })) })
+    await waitFor(() => expect(modelPuts()).toEqual([{
+      base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: 'tested-key-1111',
+    }]))
+    expect(key).toHaveValue('typed-later')
+  })
+
+  it('shows test errors without a field in the model group, not at the bottom', async () => {
+    mockModelProvider({ test: () => respond({ error: { code: 'rate_limited', message: 'Slow down' } }, 429) })
+    render(<Settings/>)
+    await screen.findByLabelText('API key')
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    expect(await within(modelSection()).findByRole('alert')).toHaveTextContent(
+      'The provider is rate limiting requests. Try again later.')
+    expectNoBottomAlert()
+  })
+
+  it('explains that testing a new key saves it in the saved-key hint', async () => {
+    mockModelProvider()
+    render(<Settings/>)
+    await screen.findByLabelText('API key')
+    expect(document.getElementById('key-hint')).toHaveTextContent(
+      'Leave empty to keep the saved key. Testing a new key saves it.')
+  })
+
+  it('keeps the same status region mounted before and after a test', async () => {
+    mockModelProvider()
+    render(<Settings/>)
+    await screen.findByLabelText('API key')
+    const status = within(modelSection()).getByRole('status')
+    expect(status).toBeEmptyDOMElement()
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    await waitFor(() => expect(status).toHaveTextContent(
+      'Connection succeeded. Saved model live-a. Choose another model to change it.'))
+    expect(within(modelSection()).getByRole('status')).toBe(status)
   })
 })
 

@@ -38,7 +38,7 @@ A subclass of `httpcore.SyncBackend` (for example `_PublicOnlyBackend`) override
 
 The override never opens a socket itself. Only `super().connect_tcp` connects, so `httpcore` keeps mapping `OSError` and timeouts (probe). `socket.create_connection` with an IP literal does not use DNS.
 
-`_check_address` still runs before every request and every redirect hop. It reports bad URLs, X hosts, unresolvable hosts, and blocked addresses before a request uses up the run's fetch budget or waits for host spacing. The existing tests rely on this order.
+`_check_address` still runs before every request and every redirect hop. It reports bad URLs, X hosts, unresolvable hosts, and blocked addresses before a request uses up the run's fetch budget or waits for host spacing. No existing test protected this order. The review added `test_address_check_runs_before_budget_and_spacing` for it.
 
 - **Why.** The rule now applies to the address the connection actually uses, for every connection the client opens. The backend keeps no state between calls.
 - **Cost.** One more DNS lookup for each new connection. The system resolver normally caches it, and a connection to the same origin is reused within one `safe_fetch` call.

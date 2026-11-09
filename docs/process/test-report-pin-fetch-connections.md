@@ -114,3 +114,57 @@ not port 8800: preview a public HTTPS feed and a redirecting feed, then verify
 that `http://127.0.0.1/` is refused. This requires external network and is left
 to review, as specified. DNS rebinding itself is tested only with mocked DNS.
 Connect-time NAT64 is not tested, as explicitly deferred by the task plan.
+
+
+## Claude Code review (2026-11-09)
+
+Review of `d356464..24f561b` in a separate worktree.
+
+### Checks re-run by Claude
+
+| Command | Result |
+| --- | --- |
+| `UV_PYTHON=3.12 uv run pytest -q` (before the review tests) | **892 passed** |
+| `DO_NOT_TRACK=1 openspec validate pin-fetch-connections --strict` | valid |
+| `docker build -t catchup:review-68 .` and `scripts/docker-smoke.sh catchup:review-68` | **12/12** passed |
+
+### Live check (performed)
+
+A throwaway container from `catchup:review-68` ran on `127.0.0.1:8787` with its own volume, not port 8800. Each URL went through `POST /api/sources/preview`:
+
+| URL | Result |
+| --- | --- |
+| `https://simonwillison.net/atom/everything/` | previewed, 5 items |
+| `http://simonwillison.net/` | redirected to HTTPS and found `https://simonwillison.net/atom/everything/`, 5 items |
+| `https://terrytao.wordpress.com/` | found `https://terrytao.wordpress.com/feed/`, 5 items |
+| `http://127.0.0.1/` | `blocked_address`, "The source address is not allowed." |
+| `http://localhost:8000/` | `blocked_address`, "The source address is not allowed." |
+
+Real HTTPS fetches still pass certificate checks when the connection goes to the checked IP. The container logs had no errors. DNS rebinding itself is checked only by the unit tests.
+
+### Findings and outcomes
+
+- **`/code-review` (high): no real defect.** All five findings are recorded, not fixed:
+  - **Fails open on an `httpx` rename.** If `httpx` renamed `_pool._network_backend`, the assignment would do nothing at runtime. The connection tests would fail, and `uv.lock` pins the checked versions. A runtime guard would change source code, so it is left to the user.
+  - **`assert` under `python -O`.** `assert last_error is not None` cannot fail: the helper never returns an empty list.
+  - **Last error hides a timeout.** When an earlier answer times out and a later one is refused, the fetch reports "The source could not be fetched." instead of "The source fetch timed out." The code stays `fetch_failed`. Marginal.
+  - **Full connect timeout per answer.** Each answer gets the full connect timeout. `socket.create_connection` did the same before the change.
+  - **Duplicated test helper.** Churn.
+- **Independent spec review: no missing or wrong behavior.**
+  - M1–M7 were killed as reported above.
+  - Of its 28 own mutations, these survived:
+    - equivalent: A5 `except Exception`, A11 dropping `local_address`/`socket_options`, A14 the client without `trust_env=False`, A24 the port taken from the answer;
+    - marginal, recorded: A13 the transport without `trust_env=False` (only `SSL_CERT_FILE`/`SSL_CERT_DIR` from the environment), A15 NAT64 at connect time (deferred by the plan), A16–A18 the helper's lookup-error branches (untested before the change too);
+    - real test gaps, fixed below: A20, A21, A12, A9, A26.
+
+### Tests added in the review commit
+
+Each test passes on the implementation. Each named mutation made it fail and was then restored.
+
+| Test | Gap | Mutation that now fails it |
+| --- | --- | --- |
+| `test_connection_uses_the_answer_it_checked` (DNS answers public, public, then `127.0.0.1`) | checking one lookup but connecting to a later one | A20: check `_public_answers`, then connect to a fresh `getaddrinfo` → connected to `127.0.0.1` |
+| `test_connection_tries_next_answer_after_refusal_with_connect_timeout` (first answer refused, second times out) | the next answer after a refusal; the connect timeout passed through; the message of a final connect timeout | A21: fall through only on `ConnectTimeout`; A12: pass `timeout=None`; A9: raise a fresh `ConnectError` |
+| `test_address_check_runs_before_budget_and_spacing` | the address check runs before the fetch budget and host spacing (design D1; no test protected it before) | A26: move `_check_address` after the budget and spacing |
+
+After the review commit: `tests/test_safe_fetch.py` **61 passed**; the full backend suite (`UV_PYTHON=3.12 uv run pytest -q`) **895 passed**; strict validation passed.

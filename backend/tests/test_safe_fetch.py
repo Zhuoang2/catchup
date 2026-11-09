@@ -183,6 +183,44 @@ def test_connection_rejects_mixed_dns_answers(monkeypatch, failed_connections):
     assert (error.value.code, failed_connections) == ("blocked_address", [])
 
 
+def test_connection_uses_the_answer_it_checked(monkeypatch, failed_connections):
+    answers = iter([["8.8.8.8"], ["8.8.8.8"]])
+    monkeypatch.setattr(socket, "getaddrinfo",
+                        lambda host, port, *args, **kwargs: _dns_answers(next(answers, ["127.0.0.1"]), port))
+    with pytest.raises(FetchError) as error:
+        safe_fetch("http://public.example/feed")
+    assert (error.value.code, failed_connections) == ("fetch_failed", [("8.8.8.8", 80)])
+
+
+def test_connection_tries_next_answer_after_refusal_with_connect_timeout(monkeypatch):
+    calls = []
+    monkeypatch.setattr(socket, "getaddrinfo",
+                        lambda host, port, *args, **kwargs: _dns_answers(["8.8.8.8", "8.8.4.4"], port))
+
+    def connect(address, timeout=None, *args, **kwargs):
+        calls.append((address, timeout))
+        raise (OSError if address[0] == "8.8.8.8" else TimeoutError)("connection failed")
+
+    monkeypatch.setattr(socket, "create_connection", connect)
+    with pytest.raises(FetchError) as error:
+        safe_fetch("http://public.example/feed")
+    assert calls == [(("8.8.8.8", 80), 5.0), (("8.8.4.4", 80), 5.0)]
+    assert (error.value.code, str(error.value)) == ("fetch_failed", "The source fetch timed out.")
+
+
+def test_address_check_runs_before_budget_and_spacing(resolve):
+    resolve["public.example"] = ["127.0.0.1"]
+    budget = [1]
+
+    class Spacer:
+        def wait(self, _url):
+            pytest.fail("spacing waited before the address check")
+
+    with pytest.raises(FetchError) as error:
+        safe_fetch(PUBLIC, budget=budget, spacer=Spacer())
+    assert (error.value.code, budget) == ("blocked_address", [1])
+
+
 @pytest.fixture
 def resolve(monkeypatch):
     addresses = {"public.example": ["8.8.8.8"]}

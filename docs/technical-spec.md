@@ -23,7 +23,7 @@ CatchUp is an open-source, self-hosted app: one FastAPI process serves the JSON 
 
 **Other components.**
 
-- **Fetching:** `safe_fetch` blocks private addresses, re-checks redirects, caps size and time, spaces requests per host, and honors `Retry-After`; opt-in YouTube captions (D-013) only get host spacing.
+- **Fetching:** `safe_fetch` blocks private addresses, checks addresses again when it connects and connects only to checked addresses, re-checks redirects, caps size and time, spaces requests per host, and honors `Retry-After`; opt-in YouTube captions (D-013) only get host spacing.
 - **Storage:** SQLite with Alembic migrations; saved digests copy their summaries, titles, and links, so deleting a source never changes them.
 - **Security:** no login; by default only `localhost`, `127.0.0.1`, and `[::1]` are served. The key is Fernet-encrypted and shown only as its last four characters; the container runs as non-root.
 

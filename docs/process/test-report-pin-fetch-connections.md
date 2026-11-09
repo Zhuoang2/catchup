@@ -1,13 +1,14 @@
 # Pin fetch connections: implementation checks
 
 2026-11-09, branch `pin-fetch-connections`, starting commit `d356464`.
+Group 1 implementation commit: `933a98c`.
 All commands ran in the isolated worktree, not the user's running instance.
 Backend commands used Python **3.12.13**. Tests and probes used no external
 network or real sleeps; the response test connected only to its loopback listener.
 
 ## Commands and actual results
 
-Backend commands ran from `backend/`; OpenSpec and Docker commands run from
+Backend commands ran from `backend/`; OpenSpec and Docker commands ran from
 the repository root.
 
 | Command / stage | Actual result |
@@ -23,8 +24,15 @@ the repository root.
 | `UV_PYTHON=3.12 uv run --offline pytest tests/test_safe_fetch.py -q`, after all mutations were restored | **58 passed in 1.37s**. |
 | `git diff --check` | Passed. |
 | `docker info --format '{{.ServerVersion}}'` | Local Docker daemon available, **29.8.0**. |
+| Fetching-line check, before/after task 2.1 | Expected red before editing; passed afterward. Compared the entire document with the expected single-line replacement; all other text unchanged. |
+| `UV_PYTHON=3.12 uv run --offline pytest`, group 2 final integration | **892 passed in 21.95s**. |
+| `DO_NOT_TRACK=1 openspec validate pin-fetch-connections --strict` | Passed: change is valid. |
+| `docker build -t catchup:pin-fetch-connections-local .` | Passed; built the updated backend with Python 3.12; unchanged frontend layers were cached. |
+| `PATH="$PWD/backend/.venv/bin:$PATH" scripts/docker-smoke.sh catchup:pin-fetch-connections-local` | Passed **12/12** reported checks: health, API, HTML, manifest, service worker, offline page, preference write, framing headers, non-root process, database volume, excluded source/secrets, and persistence after restart. Only local loopback HTTP was used. The script cleaned up its container and volume. |
 
-Group 2 integration checks are pending.
+No frontend or extension source changed, and their standalone suites were not
+run. No new statement-coverage measurement was made; the coverage summary
+records the test counts without claiming a new percentage.
 
 ## Diagnosis and library probes
 

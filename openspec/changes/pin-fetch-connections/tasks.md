@@ -71,10 +71,10 @@ Implementer notes:
 
 ## 2. Docs, checks, and report
 
-- [ ] 2.1 In `docs/technical-spec.md`, change the **Fetching** line so it says that `safe_fetch` checks addresses again when it connects and connects only to checked addresses. Keep the rest of the line.
+- [x] 2.1 In `docs/technical-spec.md`, change the **Fetching** line so it says that `safe_fetch` checks addresses again when it connects and connects only to checked addresses. Keep the rest of the line.
 
   Verify: the line is changed, and the other lines of the file are unchanged.
-- [ ] 2.2 Run the full checks:
+- [x] 2.2 Run the full checks:
   - `uv run pytest` in `backend/` (record the count);
   - `DO_NOT_TRACK=1 openspec validate pin-fetch-connections --strict`;
   - if Docker is available: `docker build -t catchup:pin-fetch-connections-local .` from the repository root, then `scripts/docker-smoke.sh catchup:pin-fetch-connections-local`.

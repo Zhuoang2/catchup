@@ -18,7 +18,7 @@ Implementer notes:
 
 ## 1. Connect only to checked addresses
 
-- [ ] 1.1 In `backend/tests/test_safe_fetch.py`, add these failing tests. Unless a test says otherwise:
+- [x] 1.1 In `backend/tests/test_safe_fetch.py`, add these failing tests. Unless a test says otherwise:
   - the URL is `http://public.example/feed`;
   - `socket.create_connection` is replaced by a fake with the signature `(address, *args, **kwargs)`. `httpcore` calls it as `create_connection(address, timeout, source_address=...)`. The fake appends `address` to a list and then raises `OSError`. A fake that returns `None` or raises any other error makes the test fail from a mock error.
   1. **DNS answer changes after the check** (spec scenario). The lookup answers `8.8.8.8` on its first call and `127.0.0.1` on every later call. Assert:
@@ -51,7 +51,7 @@ Implementer notes:
   A NAT64 answer at connect time (connecting to the IPv6 address as returned) is not tested. It is marginal under D-023.
 
   Verify: all seven tests fail before 1.2 for the expected reason. Today the fake receives `("public.example", <port>)`, so tests 2–5 fail on the recorded address. Tests 1 and 7 fail on the error code and because the fake was called. Test 6 fails on the message ("The source could not be fetched.") and because the fake was called. No test may fail because of a mock error.
-- [ ] 1.2 Implement design D1–D3 in `backend/src/catchup/net/safe_fetch.py`:
+- [x] 1.2 Implement design D1–D3 in `backend/src/catchup/net/safe_fetch.py`:
   - the shared address rule helper (D2), now used by `_check_address`;
   - the `httpcore.SyncBackend` subclass (D1);
   - the client factory that installs it (D3).

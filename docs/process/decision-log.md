@@ -350,3 +350,24 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - X's field names are settled by a probe that the user runs with their own token, before Droid runs.
   - X's Developer Agreement counts summaries as derived X Content, which must be deleted when access ends, or on request. CatchUp cannot delete single digests, so Settings gains "Delete all X data" (user decision, 2026-10-26).
   - **Fix rounds, and one exception to D-023 (2026-10-28).** Three Droid fix rounds followed the review of the first run; the third came from an independent review of the whole change, which the user asked for. After the review of round 3, the user chose to have Claude make two small behavior fixes in its review commit, about 5 source lines with tests and named mutations, instead of a fourth Droid round: `safe_fetch` mapping an unparsable redirect target to `invalid_url`, and a failed run showing only its X reads. After the user's live check and a system review (2026-11-01), the user again chose review-commit fixes for small items in this change: the billing note's layout, the danger button's background, `secure_delete` on every connection, the hook's token patterns, and the token error's field.
+
+## D-026 Save the model settings after a successful Test connection — accepted (2026-11-06)
+
+- **Decision.** In Settings, a successful **Test connection** saves the configuration that was tested: the base URL, the key when one was entered, and the selected model, or the first listed model when the selected one is not listed. The page sends the existing `PUT /api/settings/model` after the test.
+  - While the base URL and key fields match the saved configuration, choosing another model saves it right away. Saves run one at a time, in order.
+  - Digest and YouTube settings still need **Save**, which keeps saving all fields.
+
+  Planned as the lean OpenSpec change `save-model-after-test` (issue #85).
+- **Why.**
+  - On 2026-11-04 the user tested a key on a fresh instance and left Settings without saving, so Home still asked them to set up the model.
+  - A successful test reads like the setup is done, and **Save** sits at the bottom of the page.
+  - The user suggested saving automatically after a test (2026-11-04) and approved the plan (2026-11-06).
+- **Alternatives:**
+  - **Keep explicit saving.** Show "Not saved yet" next to the test result, or add a Save button in the model group. This is smaller, but the user preferred automatic saving.
+  - **A `save` flag on `POST /api/settings/model/test`.** Rejected: it duplicates the save rules in the test endpoint and makes a read-only request write.
+  - **Never save on a model choice.** Rejected: it brings back the same trap for anyone who changes the fallback model.
+  - **Save a model choice with whatever the fields hold.** Rejected: after a failed test of an edited key or address, the menu still lists the last good provider's models, so the choice would store an untested key or address.
+- **Consequences:**
+  - Testing a new key replaces the saved key. The key field's hint and the success message say so.
+  - Test errors that are not tied to a field move from the bottom of the page into the Model provider group. Errors from **Save** stay where they are (#71).
+  - No backend or API change.

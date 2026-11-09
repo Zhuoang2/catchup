@@ -1832,3 +1832,75 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - To stay at 3 pages, the drafting sub-agent removed the #25 layout-test example and tightened the line spacing. The board screenshot prints at about 5.7 pt, smaller than the other screenshots; the same next tasks are listed as text.
   - The user had decided against a release tag before the install finding. Claude raised it once more, because tagging v0.2.0 would make `latest` match the alpha; the user kept the decision ("No tag; have the review session check it again", translated).
   - The same review agent then re-checked the revision: no blocker or major, and every earlier finding handled or deliberately skipped. Its six remaining minors were confirmed and applied: "Every feature or fix is a planned change" overstated the process (a pre-commit hook landed outside any change, 72cb2b0, and #37 and #38 were features with one-step plans); a verb was missing; the order after the removed #25 example; the 49-minute sentence now says it was Droid's first pass, followed by review fix rounds; a paragraph split across pages; and an overloaded sentence. It also corrected two phrases in this entry.
+
+## 2026-11-05 — Filing #85 and cleaning up after the alpha (Claude Code, Opus 5.5)
+
+- **Prompts** (translated from Chinese): "Submitted. Open the issue, then clean up." Then, after Claude listed what else could go: "Clean up as you suggested."
+- **Outcome:**
+  - Claude filed #85 from the user's idea of 2026-11-04: save the model settings automatically after a successful test. The issue traces the cause in `Settings.tsx`, lists the points to decide, and says when it is done. It is labeled `type:feature` and `area:ui`, and is on the board as Todo, Medium. #17 was closed and moved to Done.
+  - Cleanup:
+    - First, Claude removed the alpha's own resources: the screenshot instance (container and volume), its worktree, and the two merged alpha branches, local and remote.
+    - After the user approved the list, Claude also removed:
+      - two stopped old containers of the user's instance (the containers only, not the data volume);
+      - three older backup volumes;
+      - 17 old CatchUp images;
+      - the Docker build cache (19.25 GB) and the Playwright browser cache (926 MB);
+      - one merged local branch.
+    - Kept:
+      - the user's running instance and its volume;
+      - the newest backup volume, with the matching image, for a rollback;
+      - another project's containers.
+    - The running instance answered its health check afterwards.
+- **Problems / adjustment:** none.
+
+## 2026-11-06 — `save-model-after-test` (#85): plan (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
+
+- **Prompts** (translated from Chinese): "Let's start on #85." After the plan: "OK, commit the plan, then start running Droid."
+- **Outcome:**
+  - Claude read the Settings page, the settings API, the `model-settings` and `user-interface` specs, and the Settings tests. It chose the lean path, a one-step plan, because the change touches one page and no backend code.
+  - The plan has these parts:
+    - a proposal;
+    - a `model-settings` delta: one modified requirement and one added requirement, with 11 scenarios;
+    - design D1–D5, including a table of the exact texts;
+    - three task groups, test first, with the mocked `fetch` as the seam.
+  - D-026 records the decision.
+  - Claude settled the four points that the issue left open:
+    - A new key replaces the saved key, and the message and the key hint say so.
+    - The fallback model is saved, and a later model choice saves too, but only while the fields match the saved settings.
+    - Only the model group saves automatically; **Save** is unchanged.
+    - The explicit-save alternative is recorded in D-026.
+  - D-023 fresh-eyes check: a sub-agent that saw only the plan and the code checked it, with short vitest probes. It confirmed every claim about the current code. It found 10 problems in the tasks, including these:
+    - four tests would already pass before the change;
+    - one assertion would match both the status text and the saved-key line;
+    - an always-present alert would break six existing tests that query an unnamed alert;
+    - the spec said errors are announced through the status region, while the design used an alert;
+    - the ordered-save test could pass with a broken queue, and it chose a model that was not listed;
+    - a model change during a test could leave the menu showing a model that was not saved.
+
+    Claude checked each problem against the code and folded all 10 into the plan.
+- **Problems / adjustment:**
+  - The first task list asked tests that cannot fail before the change to fail first. Those tests are now marked as guard tests, and the tasks name the mutation that must make each one fail.
+  - The first guard on model choices used two conditions that are always set together, so one of them could not be tested. The guard now relies on `savedBaseUrl`, which starts as null.
+  - Droid's first run stopped before writing any code. The plan asked that removing a `savedBaseUrl !== null` check make test 2.1.4 fail. But `baseUrl.trim() === savedBaseUrl` is already false when `savedBaseUrl` is null, so that mutation is equivalent. Claude confirmed this and dropped the redundant check from D3. It then named two mutations that do make 2.1.4 fail: setting `savedBaseUrl` after a load that reports no saved key, and setting it after a failed save. Claude then ran Droid again.
+
+## 2026-11-06 — `save-model-after-test` (#85): implementation (Factory Droid, GPT-6.1 Sol)
+
+- **Session:** `420b5b68-fba4-4561-b55c-449e73d2a830` (run 2). Run 1 (`1ccaa6a3-b1c8-47e7-80cc-ca3cabdc78fc`) stopped before coding; see the planning entry above.
+
+- **Prompt excerpt:** "Implement OpenSpec change save-model-after-test using the openspec-apply-change skill. Work through openspec/changes/save-model-after-test/tasks.md in order and check off each task only after its verification passes. Do not edit proposal.md, design.md, or the spec deltas. Commit after each task group. If a task is blocked or the plan looks wrong, stop and report instead of improvising. When you run the OpenSpec CLI, prefix it with DO_NOT_TRACK=1." The prompt also identified `cd2dc16` as the correction to the previous equivalent mutation.
+- **Outcome:** Used `openspec-apply-change` and `tdd`. Added 16 fetch-boundary/UI tests and updated the two existing tests named by the plan. Observed group 1 red (11 failures, including the two updated tests) and group 2 red (three failures); the guard tests passed before implementation. Implemented separate automatic model PUTs after successful tests, saved-state guards, ordered model-choice saves, persistent model status, local error alerts, and the key hint. All six required mutations failed their targeted tests and were restored, including both corrected unsaved-state mutations. Group 1 and group 2 were committed separately as `953f8cf` and `92804ce`. Planning artifacts were unchanged apart from verified task checkboxes.
+- **Validation:** 279 frontend tests, 885 backend tests on Python 3.12, TypeScript/Vite build, strict OpenSpec validation with `DO_NOT_TRACK=1`, and local Docker build/smoke passed. Results and all delta scenarios are mapped in `test-report-save-model-after-test.md`; the coverage summary is updated without claiming a new percentage measurement.
+- **Problems / adjustment:** `uv run pytest` initially chose Python 3.11.4 and stopped during collection on an existing f-string requiring Python 3.12. Reran with the installed Python 3.12 interpreter (`UV_PYTHON=3.12 uv run pytest`), matching Docker, without changing backend files. No plan change was needed. The live stub-provider/browser flow and independent Claude Code review remain for review, as the plan specifies; no user instance was touched.
+
+## 2026-11-06 — `save-model-after-test` (#85): review (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
+
+- **Prompt** (translated from Chinese): "OK, commit the plan, then start running Droid." The review follows the D-016 and D-023 steps in `AGENTS.md`.
+- **Outcome:**
+  - **Bugs.** `/code-review` (high) found no real defect and raised 6 findings: 2 edge cases around the order of saves, 2 UX points, 1 issue that existed before, and 1 simplification.
+  - **Spec.** An independent spec reviewer, which had not seen the design discussion, checked the diff against the spec delta, D1–D5, and the tasks. It found no missing or wrong behavior. It ran 42 mutations: the 6 guard mutations from the tasks were all killed, and 7 survivors were real test gaps.
+  - **Checks by Claude.** Claude re-ran the frontend suite (279), the build, the backend suite (885), the Docker build, and the smoke script.
+  - **Live check.** Claude ran a throwaway container with a stub provider and fake keys, and did not touch port 8800. A rejected key saved nothing. A test alone saved the settings, and Home offered Generate. A model choice was kept after a reload.
+  - **Review commit.** Claude added the 5 most useful missing tests: a choice after first setup (the exact case in #85), a selected model listed second, the no-models message in the status region, no suffix with a single model, and a stale status after a failed choice. Each was verified by a named mutation that now fails. The rest are recorded in the test report.
+- **Problems / adjustment:**
+  - The first frontend run after `npm ci` had one failure whose name was not captured. Thirteen later runs passed, 8 of them under 4× parallel load, so it is recorded as an unidentified flake.
+  - The task list's guard tests all started from a saved key. The core case of #85, a fresh instance, was therefore covered only by the live check until the review test was added. Next time, the plan will name the starting state (saved or not) for each test of a stateful guard.

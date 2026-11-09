@@ -6,6 +6,7 @@ import { useDocumentTitle } from '../components/useDocumentTitle'
 import { Button, PageHead, Switch } from '../components/ui'
 
 type ModelSettings = { base_url: string; model_id: string; key_set: boolean; api_key_last4: string | null }
+type ModelSave = { base_url: string; model_id: string; api_key: string }
 type Preferences = { digest_language: string; youtube_captions: boolean; youtube_skip_shorts: boolean;
   show_images: boolean }
 type TestResult = { ok: true; models: string[] }
@@ -53,6 +54,10 @@ export default function Settings() {
   const [error, setError] = useState('')
   const [errorField, setErrorField] = useState<'key' | 'base' | null>(null)
   const [message, setMessage] = useState('')
+  const [modelStatus, setModelStatus] = useState('')
+  const [modelError, setModelError] = useState('')
+  const [savedBaseUrl, setSavedBaseUrl] = useState<string | null>(null)
+  const modelSaveQueue = useRef(Promise.resolve())
   const [loading, setLoading] = useState(true)
   const [browserName, setBrowserName] = useState('Chrome')
   const [browsers, setBrowsers] = useState<Browser[]>([])
@@ -79,6 +84,7 @@ export default function Settings() {
       setModel(settings.model_id)
       setModels(settings.model_id ? [settings.model_id] : [])
       setLast4(settings.key_set ? settings.api_key_last4 : null)
+      setSavedBaseUrl(settings.key_set ? settings.base_url : null)
       const selected = preferences.digest_language
       setLanguage(languageOptions.includes(selected) ? selected : 'other')
       if (!languageOptions.includes(selected)) setOtherLanguage(selected)
@@ -194,36 +200,82 @@ export default function Settings() {
     } catch (err) { setBrowserError(errorMessage(err)) }
   }
 
-  function showError(err: unknown) {
-    setError(errorMessage(err))
-    setErrorField(err instanceof ApiError
+  function showError(err: unknown, inModelGroup = false) {
+    const field = err instanceof ApiError
       ? err.code === 'connection_failed' ? 'base'
         : ['auth_failed', 'insufficient_balance', 'api_key_required', 'missing_api_key'].includes(err.code)
           ? 'key' : null
-      : null)
+      : null
+    if (inModelGroup && !field) setModelError(errorMessage(err))
+    else {
+      setError(errorMessage(err))
+      setErrorField(field)
+    }
+  }
+
+  function queueModelSave(values: ModelSave, success: (saved: ModelSettings) => string, failure: string) {
+    const saveModel = async () => {
+      setModelStatus(''); setModelError('')
+      try {
+        const saved = await request<ModelSettings>('/settings/model', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(values),
+        })
+        setLast4(saved.api_key_last4)
+        setSavedBaseUrl(saved.base_url)
+        setKey(current => current === values.api_key ? '' : current)
+        setModelStatus(success(saved))
+      } catch (err) { setModelError(failure + errorMessage(err)) }
+    }
+    modelSaveQueue.current = modelSaveQueue.current.then(saveModel, saveModel)
+    return modelSaveQueue.current
   }
 
   async function testConnection() {
     setError(''); setErrorField(null); setMessage('')
+    setModelStatus(''); setModelError('')
+    const testedBaseUrl = baseUrl
+    const testedKey = key
     try {
       const result = await request<TestResult>('/settings/model/test', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ base_url: baseUrl, api_key: key || undefined }),
+        body: JSON.stringify({ base_url: testedBaseUrl, api_key: testedKey || undefined }),
       })
       setModels(result.models)
-      if (!result.models.includes(model)) setModel(result.models[0] ?? '')
-      setMessage('Connection succeeded. Choose a model, then click Save.')
-    } catch (err) { showError(err) }
+      const replaced = !result.models.includes(model)
+      const chosen = replaced ? result.models[0] : model
+      setModel(chosen ?? '')
+      if (!chosen) {
+        setModelStatus('Connection succeeded, but the provider listed no models. Nothing was saved.')
+        return
+      }
+      await queueModelSave({ base_url: testedBaseUrl, model_id: chosen, api_key: testedKey },
+        saved => (testedKey
+          ? `Connection succeeded. Saved key ending in ${saved.api_key_last4} with model ${chosen}.`
+          : `Connection succeeded. Saved model ${chosen}.`) +
+          (replaced && result.models.length > 1 ? ' Choose another model to change it.' : ''),
+        'Connection succeeded, but nothing was saved. ')
+    } catch (err) { showError(err, true) }
+  }
+
+  function chooseModel(choice: string) {
+    setModel(choice)
+    if (!key && baseUrl.trim() === savedBaseUrl) {
+      void queueModelSave({ base_url: savedBaseUrl, model_id: choice, api_key: '' },
+        () => `Saved model ${choice}.`, 'The model was not saved. ')
+    }
   }
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(''); setErrorField(null); setMessage('')
+    setModelStatus(''); setModelError('')
     try {
       const saved = await request<ModelSettings>('/settings/model', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ base_url: baseUrl, model_id: model, api_key: key }),
       })
+      setSavedBaseUrl(saved.base_url)
       await request<Preferences>('/settings/preferences', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -260,19 +312,21 @@ export default function Settings() {
             onChange={event => setKey(event.target.value)} autoComplete="new-password"
             aria-invalid={errorField === 'key' || undefined} aria-describedby={keyDescription}/>
           <p className="field-hint" id="key-hint">{last4
-            ? 'Leave empty to keep the saved key.'
+            ? 'Leave empty to keep the saved key. Testing a new key saves it.'
             : 'Stored encrypted on this computer. It is never shown again.'}</p>
         </div>
         <div className="field-row"><Button type="button" onClick={() => void testConnection()}>
           Test connection</Button>
-          {message.startsWith('Connection') && <p className="inline-msg msg-ok" role="status">
-            <Icon name="check"/>{message}</p>}
+          <p className="inline-msg msg-ok" role="status">
+            {modelStatus && <Icon name="check"/>}{modelStatus}</p>
         </div>
         {error && errorField && <p className="field-error" id={errorField === 'base' ? 'base-error' : 'key-error'}
           role="alert"><Icon name="alert"/>{error}</p>}
+        {modelError && <p className="field-error" role="alert" id="model-error">
+          <Icon name="alert"/>{modelError}</p>}
         <div className="field"><label className="field-label" htmlFor="model">Model</label>
           <select className="input select" id="model" value={model}
-            onChange={event => setModel(event.target.value)} disabled={!models.length} required>
+            onChange={event => chooseModel(event.target.value)} disabled={!models.length} required>
             {!model && <option value="">Test the connection to list models</option>}
             {models.map(id => <option key={id} value={id}>{id}</option>)}
           </select></div>

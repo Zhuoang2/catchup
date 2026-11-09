@@ -1904,3 +1904,48 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - **Problems / adjustment:**
   - The first frontend run after `npm ci` had one failure whose name was not captured. Thirteen later runs passed, 8 of them under 4× parallel load, so it is recorded as an unidentified flake.
   - The task list's guard tests all started from a saved key. The core case of #85, a fresh instance, was therefore covered only by the live check until the review test was added. Next time, the plan will name the starting state (saved or not) for each test of a stateful guard.
+
+## 2026-11-08 — `save-model-after-test` (#85): merge, cleanup, and rebuilding the user's instance (Claude Code, Opus 5.5)
+
+- **Prompts** (translated from Chinese): "Approved. Open the PR and merge, with auto-merge." Then: "Has it merged?" Then: "OK, back up first, then rebuild 8800." Then: "OK, delete the old image and the old backup volume."
+- **Outcome:**
+  - Claude archived the change (`2026-11-08-save-model-after-test`; `model-settings` gained 1 requirement and changed 1) and pushed the branch. It opened PR #86 with `Closes #85` and turned on auto-merge (merge method). The PR merged after 8 of 8 checks passed (`d034789`). The issue closed, and the board moved it to Done on its own.
+  - Claude removed the review container, its volume, two review images, the launch configurations, both worktrees, and the local and remote branch.
+  - Claude rebuilt the user's instance on port 8800 from a clean checkout of `d034789`:
+    - The smoke script passed 12 of 12.
+    - The volume was backed up to `catchup-e2e-bak-f832bb4`. Its checksum matched, and its integrity check passed: 4 sources, 174 items, 7 digests, 10 runs.
+    - The new container reuses the volume, and the secret was passed from the old container without being shown.
+    - The model, sources, digests, and preferences were unchanged, and the new key hint was in the served page.
+    - The old container stays stopped for rollback. No migration was needed, because the merge changed no backend code.
+  - On the user's request, Claude deleted the older rollback image and backup volume.
+- **Problems / adjustment:** The first backup copy failed, because the image runs as a non-root user. Claude reran it as root. Opening the copy read-only failed because the database uses WAL, so the integrity check used SQLite's `immutable=1`.
+
+## 2026-11-09 — `pin-fetch-connections` (#68): plan (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
+
+- **Prompts** (translated from Chinese): "Which issue next?" After Claude recommended #68, then #13, then #71/#72, then #14/#10: "OK, in your order, #68 first." After the plan: "OK, commit the plan, then start running Droid."
+- **Outcome:**
+  - Claude read `safe_fetch`, its callers, its tests and `conftest.py`, the `source-management` spec, and the residual-risk note in the first design. All fetches that user content can steer go through `safe_fetch`. YouTube captions, the X API client, and the model client are out of scope.
+  - Claude chose the lean path. The change touches one module.
+  - Before writing the plan, Claude probed `httpx` 0.28.1, `httpcore` 1.0.9, and `respx` 0.23.1 without network access. The probe used loopback sockets and fakes. It found:
+    - the network backend can be replaced only through a private attribute of the transport's pool;
+    - TLS keeps the host name when the connection goes to an IP;
+    - a `FetchError` raised in the backend comes out unchanged;
+    - a raw `OSError` raised by an override is not mapped to an `httpx` error;
+    - `respx` intercepts before the backend, so the existing tests cannot test the fix.
+  - The plan has these parts:
+    - a proposal;
+    - a `source-management` delta: one modified requirement and one new scenario;
+    - design D1–D4: a connect-time check in an `httpcore` backend, one shared address rule, the wiring, and the test seams;
+    - two task groups, test first.
+  - D-027 records the decision.
+  - D-023 fresh-eyes check: a sub-agent that saw only the plan and the code built a throwaway prototype of D1–D3 and the tests outside the repository. With the prototype, the full suite passed 890 tests, and mutations M1–M5 failed the tests the plan named. It confirmed every library claim in the design. It found 7 problems:
+    - the fake connection had no default behavior, so three tests would fail from a mock error before the change;
+    - no test checked that certificates are still verified, so `verify=False` would pass every test;
+    - one test's expected failure reason was wrong;
+    - two mutation entries were incomplete;
+    - a check step built the frontend for a backend test that does not need it;
+    - mixed answers at connect time had no test;
+    - one file count in the design was wrong.
+
+    Claude confirmed each problem against the code or with a probe. It folded all 7 into the plan: a default fake that raises `OSError`, a certificate check in the TLS test with mutation M7, a seventh test for mixed answers, and corrected wording. A NAT64 answer at connect time stays untested as marginal.
+- **Problems / adjustment:** The project's `openspec-propose` skill did not load in this session, so Claude followed the same steps with the OpenSpec CLI directly.

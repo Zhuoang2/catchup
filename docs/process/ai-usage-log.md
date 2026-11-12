@@ -1984,3 +1984,4 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - **Problems / adjustment:**
   - At first, Claude expected the rebinding test to kill "check one answer, connect to a later one". Running the mutation showed that it does not: the test's fake DNS has only two phases. A three-phase test now covers it.
   - Next time, a plan that names a security invariant ("connect only to the checked address") will include a test that tells the checked lookup apart from any later lookup.
+- **Merge decision** (2026-11-12, translated from Chinese): "Approved; turn on auto-merge; add it." "Add it" refers to the runtime check that Claude had offered and advised against. On the user's decision, Claude added it in its review commit, about 3 source lines and one test, verified by mutation G1. This is an exception to D-023, recorded in D-027 and in the test report.

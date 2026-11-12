@@ -66,7 +66,7 @@ The backend connects to `answer[4][0]`, the address exactly as the resolver retu
 
 Nothing else in `safe_fetch()` changes.
 
-`_pool._network_backend` is private to `httpx` and `httpcore`. If an upgrade renames it, assigning to it would silently do nothing. Tests fail in that case (tasks 1.1, tests 1–7), and `uv.lock` pins the versions that were checked.
+`_pool._network_backend` is private to `httpx` and `httpcore`. If an upgrade renames it, assigning to it would silently do nothing. Tests fail in that case (tasks 1.1, tests 1–7), and `uv.lock` pins the versions that were checked. At review, the user also chose a runtime check (2026-11-12): the factory raises `RuntimeError` when the pool has no `httpcore.SyncBackend` under `_network_backend`, so CatchUp refuses to fetch instead of connecting unchecked.
 
 ### D4. Test seams
 

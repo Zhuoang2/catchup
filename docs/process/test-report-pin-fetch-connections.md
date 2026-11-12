@@ -168,3 +168,11 @@ Each test passes on the implementation. Each named mutation made it fail and was
 | `test_address_check_runs_before_budget_and_spacing` | the address check runs before the fetch budget and host spacing (design D1; no test protected it before) | A26: move `_check_address` after the budget and spacing |
 
 After the review commit: `tests/test_safe_fetch.py` **61 passed**; the full backend suite (`UV_PYTHON=3.12 uv run pytest -q`) **895 passed**; strict validation passed.
+
+### Runtime check added on the user's decision (2026-11-12)
+
+The user approved the merge and asked for the optional runtime check from the `/code-review` finding "Fails open on an `httpx` rename". The fix is in Claude's review commit, a user-approved exception to D-023 (about 3 source lines):
+- `_client()` raises `RuntimeError("Cannot install the connect-time address check; refusing to fetch.")` when the transport's pool has no `httpcore.SyncBackend` under `_network_backend`.
+- Test `test_refuses_to_fetch_when_the_connect_check_cannot_be_installed` replaces the pool with an empty object. It expects that error and no connection attempt.
+- Mutation G1 (guard removed) made the test fail. After restoring the guard: `tests/test_safe_fetch.py` **62 passed**, and the full backend suite **896 passed**.
+- After the guard, Claude rebuilt `catchup:review-68`. The smoke script passed **12/12**. A new test container on port 8787 previewed `https://simonwillison.net/atom/everything/` and `http://simonwillison.net/` (5 entries each), and refused `http://127.0.0.1/` as `blocked_address`. The logs had no `RuntimeError`.

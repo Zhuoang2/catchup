@@ -387,5 +387,5 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - **Patch `socket.getaddrinfo` during a request.** Rejected: it is global for the process, and fetches run in several threads.
 - **Consequences:**
   - One more DNS lookup for each new connection.
-  - The wiring uses a private attribute of `httpx` 0.28 (`HTTPTransport._pool._network_backend`). A test fails if connections stop going through the backend, and `uv.lock` pins the checked versions.
+  - The wiring uses a private attribute of `httpx` 0.28 (`HTTPTransport._pool._network_backend`). A test fails if connections stop going through the backend, and `uv.lock` pins the checked versions. On the user's decision at review (2026-11-12), `safe_fetch` also fails closed at runtime: if the pool has no network backend to replace, it raises instead of connecting without the check.
   - The existing `respx` tests intercept before the network backend, so new tests patch `socket.create_connection` instead.

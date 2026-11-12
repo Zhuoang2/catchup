@@ -123,8 +123,11 @@ class _PublicOnlyBackend(httpcore.SyncBackend):
 
 def _client() -> httpx.Client:
     transport = httpx.HTTPTransport(trust_env=False)
-    # Private pool wiring is covered by connection-level tests for dependency upgrades.
-    transport._pool._network_backend = _PublicOnlyBackend()
+    # Private httpx/httpcore wiring: fail closed if an upgrade moves it, instead of connecting unchecked.
+    pool = getattr(transport, "_pool", None)
+    if not isinstance(getattr(pool, "_network_backend", None), httpcore.SyncBackend):
+        raise RuntimeError("Cannot install the connect-time address check; refusing to fetch.")
+    pool._network_backend = _PublicOnlyBackend()
     return httpx.Client(
         transport=transport, follow_redirects=False, trust_env=False, headers={"User-Agent": user_agent()},
     )

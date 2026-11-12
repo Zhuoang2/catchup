@@ -2,6 +2,7 @@ import socket
 import ssl
 from datetime import datetime, timezone
 from threading import Thread
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -219,6 +220,18 @@ def test_address_check_runs_before_budget_and_spacing(resolve):
     with pytest.raises(FetchError) as error:
         safe_fetch(PUBLIC, budget=budget, spacer=Spacer())
     assert (error.value.code, budget) == ("blocked_address", [1])
+
+
+def test_refuses_to_fetch_when_the_connect_check_cannot_be_installed(resolve, monkeypatch, failed_connections):
+    class Transport(httpx.HTTPTransport):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self._pool = SimpleNamespace()
+
+    monkeypatch.setattr(httpx, "HTTPTransport", Transport)
+    with pytest.raises(RuntimeError, match="address check"):
+        safe_fetch(PUBLIC)
+    assert failed_connections == []
 
 
 @pytest.fixture

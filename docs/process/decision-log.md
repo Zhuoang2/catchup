@@ -371,3 +371,21 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Testing a new key replaces the saved key. The key field's hint and the success message say so.
   - Test errors that are not tied to a field move from the bottom of the page into the Model provider group. Errors from **Save** stay where they are (#71).
   - No backend or API change.
+
+## D-027 Connect only to addresses that pass the address check — accepted (2026-11-09)
+
+- **Decision.** `safe_fetch` checks the address again when it opens a connection, and connects only to the address it has just checked. A subclass of `httpcore.SyncBackend` resolves the host, applies the same address rule as the check before each request, and opens the connection to each checked answer in turn. `safe_fetch` installs it in the connection pool of its `httpx` transport. The check before each request and redirect hop stays.
+
+  Planned as the lean OpenSpec change `pin-fetch-connections` (issue #68).
+- **Why.**
+  - `httpx` resolved the host a second time when it connected, and nothing checked that answer. A host whose DNS answer changes after the check (DNS rebinding) could therefore reach the user's machine or local network.
+  - The first design accepted this as a residual risk (2026-10-03). Since D-020, each run follows up to 8 links from every new item, so any followed author can trigger these requests, and the answer is sent to the model provider.
+  - A system review on 2026-11-01 confirmed the gap with a probe. The user chose #68 as the next issue on 2026-11-09.
+- **Alternatives:**
+  - **Pin the connection to the answers of the first check.** This saves one DNS lookup, but `safe_fetch` would have to pass per-host state to the pool. Rejected: more state, and no security gain over checking at connect time.
+  - **Rewrite the URL to the IP and set the host name by hand.** Rejected: the stored response URL would show the IP, IPv6 literals need brackets, and every `respx` route in the tests would change.
+  - **Patch `socket.getaddrinfo` during a request.** Rejected: it is global for the process, and fetches run in several threads.
+- **Consequences:**
+  - One more DNS lookup for each new connection.
+  - The wiring uses a private attribute of `httpx` 0.28 (`HTTPTransport._pool._network_backend`). A test fails if connections stop going through the backend, and `uv.lock` pins the checked versions. On the user's decision at review (2026-11-12), `safe_fetch` also fails closed at runtime: if the pool has no network backend to replace, it raises instead of connecting without the check.
+  - The existing `respx` tests intercept before the network backend, so new tests patch `socket.create_connection` instead.

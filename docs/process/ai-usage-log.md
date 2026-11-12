@@ -1904,3 +1904,84 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - **Problems / adjustment:**
   - The first frontend run after `npm ci` had one failure whose name was not captured. Thirteen later runs passed, 8 of them under 4× parallel load, so it is recorded as an unidentified flake.
   - The task list's guard tests all started from a saved key. The core case of #85, a fresh instance, was therefore covered only by the live check until the review test was added. Next time, the plan will name the starting state (saved or not) for each test of a stateful guard.
+
+## 2026-11-08 — `save-model-after-test` (#85): merge, cleanup, and rebuilding the user's instance (Claude Code, Opus 5.5)
+
+- **Prompts** (translated from Chinese): "Approved. Open the PR and merge, with auto-merge." Then: "Has it merged?" Then: "OK, back up first, then rebuild 8800." Then: "OK, delete the old image and the old backup volume."
+- **Outcome:**
+  - Claude archived the change (`2026-11-08-save-model-after-test`; `model-settings` gained 1 requirement and changed 1) and pushed the branch. It opened PR #86 with `Closes #85` and turned on auto-merge (merge method). The PR merged after 8 of 8 checks passed (`d034789`). The issue closed, and the board moved it to Done on its own.
+  - Claude removed the review container, its volume, two review images, the launch configurations, both worktrees, and the local and remote branch.
+  - Claude rebuilt the user's instance on port 8800 from a clean checkout of `d034789`:
+    - The smoke script passed 12 of 12.
+    - The volume was backed up to `catchup-e2e-bak-f832bb4`. Its checksum matched, and its integrity check passed: 4 sources, 174 items, 7 digests, 10 runs.
+    - The new container reuses the volume, and the secret was passed from the old container without being shown.
+    - The model, sources, digests, and preferences were unchanged, and the new key hint was in the served page.
+    - The old container stays stopped for rollback. No migration was needed, because the merge changed no backend code.
+  - On the user's request, Claude deleted the older rollback image and backup volume.
+- **Problems / adjustment:** The first backup copy failed, because the image runs as a non-root user. Claude reran it as root. Opening the copy read-only failed because the database uses WAL, so the integrity check used SQLite's `immutable=1`.
+
+## 2026-11-09 — `pin-fetch-connections` (#68): plan (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
+
+- **Prompts** (translated from Chinese): "Which issue next?" After Claude recommended #68, then #13, then #71/#72, then #14/#10: "OK, in your order, #68 first." After the plan: "OK, commit the plan, then start running Droid."
+- **Outcome:**
+  - Claude read `safe_fetch`, its callers, its tests and `conftest.py`, the `source-management` spec, and the residual-risk note in the first design. All fetches that user content can steer go through `safe_fetch`. YouTube captions, the X API client, and the model client are out of scope.
+  - Claude chose the lean path. The change touches one module.
+  - Before writing the plan, Claude probed `httpx` 0.28.1, `httpcore` 1.0.9, and `respx` 0.23.1 without network access. The probe used loopback sockets and fakes. It found:
+    - the network backend can be replaced only through a private attribute of the transport's pool;
+    - TLS keeps the host name when the connection goes to an IP;
+    - a `FetchError` raised in the backend comes out unchanged;
+    - a raw `OSError` raised by an override is not mapped to an `httpx` error;
+    - `respx` intercepts before the backend, so the existing tests cannot test the fix.
+  - The plan has these parts:
+    - a proposal;
+    - a `source-management` delta: one modified requirement and one new scenario;
+    - design D1–D4: a connect-time check in an `httpcore` backend, one shared address rule, the wiring, and the test seams;
+    - two task groups, test first.
+  - D-027 records the decision.
+  - D-023 fresh-eyes check: a sub-agent that saw only the plan and the code built a throwaway prototype of D1–D3 and the tests outside the repository. With the prototype, the full suite passed 890 tests, and mutations M1–M5 failed the tests the plan named. It confirmed every library claim in the design. It found 7 problems:
+    - the fake connection had no default behavior, so three tests would fail from a mock error before the change;
+    - no test checked that certificates are still verified, so `verify=False` would pass every test;
+    - one test's expected failure reason was wrong;
+    - two mutation entries were incomplete;
+    - a check step built the frontend for a backend test that does not need it;
+    - mixed answers at connect time had no test;
+    - one file count in the design was wrong.
+
+    Claude confirmed each problem against the code or with a probe. It folded all 7 into the plan: a default fake that raises `OSError`, a certificate check in the TLS test with mutation M7, a seventh test for mixed answers, and corrected wording. A NAT64 answer at connect time stays untested as marginal.
+- **Problems / adjustment:** The project's `openspec-propose` skill did not load in this session, so Claude followed the same steps with the OpenSpec CLI directly.
+
+## 2026-11-09 — `pin-fetch-connections` (#68): implementation (Factory Droid, GPT-6.1 Sol)
+
+- **Session:** `b593dcba-83c0-4be2-8411-e70e247a996b` (run 1; 171 turns, about 7 minutes).
+- **Prompt excerpt:** "Implement OpenSpec change pin-fetch-connections using the openspec-apply-change skill. Work through openspec/changes/pin-fetch-connections/tasks.md in order and check off each task only after its verification passes. Do not edit proposal.md, design.md, or the spec deltas. Commit after each task group. If a task is blocked or the plan looks wrong, stop and report instead of improvising." Also: "When you run the OpenSpec CLI, prefix it with DO_NOT_TRACK=1. Run backend commands with Python 3.12, as Docker does (for example UV_PYTHON=3.12 uv run pytest). Do not use the real network in tests or probes."
+- **Outcome:** Used `openspec-apply-change`, `tdd`, and `diagnosing-bugs`. A fresh read-only Droid preflight saw only code and tasks and found no concrete contradictions; network-free probes checked the installed libraries' error mapping, private backend wiring, `FetchError` propagation, and `respx` interception. All seven new tests failed before implementation for their specified reasons, while all 51 existing fetch tests passed unchanged. Added the shared address rule, connect-time checking/fallback through `httpcore.SyncBackend`, and client factory. Group 1 was committed as `933a98c`. Updated only the Fetching line in the technical spec, plus required process evidence and verified task checkboxes; proposal, design, spec deltas, callers, dependencies, frontend, and extension were not changed.
+- **Diagnosis:** Ranked hypotheses were (1) unchecked hostname delegation, (2) a faulty pre-request address rule, and (3) exception translation hiding refusals. The tests and probes confirmed (1) and rejected (2) and (3): the default backend received the hostname after the address check, leaving its later DNS answer unchecked.
+- **Validation:** Python 3.12.13 backend suite **892 passed**, fetch suite **58 passed**, all seven required mutations failed their named tests and were restored, strict OpenSpec validation passed with `DO_NOT_TRACK=1`, and the local Docker build/smoke passed **12/12 checks**. Tests and probes made no external network requests or real sleeps. The scenario mapping, actual commands, mutation results, and unperformed public-network live check are in `test-report-pin-fetch-connections.md`; the coverage summary records counts without a new percentage claim.
+- **Problems / adjustment:** The first mutation harness patch lost indentation and failed collection; a later inverse patch matched the shared helper instead of the backend and caused recursion in subsequent runs. Corrected only the harness anchors, observed a green baseline, and reran all seven mutations with exact source comparison after every restoration. These invalid attempts are recorded, not counted as mutation evidence. No task-plan change or production workaround was needed. Dependencies installed entirely from the local cache. Claude Code's independent review and public-feed live check remain for review; no user instance was touched.
+
+## 2026-11-09 — `pin-fetch-connections` (#68): review (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
+
+- **Prompt** (translated from Chinese): "OK, commit the plan, then start running Droid." The review follows the D-016 and D-023 steps in `AGENTS.md`.
+- **Outcome:**
+  - **Bugs.** `/code-review` (high) found no real defect and raised 5 findings:
+    - the private wiring would fail open if `httpx` renamed the attribute;
+    - an `assert` that `python -O` removes;
+    - the last connect error hides an earlier timeout;
+    - each answer gets the full connect timeout, as before the change;
+    - a duplicated test helper.
+
+    Claude checked each one. All are recorded, not fixed.
+  - **Spec.** An independent spec reviewer, which had not seen the design discussion, checked the diff against the spec delta, D1–D4, and the tasks. It found no missing or wrong behavior. It ran M1–M7 (all killed, as the test report says) and 28 mutations of its own. Four survivors were real test gaps:
+    - checking one DNS answer but connecting to a later one;
+    - trying the next answer after a refusal;
+    - passing the connect timeout to the connection;
+    - checking the address before the fetch budget and host spacing.
+
+    The plan had claimed that existing tests protect the last point. They did not.
+  - **Checks by Claude.** Claude re-ran the backend suite (892), strict validation, the Docker build, and the smoke script (12 of 12).
+  - **Live check.** Claude ran a throwaway container from the review image on port 8787, not 8800. These previews worked: Simon Willison's feed over HTTPS, the same site from an `http://` address that redirects, and a WordPress feed found from its home page. `http://127.0.0.1/` and `http://localhost:8000/` were refused as not allowed. The container logs had no errors.
+  - **Review commit.** Claude added 3 tests (about 40 lines) for the four gaps. Each was verified by a named mutation that now fails (A20, A21, A12, A9, A26). Claude also corrected the false claim in `design.md` and added a review section to the test report.
+- **Problems / adjustment:**
+  - At first, Claude expected the rebinding test to kill "check one answer, connect to a later one". Running the mutation showed that it does not: the test's fake DNS has only two phases. A three-phase test now covers it.
+  - Next time, a plan that names a security invariant ("connect only to the checked address") will include a test that tells the checked lookup apart from any later lookup.
+- **Merge decision** (2026-11-12, translated from Chinese): "Approved; turn on auto-merge; add it." "Add it" refers to the runtime check that Claude had offered and advised against. On the user's decision, Claude added it in its review commit, about 3 source lines and one test, verified by mutation G1. This is an exception to D-023, recorded in D-027 and in the test report.

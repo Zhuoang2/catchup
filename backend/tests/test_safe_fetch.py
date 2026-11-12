@@ -1,5 +1,8 @@
 import socket
+import ssl
 from datetime import datetime, timezone
+from threading import Thread
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -11,6 +14,224 @@ from catchup.main import create_app
 from catchup.net.safe_fetch import FetchError, MAX_BYTES, parse_retry_after, safe_fetch
 
 PUBLIC = "https://public.example/feed"
+REAL_CONNECT = socket.socket.connect
+
+
+def _dns_answers(addresses, port):
+    return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (address, port))
+            for address in addresses]
+
+
+@pytest.fixture
+def failed_connections(monkeypatch):
+    addresses = []
+
+    def connect(address, *args, **kwargs):
+        addresses.append(address)
+        raise OSError("connection failed")
+
+    monkeypatch.setattr(socket, "create_connection", connect)
+    return addresses
+
+
+def test_connection_rejects_dns_rebinding(monkeypatch, failed_connections):
+    lookups = []
+
+    def lookup(host, port, *args, **kwargs):
+        lookups.append(host)
+        return _dns_answers(["8.8.8.8" if len(lookups) == 1 else "127.0.0.1"], port)
+
+    monkeypatch.setattr(socket, "getaddrinfo", lookup)
+    with pytest.raises(FetchError) as error:
+        safe_fetch("http://public.example/feed")
+    assert (error.value.code, str(error.value), failed_connections) == (
+        "blocked_address", "The source address is not allowed.", [],
+    )
+
+
+def test_connection_uses_checked_address(monkeypatch, failed_connections):
+    monkeypatch.setattr(socket, "getaddrinfo", lambda host, port, *args, **kwargs: _dns_answers(["8.8.8.8"], port))
+    with pytest.raises(FetchError) as error:
+        safe_fetch("http://public.example/feed")
+    assert failed_connections == [("8.8.8.8", 80)]
+    assert error.value.code == "fetch_failed"
+    assert str(error.value) == "The source could not be fetched."
+
+
+def test_connection_tries_checked_answers_in_order(monkeypatch):
+    addresses = []
+    monkeypatch.setattr(socket, "getaddrinfo",
+                        lambda host, port, *args, **kwargs: _dns_answers(["8.8.8.8", "8.8.4.4"], port))
+
+    def connect(address, *args, **kwargs):
+        addresses.append(address)
+        if address[0] == "8.8.8.8":
+            raise TimeoutError("connection timed out")
+        raise OSError("connection failed")
+
+    monkeypatch.setattr(socket, "create_connection", connect)
+    with pytest.raises(FetchError) as error:
+        safe_fetch("http://public.example/feed")
+    assert addresses == [("8.8.8.8", 80), ("8.8.4.4", 80)]
+    assert error.value.code == "fetch_failed"
+    assert str(error.value) == "The source could not be fetched."
+
+
+def test_connection_https_keeps_hostname_and_certificate_checks(monkeypatch):
+    addresses = []
+    tls = []
+    monkeypatch.setattr(socket, "getaddrinfo", lambda host, port, *args, **kwargs: _dns_answers(["8.8.8.8"], port))
+    with socket.socket() as sock:
+        def connect(address, *args, **kwargs):
+            addresses.append(address)
+            return sock
+
+        def wrap(self, sock, *args, **kwargs):
+            tls.append((kwargs["server_hostname"], self.verify_mode == ssl.CERT_REQUIRED, self.check_hostname))
+            raise ssl.SSLError("TLS failed")
+
+        monkeypatch.setattr(socket, "create_connection", connect)
+        monkeypatch.setattr(ssl.SSLContext, "wrap_socket", wrap)
+        with pytest.raises(FetchError) as error:
+            safe_fetch(PUBLIC)
+    assert addresses == [("8.8.8.8", 443)]
+    assert tls == [("public.example", True, True)]
+    assert error.value.code == "fetch_failed"
+
+
+def test_connection_response_through_checked_address_keeps_host(monkeypatch):
+    addresses = []
+    requests = []
+    server_errors = []
+    monkeypatch.setattr(socket, "getaddrinfo", lambda host, port, *args, **kwargs: _dns_answers(["8.8.8.8"], port))
+    monkeypatch.setattr(socket.socket, "connect", REAL_CONNECT)
+    with socket.socket() as listener:
+        listener.settimeout(2)
+        listener.bind(("127.0.0.1", 0))
+        listener.listen(1)
+
+        def serve():
+            try:
+                connection, _ = listener.accept()
+                with connection:
+                    connection.settimeout(2)
+                    request = bytearray()
+                    while b"\r\n\r\n" not in request:
+                        chunk = connection.recv(4096)
+                        if not chunk:
+                            break
+                        request.extend(chunk)
+                    requests.append(bytes(request))
+                    connection.sendall(
+                        b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\nConnection: close\r\n\r\npinned",
+                    )
+            except OSError as exc:
+                server_errors.append(exc)
+
+        def connect(address, *args, **kwargs):
+            addresses.append(address)
+            sock = socket.socket()
+            try:
+                sock.settimeout(2)
+                sock.connect(listener.getsockname())
+            except BaseException:
+                sock.close()
+                raise
+            return sock
+
+        monkeypatch.setattr(socket, "create_connection", connect)
+        server = Thread(target=serve, daemon=True)
+        server.start()
+        try:
+            assert safe_fetch("http://public.example/feed").content == b"pinned"
+        finally:
+            server.join(timeout=3)
+        assert not server.is_alive()
+    assert not server_errors
+    assert addresses == [("8.8.8.8", 80)]
+    assert len(requests) == 1
+    assert b"Host: public.example" in requests[0].split(b"\r\n")
+
+
+def test_connection_reports_unresolvable_host(monkeypatch, failed_connections):
+    lookups = []
+
+    def lookup(host, port, *args, **kwargs):
+        lookups.append(host)
+        if len(lookups) > 1:
+            raise socket.gaierror("host not found")
+        return _dns_answers(["8.8.8.8"], port)
+
+    monkeypatch.setattr(socket, "getaddrinfo", lookup)
+    with pytest.raises(FetchError) as error:
+        safe_fetch("http://public.example/feed")
+    assert (error.value.code, str(error.value), failed_connections) == (
+        "fetch_failed", "The source host could not be resolved.", [],
+    )
+
+
+def test_connection_rejects_mixed_dns_answers(monkeypatch, failed_connections):
+    lookups = []
+
+    def lookup(host, port, *args, **kwargs):
+        lookups.append(host)
+        addresses = ["8.8.8.8"] if len(lookups) == 1 else ["8.8.8.8", "10.0.0.1"]
+        return _dns_answers(addresses, port)
+
+    monkeypatch.setattr(socket, "getaddrinfo", lookup)
+    with pytest.raises(FetchError) as error:
+        safe_fetch("http://public.example/feed")
+    assert (error.value.code, failed_connections) == ("blocked_address", [])
+
+
+def test_connection_uses_the_answer_it_checked(monkeypatch, failed_connections):
+    answers = iter([["8.8.8.8"], ["8.8.8.8"]])
+    monkeypatch.setattr(socket, "getaddrinfo",
+                        lambda host, port, *args, **kwargs: _dns_answers(next(answers, ["127.0.0.1"]), port))
+    with pytest.raises(FetchError) as error:
+        safe_fetch("http://public.example/feed")
+    assert (error.value.code, failed_connections) == ("fetch_failed", [("8.8.8.8", 80)])
+
+
+def test_connection_tries_next_answer_after_refusal_with_connect_timeout(monkeypatch):
+    calls = []
+    monkeypatch.setattr(socket, "getaddrinfo",
+                        lambda host, port, *args, **kwargs: _dns_answers(["8.8.8.8", "8.8.4.4"], port))
+
+    def connect(address, timeout=None, *args, **kwargs):
+        calls.append((address, timeout))
+        raise (OSError if address[0] == "8.8.8.8" else TimeoutError)("connection failed")
+
+    monkeypatch.setattr(socket, "create_connection", connect)
+    with pytest.raises(FetchError) as error:
+        safe_fetch("http://public.example/feed")
+    assert calls == [(("8.8.8.8", 80), 5.0), (("8.8.4.4", 80), 5.0)]
+    assert (error.value.code, str(error.value)) == ("fetch_failed", "The source fetch timed out.")
+
+
+def test_address_check_runs_before_budget_and_spacing(resolve):
+    resolve["public.example"] = ["127.0.0.1"]
+    budget = [1]
+
+    class Spacer:
+        def wait(self, _url):
+            pytest.fail("spacing waited before the address check")
+
+    with pytest.raises(FetchError) as error:
+        safe_fetch(PUBLIC, budget=budget, spacer=Spacer())
+    assert (error.value.code, budget) == ("blocked_address", [1])
+
+
+def test_refuses_to_fetch_when_the_connect_check_cannot_be_installed(resolve, monkeypatch, failed_connections):
+    class Transport(httpx.HTTPTransport):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self._pool = SimpleNamespace()
+
+    monkeypatch.setattr(httpx, "HTTPTransport", Transport)
+    with pytest.raises(RuntimeError, match="address check"):
+        safe_fetch(PUBLIC)
+    assert failed_connections == []
 
 
 @pytest.fixture

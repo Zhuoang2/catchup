@@ -11,6 +11,7 @@ from math import ceil
 from time import monotonic, sleep
 from urllib.parse import urljoin, urlsplit
 
+import httpcore
 import httpx
 
 from catchup.config import validate_user_agent_contact
@@ -82,8 +83,12 @@ def _check_address(url: str) -> None:
     if is_x_host(parts.hostname):
         raise FetchError("blocked_address", "X pages are read only through the X API.")
 
+    _public_answers(parts.hostname, port)
+
+
+def _public_answers(host: str, port: int) -> list[tuple]:
     try:
-        answers = socket.getaddrinfo(parts.hostname, port, type=socket.SOCK_STREAM)
+        answers = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
     except (OSError, UnicodeError) as exc:
         raise FetchError("fetch_failed", "The source host could not be resolved.") from exc
     if not answers:
@@ -99,6 +104,33 @@ def _check_address(url: str) -> None:
                 or address.is_link_local or address.is_reserved or address.is_multicast
                 or address.is_unspecified):
             raise FetchError("blocked_address", "The source address is not allowed.")
+    return answers
+
+
+class _PublicOnlyBackend(httpcore.SyncBackend):
+    def connect_tcp(self, host: str, port: int, timeout: float | None = None,
+                    local_address: str | None = None, socket_options=None):
+        answers = _public_answers(host, port)
+        last_error = None
+        for answer in answers:
+            try:
+                return super().connect_tcp(answer[4][0], port, timeout, local_address, socket_options)
+            except (httpcore.ConnectError, httpcore.ConnectTimeout) as exc:
+                last_error = exc
+        assert last_error is not None
+        raise last_error
+
+
+def _client() -> httpx.Client:
+    transport = httpx.HTTPTransport(trust_env=False)
+    # Private httpx/httpcore wiring: fail closed if an upgrade moves it, instead of connecting unchecked.
+    pool = getattr(transport, "_pool", None)
+    if not isinstance(getattr(pool, "_network_backend", None), httpcore.SyncBackend):
+        raise RuntimeError("Cannot install the connect-time address check; refusing to fetch.")
+    pool._network_backend = _PublicOnlyBackend()
+    return httpx.Client(
+        transport=transport, follow_redirects=False, trust_env=False, headers={"User-Agent": user_agent()},
+    )
 
 
 def safe_fetch(url: str, *, same_origin: str | None = None, budget: list[int] | None = None,
@@ -114,7 +146,7 @@ def safe_fetch(url: str, *, same_origin: str | None = None, budget: list[int] | 
             raise FetchError("fetch_failed", "The source fetch timed out.", status_code)
         return seconds
 
-    with httpx.Client(follow_redirects=False, trust_env=False, headers={"User-Agent": user_agent()}) as client:
+    with _client() as client:
         retried = False
         for hop in range(MAX_REDIRECTS + 1):
             while True:

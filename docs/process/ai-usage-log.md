@@ -1985,3 +1985,62 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - At first, Claude expected the rebinding test to kill "check one answer, connect to a later one". Running the mutation showed that it does not: the test's fake DNS has only two phases. A three-phase test now covers it.
   - Next time, a plan that names a security invariant ("connect only to the checked address") will include a test that tells the checked lookup apart from any later lookup.
 - **Merge decision** (2026-11-12, translated from Chinese): "Approved; turn on auto-merge; add it." "Add it" refers to the runtime check that Claude had offered and advised against. On the user's decision, Claude added it in its review commit, about 3 source lines and one test, verified by mutation G1. This is an exception to D-023, recorded in D-027 and in the test report.
+
+## 2026-11-12 — `pin-fetch-connections` (#68): merge, rebuilding the user's instance, and cleanup (Claude Code, Opus 5.5)
+
+- **Prompts** (translated from Chinese): "Continue." Then: "OK, rebuild 8800." Then: "OK, delete the old rollback, then start on #13."
+- **Outcome:**
+  - PR #87 merged by auto-merge after 8 of 8 checks (`064d3a9`). The issue closed, and the board moved it to Done on its own. Claude removed the review worktree and both copies of the branch.
+  - Claude rebuilt port 8800 from a clean checkout of `064d3a9`:
+    - the smoke script passed 12 of 12;
+    - the volume was backed up to `catchup-e2e-bak-d034789`, with a matching checksum and a passing integrity check;
+    - the secret was passed from the old container without being shown.
+  - Claude verified the rebuilt instance:
+    - the model, sources, digests, and preferences were unchanged;
+    - a preview of a feed not yet added worked over HTTPS and through an `http://` redirect, and saved nothing;
+    - `http://127.0.0.1/` was refused.
+  - On the user's request, Claude deleted the superseded rollback: the stopped container, its image, and its backup volume.
+- **Problems / adjustment:** After the first "Continue.", the auto-mode permission check refused the command that stops 8800, because the message did not clearly approve a rebuild. Nothing had run. Claude asked, and the user approved the rebuild explicitly.
+
+## 2026-11-13 — Clean-install test and `fix-install-guide` plan (#13) (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
+
+- **Prompts** (translated from Chinese): "OK, start running the install test." The user had first asked why so much would be downloaded, and confirmed that everything would be deleted afterwards. After the findings: "Go with all your recommendations, write the plan." After the plan: "OK, commit the plan, then start running Droid."
+- **Outcome:**
+  - **Install test.** A fresh sub-agent followed only the README:
+    - a source build with Docker Compose on the host;
+    - the development setup on a clean `debian:12` container with its Python 3.11;
+    - the README's backup and restore commands.
+
+    The published `latest` image was checked from registry metadata only, to save about 420 MB.
+  - **Results.** The app installed and ran both ways. The agent found 1 blocker, 3 major problems, and 6 minor ones:
+    - the tests cannot run on Python 3.11;
+    - the frontend gives a 404 until the backend restarts;
+    - the default image is v0.1.0, and a source build was tagged as the published `latest`;
+    - restore fails on its own.
+
+    Claude checked the code behind the blocker and the 404, opened the instance in a browser (the first-run screen was correct), and deleted every resource the test created.
+  - **Plan.** Before planning, Claude probed Docker Compose and uv locally, without downloads:
+    - `COMPOSE_FILE` is read from `.env`;
+    - an override tags only its own image name;
+    - `docker compose create` creates the volume;
+    - `up --build` with no build section silently reuses a local tag;
+    - `uv lock` after raising `requires-python` removes only `tomli`.
+
+    The plan has a proposal, a `local-deployment` delta (2 added requirements, 8 scenarios), design D1–D8, and three task groups. D-028 records the decisions. The v0.2.0 tag waits for the user's confirmation after the merge.
+- **Problems / adjustment:**
+  - The sub-agent could not write its report file, so Claude saved the report from its message.
+  - A console error about the service worker also appeared on 8800, so Claude traced it to the in-app browser and did not count it.
+  - Claude's first draft of the design said that `up --build` without a build section warns. A probe showed that it does not, and the risk text now says so.
+  - D-023 fresh-eyes check. A sub-agent that saw only the plan and the code re-probed Compose and the lock refreshes in throwaway copies, and removed everything it created afterwards. It found 10 problems:
+    - the expected `uv.lock` diff was incomplete, and "offline fails" holds only with an empty cache;
+    - setting `HOME` and `DOCKER_CONFIG` on one line expands to the wrong path, and the README blocks contain single quotes, so `bash -c` cannot wrap them;
+    - Docker builds still resolve base image tags online;
+    - a source-build restore on a new machine needs a clone, because `create` builds the image;
+    - checking a preference value cannot show that the restore emptied the volume first;
+    - this machine's default Node.js (v20.19.0) is below the new minimum;
+    - the README task left out three design points, and two spec requirements had no test;
+    - several checks were brittle: hard-wrapped text, a `umask` count, and `ls -l` modes on macOS;
+    - the order of the version bump and the lock refresh;
+    - the plan must be committed before Droid starts.
+
+    Claude confirmed each one against the code or the probe output and folded all 10 into the plan. Changes include a block-file runner, a marker file, `npm` under Node 22, `stat` modes, and a clone for new-machine source restores.

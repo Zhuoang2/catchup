@@ -111,7 +111,7 @@ Implementer notes:
 
 ## 3. Run the commands, checks, and report
 
-- [ ] 3.1 Run the README's Docker commands as a user would, from a clone of the branch:
+- [x] 3.1 Run the README's Docker commands as a user would, from a clone of the branch:
   - **Clone.** Clone your committed branch into a temporary directory outside the repository: `git clone <worktree path> <tmp>/readme-check`.
   - **Run each block in a new shell.** First save `REAL_DOCKER_CONFIG="$HOME/.docker"`. Write each README block, exactly as it appears, to its own file, then run it with `env HOME=<tmp home> DOCKER_CONFIG="$REAL_DOCKER_CONFIG" COMPOSE_PROJECT_NAME=readme-check bash <block file>`. Do not use `bash -c '…'`, because the blocks contain single quotes. Port 8000 on this machine is free.
   - **File modes.** Check them with `stat -f %Lp <file>` (expect `600`), not with `ls -l`.
@@ -139,7 +139,7 @@ Implementer notes:
   **Clean up afterwards:** run `docker compose down -v` for the `readme-check` project, and stop any backend you started. Record that in the test report, and list what is left for Claude Code to remove: the `catchup:local` image and the full paths of the temporary directories, including the temporary home.
 
   Verify: every item passes. If a README command fails as written, fix the README and repeat that item.
-- [ ] 3.2 Run the full checks, with `npm` under Node 22:
+- [x] 3.2 Run the full checks, with `npm` under Node 22:
   - `UV_PYTHON=3.12 uv run pytest` in `backend/`;
   - `npm test -- --run` and `npm run build` in `frontend/`;
   - `npm test -- --run` in `extension/`;

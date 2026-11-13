@@ -34,7 +34,7 @@ Implementer notes:
 
 ## 1. Configuration: Python minimum, Compose files, version
 
-- [ ] 1.1 In the new `backend/tests/test_install_docs.py`, add these failing tests:
+- [x] 1.1 In the new `backend/tests/test_install_docs.py`, add these failing tests:
   1. **Python minimum matches the build.** The minimum in `requires-python` (the version after `>=`) equals three other versions, and all of them are `3.12`:
      - the version `.github/workflows/ci.yml` installs (`python-version`);
      - the version in the Dockerfile's final `FROM python:<version>-…` line;
@@ -48,7 +48,7 @@ Implementer notes:
      - the `version` of the `catchup` package entry in `backend/uv.lock`.
 
   Verify: all three fail before 1.2 on an assertion: 3.11 instead of 3.12, the `build:` line or the missing file, and `0.1.0`.
-- [ ] 1.2 Make the changes (design D1, D4, D7). Bump the versions first, then refresh each lock file once:
+- [x] 1.2 Make the changes (design D1, D4, D7). Bump the versions first, then refresh each lock file once:
   - in `backend/pyproject.toml`, set `requires-python = ">=3.12"` and `version = "0.2.0"`. Then run `UV_PYTHON=3.12 uv lock --offline` in `backend/`. If that fails, run `UV_PYTHON=3.12 uv lock` without `--upgrade`;
   - set the `"version"` key, and only that key, to `0.2.0` in `frontend/package.json`, `extension/package.json`, and `extension/public/manifest.json`. Do not touch dependency ranges such as `"vitest-axe": "^0.1.0"`. Then run `npm install --package-lock-only --offline` in `frontend/` and in `extension/`, or without `--offline` if that fails;
   - remove `build: .` from `compose.yaml`;

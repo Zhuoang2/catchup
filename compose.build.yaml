@@ -1,0 +1,4 @@
+services:
+  catchup:
+    image: catchup:local
+    build: .

@@ -2044,3 +2044,14 @@ Real usage records for the technical spec, alpha reflection, and final report. E
     - the plan must be committed before Droid starts.
 
     Claude confirmed each one against the code or the probe output and folded all 10 into the plan. Changes include a block-file runner, a marker file, `npm` under Node 22, `stat` modes, and a clone for new-machine source restores.
+  - **Droid run 1 stopped in task 3.1** (session `5cd1f291-2e10-4652-930a-0bde79bc8df3`). Groups 1 and 2 were committed. In 3.1, both `.env` commands passed. The run then stopped for two reasons:
+    - **The plan's network rule was incomplete.** It allowed only base-image tag resolution during Docker builds. Droid checked this with a `--network none` build, which failed: after the version bump, the Dockerfile's `npm ci` needs the npm registry and `uv sync` needs PyPI for `hatchling`. Earlier builds had used the network the same way, unnoticed. Droid stopped and reported instead of working around it. This was an error in Claude's plan.
+    - **A deletion was refused.** Droid's cleanup of its temporary directory needed more than `--auto medium`, so the run ended.
+
+    Claude deleted the temporary directory and confirmed that no Compose container, volume, network, or `catchup:local` image was left. The 8800 instance was not touched.
+  - **Adjustment.** Claude told the user about the extra downloads (the frontend packages, about 108 MB unpacked, and `hatchling`). The user approved: "OK, make the changes as you said, then continue running Droid." Claude kept `--auto medium`, because a higher level would also allow pushing. In `tasks.md`:
+    - Docker builds may reach Docker Hub, GHCR, PyPI, and the npm registry;
+    - Droid deletes nothing except with `docker compose down -v`, and lists what is left for Claude to remove at review;
+    - the new-machine restore check keeps the image. The missing-image path is covered by the design probe and the review re-run.
+
+    The design's Context now names the build downloads. Droid then resumed the same session.

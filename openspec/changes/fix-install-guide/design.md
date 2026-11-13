@@ -24,7 +24,7 @@ Probes on 2026-11-13 (Docker Compose v5.5.1; a dummy project built from a local 
   - httpx2's `httpx2-jsfetch` marker becomes `sys_platform == 'emscripten'`.
 - `npm install --package-lock-only --offline` after a version bump changes only the two root `version` fields of each `package-lock.json`.
 - `docker compose create` with the build override builds a missing image, so it needs the Dockerfile and the sources (a clone). With only `compose.yaml`, `compose.build.yaml`, and `.env`, it fails with "open Dockerfile: no such file or directory".
-- The base images (`node:24-slim`, the uv image, `python:3.12-slim-trixie`) are not stored as local images, only as BuildKit cache. A build still contacts Docker Hub and GHCR to resolve their tags.
+- The base images (`node:24-slim`, the uv image, `python:3.12-slim-trixie`) are not stored as local images, only as BuildKit cache. A build still contacts Docker Hub and GHCR to resolve their tags. When the package files change, as the version bump does, the Dockerfile's `npm ci` downloads the frontend packages from the npm registry (it has no cache mount), and `uv sync` fetches the build backend `hatchling` from PyPI. Droid run 1 found this on 2026-11-13, when a build with `--network none` failed.
 - This Mac's default `node` is v20.19.0. Node v22.17.1 is installed under nvm.
 
 ## Goals / Non-Goals

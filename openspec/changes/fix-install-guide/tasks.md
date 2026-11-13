@@ -14,8 +14,11 @@ Implementer notes:
   - Some checks already pass today. Mark them as *guard* in a comment and in the test report.
 - **Network.**
   - Lock refreshes in 1.2 may use PyPI and the npm registry, but only if the offline form fails.
-  - Docker builds in 3.1 and 3.2 may contact Docker Hub and GHCR to resolve base image tags. The base images exist only as BuildKit cache.
+  - Docker builds in 3.1 and 3.2 may contact Docker Hub, GHCR, PyPI, and the npm registry. Build normally, with the network on; do not try an offline build first.
+    - The base images exist only as BuildKit cache, so their tags are resolved online.
+    - The version bump changes the package files, so the Dockerfile's `npm ci` downloads the frontend packages again (about 108 MB unpacked), and `uv sync` fetches the build backend `hatchling` from PyPI. This happens once; later builds reuse the layer cache.
   - Nothing else may use the network.
+- **Deleting.** Do not delete files, directories, or Docker images yourself. The only removal command you run is `docker compose down -v` for the `readme-check` project, as 3.1 says. In the test report, list everything else you created that should be removed (the temporary directories, the `catchup:local` and `catchup:fix-install-guide-local` images). Claude Code removes them at review.
 - **Node.js.** This machine's default `node` is v20.19.0, below the new minimum. Run every `npm` command under Node 22, for example `source ~/.nvm/nvm.sh && nvm use 22` (v22.17.1), and record `node --version` in the test report.
 - **Never touch these:**
   - the containers `catchup-e2e` (port 8800) and `catchup-e2e-d034789`;
@@ -126,17 +129,14 @@ Implementer notes:
      - after the backup, change the same preference again, and add a marker file to the volume, for example `docker run --rm -v <volume>:/data --entrypoint python catchup:local -c "open('/data/after-backup.marker','w').close()"`;
      - run the restore block; the backed-up preference is back, and `/data/after-backup.marker` no longer exists.
   3. New-machine restore:
-     - run `docker compose down -v` (removes the volume), and run `docker rmi catchup:local`;
-     - run the new-machine restore block from the clone; it builds the image, CatchUp starts, and the backed-up preference is there.
+     - run `docker compose down -v`, which removes the container and the volume; check that the `readme-check` volume is gone;
+     - run the new-machine restore block from the clone; a new volume is created, CatchUp starts, and the backed-up preference is there.
+
+     The image stays, because you do not delete images (see "Deleting"). The design probe showed that `docker compose create` builds a missing image, and the review re-run on a clean machine covers that path. Say so in the test report.
   4. Development secret: in a temporary directory with a copy of `.env.example`, run the README's development `.env` commands. The mode is 600, nothing was printed, and `CATCHUP_SECRET_KEY` has exactly one non-empty line. Do not print the value.
   5. Built frontend: in the clone, follow the README's source order. Under Node 22, run `npm ci` and `npm run build` in `frontend/`. Then start the backend as the README says, with the environment loaded, using `uv run catchup serve --port <free port>`. Check that `/` answers 200 with HTML, then stop it.
 
-  **Clean up afterwards:**
-  - `docker compose down -v`;
-  - `docker rmi catchup:local`;
-  - the temporary directories, including the temporary home.
-
-  Record what you removed.
+  **Clean up afterwards:** run `docker compose down -v` for the `readme-check` project, and stop any backend you started. Record that in the test report, and list what is left for Claude Code to remove: the `catchup:local` image and the full paths of the temporary directories, including the temporary home.
 
   Verify: every item passes. If a README command fails as written, fix the README and repeat that item.
 - [ ] 3.2 Run the full checks, with `npm` under Node 22:

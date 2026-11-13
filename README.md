@@ -12,10 +12,14 @@ The project is under active development. Requirements live in
 
 ## Development setup
 
-Install Python 3.11 or newer, [uv](https://docs.astral.sh/uv/), and Node.js
-20.19+ or 22.12+ (as required by Vite 8). From the repository root, first
-enable the pre-commit hook, which blocks commits whose staged lines look like
-API keys or secrets:
+Install Python 3.12 or newer, [uv](https://docs.astral.sh/uv/), and
+Node.js 22.12 or newer from [nodejs.org](https://nodejs.org) or a version
+manager. Distribution packages can be older than these minimums. CI and the
+Docker image use Node.js 24. If your system Python is older, uv automatically
+downloads a suitable Python 3.12 interpreter.
+
+From the repository root, first enable the pre-commit hook, which blocks
+commits whose staged lines look like API keys or secrets:
 
 ```sh
 git config core.hooksPath "$PWD/.githooks"
@@ -26,34 +30,51 @@ worktree of that clone, including worktrees on branches created before the
 hook was added. Then create the environment file:
 
 ```sh
-cp .env.example .env
-python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
+(umask 077
+  grep -v '^CATCHUP_SECRET_KEY=' .env.example > .env
+  printf 'CATCHUP_SECRET_KEY=%s\n' "$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')" >> .env
+)
 ```
 
-Paste the generated value into `CATCHUP_SECRET_KEY` in `.env`. Do not commit
-that file. In separate terminals, run:
+These commands write the secret without showing it. Do not commit `.env`.
+Build the frontend before starting the backend:
+
+```sh
+cd frontend
+npm ci
+npm run build
+```
+
+Then, in another terminal starting from the repository root:
 
 ```sh
 cd backend
 uv sync
 set -a; . ../.env; set +a
-uv run uvicorn catchup.main:app --reload
+uv run catchup serve
 ```
 
-Alternatively, start the backend with `uv run catchup serve` from `backend/`
-after loading the same environment. This listens on `127.0.0.1:8000` by
-default; use `uv run catchup serve --help` for host and port options.
+Open `http://127.0.0.1:8000`. The backend serves `frontend/dist` only if it
+existed when the backend started; restart the backend after a later build.
+Use `uv run catchup serve --help` for host and port options, or
+`uv run uvicorn catchup.main:app --reload` for backend development after
+loading the same environment.
+
+The health address is `http://127.0.0.1:8000/api/health`, which answers
+`{"status":"ok"}`.
+
+For frontend development, use the Vite dev server instead, in a separate
+terminal starting from the repository root:
 
 ```sh
 cd frontend
-npm ci
 npm run dev
 ```
 
 Open the Vite address shown in the terminal. It proxies `/api` to the backend
-at `http://127.0.0.1:8000`. To serve the built frontend from FastAPI instead,
-run `npm run build` from `frontend/` and open `http://127.0.0.1:8000`.
-The backend creates and migrates `CATCHUP_DATA_DIR/catchup.sqlite3` at startup.
+at `http://127.0.0.1:8000`.
+The backend creates and migrates `backend/data/catchup.sqlite3` by default
+at startup (`CATCHUP_DATA_DIR=./data`, relative to `backend/`).
 By default, the backend accepts requests only for `localhost`, `127.0.0.1`,
 and `[::1]` (with or without a port). If you deploy behind a domain, set
 `CATCHUP_ALLOWED_HOSTS` to a comma-separated list that includes that domain,
@@ -215,11 +236,40 @@ explicitly say whether such a provider counts as a third party.
 ## Run with Docker
 
 Install Docker with Compose **2.24 or newer**. No local Python, uv, or Node
-installation is needed. From a directory containing `compose.yaml`, generate
-an instance secret in a private `.env` file:
+installation is needed. Choose a published image or a source build.
+
+### Published image
+
+Create a directory for your installation and download `compose.yaml` into it,
+or use that file from a clone:
 
 ```sh
-printf 'CATCHUP_SECRET_KEY=%s\n' "$(openssl rand -hex 32)" > .env
+mkdir catchup
+cd catchup
+curl -fsSLo compose.yaml https://raw.githubusercontent.com/Zhuoang2/catchup/main/compose.yaml
+```
+
+The `latest` tag is the newest `vX.Y.Z` release and can lag behind `main`;
+`X.Y.Z` pins a specific release, and the `edge` tag tracks `main`. To run
+the current `main`, build from source below, or change the image in
+`compose.yaml` to `ghcr.io/zhuoang2/catchup:edge`.
+
+### Source build
+
+Clone the repository so the Dockerfile and sources are available:
+
+```sh
+git clone https://github.com/Zhuoang2/catchup
+cd catchup
+```
+
+### Create the instance secret and start
+
+From your installation directory, generate an instance secret in a private
+`.env` file:
+
+```sh
+(umask 077; printf 'CATCHUP_SECRET_KEY=%s\n' "$(openssl rand -hex 32)" > .env)
 ```
 
 Do not commit or share `.env`. Keep this secret across upgrades and backups,
@@ -227,19 +277,29 @@ or previously saved model credentials cannot be decrypted. Compose pins
 `CATCHUP_DATA_DIR=/data` and `CATCHUP_FRONTEND_DIST=/app/frontend`, even if
 `.env` contains values intended for development.
 
-The `latest` tag is the newest `vX.Y.Z` release and can lag behind `main`;
-`X.Y.Z` pins a specific release, and the `edge` tag tracks `main`. To run
-the current `main`, build from this checkout, or change the image in
-`compose.yaml` to `ghcr.io/zhuoang2/catchup:edge`. Start from the published
-image, or build from this checkout:
+For the published image:
 
 ```sh
 docker compose up -d
-# Instead, to build from source:
+```
+
+For a source build, first add this line to `.env`. Compose reads it on
+every command, so builds, upgrades, backups, and restores all use the local
+image `catchup:local`, never the published image's tag:
+
+```sh
+printf 'COMPOSE_FILE=compose.yaml:compose.build.yaml\n' >> .env
 docker compose up -d --build
 ```
 
 Open `http://localhost:8000`. The API and web interface share this port.
+Check the health address:
+
+```sh
+curl http://localhost:8000/api/health
+```
+
+It answers `{"status":"ok"}`.
 If using only Docker rather than Compose, the equivalent command is:
 
 ```sh
@@ -252,8 +312,8 @@ The provided Compose file binds **only to `127.0.0.1`**. CatchUp has **no
 login**: anyone who can access an exposed instance can read data and change
 settings. Do not expose it to an untrusted network. If you deliberately
 expose it, change the loopback address in `compose.yaml`, set
-`CATCHUP_ALLOWED_HOSTS` to include your intended domain **and** `localhost`
-and `127.0.0.1` (for the container health check), for example
+`CATCHUP_ALLOWED_HOSTS` to include your intended domain. Keep `localhost`
+for local browser access and `127.0.0.1` for the container health check, for example
 `CATCHUP_ALLOWED_HOSTS=localhost,127.0.0.1,catchup.example.com`. Do not use
 `*`. CatchUp accepts requests that change data only from its own pages or
 tools that send no browser origin headers. A page on another site, or on
@@ -270,35 +330,87 @@ To upgrade the published image without deleting the volume:
 docker compose pull && docker compose up -d
 ```
 
-For a source-built service, use `docker compose up -d --build` instead.
+For a source-built service:
+
+```sh
+git pull
+docker compose up -d --build
+```
+
+**Existing source-build users:** first add
+`COMPOSE_FILE=compose.yaml:compose.build.yaml` to `.env` as above. Without
+that line, `up -d --build` silently keeps running your previous build under
+the published tag instead of rebuilding.
+
 The named `catchup-data` volume survives container replacement; migrations
 run automatically before the server accepts requests. For a consistent backup
 or restore, stop the service first. The commands below find Compose's actual
 volume name (which includes the project name) and use the locally running
-image, so they also work with a source-built image:
+image, so they also work with a source-built image. Run each block from
+your installation directory; each works in a new shell.
+
+### Back up
+
+The backup is private and outside the checkout, in your home directory:
 
 ```sh
 docker compose stop catchup
 container="$(docker compose ps -aq catchup)"
 volume="$(docker inspect "$container" --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')"
 image="$(docker inspect "$container" --format '{{.Image}}')"
-docker run --rm --network none -v "$volume:/data:ro" --entrypoint python "$image" \
+(umask 077; docker run --rm --network none -v "$volume:/data:ro" --entrypoint python "$image" \
   -c 'import sys, tarfile; t = tarfile.open(fileobj=sys.stdout.buffer, mode="w|gz"); t.add("/data", arcname="."); t.close()' \
-  > catchup-data.tar.gz
-# To restore this backup to the stopped service's data volume:
-docker run --rm --network none -i -v "$volume:/data" --entrypoint python "$image" \
-  -c 'import sys, tarfile; tarfile.open(fileobj=sys.stdin.buffer, mode="r|gz").extractall("/data", filter="data")' \
-  < catchup-data.tar.gz
+  > "$HOME/catchup-data.tar.gz")
 docker compose up -d
 ```
 
-Back up `.env` separately and securely. Restoring replaces files in the
-volume; restore only into an empty volume or remove its old contents first
-after making another backup. A bind mount in place of the named volume must
-be writable by UID **999** (the non-root container user). To move an existing
-source-checkout database, stop the service and copy its `catchup.sqlite3`
-into the volume before starting it; keep the same instance secret if it
-contains an encrypted model key.
+Back up `.env` separately and securely. Keep the same instance secret or
+saved model credentials cannot be decrypted.
+
+### Restore into this installation
+
+**Make a backup first.** This replaces all data in the stopped service's
+volume, including hidden files, so nothing from after the backup remains:
+
+```sh
+docker compose stop catchup
+container="$(docker compose ps -aq catchup)"
+volume="$(docker inspect "$container" --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')"
+image="$(docker inspect "$container" --format '{{.Image}}')"
+docker run --rm --network none -v "$volume:/data" --entrypoint python "$image" \
+  -c 'from pathlib import Path; import shutil; [(shutil.rmtree(p) if p.is_dir() and not p.is_symlink() else p.unlink()) for p in Path("/data").iterdir()]'
+docker run --rm --network none -i -v "$volume:/data" --entrypoint python "$image" \
+  -c 'import sys, tarfile; tarfile.open(fileobj=sys.stdin.buffer, mode="r|gz").extractall("/data", filter="data")' \
+  < "$HOME/catchup-data.tar.gz"
+docker compose up -d
+```
+
+### Restore on a new machine
+
+Set up the same install path described above, without starting CatchUp.
+For the published image, get `compose.yaml`. For a source build, clone
+the repository: `create` builds a missing image, so it needs the Dockerfile
+and sources, not just the Compose files. Securely copy the same `.env`
+(including the original secret and, for source builds, the `COMPOSE_FILE`
+line), keep its mode at 600, and put the backup at
+`"$HOME/catchup-data.tar.gz"`. With no existing CatchUp volume, run:
+
+```sh
+docker compose create
+container="$(docker compose ps -aq catchup)"
+volume="$(docker inspect "$container" --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')"
+image="$(docker inspect "$container" --format '{{.Image}}')"
+docker run --rm --network none -i -v "$volume:/data" --entrypoint python "$image" \
+  -c 'import sys, tarfile; tarfile.open(fileobj=sys.stdin.buffer, mode="r|gz").extractall("/data", filter="data")' \
+  < "$HOME/catchup-data.tar.gz"
+docker compose up -d
+```
+
+A bind mount in place of the named volume must be writable by UID **999**
+(the non-root container user). To move an existing source-checkout database,
+stop the service and copy `backend/data/catchup.sqlite3` into the volume
+before starting it; keep the same instance secret if it contains an
+encrypted model key.
 
 ## Supported sources
 
@@ -355,7 +467,7 @@ Reddit support ends on **2026-11-13** because Reddit is
 Source requests identify the client as
 `CatchUp/<version> (+https://github.com/Zhuoang2/catchup)`. Optionally set
 `CATCHUP_USER_AGENT_CONTACT` to append a contact inside the parentheses,
-for example `CatchUp/0.1.0 (+https://github.com/Zhuoang2/catchup; by /u/example)`.
+for example `CatchUp/0.2.0 (+https://github.com/Zhuoang2/catchup; by /u/example)`.
 The contact must be printable ASCII, no longer than 100 characters.
 Automatically collecting pages without feeds and fetching content behind
 a login or paywall are not supported. You can save

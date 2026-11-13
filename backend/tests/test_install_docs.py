@@ -52,3 +52,68 @@ def test_release_version_agrees_across_packages_and_locks():
     lock = tomllib.loads(read_file("backend/uv.lock"))
     catchup = next(package for package in lock["package"] if package["name"] == "catchup")
     assert catchup["version"] == "0.2.0"
+
+
+def readme_section(heading):
+    readme = read_file("README.md")
+    return readme.split(f"## {heading}\n", 1)[1].split("\n## ", 1)[0]
+
+
+def collapse_whitespace(text):
+    return " ".join(text.split())
+
+
+def test_readme_states_supported_runtime_minimums():
+    readme = collapse_whitespace(read_file("README.md"))
+    minimum = tomllib.loads(read_file("backend/pyproject.toml"))["project"]["requires-python"][2:]
+    assert f"Python {minimum} or newer" in readme
+    assert "Node.js 22.12 or newer" in readme
+    assert "https://nodejs.org" in readme
+    assert "3.11" not in readme_section("Development setup")
+
+
+def test_ci_node_major_supports_documented_minimum():
+    # Guard: CI already uses Node 24, above the documented minimum major.
+    versions = re.findall(r"node-version: ['\"](\d+)['\"]", read_file(".github/workflows/ci.yml"))
+    assert versions, "CI must install Node.js"
+    assert all(int(version) >= 22 for version in versions)
+
+
+def test_readme_builds_frontend_before_starting_backend_and_names_database():
+    development = collapse_whitespace(readme_section("Development setup"))
+    assert "backend/data/catchup.sqlite3" in development
+    backend = re.search(r"uv run (?:catchup serve|uvicorn)", development)
+    assert backend, "Development setup must start the backend"
+    assert "npm run build" in development[:backend.start()]
+
+
+def test_readme_explains_local_docker_source_build():
+    readme = collapse_whitespace(read_file("README.md"))
+    assert "COMPOSE_FILE=compose.yaml:compose.build.yaml" in readme
+    assert "catchup:local" in readme
+    assert "git clone https://github.com/Zhuoang2/catchup" in readme
+
+
+def test_readme_names_health_address_and_response():
+    readme = collapse_whitespace(read_file("README.md"))
+    assert "/api/health" in readme
+    assert '{"status":"ok"}' in readme
+
+
+def test_readme_creates_private_env_and_backup_files():
+    development = collapse_whitespace(readme_section("Development setup"))
+    docker = readme_section("Run with Docker")
+    blocks = re.findall(r"```sh\n(.*?)```", docker, re.DOTALL)
+    secret = next((block for block in blocks if "printf 'CATCHUP_SECRET_KEY=" in block), "")
+    backup = next((block for block in blocks if 'mode="w|gz"' in block), "")
+    assert re.search(r"\(umask 077;\s*printf 'CATCHUP_SECRET_KEY=", secret)
+    assert "umask 077" in development
+    assert "umask 077" in backup
+    assert '"$HOME/catchup-data.tar.gz"' in backup
+    assert "docker compose create" in collapse_whitespace(docker)
+
+
+def test_readme_user_agent_example_matches_release():
+    version = tomllib.loads(read_file("backend/pyproject.toml"))["project"]["version"]
+    readme = collapse_whitespace(read_file("README.md"))
+    assert f"CatchUp/{version} (+https://github.com/Zhuoang2/catchup; by /u/example)" in readme

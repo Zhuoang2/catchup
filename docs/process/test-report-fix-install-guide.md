@@ -48,9 +48,30 @@ Diagnosis ranked metadata/instruction drift first, dependency incompatibility
 second, and an application defect third. The failing configuration assertions
 and green suite after metadata-only changes confirm drift for this group.
 
+## Group 2: README
+
+The seven new README checks first produced **6 failed, 4 passed** (including
+the three group-1 tests). All six failures were assertions about missing or
+old text. The CI Node-major check is a **guard**: it passed before the README
+changed, because CI already installs Node 24.
+
+| Command | Result |
+| --- | --- |
+| `UV_PYTHON=3.12 UV_OFFLINE=1 uv run pytest tests/test_install_docs.py -q` before edits | 6 failed, 4 passed, 0.07 s |
+| `UV_PYTHON=3.12 UV_OFFLINE=1 uv run pytest` after edits | **906 passed**, 22.32 s |
+| `npm ci --offline --no-audit --no-fund` (extension, Node 22) | Passed; 120 packages installed from cache |
+| `npm test -- --run` (extension, Node 22) | **114 passed**, 8 files, 2.18 s |
+
+An independent comparison removed the two editable README sections from old
+and new text and verified that everything else is identical except for the
+User-Agent version example. Existing `test_readme_context.py` and extension
+docs tests pass. The confirmed cause remains documentation drift; application
+code, dependency ranges, Dockerfile, CI, and submitted course documents are
+unchanged.
+
 ## Remaining verification
 
-Groups 2 and 3 have not run yet.
+Group 3 has not run yet.
 
 The independent review re-run on a clean `debian:12` container is **not
 performed** in this implementation run. That review run checks the stated

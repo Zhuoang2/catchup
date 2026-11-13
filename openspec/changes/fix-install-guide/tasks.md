@@ -66,7 +66,7 @@ Implementer notes:
 
 ## 2. README
 
-- [ ] 2.1 In `backend/tests/test_install_docs.py`, add these failing tests on `README.md`, with whitespace collapsed:
+- [x] 2.1 In `backend/tests/test_install_docs.py`, add these failing tests on `README.md`, with whitespace collapsed:
   1. **Versions.** The README:
      - states "Python X.Y or newer", where X.Y is the minimum from `requires-python`;
      - states "Node.js 22.12 or newer" and links `https://nodejs.org`;
@@ -90,7 +90,7 @@ Implementer notes:
   6. **Version example.** The User-Agent example reads `CatchUp/<version>`, with the version from `backend/pyproject.toml`.
 
   Verify: every test except the guard fails before 2.2 on an assertion, for missing or old text.
-- [ ] 2.2 Rewrite the README sections "Development setup" and "Run with Docker" (design D1–D6, and the source-build upgrade note under design "Risks"), and update the User-Agent example (D7). The new text must say:
+- [x] 2.2 Rewrite the README sections "Development setup" and "Run with Docker" (design D1–D6, and the source-build upgrade note under design "Risks"), and update the User-Agent example (D7). The new text must say:
   - **D1:** uv fetches Python 3.12 when the system's Python is older.
   - **D4:**
     - how to get `compose.yaml` for the published image;

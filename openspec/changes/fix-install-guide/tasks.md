@@ -195,7 +195,7 @@ The review of groups 1–3 found the problems listed in design "Context" (review
   - the 4.1 tests pass, and `UV_PYTHON=3.12 uv run pytest` passes in `backend/`;
   - `npm test -- --run` passes in `extension/` under Node 22;
   - `docker compose -f compose.yaml -f compose.build.yaml config --images` still prints `catchup:local`.
-- [ ] 4.3 Run the changed README blocks as in 3.1: a new temporary clone of the committed branch (if you fix the README during 4.3, commit the fix and clone again before you repeat the item), each block saved exactly as written and run in a new shell with `env HOME=<tmp home> DOCKER_CONFIG="$REAL_DOCKER_CONFIG" COMPOSE_PROJECT_NAME=readme-check bash <block file>`, and modes checked with `stat -f %Lp`. Where a step below says to set `backup=`, copy the block to a second file and change only that line; record the change. Check and record each item:
+- [x] 4.3 Run the changed README blocks as in 3.1: a new temporary clone of the committed branch (if you fix the README during 4.3, commit the fix and clone again before you repeat the item), each block saved exactly as written and run in a new shell with `env HOME=<tmp home> DOCKER_CONFIG="$REAL_DOCKER_CONFIG" COMPOSE_PROJECT_NAME=readme-check bash <block file>`, and modes checked with `stat -f %Lp`. Where a step below says to set `backup=`, copy the block to a second file and change only that line; record the change. Check and record each item:
   1. **Python.** Run this item with your real `HOME` (not the temporary one) and `UV_OFFLINE=1`, so uv can use its installed Pythons without downloading. In the clone's `backend/`, with `UV_PYTHON` unset (`env -u UV_PYTHON`):
      - run the README's backend install command and `uv run python --version`. It reports Python 3.12.x;
      - run `env -u UV_PYTHON UV_PYTHON_PREFERENCE=system UV_OFFLINE=1 uv sync --dry-run`, once in the clone's `backend/` and once in a copy of it without `.python-version`. Record which Python each one selects. The design expects 3.12 with the file and a newer one (3.14 on this machine) without it.
@@ -220,7 +220,7 @@ The review of groups 1–3 found the problems listed in design "Context" (review
   Clean up as in 3.1: `docker compose down -v` for every `readme-check` project you started, and stop any backend. List the remaining temporary directories and images, with full paths, in your final message for Claude Code to remove. In the test report, use placeholders such as `<tmp>` and `<review checkout>` instead; see 4.4.
 
   Verify: every item passes. If a README command fails as written, fix the README, rerun the 4.1 tests, and repeat the item.
-- [ ] 4.4 Update `docs/process/test-report-fix-install-guide.md`:
+- [x] 4.4 Update `docs/process/test-report-fix-install-guide.md`:
   - add a "Fix round 1" section with the 4.1 counts, the 4.3 items and results, and the full checks below;
   - replace every absolute local path in the report, old sections included, with a placeholder (`<review checkout>`, `<tmp>`, `<tmp home>`, `~/.docker`). The report must not contain `/Users/` or `/private/`;
   - update the scenario mapping for the three new scenarios and the changed ones.

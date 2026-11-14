@@ -1,8 +1,8 @@
 # Test report: fix-install-guide
 
-Date: 2026-11-13. Started at `252714e`, on `fix-install-guide`.
+Date: 2026-11-13. Updated: 2026-11-14. Started at `252714e`, on `fix-install-guide`.
 
-## Environment and network
+## Environment and network (groups 1–3)
 
 - Python 3.12.13, selected with `UV_PYTHON=3.12`.
 - Node.js v22.17.1, npm 10.9.2, selected before every npm command with
@@ -95,19 +95,19 @@ resumed run did not retry an offline Docker build.
 Fresh local clone command, run from the review checkout:
 
 ```sh
-git clone /private/tmp/claude-501/-Users-madivhkassel-Desktop-Stanford-Fall-2026-CS-146S/fecc26ac-03ed-4f62-bdd5-ba35b7996c52/scratchpad/review-13 /private/tmp/catchup-install-guide-resume-0kmtb1fk/readme-check
+git clone <review checkout> <previous tmp>/readme-check
 ```
 
 The clone's HEAD was verified as
 `ce01211f92e17c04f39a22a353d91af001bd223c`. Before changing `HOME`, the
-runner saved the real Docker config path, `/Users/madivhkassel/.docker`.
+runner saved the real Docker config path, `~/.docker`.
 Each README shell block was extracted unchanged into a separate file under
-`/private/tmp/catchup-install-guide-resume-0kmtb1fk/blocks/`. The relevant
+`<previous tmp>/blocks/`. The relevant
 blocks ran in independent shells with this invocation pattern, from the clone:
 
 ```sh
-env HOME=/private/tmp/catchup-install-guide-resume-0kmtb1fk/home \
-  DOCKER_CONFIG=/Users/madivhkassel/.docker \
+env HOME=<previous tmp home> \
+  DOCKER_CONFIG=~/.docker \
   COMPOSE_PROJECT_NAME=readme-check bash <absolute-block-file>
 ```
 
@@ -174,51 +174,58 @@ source, and preference persistence across restart. The existing script's
 own trap cleaned up its smoke container and volume. No manual Docker
 removal command was used other than readme-check's `docker compose down -v`.
 
-The new permanent tests are the **10** checks in `test_install_docs.py`
+At group 3 completion, the new permanent tests were the **10** checks in
+`test_install_docs.py`
 (**9** initially failing checks and **1 guard**). The backend suite's other
 tests, all frontend/extension tests, and the smoke script already existed.
 Command-run assertions in 3.1 were additional temporary verification checks.
 
 ## Scenario mapping and guard checks
 
+This mapping reflects the revised spec at `d30ef34`. Groups 1–3 above are
+historical success-path results; failure-path evidence is from fix round 1.
+
 | Requirement / scenario | Evidence |
 | --- | --- |
-| Install: source checkout on minimum versions | `test_python_minimum_matches_ci_image_and_lock`, `test_readme_states_supported_runtime_minimums`, Node-major guard; 3.1.5 installs/startup and 3.2 backend/frontend suites/build on Python 3.12.13 and Node 22.17.1. Exact minimum versions on a clean OS remain for review. |
-| Install: built frontend is served | `test_readme_builds_frontend_before_starting_backend_and_names_database`; 3.1.5 verifies 200 HTML at first backend startup after the build. |
-| Install: source build keeps published image name free | `test_compose_separates_published_image_and_source_build`, `test_readme_explains_local_docker_source_build`; 3.1.1 image inspection and 3.1.2/3 Compose commands all use the same local image. |
-| Install: health address | `test_readme_names_health_address_and_response`; exact health block in 3.1.1, source health in 3.1.5, existing Docker smoke check. |
-| Install: private instance secret | `test_readme_creates_private_env_and_backup_files`; 3.1.1 and 3.1.4 assert mode 600 and empty output, plus one non-empty development secret line. |
-| Backup: restore in a new shell | 3.1.2 independently runs backup and restore, compares API preferences, and proves visible and hidden post-backup files were removed. |
-| Backup: restore on a new machine | 3.1.3 proves old-volume removal, new-volume creation, local-image reuse, service startup, and recovered preferences. Missing-image creation is reserved for review, as the updated task states. |
-| Backup: private backup outside checkout | `test_readme_creates_private_env_and_backup_files`; 3.1.2 verifies the actual temporary-home path, mode 600, and absence of a backup in the clone. |
+| Install: source checkout on minimum versions | Python/config and runtime-text tests; 4.3.1 installs without `UV_PYTHON`, reports 3.12.13, and contrasts the unpinned 3.14.6 dry-run. Full backend/frontend suites and build pass on Python 3.12.13 and Node 22.17.1. A new clean-OS run at exact minimums was not performed in this fix round. |
+| Install: built frontend is served | Existing build-order/path test, original 3.1.5 first-start HTML check, and fix-round Docker smoke root-HTML check. |
+| Install: source build keeps published image name free | Exact Compose override test, source-config command-block test; 4.3.3 confirms guarded/idempotent setup and local image build, with published tag unchanged; 4.3.7 reuses the same local image without pulling. |
+| Install: health address | Address/response test and every-start-waits test; 4.3.3 runs the exact health command immediately after `up -d --build --wait`; existing smoke health check. |
+| Install: private instance secret | Both secret-block cases and privacy guards; 4.3.2 checks silent output, mode 600, and exactly one 64-hex key line in each path. |
+| Install: secret is not replaced | Both secret-block cases; 4.3.2 repeats each block with an existing file (exit 1, file SHA-256 unchanged), then removes OpenSSL from the command search path (exit 127, no file created). |
+| Backup: restore in a new shell | Archive-validation ordering test; 4.3.6 restores the first archive in a new shell, compares the complete API preference response, and checks visible/hidden post-backup markers are absent. |
+| Backup: restore on a new machine | New-machine ordering/emptiness test; 4.3.7 refuses a populated volume, then restores from a second clone with `cp -p` of `.env` after the old volume was removed. Missing-image creation remains covered by the design probe, not this image-retaining rerun. |
+| Backup: private backup outside checkout | Private, unique, atomic backup-block test; 4.3.4 checks two separate files under `<tmp home>/catchup-backups`, file modes 600, and directory mode 700. |
+| Backup: failed backup keeps earlier backups | Atomic-backup test; 4.3.4 compares the first two SHA-256 values after wrong-directory failures with and without the project variable, with no new archive/partial file; 4.3.6 proves making a third backup preserves the first two. |
+| Backup: unreadable backup leaves installation unchanged | Restore-ordering test; 4.3.5 missing and half-length archives fail before the service stops, retaining preferences and markers. All 2,391 truncated lengths fail the exact archive-check code; the full archive passes. |
 
-The explicitly marked guard is `test_ci_node_major_supports_documented_minimum`:
-CI already used Node 24 before this change. Existing backend README-context
-and extension docs tests also remain passing compatibility guards. Version
-agreement and the User-Agent example are covered by the two new release
-version checks; the database-path check is also exercised in 3.1.5.
+Guard comments identify the already-correct private creation masks, the
+CI Node-major check (Node 24), and both paste-safety cases. The other
+original passing checks remain in the suite. Existing backend README-context
+and extension docs tests remain compatibility checks.
 
-## Review handoff and retained artifacts
+## Historical group 3 review handoff
 
 The independent review re-run on a clean `debian:12` container is **not
 performed** in this implementation run. That review run checks the stated
 minimum versions on a clean machine, including a missing-image new-machine
 restore. It is not replaced by these cached macOS installs.
 
-Claude Code should remove these artifacts at review. They were deliberately
-left in place under the revised deletion rule:
+The following was the group 3 cleanup handoff. Claude Code later removed
+that temporary root and local source image during review. These entries
+are historical, not the current fix-round cleanup list:
 
 - Temporary root (contains all block files, logs, state, and the following
-  subdirectories): `/private/tmp/catchup-install-guide-resume-0kmtb1fk`
+  subdirectories): `<previous tmp>`
   - Clone, including its dependencies, built frontend, `.env`, and test
-    database: `/private/tmp/catchup-install-guide-resume-0kmtb1fk/readme-check`
+    database: `<previous tmp>/readme-check`
   - Private temporary home and backup:
-    `/private/tmp/catchup-install-guide-resume-0kmtb1fk/home`
-    (`/private/tmp/catchup-install-guide-resume-0kmtb1fk/home/catchup-data.tar.gz`)
+    `<previous tmp home>`
+    (`<previous tmp home>/catchup-data.tar.gz`)
   - Development-secret fixture:
-    `/private/tmp/catchup-install-guide-resume-0kmtb1fk/development-secret`
+    `<previous tmp>/development-secret`
   - Extracted shell blocks:
-    `/private/tmp/catchup-install-guide-resume-0kmtb1fk/blocks`
+    `<previous tmp>/blocks`
 - Docker image `catchup:local`,
   ID `sha256:42c5b9d5a0a364823afdbd182c8c79257a1edc5fd956a5e0ba35825c5f09fb40`.
 - Docker image `catchup:fix-install-guide-local`,
@@ -227,13 +234,133 @@ left in place under the revised deletion rule:
 The checks also generated these ignored paths in the review checkout,
 retained for review and eligible for cleanup afterwards:
 
-- `/private/tmp/claude-501/-Users-madivhkassel-Desktop-Stanford-Fall-2026-CS-146S/fecc26ac-03ed-4f62-bdd5-ba35b7996c52/scratchpad/review-13/backend/.venv`
-- `/private/tmp/claude-501/-Users-madivhkassel-Desktop-Stanford-Fall-2026-CS-146S/fecc26ac-03ed-4f62-bdd5-ba35b7996c52/scratchpad/review-13/backend/.pytest_cache`
-- `/private/tmp/claude-501/-Users-madivhkassel-Desktop-Stanford-Fall-2026-CS-146S/fecc26ac-03ed-4f62-bdd5-ba35b7996c52/scratchpad/review-13/frontend/node_modules`
-- `/private/tmp/claude-501/-Users-madivhkassel-Desktop-Stanford-Fall-2026-CS-146S/fecc26ac-03ed-4f62-bdd5-ba35b7996c52/scratchpad/review-13/frontend/dist`
-- `/private/tmp/claude-501/-Users-madivhkassel-Desktop-Stanford-Fall-2026-CS-146S/fecc26ac-03ed-4f62-bdd5-ba35b7996c52/scratchpad/review-13/extension/node_modules`
+- `<review checkout>/backend/.venv`
+- `<review checkout>/backend/.pytest_cache`
+- `<review checkout>/frontend/node_modules`
+- `<review checkout>/frontend/dist`
+- `<review checkout>/extension/node_modules`
 
 No readme-check container, network, named volume, or development backend
 remains running. Tool caches and BuildKit cache were retained; no prune
 command was run. The protected containers, volumes, and images were not
 touched. Nothing was pushed, tagged as a release, or published.
+
+## Fix round 1
+
+Date: 2026-11-14. Started at `d30ef34`. Committed tasks 4.1/4.2 as
+`1374516` before cloning for 4.3. The review confirmed unsafe secret setup,
+unconstrained Python selection, and backup/restore data-loss paths.
+This section supersedes the earlier success-only installation conclusions.
+
+### Tests and implementation, 4.1/4.2
+
+`UV_PYTHON=3.12 UV_OFFLINE=1 uv run pytest tests/test_install_docs.py -q`
+first reported **11 failed, 10 passed**, **2.39 s**, all failures assertions.
+The old final-line Compose regex and the two contradictory secret/backup
+assertions were replaced. Missing files and blocks give assertion messages.
+Guards identify the already-correct private masks, CI Node major, and
+both paste-safety cases.
+
+After the changes, one test regex rejected the valid `.env)` redirect
+terminator (**1 failed, 20 passed**, **0.09 s**). Correcting that checker
+made all **21 installation cases** pass. No README command failed.
+Before commit: backend **917 passed, 24.78 s**; extension under Node
+v22.17.1 **114 passed, 8 files, 1.65 s**; Compose override image check
+printed **`catchup:local`**.
+
+Ranked hypotheses were unsafe shell-command ordering, unconstrained uv
+interpreter selection, and incorrect Compose lifecycle assumptions.
+The review probes and targeted checks confirmed those causes, not an
+application defect. The revised invariants are: do not replace a secret;
+do not overwrite an earlier backup; validate the entire archive before
+stopping or emptying a live installation; refuse a populated new-machine
+target; start only after successful steps.
+
+### Committed command checks, 4.3
+
+Both clones used `1374516a497143cce5157d1c4258cafeed8977b0`, at
+`<tmp>/readme-check` and `<tmp>/readme-check-new-machine`.
+Raw README blocks were saved individually under `<tmp>/blocks` and run in
+new shells, with `HOME=<tmp home>`, the real Docker config path saved
+before changing HOME, and `COMPOSE_PROJECT_NAME=readme-check`, except for
+the explicitly named environment probes. Mode checks used `stat -f %Lp`.
+No request went to port 8800.
+
+| Item | Actual checks and result |
+| --- | --- |
+| 4.3.1, automatic Python | With real `HOME`, `UV_OFFLINE=1`, and `UV_PYTHON` unset: README `uv sync` succeeded, then `uv run python --version` reported **Python 3.12.13**. |
+| 4.3.1, contrast | `env -u UV_PYTHON UV_PYTHON_PREFERENCE=system UV_OFFLINE=1 uv sync --dry-run` reused the pinned clone's 3.12.13 environment. The comparison copy excluded `.python-version` and `.venv`; the same command selected **3.14.6** and would install 60 packages/download 10. It was a dry-run; nothing was downloaded. |
+| 4.3.2, Docker secret | Exit **0**, empty stdout/stderr, mode **600**, exactly one **64-hex** key line. Repeat: exit **1**, file SHA-256 unchanged. Value not displayed. |
+| 4.3.2, development secret | With a copy of `.env.example`: same checks passed; repeat exit **1**, SHA-256 unchanged. |
+| 4.3.2, missing OpenSSL | Restricted PATH contained only a `grep` link (printf is a bash builtin). Ran both blocks using `<absolute bash path>`. Both exited **127** and created **no `.env`**. |
+| 4.3.3, absent environment | Source-config block in a fresh directory: exit **1**, create-secret-first message, no `.env` created. |
+| 4.3.3, repeat/newline | Repeated source-config block: exactly **one** COMPOSE_FILE line, `.env` mode still **600**. On a copy with no final newline, all original bytes stayed intact and the setting appeared on its own new line. |
+| 4.3.3, build/health | Exact `docker compose up -d --build --wait`: exit **0**. Exact health command immediately afterwards, with no retry loop, returned **`{"status":"ok"}`**. Local image existed; published tag remained absent. |
+| 4.3.4, two backups | API GET/PUT with `Origin: http://localhost:8000` saved `digest_language=zh-Hans`. Backup block ran twice, printing two distinct paths. Both files mode **600**, directory **700**. Hashes below. |
+| 4.3.4, failures | From a non-installation directory, with project variable set and then unset: both exited **1** at `docker compose config -q`, with `no configuration file provided`. No new archive/partial appeared; both earlier hashes unchanged; service still running. |
+| 4.3.5, missing archive | After setting language to `en` and adding visible/hidden markers: example `backup=` path exited **1** before stopping. Running state, complete preferences, and both markers unchanged. |
+| 4.3.5, damaged archive | Saved the first half of the first backup as a new mode-600 file. Copied restore block, changing only `backup=` to it: exit **1** with archive-read error. Service running; preferences and markers unchanged. |
+| 4.3.5, every cut | In **one** `--network none` local-image container, executed the exact archive-check code extracted from the README with only stdin replaced by in-memory copies. Archive **2,391 bytes**: **2,391/2,391** cuts (lengths **0–2,390**) failed; the full file passed. |
+| 4.3.6, backup first | Set language back to `zh-Hans` and `show_images=false`, then made a third backup. First two archives unchanged. |
+| 4.3.6, restore first | Copied restore block, changing only `backup=` to the first archive. Exit **0**; full API response matched first backup (`zh-Hans`, `show_images=true`); both markers gone. First two hashes unchanged; third archive still present. |
+| 4.3.7, populated volume | Copied new-machine block, changing only `backup=` to first archive. Exit **1**, message **`Volume is not empty; use Restore into this installation instead.`** Data unchanged. Service **remained running**. |
+| 4.3.7, new volume | Primary project's `docker compose down -v` removed the old volume. Second clone plus `cp -p` of the same `.env` (600, identical hash): new-machine block with only `backup=` changed succeeded, created a new container/volume, and recovered preferences. **No `pull access denied`**, no build, same image reused. |
+| 4.3.8 | **Not run separately**, as instructed; prerequisite-text check in 4.1 covers the note. Full frontend suite ran in 4.4. |
+| Cleanup | Both readme-check installations were brought down with `docker compose down -v`. No project container/network/volume remains. No development backend was started. Host files/directories and images retained for review. |
+
+Only these `backup=` values differed in the copied blocks:
+- damaged restore: `<tmp home>/catchup-backups/damaged-half.tar.gz`;
+- successful existing-install and both new-machine attempts:
+  `<tmp home>/catchup-backups/catchup-20261114T223721Z.tar.gz`.
+
+Backup files under `<tmp home>/catchup-backups`:
+
+| File | SHA-256 |
+| --- | --- |
+| `catchup-20261114T223721Z.tar.gz` (first) | `86858d1bbc9ef8912a46186ec1f4343e474b36a550b09072ddad2239191eb670` |
+| `catchup-20261114T223727Z.tar.gz` (second) | `155bbf1df5aadd0766c74308925b43fcb31780a22b08b1a0a6a0e11d3051a53a` |
+| `catchup-20261114T223828Z.tar.gz` (third) | `bf6d0636774db21235ea4832f55ef2a948599e3a14c92173dbb55693c60e6adf` |
+
+### Full checks, 4.4
+
+Local backend: **Python 3.12.13**, `UV_PYTHON=3.12 UV_OFFLINE=1`.
+Every local npm command first ran
+`source ~/.nvm/nvm.sh && nvm use 22`; recorded Node **v22.17.1**, npm
+**10.9.2**, with `npm_config_offline=true`. No external network in tests.
+Docker builds ran normally under the approved network allowance.
+
+| Command | Actual result |
+| --- | --- |
+| `UV_PYTHON=3.12 UV_OFFLINE=1 uv run pytest` (backend) | Exit **0**, **917 passed**, **30.53 s** |
+| `npm test -- --run` (frontend) | Exit **0**, **281 passed**, **14 files**, **8.02 s** |
+| `npm run build` (frontend) | Exit **0**, TypeScript passed; **40 modules**, Vite build **112 ms** |
+| `npm test -- --run` (extension) | Exit **0**, **114 passed**, **8 files**, **5.14 s** |
+| `DO_NOT_TRACK=1 openspec validate fix-install-guide --strict` | Exit **0**, valid |
+| `docker build -t catchup:fix-install-guide-local .` | Exit **0** |
+| `scripts/docker-smoke.sh catchup:fix-install-guide-local` | Exit **0**, all **12** checks passed |
+
+The existing smoke script cleaned up its own test container and volume.
+There was no manual host-file, directory, or image cleanup. Only
+readme-check projects were removed directly, with `docker compose down -v`.
+Protected resources were untouched. No prune, push, release tag, or
+publication occurred.
+
+A fresh clean-Debian/exact-minimum rerun **after these fixes was not
+performed** by this implementer. The earlier reviewer clean run supplied
+the defects fixed here; these host-side checks do not replace a fresh
+review run.
+
+### Retained fix-round artifacts
+
+For Claude Code to remove (full paths are in the final handoff message):
+- `<tmp>` and everything under it: two clones, unpinned backend comparison
+  copy, temporary home/backups, secret and missing-tool fixtures, blocks,
+  logs, evidence files, and verification helpers;
+- `catchup:local`, ID
+  `sha256:db94c5ffe451f04009889e4b5a3c5cee71c1b0df00dd2a44a873802e00069dee`;
+- `catchup:fix-install-guide-local`, ID
+  `sha256:d714b6659b59e27df135d8c0b133156c9d205d8c2be7c7ced52015df1a2810a5`.
+
+Ignored checkout dependencies/build outputs remain available for review.
+Tool and BuildKit caches were retained. All local filesystem locations in
+this report use placeholders; the required path scan prints nothing.

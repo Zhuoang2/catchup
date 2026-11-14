@@ -12,11 +12,24 @@ The project is under active development. Requirements live in
 
 ## Development setup
 
-Install Python 3.12 or newer, [uv](https://docs.astral.sh/uv/), and
-Node.js 22.12 or newer from [nodejs.org](https://nodejs.org) or a version
-manager. Distribution packages can be older than these minimums. CI and the
-Docker image use Node.js 24. If your system Python is older, uv automatically
-downloads a suitable Python 3.12 interpreter.
+Install git, [uv](https://docs.astral.sh/uv/), and Node.js 22.12 or newer
+from [nodejs.org](https://nodejs.org) or a version manager. Distribution
+packages can be older than these minimums. CI and the Docker image use
+Node.js 24. Python 3.12 or newer is supported; uv installs and uses Python
+3.12 for the backend, as `backend/.python-version` specifies, so you do not
+need to install it yourself.
+
+The frontend tests run `python3` from `PATH` (any Python 3); install it if
+it is missing. Secret generation needs `openssl`, included with macOS and
+most Linux installs. On Debian or Ubuntu, install it with `apt install
+openssl`.
+
+Clone the repository:
+
+```sh
+git clone https://github.com/Zhuoang2/catchup
+cd catchup
+```
 
 From the repository root, first enable the pre-commit hook, which blocks
 commits whose staged lines look like API keys or secrets:
@@ -30,13 +43,15 @@ worktree of that clone, including worktrees on branches created before the
 hook was added. Then create the environment file:
 
 ```sh
-(umask 077
-  grep -v '^CATCHUP_SECRET_KEY=' .env.example > .env
-  printf 'CATCHUP_SECRET_KEY=%s\n' "$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')" >> .env
+(umask 077; set -C; key="$(openssl rand -hex 32)" &&
+  { grep -v '^CATCHUP_SECRET_KEY=' .env.example; printf 'CATCHUP_SECRET_KEY=%s\n' "$key"; } > .env
 )
 ```
 
-These commands write the secret without showing it. Do not commit `.env`.
+These commands write the secret without showing it. They stop without
+writing if generation fails, and refuse to overwrite an existing `.env`.
+Keep that file, or move it away deliberately before creating a new one:
+a new secret makes saved model keys unreadable. Do not commit `.env`.
 Build the frontend before starting the backend:
 
 ```sh
@@ -74,7 +89,8 @@ npm run dev
 Open the Vite address shown in the terminal. It proxies `/api` to the backend
 at `http://127.0.0.1:8000`.
 The backend creates and migrates `backend/data/catchup.sqlite3` by default
-at startup (`CATCHUP_DATA_DIR=./data`, relative to `backend/`).
+at startup (`CATCHUP_DATA_DIR=./data`, relative to the directory where the
+backend starts, which is `backend/` in these steps).
 By default, the backend accepts requests only for `localhost`, `127.0.0.1`,
 and `[::1]` (with or without a port). If you deploy behind a domain, set
 `CATCHUP_ALLOWED_HOSTS` to a comma-separated list that includes that domain,
@@ -236,7 +252,9 @@ explicitly say whether such a provider counts as a third party.
 ## Run with Docker
 
 Install Docker with Compose **2.24 or newer**. No local Python, uv, or Node
-installation is needed. Choose a published image or a source build.
+installation is needed. Secret generation needs `openssl`, included with
+macOS and most Linux installs; on Debian or Ubuntu, use `apt install
+openssl`. Choose a published image or a source build.
 
 ### Published image
 
@@ -269,18 +287,30 @@ From your installation directory, generate an instance secret in a private
 `.env` file:
 
 ```sh
-(umask 077; printf 'CATCHUP_SECRET_KEY=%s\n' "$(openssl rand -hex 32)" > .env)
+(umask 077; set -C; key="$(openssl rand -hex 32)" && printf 'CATCHUP_SECRET_KEY=%s\n' "$key" > .env)
 ```
 
-Do not commit or share `.env`. Keep this secret across upgrades and backups,
-or previously saved model credentials cannot be decrypted. Compose pins
-`CATCHUP_DATA_DIR=/data` and `CATCHUP_FRONTEND_DIST=/app/frontend`, even if
-`.env` contains values intended for development.
+The command stops without writing if generation fails and refuses to
+overwrite an existing `.env`. Keep it, or move it away deliberately before
+creating a new one: a new secret makes saved model keys unreadable.
+Do not commit or share `.env`. Keep this secret across upgrades and
+backups, or previously saved model credentials cannot be decrypted.
+Compose pins `CATCHUP_DATA_DIR=/data` and
+`CATCHUP_FRONTEND_DIST=/app/frontend`, even if `.env` contains values
+intended for development.
 
 For the published image:
 
 ```sh
-docker compose up -d
+docker compose up -d --wait
+```
+
+For the published image only, the equivalent command without Compose is:
+
+```sh
+docker run -d --name catchup --env-file .env -e CATCHUP_DATA_DIR=/data \
+  -p 127.0.0.1:8000:8000 -v catchup-data:/data \
+  ghcr.io/zhuoang2/catchup:latest
 ```
 
 For a source build, first add this line to `.env`. Compose reads it on
@@ -288,8 +318,19 @@ every command, so builds, upgrades, backups, and restores all use the local
 image `catchup:local`, never the published image's tag:
 
 ```sh
-printf 'COMPOSE_FILE=compose.yaml:compose.build.yaml\n' >> .env
-docker compose up -d --build
+(
+  set -e
+  [ -s .env ] || { echo 'Create .env with the instance secret first.' >&2; exit 1; }
+  grep -qx 'COMPOSE_FILE=compose.yaml:compose.build.yaml' .env ||
+    printf '\nCOMPOSE_FILE=compose.yaml:compose.build.yaml\n' >> .env
+)
+```
+
+This refuses to create `.env` without a secret and adds the line only once,
+even if the file has no final newline. Then build and wait for health:
+
+```sh
+docker compose up -d --build --wait
 ```
 
 Open `http://localhost:8000`. The API and web interface share this port.
@@ -299,21 +340,16 @@ Check the health address:
 curl http://localhost:8000/api/health
 ```
 
-It answers `{"status":"ok"}`.
-If using only Docker rather than Compose, the equivalent command is:
-
-```sh
-docker run -d --name catchup --env-file .env -e CATCHUP_DATA_DIR=/data \
-  -p 127.0.0.1:8000:8000 -v catchup-data:/data \
-  ghcr.io/zhuoang2/catchup:latest
-```
+It answers `{"status":"ok"}`. Compose's `--wait` returns after the container
+health check passes, so this address is ready when the start command ends.
 
 The provided Compose file binds **only to `127.0.0.1`**. CatchUp has **no
 login**: anyone who can access an exposed instance can read data and change
 settings. Do not expose it to an untrusted network. If you deliberately
 expose it, change the loopback address in `compose.yaml`, set
 `CATCHUP_ALLOWED_HOSTS` to include your intended domain. Keep `localhost`
-for local browser access and `127.0.0.1` for the container health check, for example
+for local browser access and `127.0.0.1` for the container health check,
+for example
 `CATCHUP_ALLOWED_HOSTS=localhost,127.0.0.1,catchup.example.com`. Do not use
 `*`. CatchUp accepts requests that change data only from its own pages or
 tools that send no browser origin headers. A page on another site, or on
@@ -327,41 +363,60 @@ even when CatchUp itself runs locally.
 To upgrade the published image without deleting the volume:
 
 ```sh
-docker compose pull && docker compose up -d
-```
-
-For a source-built service:
-
-```sh
-git pull
-docker compose up -d --build
+docker compose pull && docker compose up -d --wait
 ```
 
 **Existing source-build users:** first add
-`COMPOSE_FILE=compose.yaml:compose.build.yaml` to `.env` as above. Without
-that line, `up -d --build` silently keeps running your previous build under
-the published tag instead of rebuilding.
+`COMPOSE_FILE=compose.yaml:compose.build.yaml` to `.env` with the block above.
+Without that line, `up -d --build` silently keeps running your previous
+build under the published tag instead of rebuilding. After your first
+build as `catchup:local`, you can remove the old local tag with
+`docker image rm ghcr.io/zhuoang2/catchup:latest`, so switching back to the
+published image later pulls the real one.
+
+For a source-built service, after adding that line:
+
+```sh
+git pull
+docker compose up -d --build --wait
+```
 
 The named `catchup-data` volume survives container replacement; migrations
-run automatically before the server accepts requests. For a consistent backup
-or restore, stop the service first. The commands below find Compose's actual
-volume name (which includes the project name) and use the locally running
-image, so they also work with a source-built image. Run each block from
-your installation directory; each works in a new shell.
+run automatically before the server accepts requests. Each block below
+works in a new shell. Run it from your installation directory. It finds
+Compose's actual volume name (including the project name) and uses the
+installation's image, so source builds work too.
+
+Each block stops at its first error. If a backup fails, fix the cause and
+start CatchUp again with `docker compose up -d --wait`. If a restore fails
+after emptying the volume, run the restore again with a good backup
+instead of starting CatchUp on the emptied volume.
 
 ### Back up
 
-The backup is private and outside the checkout, in your home directory:
+Backups are private, timestamped files in `"$HOME/catchup-backups"`, outside
+the checkout. Each backup gets a new name and never replaces an earlier
+one. A failed archive write leaves a `.partial` file, not a usable backup:
 
 ```sh
-docker compose stop catchup
-container="$(docker compose ps -aq catchup)"
-volume="$(docker inspect "$container" --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')"
-image="$(docker inspect "$container" --format '{{.Image}}')"
-(umask 077; docker run --rm --network none -v "$volume:/data:ro" --entrypoint python "$image" \
-  -c 'import sys, tarfile; t = tarfile.open(fileobj=sys.stdout.buffer, mode="w|gz"); t.add("/data", arcname="."); t.close()' \
-  > "$HOME/catchup-data.tar.gz")
-docker compose up -d
+(
+  set -e
+  docker compose config -q
+  umask 077
+  mkdir -p "$HOME/catchup-backups"
+  backup="$HOME/catchup-backups/catchup-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
+  [ ! -e "$backup" ] || { echo 'Backup already exists; try again later.' >&2; exit 1; }
+  docker compose stop catchup
+  container="$(docker compose ps -aq catchup)"
+  volume="$(docker inspect "$container" --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')"
+  image="$(docker inspect "$container" --format '{{.Image}}')"
+  docker run --rm --network none -v "$volume:/data:ro" --entrypoint python "$image" \
+    -c 'import sys, tarfile; t = tarfile.open(fileobj=sys.stdout.buffer, mode="w|gz"); t.add("/data", arcname="."); t.close()' \
+    > "$backup.partial"
+  mv "$backup.partial" "$backup"
+  docker compose up -d --wait
+  printf '%s\n' "$backup"
+)
 ```
 
 Back up `.env` separately and securely. Keep the same instance secret or
@@ -369,47 +424,76 @@ saved model credentials cannot be decrypted.
 
 ### Restore into this installation
 
-**Make a backup first.** This replaces all data in the stopped service's
-volume, including hidden files, so nothing from after the backup remains:
+**Make a backup first.** It gets a separate name, so the backup you want to
+restore stays safe. Use `ls "$HOME/catchup-backups"` to find that backup,
+and replace the example `backup=` filename below with it.
+
+The block checks the entire archive before stopping the service or
+emptying anything. It then replaces all data in the stopped service's
+volume, including hidden files:
 
 ```sh
-docker compose stop catchup
-container="$(docker compose ps -aq catchup)"
-volume="$(docker inspect "$container" --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')"
-image="$(docker inspect "$container" --format '{{.Image}}')"
-docker run --rm --network none -v "$volume:/data" --entrypoint python "$image" \
-  -c 'from pathlib import Path; import shutil; [(shutil.rmtree(p) if p.is_dir() and not p.is_symlink() else p.unlink()) for p in Path("/data").iterdir()]'
-docker run --rm --network none -i -v "$volume:/data" --entrypoint python "$image" \
-  -c 'import sys, tarfile; tarfile.open(fileobj=sys.stdin.buffer, mode="r|gz").extractall("/data", filter="data")' \
-  < "$HOME/catchup-data.tar.gz"
-docker compose up -d
+(
+  set -e
+  docker compose config -q
+  backup="$HOME/catchup-backups/catchup-YYYYMMDDTHHMMSSZ.tar.gz"
+  [ -s "$backup" ] || { echo 'Choose an existing non-empty backup file.' >&2; exit 1; }
+  container="$(docker compose ps -aq catchup)"
+  volume="$(docker inspect "$container" --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')"
+  image="$(docker inspect "$container" --format '{{.Image}}')"
+  docker run --rm --network none -i --entrypoint python "$image" \
+    -c 'import gzip, shutil, sys, tarfile; f = gzip.GzipFile(fileobj=sys.stdin.buffer); t = tarfile.open(fileobj=f, mode="r|"); [tarfile.data_filter(m, "/data") for m in t]; shutil.copyfileobj(f, open("/dev/null", "wb"))' \
+    < "$backup"
+  docker compose stop catchup
+  docker run --rm --network none -v "$volume:/data" --entrypoint python "$image" \
+    -c 'from pathlib import Path; import shutil; [(shutil.rmtree(p) if p.is_dir() and not p.is_symlink() else p.unlink()) for p in Path("/data").iterdir()]'
+  docker run --rm --network none -i -v "$volume:/data" --entrypoint python "$image" \
+    -c 'import sys, tarfile; tarfile.open(fileobj=sys.stdin.buffer, mode="r|gz").extractall("/data", filter="data")' \
+    < "$backup"
+  docker compose up -d --wait
+)
 ```
 
 ### Restore on a new machine
 
 Set up the same install path described above, without starting CatchUp.
-For the published image, get `compose.yaml`. For a source build, clone
-the repository: `create` builds a missing image, so it needs the Dockerfile
-and sources, not just the Compose files. Securely copy the same `.env`
-(including the original secret and, for source builds, the `COMPOSE_FILE`
-line), keep its mode at 600, and put the backup at
-`"$HOME/catchup-data.tar.gz"`. With no existing CatchUp volume, run:
+Skip secret generation: securely copy the same `.env` instead, with mode
+600, including the original secret and the source-build `COMPOSE_FILE`
+line if used. For the published image, get `compose.yaml`. For a source
+build, clone the repository: `create` builds a missing image, so it needs
+the Dockerfile and sources, not just the Compose files.
+
+Copy the backup into `"$HOME/catchup-backups"`, then replace the example
+`backup=` filename below with it. This refuses a volume that already
+holds data; use "Restore into this installation" for that case:
 
 ```sh
-docker compose create
-container="$(docker compose ps -aq catchup)"
-volume="$(docker inspect "$container" --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')"
-image="$(docker inspect "$container" --format '{{.Image}}')"
-docker run --rm --network none -i -v "$volume:/data" --entrypoint python "$image" \
-  -c 'import sys, tarfile; tarfile.open(fileobj=sys.stdin.buffer, mode="r|gz").extractall("/data", filter="data")' \
-  < "$HOME/catchup-data.tar.gz"
-docker compose up -d
+(
+  set -e
+  docker compose config -q
+  backup="$HOME/catchup-backups/catchup-YYYYMMDDTHHMMSSZ.tar.gz"
+  [ -s "$backup" ] || { echo 'Choose an existing non-empty backup file.' >&2; exit 1; }
+  docker compose create
+  container="$(docker compose ps -aq catchup)"
+  volume="$(docker inspect "$container" --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')"
+  image="$(docker inspect "$container" --format '{{.Image}}')"
+  docker run --rm --network none -i --entrypoint python "$image" \
+    -c 'import gzip, shutil, sys, tarfile; f = gzip.GzipFile(fileobj=sys.stdin.buffer); t = tarfile.open(fileobj=f, mode="r|"); [tarfile.data_filter(m, "/data") for m in t]; shutil.copyfileobj(f, open("/dev/null", "wb"))' \
+    < "$backup"
+  docker run --rm --network none -v "$volume:/data:ro" --entrypoint python "$image" \
+    -c 'from pathlib import Path; import sys; sys.exit("Volume is not empty; use Restore into this installation instead.") if any(Path("/data").iterdir()) else None'
+  docker run --rm --network none -i -v "$volume:/data" --entrypoint python "$image" \
+    -c 'import sys, tarfile; tarfile.open(fileobj=sys.stdin.buffer, mode="r|gz").extractall("/data", filter="data")' \
+    < "$backup"
+  docker compose up -d --wait
+)
 ```
 
 A bind mount in place of the named volume must be writable by UID **999**
 (the non-root container user). To move an existing source-checkout database,
-stop the service and copy `backend/data/catchup.sqlite3` into the volume
-before starting it; keep the same instance secret if it contains an
+stop the development backend first so its database file is complete, then
+copy `backend/data/catchup.sqlite3` into the stopped container's volume
+before starting it. Keep the same instance secret if it contains an
 encrypted model key.
 
 ## Supported sources

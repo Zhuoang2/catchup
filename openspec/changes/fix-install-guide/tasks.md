@@ -162,7 +162,7 @@ Implementer notes:
 
 The review of groups 1–3 found the problems listed in design "Context" (review of the first implementation). Design D1, D4, D5, D6 and D8 and the spec delta are revised; read them again before you start. The implementer notes above still apply, including "Network", "Deleting", and "Never touch these". Work test-first: write the 4.1 tests, watch them fail, then make the 4.2 changes.
 
-- [ ] 4.1 In `backend/tests/test_install_docs.py`, add or extend these failing tests. Find command blocks as the existing test does (the `` ```sh `` blocks of a section), and check each property inside the block it belongs to, not in the whole README. Give a missing block an assertion message, not an `IndexError` or `StopIteration`.
+- [x] 4.1 In `backend/tests/test_install_docs.py`, add or extend these failing tests. Find command blocks as the existing test does (the `` ```sh `` blocks of a section), and check each property inside the block it belongs to, not in the whole README. Give a missing block an assertion message, not an `IndexError` or `StopIteration`.
 
   Three existing assertions contradict the revised design. Replace them, do not keep them next to the new checks:
   - the `compose.build.yaml` regex in `test_compose_separates_published_image_and_source_build`, which requires `build: .` to be the last line;
@@ -183,7 +183,7 @@ The review of groups 1–3 found the problems listed in design "Context" (review
   Mark as *guard* any check that already passes before 4.2.
 
   Verify: each new check fails before 4.2 on an assertion, for missing or old content. Record the counts.
-- [ ] 4.2 Make the changes (design D1, D4, D5, D6):
+- [x] 4.2 Make the changes (design D1, D4, D5, D6):
   - add `backend/.python-version` with the line `3.12`;
   - add `pull_policy: never` to `compose.build.yaml`;
   - rewrite the secret, source-build, start, upgrade, backup, and restore blocks and their text in "Run with Docker", and the prerequisites, secret, and database text in "Development setup", as the design gives them. Keep the README's other sections unchanged, and keep the existing headings;

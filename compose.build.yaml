@@ -2,3 +2,4 @@ services:
   catchup:
     image: catchup:local
     build: .
+    pull_policy: never

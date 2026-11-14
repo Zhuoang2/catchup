@@ -157,3 +157,76 @@ Implementer notes:
   Add your entry to `docs/process/ai-usage-log.md` after the latest entry, with a faithful prompt excerpt. Leave out the session id; Claude Code adds it at review.
 
   Verify: every command passes, and the report has the actual numbers.
+
+## 4. Review fixes (fix round 1, 2026-11-14)
+
+The review of groups 1–3 found the problems listed in design "Context" (review of the first implementation). Design D1, D4, D5, D6 and D8 and the spec delta are revised; read them again before you start. The implementer notes above still apply, including "Network", "Deleting", and "Never touch these". Work test-first: write the 4.1 tests, watch them fail, then make the 4.2 changes.
+
+- [ ] 4.1 In `backend/tests/test_install_docs.py`, add or extend these failing tests. Find command blocks as the existing test does (the `` ```sh `` blocks of a section), and check each property inside the block it belongs to, not in the whole README. Give a missing block an assertion message, not an `IndexError` or `StopIteration`.
+
+  Three existing assertions contradict the revised design. Replace them, do not keep them next to the new checks:
+  - the `compose.build.yaml` regex in `test_compose_separates_published_image_and_source_build`, which requires `build: .` to be the last line;
+  - the `\(umask 077;\s*printf 'CATCHUP_SECRET_KEY=` regex in `test_readme_creates_private_env_and_backup_files`;
+  - the `'"$HOME/catchup-data.tar.gz"' in backup` assertion in the same test.
+
+  1. **Python for the backend.** `backend/.python-version` exists and its stripped content equals the minimum from `requires-python` (`3.12`). Extend `test_python_minimum_matches_ci_image_and_lock` or add a test.
+  2. **Compose override.** `compose.build.yaml` is exactly the D4 content, including `pull_policy: never`.
+  3. **Secret blocks.** The Docker secret block and the development secret block each contain `umask 077`, `set -C`, and `openssl rand -hex 32`, and neither contains `python3`. In each, the `umask 077` and `set -C` come before the redirect to `.env`, inside the same parentheses.
+  4. **Prerequisites.** "Development setup" contains `git clone https://github.com/Zhuoang2/catchup`. Its text outside the `sh` blocks says that the frontend tests run `python3`, and names `openssl`. The text of "Run with Docker" outside its `sh` blocks also names `openssl`.
+  5. **Source build blocks.** The block that adds the `COMPOSE_FILE` line contains `[ -s .env ] ||` and `grep -qx 'COMPOSE_FILE=compose.yaml:compose.build.yaml' .env ||`, its `printf` starts with `\n`, and it contains no `docker compose` command. A separate block runs `docker compose up -d --build --wait`. The text "Existing source-build users" comes before the source upgrade block (the block with `git pull`), and that note names `docker image rm ghcr.io/zhuoang2/catchup:latest`.
+  6. **Start and wait.** No command block in "Run with Docker" has a `docker compose up -d` without `--wait` on the same command, including the one after `docker compose pull &&`.
+  7. **Backup block.** It contains `set -e`, `docker compose config -q`, `umask 077`, `"$HOME/catchup-backups"`, `date -u`, `[ ! -e "$backup" ]`, `.partial`, and `mv`, and it does not contain `catchup-data.tar.gz`.
+  8. **Restore block.** It contains `set -e`, `gzip.GzipFile`, and `tarfile.data_filter`. In this order: `docker compose config -q`, the file check `[ -s "$backup" ]`, the archive check (`gzip.GzipFile`), `docker compose stop catchup`, the emptying command (`iterdir`), the extraction (`extractall`), and `docker compose up -d --wait`.
+  9. **New-machine block.** In this order: `docker compose config -q`, `[ -s "$backup" ]`, `docker compose create`, the archive check (`gzip.GzipFile`), the emptiness check `any(Path("/data").iterdir())`, `extractall`, and `docker compose up -d --wait`. It also contains `set -e`.
+  10. **Pasting.** No `sh` block in "Development setup" or "Run with Docker" has a line whose first non-blank character is `#`, or a `!` inside double quotes.
+
+  Mark as *guard* any check that already passes before 4.2.
+
+  Verify: each new check fails before 4.2 on an assertion, for missing or old content. Record the counts.
+- [ ] 4.2 Make the changes (design D1, D4, D5, D6):
+  - add `backend/.python-version` with the line `3.12`;
+  - add `pull_policy: never` to `compose.build.yaml`;
+  - rewrite the secret, source-build, start, upgrade, backup, and restore blocks and their text in "Run with Docker", and the prerequisites, secret, and database text in "Development setup", as the design gives them. Keep the README's other sections unchanged, and keep the existing headings;
+  - in the README, wrap new prose at about 76 characters, as the rest of the file does.
+
+  Commit 4.1 and 4.2 before you start 4.3.
+
+  Verify:
+  - the 4.1 tests pass, and `UV_PYTHON=3.12 uv run pytest` passes in `backend/`;
+  - `npm test -- --run` passes in `extension/` under Node 22;
+  - `docker compose -f compose.yaml -f compose.build.yaml config --images` still prints `catchup:local`.
+- [ ] 4.3 Run the changed README blocks as in 3.1: a new temporary clone of the committed branch (if you fix the README during 4.3, commit the fix and clone again before you repeat the item), each block saved exactly as written and run in a new shell with `env HOME=<tmp home> DOCKER_CONFIG="$REAL_DOCKER_CONFIG" COMPOSE_PROJECT_NAME=readme-check bash <block file>`, and modes checked with `stat -f %Lp`. Where a step below says to set `backup=`, copy the block to a second file and change only that line; record the change. Check and record each item:
+  1. **Python.** Run this item with your real `HOME` (not the temporary one) and `UV_OFFLINE=1`, so uv can use its installed Pythons without downloading. In the clone's `backend/`, with `UV_PYTHON` unset (`env -u UV_PYTHON`):
+     - run the README's backend install command and `uv run python --version`. It reports Python 3.12.x;
+     - run `env -u UV_PYTHON UV_PYTHON_PREFERENCE=system UV_OFFLINE=1 uv sync --dry-run`, once in the clone's `backend/` and once in a copy of it without `.python-version`. Record which Python each one selects. The design expects 3.12 with the file and a newer one (3.14 on this machine) without it.
+  2. **Secrets.**
+     - Docker secret block in a directory without `.env`: mode 600, nothing printed, one 64-hex `CATCHUP_SECRET_KEY` line (do not print it). Run the block again: it exits non-zero, and the file's SHA-256 is unchanged.
+     - Development secret block, in a directory with a copy of `.env.example`: the same checks, including the second run.
+     - Both blocks with `openssl` unavailable: build a temporary `bin` directory with links to only the commands the block needs other than `openssl` (for example `grep`, `printf` if it is not a shell builtin, `cat`), and run the block with `env PATH=<that bin> /bin/bash <block file>` (an absolute path to bash, because `env` looks up `bash` in the new `PATH`). The block exits non-zero, and no `.env` exists afterwards.
+  3. **Source build and health.** In a directory without `.env`, run the `COMPOSE_FILE` block: it exits non-zero, and no `.env` exists afterwards. Add the `COMPOSE_FILE` line with the README block twice: `.env` contains the line exactly once. Also run the block on a `.env` copy whose last line has no newline: the last line is unchanged, and the `COMPOSE_FILE` line is on its own line. Start with the README's command; the README's health command, run right after it returns, answers `{"status":"ok"}`.
+  4. **Backups.**
+     - Change a preference as in 3.1. Run the backup block twice. Two different files exist in `<tmp home>/catchup-backups`, each mode 600, and the directory is mode 700. The block printed each path. Record their SHA-256 values.
+     - Run the backup block from a directory that is not the installation, both with the runner's `COMPOSE_PROJECT_NAME=readme-check` and with `env -u COMPOSE_PROJECT_NAME`. Each run exits non-zero at `docker compose config -q`, the earlier backups' SHA-256 values are unchanged, no new `.tar.gz` or `.partial` file appears, and the service is still running afterwards.
+  5. **Restore failures** (the service is running, with the changed preference and a marker file added after the backups, as in 3.1):
+     - restore block with `backup=` left at the README's example name: exits non-zero before anything is stopped; the service is still running, and the preference and marker are unchanged;
+     - with `backup=` set to a damaged copy (the first half of a real backup, saved under a new name in the backups directory): exits non-zero; the service is still running, and the preference and marker are unchanged;
+     - every cut length: in one `docker run` of the local image with `--network none`, loop over every length from 0 to the full size minus 1 of a real backup, and run the restore block's archive-check Python code, copied exactly from the README, on each truncated copy (for example by replacing `sys.stdin.buffer` with an `io.BytesIO` of the copy in a wrapper script that `exec`s the copied code). Every cut length fails, and the full file passes. Record the counts.
+  6. **Restore success after "make a backup first".** Set the preference to a new value, run the backup block (a third file), then run the restore block with `backup=` set to the FIRST backup. The first backup's preference is back, the marker is gone, the first two backups are unchanged, and the third backup exists.
+  7. **New machine.**
+     - In the same installation (its volume holds data), run the new-machine block with `backup=` set to the first backup: it exits non-zero with the README's message, and the data is unchanged. Record whether the service is still running afterwards.
+     - Run `docker compose down -v`. In a second clone directory with `cp -p` of the same `.env`, run the new-machine block with `backup=` set to the first backup: a new volume is created, CatchUp starts, and the preference is there. Record whether the output contains "pull access denied" (the image still exists, so no build is expected).
+  8. **Frontend tests note.** Not run; covered by 4.1.
+
+  Clean up as in 3.1: `docker compose down -v` for every `readme-check` project you started, and stop any backend. List the remaining temporary directories and images, with full paths, in your final message for Claude Code to remove. In the test report, use placeholders such as `<tmp>` and `<review checkout>` instead; see 4.4.
+
+  Verify: every item passes. If a README command fails as written, fix the README, rerun the 4.1 tests, and repeat the item.
+- [ ] 4.4 Update `docs/process/test-report-fix-install-guide.md`:
+  - add a "Fix round 1" section with the 4.1 counts, the 4.3 items and results, and the full checks below;
+  - replace every absolute local path in the report, old sections included, with a placeholder (`<review checkout>`, `<tmp>`, `<tmp home>`, `~/.docker`). The report must not contain `/Users/` or `/private/`;
+  - update the scenario mapping for the three new scenarios and the changed ones.
+
+  Full checks, with `npm` under Node 22: `UV_PYTHON=3.12 uv run pytest` in `backend/`; `npm test -- --run` and `npm run build` in `frontend/`; `npm test -- --run` in `extension/`; `DO_NOT_TRACK=1 openspec validate fix-install-guide --strict`; `docker build -t catchup:fix-install-guide-local .` and `scripts/docker-smoke.sh catchup:fix-install-guide-local`.
+
+  Add your fix-round entry to `docs/process/ai-usage-log.md` after the latest entry, with a faithful prompt excerpt. Commit after group 4.
+
+  Verify: every command passes, the report has the actual numbers, and `grep -nE '/Users/|/private/' docs/process/test-report-fix-install-guide.md` prints nothing.

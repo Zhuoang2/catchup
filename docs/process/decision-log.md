@@ -415,3 +415,9 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Docker users who build from source add one line to `.env`. Without it, `docker compose up -d --build` silently keeps running their previous build.
   - `uv.lock` drops `tomli`, which only Python 3.11 needed.
   - The release is an outward-facing step, so the user confirms it after the merge.
+- **Amended after review (2026-11-14).** A clean-install re-run and a spec review of the first implementation found that uv picks the newest allowed Python, not 3.12, and that the backup and restore commands could lose data. The user approved Claude's fixes:
+  - `backend/.python-version` pins the backend to Python 3.12, the version CI tests. Rejected alternative: an upper bound in `requires-python`.
+  - Secrets come from `openssl`, are written once with `set -C`, and are never empty.
+  - Backups are timestamped files, written through a `.partial` file, so no backup overwrites another. Rejected alternative: one fixed path, with a rename before each restore.
+  - Restores check the whole archive in the image before stopping or emptying anything: they read the gzip stream to its end and apply the extraction's own filter. Each block stops at its first error. Rejected alternative: a plain `r|gz` stream check, which a fresh-eyes probe showed passes some truncated archives.
+  - The source-build override sets `pull_policy: never`. Rejected alternative: `pull_policy: build`, which rebuilds on every command.

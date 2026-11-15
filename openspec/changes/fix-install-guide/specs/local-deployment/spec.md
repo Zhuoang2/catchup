@@ -38,6 +38,7 @@ The README MUST give separate commands to back up and to restore a Compose insta
 - **Backup.** The backup MUST be written outside the checkout and be readable only by its owner. A backup, including one that fails, MUST NOT overwrite or damage an earlier backup.
 - **Restore.** Restoring into an existing installation MUST include a command that empties the stopped service's volume first. Before emptying anything, the restore MUST check that the whole backup can be read and extracted. When any step fails, the restore MUST stop with an error and MUST NOT start the service on an emptied volume.
 - **New machine.** The README MUST also give a way to restore a backup on a new machine into a new, empty volume. It MUST refuse to restore into a volume that already holds data.
+- **Where and when.** Run outside the installation directory, including from a subdirectory of the checkout, the backup and restore commands MUST stop with an error before they stop, empty, or write anything, and MUST NOT switch the installation to another image. The backup and restore MUST keep working after an upgrade or rebuild that the README documents.
 
 #### Scenario: Restore in a new shell
 - **WHEN** a user runs only the README's restore commands, in a new shell, for a stopped service, using a backup made with the README's backup commands
@@ -58,3 +59,11 @@ The README MUST give separate commands to back up and to restore a Compose insta
 #### Scenario: Unreadable backup leaves the installation unchanged
 - **WHEN** a user runs the README's restore commands with a backup that is missing, empty, or damaged
 - **THEN** the commands stop with an error before emptying the volume, and the data in the volume is unchanged
+
+#### Scenario: Backup after a rebuild
+- **WHEN** a user upgrades or rebuilds a source build as the README describes, including a rebuild with no source changes, and then runs the README's backup commands
+- **THEN** a new backup is written, and CatchUp runs again afterwards
+
+#### Scenario: Commands outside the installation directory
+- **WHEN** a user runs the README's backup or restore commands from another directory, including a subdirectory of the checkout
+- **THEN** the commands stop with an error before anything is stopped or changed, and the service keeps running from the same image

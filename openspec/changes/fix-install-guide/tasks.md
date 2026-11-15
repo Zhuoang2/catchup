@@ -230,3 +230,72 @@ The review of groups 1–3 found the problems listed in design "Context" (review
   Add your fix-round entry to `docs/process/ai-usage-log.md` after the latest entry, with a faithful prompt excerpt. Commit after group 4.
 
   Verify: every command passes, the report has the actual numbers, and `grep -nE '/Users/|/private/' docs/process/test-report-fix-install-guide.md` prints nothing.
+
+## 5. Review fixes (fix round 2, 2026-11-14)
+
+The review of group 4 found the problems listed in design "Context" (review of fix round 1). Design D4, D5, D6, D8, "Risks", and the spec delta are revised; read them again before you start. D5 now derives the three data blocks from the invariants I1–I5: write those blocks again from the D5 step lists instead of editing the round 1 lines one by one, but keep the existing one-line `tarfile` write, archive check, emptying, and extraction commands exactly as they are. The implementer notes above still apply, including "Never touch these" and "Out of scope", with the changes to "Deleting" given in 5.3. "Network" applies with one change: the Docker builds in 5.3 and 5.4 may contact Docker Hub, GHCR, PyPI, and the npm registry, as in 3.1 and 3.2. Build normally, with the network on; do not try an offline build first. 5.3 item 8 builds the source of commit `064d3a9`, which may need package downloads if the build cache lacks them. This is the last Droid round for this change. Work test-first: write the 5.1 tests, watch them fail, then make the 5.2 changes.
+
+- [ ] 5.1 In `backend/tests/test_install_docs.py`, add or change these tests. Check each property inside the block it belongs to, as in 4.1.
+
+  First, find blocks by text that only that block contains. The `[ -n "$container" ]` message names `docker compose create`, so `command_block("Run with Docker", "docker compose create")` would return the backup block. Find the backup block by `mode="w|gz"`, the restore block by `shutil.rmtree`, and the new-machine block by `any(Path("/data").iterdir())`, and change the existing tests to use these.
+
+  1. **Secret blocks.** Each secret block equals the D6 command for its section (Docker in "Run with Docker", development in "Development setup"), compared line by line with each line stripped: `[line.strip() for line in block.strip().splitlines()]`. Do not collapse whitespace here, because a line break in a shell command has meaning (fresh-eyes probe: joining `set -C` with the next line still matches after collapsing, but writes an empty secret). This replaces the property checks in `test_secret_blocks_refuse_replacement_and_require_openssl` that the exact match covers; keep the parametrization.
+  2. **`COMPOSE_FILE` block.** It equals the D4 step 3 block, compared line by line as in item 1. Keep the check that it contains no `docker compose` command.
+  3. **Subshells.** Every `sh` block in "Development setup" and "Run with Docker" that contains `exit` or `set -e` starts with `(` and ends with `)` (after stripping).
+  4. **Data blocks.** The backup, restore, and new-machine blocks each contain `{{.Config.Image}}` and do not contain `{{.Image}}`. With `assert_in_order`, in this order:
+     - backup: `set -e`, `[ -f compose.yaml ] && [ -f .env ] ||`, `docker compose config -q`, `umask 077`, `mkdir -p "$HOME/catchup-backups"`, `[ ! -e "$backup" ]`, `docker compose ps -aq catchup`, `[ -n "$container" ] ||`, `[ -n "$volume" ] ||`, `{{.Config.Image}}`, `docker compose stop catchup`, `"$backup.partial"`, `mv "$backup.partial" "$backup"`, `docker compose up -d --wait`, `printf '%s\n' "$backup"`;
+     - restore: `set -e`, `[ -f compose.yaml ] && [ -f .env ] ||`, `docker compose config -q`, `[ -s "$backup" ]`, `docker compose ps -aq catchup`, `[ -n "$container" ] ||`, `[ -n "$volume" ] ||`, `{{.Config.Image}}`, `gzip.GzipFile`, `docker compose stop catchup`, `shutil.rmtree`, `extractall`, `docker compose up -d --wait`;
+     - new machine: `set -e`, `[ -f compose.yaml ] && [ -f .env ] ||`, `docker compose config -q`, `[ -s "$backup" ]`, `docker compose create`, `docker compose ps -aq catchup`, `[ -n "$container" ] ||`, `[ -n "$volume" ] ||`, `{{.Config.Image}}`, `gzip.GzipFile`, `any(Path("/data").iterdir())`, `extractall`, `docker compose up -d --wait`.
+
+     Replace the order lists of the existing restore and new-machine tests with these. Keep the backup test's check that the block does not contain `catchup-data.tar.gz`.
+  5. **New-machine private files.** A `sh` block in "Run with Docker" contains `chmod 600 .env` and `mkdir -p -m 700 "$HOME/catchup-backups"`, and it comes before the new-machine block.
+  6. **Prerequisites.** With whitespace collapsed, the text of "Development setup" outside its `sh` blocks contains `sudo apt update && sudo apt install git curl ca-certificates openssl python3`, and the text of "Run with Docker" outside its `sh` blocks contains `sudo apt update && sudo apt install curl ca-certificates openssl`. In `test_readme_names_secret_and_test_prerequisites_outside_commands`, change `"frontend tests run"` to `"frontend tests"`, so that the D6 wording passes.
+  7. **Existing source-build users.** Take the text from "Existing source-build users" to the start of the source upgrade block (the block with `git pull`), and collapse its whitespace. The note gives its steps before its reason (D4), so the first occurrences of these appear in this order: `make a backup` (case-insensitive), `git pull`, `COMPOSE_FILE`, `docker compose up -d --build --wait`. The collapsed note still contains `docker image rm ghcr.io/zhuoang2/catchup:latest`.
+
+  Mark as *guard* any check that already passes before 5.2.
+
+  Verify: each new or changed check fails before 5.2 on an assertion, for missing or old content, not on an exception. Record the counts.
+- [ ] 5.2 Make the changes in `README.md` (design D4, D5, D6). Keep the README's other sections and the existing headings unchanged, and wrap new prose at about 76 characters.
+  - **D6:** the development secret block, the two `sudo apt update && …` commands, and the Python wording in "Development setup".
+  - **D4:**
+    - the text before the published start command says that it is for the published image only, and that a source build continues with the `COMPOSE_FILE` step;
+    - the text before both upgrade commands says to make a backup first;
+    - the existing source-build users note gives the D4 order and says why;
+    - "Run with Docker" says to run every Compose command from the installation directory, not from a subdirectory.
+  - **D5:** the three data blocks, written from the D5 step lists, the new `chmod`/`mkdir` block, and the text above the blocks: the subdirectory warning, the `.partial` note, the named-volume note, and the note on a rejected backup.
+
+  Commit 5.1 and 5.2 before you start 5.3.
+
+  Verify:
+  - the 5.1 tests pass, and `UV_PYTHON=3.12 uv run pytest` passes in `backend/`;
+  - `npm test -- --run` passes in `extension/` under Node 22;
+  - `DO_NOT_TRACK=1 openspec validate fix-install-guide --strict` passes.
+- [ ] 5.3 Run the changed blocks with Docker on this Mac (no `debian:12` this time). Use a new temporary clone of the committed branch named `<tmp>/readme-check`, so that Compose's default project name is also `readme-check`. Save each block exactly as written and run it as in 4.3, with `env HOME=<tmp home> DOCKER_CONFIG="$REAL_DOCKER_CONFIG" COMPOSE_PROJECT_NAME=readme-check bash <block file>`, from the directory the item names. Check modes with `stat -f %Lp`. Where an item sets `backup=`, copy the block to a second file and change only that line; record the change. If you fix the README during 5.3, commit the fix, rerun the 5.1 tests, clone again, and repeat the item.
+
+  **Deleting, for this task.** Besides `docker compose down -v`, you may run `docker compose down` (without `-v`) in item 6, for the `readme-check` project only. Do not run `docker image rm` or any other removal. When a step needs a clean directory, create a new one.
+
+  Before item 1, record whether `ghcr.io/zhuoang2/catchup:latest` exists locally (it should not), and `docker info --format '{{json .DriverStatus}}'`.
+
+  Check and record each item:
+  1. **Development secret.** In a directory without `.env.example`, run the development secret block: it exits non-zero with its message, and no `.env` exists afterwards. In a directory with a copy of `.env.example`: mode 600, nothing printed, exactly one 64-hex `CATCHUP_SECRET_KEY` line (do not print it), and every other line of `.env.example` is there. A second run exits non-zero, and the SHA-256 is unchanged. Without `openssl` (as in 4.3 item 2), it exits non-zero, and no `.env` exists afterwards.
+  2. **Source build.** In the clone, create `.env` with the Docker secret block, run the `COMPOSE_FILE` block, and start with `docker compose up -d --build --wait`. The health command answers `{"status":"ok"}`. Change one preference as in 3.1, then run the backup block (backup A): mode 600, path printed, service running afterwards.
+  3. **Backup after a no-change rebuild.** Record the container's ID and `{{.Image}}`. Run `docker compose up -d --build --wait` again with no changes. Record the container's ID and `{{.Image}}` again, and whether `docker image inspect <old .Image value>` still succeeds. Change the preference to a second value, so that backup B differs from backup A, then run the backup block (backup B): it succeeds, prints its path, the file has mode 600, and the service is running afterwards. If the old ID still exists, so the round 1 failure did not occur, say so in the report.
+  4. **Restore after the rebuild.** Change the preference again and add a marker file as in 3.1. Run the restore block with `backup=` set to backup A. The preference from backup A is back, the marker is gone, and backups A and B are unchanged (SHA-256).
+  5. **From a subdirectory.** From `<tmp>/readme-check/backend`, run the backup block, the restore block with `backup=` set to backup A, and the new-machine block with `backup=` set to backup A. Run each one twice: with the runner's `COMPOSE_PROJECT_NAME=readme-check`, and with `env -u COMPOSE_PROJECT_NAME`. Each run exits non-zero with the I1 message. Afterwards, the container ID, its `{{.Config.Image}}` (`catchup:local`), and its running state are unchanged, no new file is in `<tmp home>/catchup-backups`, the preference is unchanged, and `ghcr.io/zhuoang2/catchup:latest` still does not exist locally.
+  6. **After `docker compose down`.** In the clone, change the preference to a third value and add a new marker file, then run `docker compose down` (the volume stays). Run the backup block: it exits non-zero with the `[ -n "$container" ]` message, and no new file appears. Run the restore block with `backup=` set to backup B: the same. Then run `docker compose create`, and run the restore block with `backup=` set to backup B again: it succeeds, the preference has backup B's value (not A's or the third), and the new marker is gone.
+  7. **New machine.** Run `docker compose down -v`. Use a second clone, `<tmp>/readme-check-new` (keep `COMPOSE_PROJECT_NAME=readme-check`), and a new, empty temporary home, `<tmp home 2>`, for every block in this item. Copy the same `.env` into the clone, then run `chmod 644 .env` on the copy, as a copy from another machine might have. Run the `chmod`/`mkdir` block: `.env` has mode 600, and `<tmp home 2>/catchup-backups` exists with mode 700. Copy backup A into that directory, then run the new-machine block with `backup=` set to it: a new volume is created, CatchUp starts, and the preference from backup A is there. Then run `docker compose down -v` there.
+  8. **Existing source-build upgrade.** Use a third clone, `<tmp>/readme-old`, and `COMPOSE_PROJECT_NAME=readme-old`. Make it an old checkout without deleting anything: `git checkout -b old 064d3a9`, then `git branch --set-upstream-to=origin/fix-install-guide old`. Create `.env` with the Docker secret block, run `docker compose up -d --build --wait` (the old `compose.yaml` builds and tags `ghcr.io/zhuoang2/catchup:latest`; record that), and change a preference. Then follow the README's "Existing source-build users" note in its order: the backup block (it succeeds in the old checkout), `git pull` (a fast-forward), the `COMPOSE_FILE` block, and `docker compose up -d --build --wait`. Afterwards `catchup:local` exists, the container's `{{.Config.Image}}` is `catchup:local`, and the preference is unchanged. Do not run the README's `docker image rm`; list the `ghcr.io/zhuoang2/catchup:latest` tag for Claude Code, who runs that step at review. Then run `docker compose down -v` for `readme-old`.
+
+  Both projects publish port 8000, so finish items 1–7 before item 8. Clean up: `docker compose down -v` for every project you started, and stop any backend. In your final message, list the remaining temporary directories and images with full paths, including the `ghcr.io/zhuoang2/catchup:latest` tag from item 8. In the test report, use placeholders; see 5.4.
+
+  Verify: every item passes. If a README command fails as written, fix the README as described above.
+- [ ] 5.4 Update `docs/process/test-report-fix-install-guide.md`:
+  - add a "Fix round 2" section with the 5.1 counts, the 5.3 items and results, and the full checks below;
+  - update the scenario mapping for the two new scenarios, "Backup after a rebuild" and "Commands outside the installation directory";
+  - use placeholders, not local paths, as in 4.4.
+
+  Full checks, with `npm` under Node 22: `UV_PYTHON=3.12 uv run pytest` in `backend/`; `npm test -- --run` and `npm run build` in `frontend/`; `npm test -- --run` in `extension/`; `DO_NOT_TRACK=1 openspec validate fix-install-guide --strict`; `docker build -t catchup:fix-install-guide-local .` and `scripts/docker-smoke.sh catchup:fix-install-guide-local`.
+
+  Add your fix-round entry to `docs/process/ai-usage-log.md` after the latest entry, with a faithful prompt excerpt. Commit after group 5.
+
+  Verify: every command passes, the report has the actual numbers, and `grep -nE '/Users/|/private/' docs/process/test-report-fix-install-guide.md` prints nothing.

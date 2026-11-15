@@ -2146,10 +2146,55 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 
 ## 2026-11-14, `fix-install-guide` (#13): fix round 2 (Factory Droid, GPT-6.1 Sol)
 
-- **Prompt excerpt:** "Continue OpenSpec change fix-install-guide with fix round 2: task group 5 in openspec/changes/fix-install-guide/tasks.md (plan commit 6bce12a)." Also: "Work test-first with the tdd skill: write the 5.1 tests and watch them fail, then make the 5.2 changes." The user required a commit before 5.3 and after group 5, no edits to proposal/design/spec deltas, restricted build networking, no removal except the named projects' Compose down commands, no protected-resource/port-8800 access, and no prune/push/tag/release.
+- **Session:** `5cd1f291-2e10-4652-930a-0bde79bc8df3`, resumed. 406 turns, about 15 minutes.
+- **Prompt excerpt:** "Continue OpenSpec change fix-install-guide with fix round 2: task group 5 in openspec/changes/fix-install-guide/tasks.md (plan commit 6bce12a)." Also: "Work test-first with the tdd skill: write the 5.1 tests and watch them fail, then make the 5.2 changes." The prompt, written by Claude Code, required a commit before 5.3 and after group 5, no edits to proposal/design/spec deltas, restricted build networking, no removal except the named projects' Compose down commands, no protected-resource/port-8800 access, and no prune/push/tag/release.
 - **Context and diagnosis:** Re-read the revised design and spec, especially the review findings and D5 invariants I1–I5. Ranked causes: stale image IDs after a rebuild; parent-directory Compose discovery without the source override; successful but empty container lookup after `down`. Predictions were that a configured image name, explicit current-directory guard, and non-empty container/volume checks would preserve backups and refuse unsafe contexts. The tests and live checks confirmed those causes. This last round implements the approved behavior defects/plan corrections, not the recorded marginal survivors.
 - **Test first / commit:** At the agreed file-reading seam, replaced broad secret/config checks with line-by-line expected commands, changed block selectors to unique commands, checked subshells and the full D5 order, and added the private-file/prerequisite/upgrade checks. Observed **8 failed, 17 passed** before README edits, all assertion failures. Guards identify already-passing Docker-secret/config/subshell cases. Re-derived all three data blocks from D5, preserving the one-line Python commands exactly; changed only the two approved README sections, without changing headings. Then **25 installation cases**, **921 backend tests**, **114 extension tests** under Node 22.17.1, and strict validation passed. Committed 5.1/5.2 as **`e6c05e5`** before cloning.
 - **Live checks:** Three fresh local clones; raw blocks saved separately and run in new shells with isolated homes. Development secret refused a missing example, preserved all defaults, was silent/private, refused repeats unchanged, and wrote nothing without OpenSSL. Docker used the containerd image store. A no-change rebuild really removed the old image ID while the container still named it; backup B nevertheless succeeded by configured image name. Restoring A recovered its complete preference response and removed visible/hidden markers. Six subdirectory attempts (three blocks, project variable set/unset) refused before changing service, image, data, or backup files. After `down`, backup/restore gave the clear no-container message; after `create`, restore B reused the volume and recovered B rather than A or the third state.
 - **New machine / legacy upgrade:** In an empty second home, the new private-files block changed copied `.env` from 644 to 600 and made the backups directory 700. New-machine restore recovered A, then was brought down with its volume. The third clone started at `064d3a9`; its old source build intentionally created the published-name local tag. Backup, local fast-forward `git pull`, COMPOSE_FILE setup, then build succeeded, switched to `catchup:local`, and preserved all preferences. Both named projects were brought down with volumes; no development backend was started. The legacy local tag is retained for review, not removed.
 - **Problems / adjustment:** The temporary extractor initially matched both source-start blocks; selecting the standalone command fixed that before a start ran. Full container inspections initially saved generated test environment values in private temporary logs. Redacted the runtime environments in all **24** such logs, scanned evidence logs to confirm no generated secret values remained, and changed the helper to request only safe fields. No secret value was printed. No README command failed unexpectedly, so no additional README commit/reclone cycle was needed.
 - **Final checks and handoff:** Backend **921 passed**, frontend **281 passed** plus build, extension **114 passed**, strict OpenSpec validation and all **12** existing Docker smoke checks passed. Local Python **3.12.13**, Node **22.17.1**, npm **10.9.2**. Tests offline; Docker builds used the approved allowance. No Debian/exact-minimum rerun this round. Report now maps all **13 scenarios**, records actual image/container IDs, hashes and results, and uses placeholders for every local path. Verification trees, homes, fixtures, helpers/logs, and the three image tags remain for Claude Code cleanup, with full paths in the final message. Only the required task checkboxes changed in planning files.
+
+## 2026-11-14 — `fix-install-guide` (#13): review of fix round 2 (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
+
+- **Prompts** (translated from Chinese): while Droid ran, the user said, "OK, we'll talk once Droid finishes."
+- **Outcome:**
+  - **Claude's checks.** Claude removed what Droid had listed: the temporary tree and `catchup:local`. It kept a copy of the evidence without secrets. Then it ran the README's `docker image rm ghcr.io/zhuoang2/catchup:latest` on the tag that task 5.3 item 8 had built. Before that, it checked that the tag carried the `readme-old` Compose label and no release labels. The command exited 0. The backend suite passed 921, strict validation passed, and a new image passed the Docker smoke script 12 of 12. Claude's own mutation showed that a backup path inside the checkout passed every test.
+    `/code-review` (high) on the round's diff reported 9 findings. Among them:
+    - the no-container message, which leads `docker run` users to an empty backup;
+    - the unguarded source upgrade block;
+    - guard tests that check only prefixes;
+    - the untested `backup=` line;
+    - the report's mapping;
+    - Droid's log entry, which attributes Claude's prompt to the user.
+  - **Spec review.** An independent sub-agent found that the README met every requirement of the round, with no extra behavior. 195 stub runs of the changed blocks, in five shell modes, all matched the design. Of 63 mutations, 48 were caught and 15 survived. The 8 that mattered were:
+    - each guard without its `exit 1`. A stub run showed that a backup from `backend/` then ran through to the final start;
+    - the `backup=` line moved after the stop, which let a backup replace an earlier one;
+    - the deletion of prose: the subdirectory warning, the published-image-only note, and the two notes to back up first.
+
+    It also found that the report's mapping for "Backup after a rebuild" cited a backup made before an upgrade.
+  - **Targeted re-run.** A fresh sub-agent followed only the README with Docker on this Mac. All six scenarios passed:
+    - a no-change rebuild, then a backup. The old image ID was gone, and the backup still worked;
+    - a restore after the rebuild;
+    - the three data blocks from `backend/`;
+    - `docker compose down`, then the suggested `create` and a restore;
+    - the documented upgrade of a checkout at `064d3a9`.
+
+    From the text, it found that a user who started CatchUp with the README's `docker run` command would get "run docker compose create" from the backup. That command creates a new, empty volume, so the backup would archive nothing. Claude confirmed with a probe that Compose does not see a `docker run` container and that `create` then adds a second volume. The round's new message had introduced this path.
+  - **Classification (D-023).** No new Droid round. Fixed in Claude's review commit, with 46 lines added and 14 removed in the README and the tests. That is above D-023's guideline of about 30 lines, so Claude asked the user before committing. The user replied (translated from Chinese): "Yes, commit it as you said." The fixes:
+    - the no-container message now names the `docker compose down` case, and the text says the blocks need a Compose installation;
+    - the source upgrade block gets the installation-directory guard;
+    - the tests require every guard line to end with `exit 1; }`, and the `backup=` line before the stop;
+    - smaller fixes: the report's mapping, a one-line apt command, and the note on what `create` leaves behind.
+
+    13 named mutations now fail the tests; before the change, all 7 that applied passed them.
+  - **Recorded, not fixed:**
+    - the prose-only survivors;
+    - the `chmod`/`mkdir` block run outside the installation (it still creates the backups directory), and `mkdir -m` not changing an existing directory's mode;
+    - the `docker run` volume name differing from Compose's;
+    - no command for backing up `.env`;
+    - a no-change rebuild keeping the old container. The blocks no longer depend on its image ID.
+- **Problems / adjustment:**
+  - Droid's log entry said "The user required" for rules that Claude's prompt set. Claude corrected it and added the session line.
+  - Claude's first mutation run after adding the upgrade guard mutated the wrong blocks. The guard's first occurrence had moved to the upgrade block. Claude fixed the indices, asserted four occurrences, and ran the mutations again. All were caught.
+  - The re-run sub-agent asked why the ID of `catchup:fix-install-guide-local` changed during its run. Claude's own rebuild for the smoke check had changed it.

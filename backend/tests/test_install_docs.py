@@ -135,6 +135,12 @@ def command_block(heading, phrase):
     return block
 
 
+def assert_guards_stop(block, guards):
+    for guard in guards:
+        line = next((line for line in block.splitlines() if guard in line), "")
+        assert line.rstrip().endswith("exit 1; }"), f"Guard must stop the block: {guard}"
+
+
 def assert_in_order(block, phrases):
     previous = -1
     for phrase in phrases:
@@ -215,6 +221,13 @@ def test_existing_source_build_upgrade_backs_up_before_fetching_override():
     assert "docker image rm ghcr.io/zhuoang2/catchup:latest" in note
 
 
+def test_source_upgrade_refuses_to_run_outside_installation_directory():
+    block = command_block("Run with Docker", "git pull")
+    guard = "[ -f compose.yaml ] && [ -f .env ] ||"
+    assert_in_order(block, ("set -e", guard, "git pull", "docker compose up -d --build --wait"))
+    assert_guards_stop(block, (guard,))
+
+
 @pytest.mark.parametrize("heading", ["Development setup", "Run with Docker"])
 def test_commands_that_can_stop_are_wrapped_in_subshells(heading):
     # Guard: existing exit/set-e blocks already protect the user's shell.
@@ -243,7 +256,9 @@ def test_backup_block_uses_unique_private_atomic_files():
     assert_in_order(block, (
         "set -e", '[ -f compose.yaml ] && [ -f .env ] ||',
         "docker compose config -q", "umask 077",
-        'mkdir -p "$HOME/catchup-backups"', '[ ! -e "$backup" ]',
+        'mkdir -p "$HOME/catchup-backups"',
+        'backup="$HOME/catchup-backups/catchup-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"',
+        '[ ! -e "$backup" ]',
         "docker compose ps -aq catchup", '[ -n "$container" ] ||',
         '[ -n "$volume" ] ||', "{{.Config.Image}}",
         "docker compose stop catchup", '"$backup.partial"',
@@ -251,6 +266,10 @@ def test_backup_block_uses_unique_private_atomic_files():
         r"""printf '%s\n' "$backup" """.strip(),
     ))
     assert "catchup-data.tar.gz" not in block
+    assert_guards_stop(block, (
+        "[ -f compose.yaml ] && [ -f .env ] ||", '[ ! -e "$backup" ] ||',
+        '[ -n "$container" ] ||', '[ -n "$volume" ] ||',
+    ))
 
 
 def test_restore_checks_whole_archive_before_stopping_or_emptying():
@@ -266,6 +285,10 @@ def test_restore_checks_whole_archive_before_stopping_or_emptying():
         "docker compose stop catchup", "shutil.rmtree",
         "extractall", "docker compose up -d --wait",
     ))
+    assert_guards_stop(block, (
+        "[ -f compose.yaml ] && [ -f .env ] ||", '[ -s "$backup" ] ||',
+        '[ -n "$container" ] ||', '[ -n "$volume" ] ||',
+    ))
 
 
 def test_new_machine_restore_checks_archive_and_refuses_existing_data():
@@ -279,6 +302,10 @@ def test_new_machine_restore_checks_archive_and_refuses_existing_data():
         '[ -n "$volume" ] ||', "{{.Config.Image}}",
         "gzip.GzipFile", 'any(Path("/data").iterdir())', "extractall",
         "docker compose up -d --wait",
+    ))
+    assert_guards_stop(block, (
+        "[ -f compose.yaml ] && [ -f .env ] ||", '[ -s "$backup" ] ||',
+        '[ -n "$container" ] ||', '[ -n "$volume" ] ||',
     ))
 
 

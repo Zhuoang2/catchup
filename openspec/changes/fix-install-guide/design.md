@@ -118,7 +118,7 @@ For a source build, the README says:
 
 Every upgrade starts with a backup: the README says so before both upgrade commands, and points to "Back up".
 
-To upgrade a source build later, make a backup, then run `git pull`, then `docker compose up -d --build --wait`. Before that upgrade block, the README gives existing source-build users (a checkout from before `compose.build.yaml` existed) their first upgrade in this order:
+To upgrade a source build later, make a backup, then run `git pull`, then `docker compose up -d --build --wait`, in one subshell that starts with `set -e` and the D5 I1 guard, so that it refuses to run from a subdirectory (review of fix round 2). Before that upgrade block, the README gives existing source-build users (a checkout from before `compose.build.yaml` existed) their first upgrade in this order:
 1. make a backup with the "Back up" block, which still works in the old setup;
 2. `git pull`, so that `compose.build.yaml` exists;
 3. add the `COMPOSE_FILE` line with the step 3 block;
@@ -146,13 +146,13 @@ The README's backup and restore section has three blocks. Fix round 2 re-derives
 - **I4. Fail safe.** Each block is one subshell whose first command is `set -e`, so it stops at the first failing command without closing the user's terminal. On success it ends with `docker compose up -d --wait`.
 - **I5. Pasting.** No `#` comment lines, and no `!` inside double quotes, so the blocks also work when pasted into an interactive zsh or bash.
 
-The message for an empty `container` is `No CatchUp container here; run docker compose create, then run this block again.` After `docker compose down` with the volume kept, `create` brings the container back with the same volume, and `stop` on a created container does nothing. The message for an empty `volume` is `No named volume at /data; these commands work only with the named volume.` A bind mount has no volume name, so without this check the first `docker run` would fail after the stop (fresh-eyes probe, 2026-11-14). The README says that these blocks work with the named volume only, and that a bind mount is backed up by copying its directory while CatchUp is stopped.
+The message for an empty `container` is `No Compose container for CatchUp here. After docker compose down, run docker compose create, then run this block again.` The blocks do not find a container started with the README's `docker run` command, and `create` would then make a new, empty volume, so the message names the `down` case, and the README says that the blocks need a Compose installation (review of fix round 2). After `docker compose down` with the volume kept, `create` brings the container back with the same volume, and `stop` on a created container does nothing. The message for an empty `volume` is `No named volume at /data; these commands work only with the named volume.` A bind mount has no volume name, so without this check the first `docker run` would fail after the stop (fresh-eyes probe, 2026-11-14). The README says that these blocks work with the named volume only, and that a bind mount is backed up by copying its directory while CatchUp is stopped.
 
 Above the blocks, the README says:
 - run each block from the installation directory, not from a subdirectory;
 - if the backup stops with an error, fix the cause and start CatchUp again with `docker compose up -d --wait`. A leftover `.partial` file is not a backup, and can be deleted;
 - if a restore stops after it emptied the volume, run the restore again with a good backup instead of starting CatchUp;
-- when the archive check rejects a backup, it prints a Python error (a traceback). In "Restore into this installation", nothing has been stopped or changed at that point. In the new-machine block, only the empty container and volume from `create` exist.
+- when the archive check rejects a backup, it prints a Python error (a traceback). In "Restore into this installation", nothing has been stopped or changed at that point. In the new-machine block, only what `create` made exists: an empty container and volume, and the image if it was missing.
 
 Backups are kept as separate, timestamped files in `"$HOME/catchup-backups"`, outside the checkout. A backup never writes over another one: the block stops if a file with its name already exists.
 

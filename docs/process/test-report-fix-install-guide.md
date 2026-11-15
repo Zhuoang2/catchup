@@ -199,7 +199,7 @@ own failure-path checks; round 2 did not repeat the round 1 truncation loop.
 | Backup: private backup outside checkout | Private, unique, atomic backup-block test; 4.3.4 checks two separate files under `<tmp home>/catchup-backups`, file modes 600, and directory mode 700. |
 | Backup: failed backup keeps earlier backups | Atomic-backup test; 4.3.4 compares the first two SHA-256 values after wrong-directory failures with and without the project variable, with no new archive/partial file; 4.3.6 proves making a third backup preserves the first two. |
 | Backup: unreadable backup leaves installation unchanged | Restore-ordering test; 4.3.5 missing and half-length archives fail before the service stops, retaining preferences and markers. All 2,391 truncated lengths fail the exact archive-check code; the full archive passes. |
-| Backup: backup after a rebuild | The three data-block tests require `{{.Config.Image}}` and reject `{{.Image}}`; backup ordering requires derivation before stop. In 5.3.3 the old image ID actually disappeared after a no-change rebuild, yet backup B succeeded and the service ran afterwards. 5.3.4 restored backup A; 5.3.8 backed up and upgraded the legacy checkout. |
+| Backup: backup after a rebuild | The three data-block tests require `{{.Config.Image}}` and reject `{{.Image}}`; backup ordering requires derivation before stop. In 5.3.3 the old image ID actually disappeared after a no-change rebuild, yet backup B succeeded and the service ran afterwards. 5.3.4 restored backup A. An upgrade with source changes followed by a backup was not run: 5.3.8 made its backup before `git pull`. That backup uses the same image-name lookup. |
 | Backup: commands outside the installation directory | Ordered I1 guard checks in all three data-block tests. In 5.3.5 all three raw blocks refused `backend/`, each with and without the project variable: six exit-1 results, unchanged container/image/running state, preferences and backup files, and no published-image tag. |
 
 Guard comments identify the already-correct private creation masks, the
@@ -562,3 +562,51 @@ release**. It remained at its recorded ID after the upgrade and final
 build. Claude Code removes it at review; Droid did not run the README's
 image-removal command. Actual cleanup paths are in the final message.
 All local paths in this report are placeholders.
+
+## Review of fix round 2 (Claude Code)
+
+Date: 2026-11-14. Range `6bce12a..7b4f657`.
+
+Cleanup: Claude Code removed the temporary tree and `catchup:local`. It
+then ran the README's `docker image rm ghcr.io/zhuoang2/catchup:latest`
+on the legacy tag from item 8, which exited 0. Before that, it checked
+that the tag carried the `com.docker.compose.project=readme-old` label and
+no release labels.
+
+Checks on the round's head: backend **921 passed**; strict validation
+passed; `git diff --check` passed; a new `docker build` and
+`scripts/docker-smoke.sh` passed all **12** checks. A fresh sub-agent
+re-ran six scenarios from the README with Docker on this Mac. All six
+passed:
+- a no-change rebuild, then a backup;
+- a restore after the rebuild;
+- all three data blocks from `backend/`;
+- `docker compose down`, then `create` and a restore;
+- the upgrade of a checkout at `064d3a9`, including `docker image rm`.
+
+Review-commit changes, from the spec review and the re-run:
+- the three data blocks' tests now require every guard line to end with
+  `exit 1; }`, and the backup test requires the `backup=` line before the
+  stop;
+- the source upgrade block is a subshell with the installation-directory
+  guard, and a new test checks it;
+- the no-container message names the `docker compose down` case. The text
+  above the blocks says that they need an installation started with
+  Compose. Probe: Compose does not find a container started with
+  `docker run`, and `create` then makes a new, empty volume.
+
+Mutation check: 13 named mutations of the README, run against
+`tests/test_install_docs.py`. They covered:
+- dropping `exit 1` from each guard in all four guarded blocks;
+- moving `backup=` after the stop;
+- putting the backup inside the checkout;
+- removing the upgrade guard.
+
+Before the test changes, all 7 that applied survived; after them, all
+13 fail the tests. After the review changes, the installation tests pass
+(**26 passed**), the backend suite passes (**922 passed**), the extension
+suite passes under Node 22 (**114 passed**), and strict validation passes. A stub
+`docker` and `git` run of the changed blocks matched the design in bash,
+zsh, dash, and pasted into interactive bash and zsh. From `backend/`, every
+block exits 1 without calling `docker` or `git`. Without a container, each
+block exits 1 before any stop.

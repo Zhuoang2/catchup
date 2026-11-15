@@ -21,9 +21,8 @@ need to install it yourself.
 
 Only the frontend tests need a separate Python: they run `python3` from
 `PATH` (any Python 3). Secret generation needs `openssl`, included with
-macOS and most Linux installs. On Debian or Ubuntu, install these tools
-with `sudo apt update && sudo apt install git curl ca-certificates openssl
-python3`.
+macOS and most Linux installs. On Debian or Ubuntu, install these tools:
+`sudo apt update && sudo apt install git curl ca-certificates openssl python3`.
 
 Clone the repository:
 
@@ -393,11 +392,15 @@ build as `catchup:local`, you can remove the old local tag with
 published image later pulls the real one.
 
 For later source-built upgrades, make a backup with [Back up](#back-up),
-then:
+then, from the installation directory:
 
 ```sh
-git pull
-docker compose up -d --build --wait
+(
+  set -e
+  [ -f compose.yaml ] && [ -f .env ] || { echo 'Run this from your installation directory (the one with compose.yaml and .env).' >&2; exit 1; }
+  git pull
+  docker compose up -d --build --wait
+)
 ```
 
 The named `catchup-data` volume survives container replacement; migrations
@@ -405,8 +408,10 @@ run automatically before the server accepts requests. Each block below
 works in a new shell. Run it from your installation directory, not a
 subdirectory. It finds Compose's actual volume name (including the project
 name) and uses the installation's image name, so source builds work too.
-These blocks work only with the named volume. For a bind mount, stop
-CatchUp and back up by copying its directory instead.
+These blocks work only for an installation started with Compose, and only
+with the named volume. They do not find a container started with the
+`docker run` command above. For a bind mount, stop CatchUp and back up by
+copying its directory instead.
 
 Each block stops at its first error. If a backup fails, fix the cause and
 start CatchUp again with `docker compose up -d --wait`. A leftover
@@ -416,8 +421,8 @@ instead of starting CatchUp on the emptied volume.
 
 When an archive check rejects a backup, it prints a Python error (a
 traceback). In "Restore into this installation", nothing has been stopped
-or changed at that point. In the new-machine block, only the empty
-container and volume from `create` exist.
+or changed at that point. In the new-machine block, only what `create`
+made exists: an empty container and volume, and the image if it was missing.
 
 ### Back up
 
@@ -435,7 +440,7 @@ one. A failed archive write leaves a `.partial` file, not a usable backup:
   backup="$HOME/catchup-backups/catchup-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
   [ ! -e "$backup" ] || { echo 'Backup already exists; try again later.' >&2; exit 1; }
   container="$(docker compose ps -aq catchup)"
-  [ -n "$container" ] || { echo 'No CatchUp container here; run docker compose create, then run this block again.' >&2; exit 1; }
+  [ -n "$container" ] || { echo 'No Compose container for CatchUp here. After docker compose down, run docker compose create, then run this block again.' >&2; exit 1; }
   volume="$(docker inspect "$container" --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')"
   [ -n "$volume" ] || { echo 'No named volume at /data; these commands work only with the named volume.' >&2; exit 1; }
   image="$(docker inspect "$container" --format '{{.Config.Image}}')"
@@ -470,7 +475,7 @@ volume, including hidden files:
   backup="$HOME/catchup-backups/catchup-YYYYMMDDTHHMMSSZ.tar.gz"
   [ -s "$backup" ] || { echo 'Choose an existing non-empty backup file.' >&2; exit 1; }
   container="$(docker compose ps -aq catchup)"
-  [ -n "$container" ] || { echo 'No CatchUp container here; run docker compose create, then run this block again.' >&2; exit 1; }
+  [ -n "$container" ] || { echo 'No Compose container for CatchUp here. After docker compose down, run docker compose create, then run this block again.' >&2; exit 1; }
   volume="$(docker inspect "$container" --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')"
   [ -n "$volume" ] || { echo 'No named volume at /data; these commands work only with the named volume.' >&2; exit 1; }
   image="$(docker inspect "$container" --format '{{.Config.Image}}')"
@@ -516,7 +521,7 @@ holds data; use "Restore into this installation" for that case:
   [ -s "$backup" ] || { echo 'Choose an existing non-empty backup file.' >&2; exit 1; }
   docker compose create
   container="$(docker compose ps -aq catchup)"
-  [ -n "$container" ] || { echo 'No CatchUp container here; run docker compose create, then run this block again.' >&2; exit 1; }
+  [ -n "$container" ] || { echo 'No Compose container for CatchUp here. After docker compose down, run docker compose create, then run this block again.' >&2; exit 1; }
   volume="$(docker inspect "$container" --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')"
   [ -n "$volume" ] || { echo 'No named volume at /data; these commands work only with the named volume.' >&2; exit 1; }
   image="$(docker inspect "$container" --format '{{.Config.Image}}')"

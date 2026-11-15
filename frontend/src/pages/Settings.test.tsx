@@ -407,7 +407,7 @@ describe('model settings', () => {
 
 describe('Settings results and focus', () => {
   function saveBar() {
-    return screen.getByRole('button', { name: 'Save' }).closest('.save-bar')!
+    return screen.getByRole('button', { name: 'Save' }).closest<HTMLElement>('.save-bar')!
   }
 
   it.each([

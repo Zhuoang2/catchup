@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type Ref } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError, request } from '../api/client'
 import { parseDate, shortDateTime } from '../components/format'
@@ -59,8 +59,8 @@ function describeError(error: unknown) {
   return 'Could not connect to CatchUp.'
 }
 
-function SourcePreview({ preview, onConfirm, onCancel }: {
-  preview: Preview; onConfirm: () => void; onCancel: () => void
+function SourcePreview({ preview, onConfirm, onCancel, headingRef }: {
+  preview: Preview; onConfirm: () => void; onCancel: () => void; headingRef: Ref<HTMLHeadingElement>
 }) {
   const method = preview.kind === 'podcast' ? 'Transcripts published by the show'
     : preview.kind === 'x' ? 'Posts read through the X API with your token'
@@ -69,7 +69,7 @@ function SourcePreview({ preview, onConfirm, onCancel }: {
       : 'Caption fetching is off; videos will be listed without summaries'
       : 'Article text from the feed and linked pages'
   return <section className="preview-card" aria-label="Source preview">
-    <div className="preview-head"><h2 className="preview-title">{preview.title}</h2>
+    <div className="preview-head"><h2 className="preview-title" ref={headingRef} tabIndex={-1}>{preview.title}</h2>
       <KindBadge kind={preview.kind}/></div>
     <dl className="preview-urls">{preview.kind === 'x'
       ? <><dt>Account</dt><dd>@{preview.username}</dd></>
@@ -129,6 +129,16 @@ export default function Sources() {
   const headingRef = useRef<HTMLHeadingElement>(null)
   const emptyHeadingRef = useRef<HTMLHeadingElement>(null)
   const deleteRefs = useRef(new Map<number, HTMLButtonElement>())
+  const addressRef = useRef<HTMLInputElement>(null)
+  const previewHeadingRef = useRef<HTMLHeadingElement>(null)
+  const [focusAfterPreview, setFocusAfterPreview] = useState<'preview' | 'address' | null>(null)
+
+  useEffect(() => {
+    if (focusAfterPreview) {
+      (focusAfterPreview === 'preview' ? previewHeadingRef : addressRef).current?.focus()
+      setFocusAfterPreview(null)
+    }
+  }, [focusAfterPreview])
 
   useEffect(() => {
     if (confirmId !== null) cancelRef.current?.focus()
@@ -181,13 +191,16 @@ export default function Sources() {
     } catch (err) { setXTokenError(describeError(err)); return }
     try {
       setXToken('')
-      setNeedsXToken(false)
       setPreview(await request<Preview>('/sources/preview', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
       }))
       setMessage('X token saved.')
-    } catch (err) { setFieldError(describeError(err)) }
+      setFocusAfterPreview('preview')
+    } catch (err) {
+      setFieldError(describeError(err))
+      setFocusAfterPreview('address')
+    } finally { setNeedsXToken(false) }
   }
 
   async function confirmSource() {
@@ -199,6 +212,7 @@ export default function Sources() {
         body: JSON.stringify({ feed_url: preview.feed_url }),
       })
       setPreview(null); setUrl('')
+      setFocusAfterPreview('address')
       await refresh()
       setMessage('Source saved.')
     } catch (err) { setFieldError(describeError(err)) }
@@ -220,7 +234,7 @@ export default function Sources() {
     <PageHead title="Sources" lede="Blogs, podcasts, YouTube channels, and social profiles you follow."/>
     <form className="add-form card" onSubmit={event => void previewSource(event)} noValidate>
       <label className="field-label" htmlFor="url">Website or feed URL</label>
-      <div className="input-row"><input className="input" id="url" type="url" value={url}
+      <div className="input-row"><input className="input" id="url" type="url" value={url} ref={addressRef}
         onChange={event => { setUrl(event.target.value); setPreview(null); setFieldError(''); setNeedsXToken(false) }}
         placeholder="https://example.com" required aria-invalid={fieldError ? true : undefined}
         aria-describedby={`${fieldError ? 'url-error ' : ''}url-hint`}/>
@@ -241,9 +255,9 @@ export default function Sources() {
       <Button type="submit" variant="primary">Save and preview</Button>
     </form>}
     {pageError && <p className="field-error" role="alert"><Icon name="alert"/>{pageError}</p>}
-    {message && <p role="status">{message}</p>}
-    {preview && <SourcePreview preview={preview} onConfirm={() => void confirmSource()}
-      onCancel={() => setPreview(null)}/>}
+    <p role="status">{message}</p>
+    {preview && <SourcePreview preview={preview} headingRef={previewHeadingRef} onConfirm={() => void confirmSource()}
+      onCancel={() => { setPreview(null); setFocusAfterPreview('address') }}/>}
     {!loading && sources !== null && sources.length > 0 && <h2 ref={headingRef} tabIndex={-1} className="section-label">
       Your sources <span className="count">{sources.length}</span>
     </h2>}

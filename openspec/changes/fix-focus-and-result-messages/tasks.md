@@ -125,7 +125,7 @@ Implementer notes:
 
 ## 3. Sources: focus after the preview and the X token form
 
-- [ ] 3.1 In `frontend/src/pages/Sources.test.tsx`, add these failing tests (design D3, D4):
+- [x] 3.1 In `frontend/src/pages/Sources.test.tsx`, add these failing tests (design D3, D4):
   1. **Save and preview, success.** Focus "Save and preview" and submit. While the repeated preview request is pending, the X token form and its button are still on the page, and the button has focus. After the preview is shown, check:
      - the X token form is gone;
      - the preview's heading has focus;
@@ -135,7 +135,7 @@ Implementer notes:
   4. **Cancel.** After the preview's Cancel, the address field has focus.
 
   Verify: each new test fails on an assertion before 3.2. Record the counts.
-- [ ] 3.2 Change `frontend/src/pages/Sources.tsx` as D3 and D4 describe:
+- [x] 3.2 Change `frontend/src/pages/Sources.tsx` as D3 and D4 describe:
   - `ref`s and focus moves, using the page's existing delete pattern;
   - keeping the X token form mounted until the repeated preview answers;
   - `tabIndex={-1}` on the preview's heading;

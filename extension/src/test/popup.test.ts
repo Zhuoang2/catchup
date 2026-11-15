@@ -54,6 +54,151 @@ const genericResult = (page: unknown) => {
 }
 const saves = () => fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/api/captures'))
 
+function mockXTokenFlow(save = async () => response(200, { token_set: true, token_last4: 'oken' })) {
+  connect()
+  chromeMock.tabs.query.mockResolvedValue([{ id: 1, url: 'https://x.com/writer', title: 'Writer' }])
+  let saved = false
+  fetchMock.mockImplementation(async (url: string) => {
+    if (url.endsWith('/preview')) return saved ? response(200, xPreview)
+      : response(422, { error: { code: 'x_token_required', message: 'X token needed.' } })
+    if (url.endsWith('/settings/x')) {
+      const result = await save()
+      saved = result.ok
+      return result
+    }
+    return response(200, { name: 'My browser', waiting: 3 })
+  })
+}
+
+// Guard: opening connected must not move the user's initial focus.
+it('does not move focus when the popup opens connected', async () => {
+  connect()
+  await initPopup()
+  expect(document.activeElement).toBe(document.body)
+})
+
+it('keeps one status line attached while saving, removing, previewing, and following', async () => {
+  connect()
+  genericResult(captured)
+  fetchMock.mockImplementation(async (url: string) => {
+    if (url.endsWith('/captures')) return response(201, { id: 42, waiting: 4 })
+    if (url.endsWith('/captures/42')) return response(204, {})
+    if (url.endsWith('/preview')) return response(200, preview)
+    if (url.endsWith('/sources')) return response(201, { id: 12 })
+    return response(200, { name: 'My browser', waiting: 3 })
+  })
+  await initPopup()
+  const status = screen.getByRole('status')
+  const records: MutationRecord[] = []
+  const observer = new MutationObserver(changes => records.push(...changes))
+  observer.observe(document.querySelector('#popup')!, { childList: true, subtree: true })
+  try {
+    fireEvent.click(screen.getByRole('button', { name: 'Add this page to my next digest' }))
+    await screen.findByText('Saved. It will be in your next digest.')
+    expect(screen.getByRole('status')).toBe(status)
+    expect(status).toHaveTextContent('Saved. It will be in your next digest.')
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    await screen.findByText('Removed.')
+    expect(screen.getByRole('status')).toBe(status)
+    expect(status).toHaveTextContent('Removed.')
+    fireEvent.click(screen.getByRole('button', { name: 'Follow this site' }))
+    await screen.findByRole('heading', { name: 'Example Site' })
+    expect(screen.getByRole('status')).toBe(status)
+    expect(status).toBeEmptyDOMElement()
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+    await screen.findByText('Source saved.')
+    expect(screen.getByRole('status')).toBe(status)
+    expect(status).toHaveTextContent('Source saved.')
+    records.push(...observer.takeRecords())
+    expect(records.some(record => [...record.removedNodes].includes(status))).toBe(false)
+  } finally { observer.disconnect() }
+})
+
+it.each(['site', 'account'])('focuses the preview heading, then Follow this %s after Cancel and Confirm', async kind => {
+  connect()
+  if (kind === 'account') chromeMock.tabs.query.mockResolvedValue([{ id: 1, url: 'https://x.com/writer', title: 'Writer' }])
+  fetchMock.mockImplementation(async (url: string) => url.endsWith('/preview')
+    ? response(200, kind === 'account' ? xPreview : preview)
+    : url.endsWith('/sources') ? response(201, { id: 12 }) : response(200, { waiting: 3 }))
+  await initPopup()
+  const label = `Follow this ${kind}`
+  screen.getByRole('button', { name: label }).focus()
+  fireEvent.click(document.activeElement!)
+  const heading = await screen.findByRole('heading', { name: kind === 'account' ? 'Sample Writer' : 'Example Site' })
+  expect(heading).toHaveFocus()
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+  expect(screen.getByRole('button', { name: label })).toHaveFocus()
+  fireEvent.click(screen.getByRole('button', { name: label }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Confirm' }))
+  await screen.findByText('Source saved.')
+  expect(screen.getByRole('button', { name: label })).toHaveFocus()
+})
+
+it('focuses Add after saving and removing a page', async () => {
+  connect()
+  genericResult(captured)
+  fetchMock.mockImplementation(async (url: string) => url.endsWith('/captures')
+    ? response(201, { id: 42, waiting: 4 }) : url.endsWith('/captures/42')
+      ? response(204, {}) : response(200, { waiting: 3 }))
+  await initPopup()
+  const add = screen.getByRole('button', { name: 'Add this page to my next digest' })
+  add.focus()
+  fireEvent.click(add)
+  await screen.findByText('Saved. It will be in your next digest.')
+  expect(screen.getByRole('button', { name: 'Add this page to my next digest' })).toHaveFocus()
+  const remove = screen.getByRole('button', { name: 'Remove' })
+  remove.focus()
+  fireEvent.click(remove)
+  await screen.findByText('Removed.')
+  expect(screen.getByRole('button', { name: 'Add this page to my next digest' })).toHaveFocus()
+})
+
+it('focuses the token field when the popup asks for an X token', async () => {
+  mockXTokenFlow()
+  await initPopup()
+  fireEvent.click(screen.getByRole('button', { name: 'Follow this account' }))
+  expect(await screen.findByLabelText('X API token')).toHaveFocus()
+})
+
+it('focuses the preview heading after saving the X token', async () => {
+  mockXTokenFlow()
+  await initPopup()
+  fireEvent.click(screen.getByRole('button', { name: 'Follow this account' }))
+  fireEvent.input(await screen.findByLabelText('X API token'), { target: { value: 'fake-token' } })
+  const save = screen.getByRole('button', { name: 'Save' })
+  save.focus()
+  fireEvent.click(save)
+  expect(await screen.findByRole('heading', { name: 'Sample Writer' })).toHaveFocus()
+})
+
+it.each(['Add', 'Remove', 'Follow', 'Confirm', 'Save'])('focuses Open options after a 401 during %s', async action => {
+  connect()
+  genericResult(captured)
+  fetchMock.mockImplementation(async (url: string) => {
+    if (url.endsWith('/status')) return response(200, { waiting: 3 })
+    if (action === 'Remove' && url.endsWith('/captures')) return response(201, { id: 42, waiting: 4 })
+    if (action === 'Confirm' && url.endsWith('/preview')) return response(200, preview)
+    if (action === 'Save' && url.endsWith('/preview')) return response(422, {
+      error: { code: 'x_token_required', message: 'X token needed.' },
+    })
+    return response(401, { error: { code: 'invalid_token', message: 'Not connected.' } })
+  })
+  await initPopup()
+  if (action === 'Remove') {
+    fireEvent.click(screen.getByRole('button', { name: 'Add this page to my next digest' }))
+    await screen.findByText('Saved. It will be in your next digest.')
+  }
+  if (action === 'Confirm' || action === 'Save') {
+    fireEvent.click(screen.getByRole('button', { name: 'Follow this site' }))
+    await screen.findByRole('button', { name: action })
+  }
+  const label = action === 'Add' ? 'Add this page to my next digest' : action === 'Follow' ? 'Follow this site' : action
+  const control = screen.getByRole('button', { name: label })
+  control.focus()
+  fireEvent.click(control)
+  expect(await screen.findByRole('button', { name: 'Open options' })).toHaveFocus()
+})
+
 it('sends nothing before a browser is connected and links to options', async () => {
   initPopup()
   await waitFor(() => expect(screen.getByText(/Connect this browser in CatchUp/)).toBeInTheDocument())
@@ -280,7 +425,7 @@ it.each(['reject', 'empty', 'missing'])('does not save an unreadable tab (%s)', 
   expect((await axe(document.body, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([])
 })
 
-it('disables Add while saving and shows a run_active conflict', async () => {
+it('keeps busy Add focusable, ignores another click, and shows a run_active conflict', async () => {
   connect()
   genericResult(captured)
   let complete!: (value: unknown) => void
@@ -289,15 +434,87 @@ it('disables Add while saving and shows a run_active conflict', async () => {
     : Promise.resolve(response(200, { name: 'My browser', waiting: 3 })))
   initPopup()
   const add = await screen.findByRole('button', { name: 'Add this page to my next digest' })
+  add.focus()
   fireEvent.click(add)
   await waitFor(() => expect(saves()).toHaveLength(1))
-  expect(add).toBeDisabled()
+  expect(add).toHaveAttribute('aria-disabled', 'true')
+  expect(add).not.toBeDisabled()
+  expect(add).toHaveFocus()
   fireEvent.click(add)
   expect(saves()).toHaveLength(1)
   complete(response(409, { error: { code: 'run_active', message: 'A digest is being made.' } }))
   await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('A digest is being made.'))
   expect(add).toBeEnabled()
+  expect(add).not.toHaveAttribute('aria-disabled', 'true')
   expect((await axe(document.body, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([])
+})
+
+it('keeps busy Remove focusable and ignores another click', async () => {
+  connect()
+  genericResult(captured)
+  let finish!: (result: ReturnType<typeof response>) => void
+  const pending = new Promise<ReturnType<typeof response>>(resolve => { finish = resolve })
+  fetchMock.mockImplementation(async (url: string) => url.endsWith('/captures')
+    ? response(201, { id: 42, waiting: 4 }) : url.endsWith('/captures/42') ? pending : response(200, { waiting: 3 }))
+  await initPopup()
+  fireEvent.click(screen.getByRole('button', { name: 'Add this page to my next digest' }))
+  const remove = await screen.findByRole('button', { name: 'Remove' })
+  remove.focus()
+  fireEvent.click(remove)
+  expect(remove).toHaveAttribute('aria-disabled', 'true')
+  expect(remove).not.toBeDisabled()
+  expect(remove).toHaveFocus()
+  fireEvent.click(remove)
+  expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/captures/42'))).toHaveLength(1)
+  finish(response(409, { error: { code: 'run_active', message: 'A digest is being made.' } }))
+  await screen.findByText('A digest is being made.')
+  expect(remove).not.toHaveAttribute('aria-disabled', 'true')
+})
+
+it('keeps busy X token Save focusable and ignores another click', async () => {
+  let finish!: (result: ReturnType<typeof response>) => void
+  const pending = new Promise<ReturnType<typeof response>>(resolve => { finish = resolve })
+  mockXTokenFlow(() => pending)
+  await initPopup()
+  fireEvent.click(screen.getByRole('button', { name: 'Follow this account' }))
+  fireEvent.input(await screen.findByLabelText('X API token'), { target: { value: 'fake-token' } })
+  const save = screen.getByRole('button', { name: 'Save' })
+  save.focus()
+  fireEvent.click(save)
+  expect(save).toHaveAttribute('aria-disabled', 'true')
+  expect(save).not.toBeDisabled()
+  expect(save).toHaveFocus()
+  fireEvent.click(save)
+  expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/settings/x'))).toHaveLength(1)
+  finish(response(409, { error: { code: 'run_active', message: 'A digest is being made.' } }))
+  await screen.findByText('A digest is being made.')
+  expect(save).not.toHaveAttribute('aria-disabled', 'true')
+})
+
+it('styles busy popup buttons like disabled buttons after the primary rule', () => {
+  const rules = popupRules()
+  const index = rules.findIndex(rule => rule.selector === 'button[aria-disabled="true"]')
+  expect(index).toBeGreaterThan(rules.findIndex(rule => rule.selector === 'button.primary'))
+  const busy = rules[index]?.body ?? ''
+  const disabled = rules.find(rule => rule.selector === 'button:disabled')!.body
+  for (const property of ['background', 'color']) {
+    const declaration = new RegExp(`${property}:\\s*([^;]+)`)
+    expect(busy.match(declaration)?.[1]).toBe(disabled.match(declaration)?.[1])
+  }
+})
+
+it('excludes busy popup buttons from hover styling', () => {
+  const hover = popupRules().filter(rule => rule.selector.includes(':hover'))
+  expect(hover.length).toBeGreaterThan(0)
+  for (const rule of hover) expect(rule.selector).toContain(':not([aria-disabled="true"])')
+})
+
+it('keeps the popup content grid and muted host line inside the content container', () => {
+  const rules = popupRules()
+  expect(rules.some(rule => rule.selector.split(',').map(s => s.trim()).includes('#popup .popup-content')
+    && /display:\s*grid/.test(rule.body))).toBe(true)
+  expect(rules.some(rule => rule.selector === '#popup .popup-content > p:nth-child(2)'
+    && /color:\s*var\(--muted\)/.test(rule.body))).toBe(true)
 })
 
 it('still saves an X profile as a generic page when Add is chosen', async () => {

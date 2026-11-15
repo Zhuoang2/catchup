@@ -147,7 +147,7 @@ Implementer notes:
 
 ## 4. Extension popup: one status line, focus, and busy buttons
 
-- [ ] 4.1 In `extension/src/test/popup.test.ts`, add or change these failing tests (design D2, D5):
+- [x] 4.1 In `extension/src/test/popup.test.ts`, add or change these failing tests (design D2, D5):
   1. **One status line.** Take the `role="status"` element after connecting, and start a `MutationObserver` on `#popup` (`childList`, `subtree`). Then save a page, remove it, and follow the site (preview, then Confirm). Check:
      - after each step, the status element is the same node, and it holds that step's message;
      - at the end, `takeRecords()` has no record with the status element in `removedNodes`.
@@ -176,7 +176,7 @@ Implementer notes:
   Run `npm test -- --run` in `extension/` under Node 22.
 
   Verify: each new or changed test fails on an assertion before 4.2. Record the counts.
-- [ ] 4.2 Change `extension/src/popup.ts` and `extension/src/popup.css` as D2 and D5 describe:
+- [x] 4.2 Change `extension/src/popup.ts` and `extension/src/popup.css` as D2 and D5 describe:
   - a content `div` with class `popup-content`, next to a persistent status line;
   - the `popup.css` selectors moved to that container (design D5);
   - the focus targets, wrapping handlers such as `button('Cancel', connected)` that would pass the click event on;

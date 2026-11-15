@@ -424,3 +424,25 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
 - **Amended after the review of fix round 1 (2026-11-14).** A second clean-install re-run found that a rebuild with no source changes breaks the backup on Docker's containerd image store, and that running the blocks from a subdirectory of the checkout switches a source build to the published image. The user approved a second and last Droid round:
   - The backup and restore blocks are re-derived from five invariants instead of being patched again. Each block runs only where `compose.yaml` and `.env` are in the current directory, uses the image name Compose used (`{{.Config.Image}}`), and finishes every check before it stops or changes anything. Rejected alternative: `docker compose up -d --force-recreate` inside each block, which restarts CatchUp an extra time only to make the container's image ID valid again.
   - Existing source-build users upgrade in this order: back up, `git pull`, add the `COMPOSE_FILE` line, build. Adding the line before `git pull` makes every Compose command fail.
+
+## D-029 Keep focus and announcements when pages change in place, and show Save results at Save — accepted (2026-11-15)
+
+- **Decision.**
+  - **Settings Save results.** Settings shows every Save result in the save bar, next to Save. Errors without a field are shown there as an alert. A field error marks its field, and the save bar names the field. A missing model marks the Model select.
+  - **Busy controls.** While a run is in progress, Generate / Try again use `aria-disabled` instead of `disabled`. So do the popup's buttons while they work.
+  - **Focus targets.** When an action removes the focused control, focus moves to a named target.
+  - **Status regions.** Result messages use status regions that stay on the page.
+
+  Planned as the lean OpenSpec change `fix-focus-and-result-messages` (issues #71 and #72).
+- **Why.**
+  - A system review on 2026-11-01 found that Save errors without a field appear at the bottom of Settings, below two other groups (#71).
+  - It also found that focus falls to the page in several places, and that some status messages are created together with their region, so screen readers may miss them (#72).
+  - Claude checked both against `main` at `2f456cd` on 2026-11-15.
+- **Alternatives:**
+  - **Keep `disabled`, and put focus back after the run.** Rejected: focus is lost for the whole run, and nothing tells a screen-reader user why the button does not work.
+  - **Show every Save error only in the save bar.** Rejected: field errors must stay linked to their inputs (user-interface, "Keyboard and screen-reader support").
+  - **Move focus to the first invalid field after Save.** Rejected for now: the Model select is disabled until a test, so it cannot take focus, and Test connection does not move focus either.
+  - **One shared live region for the whole app.** Rejected: messages belong next to the control that produced them, and Settings already keeps one region per group.
+- **Consequences:**
+  - A busy button must ignore clicks itself, so each handler checks the flag.
+  - Empty status regions need a CSS rule so that they take no space in grid and flex layouts.

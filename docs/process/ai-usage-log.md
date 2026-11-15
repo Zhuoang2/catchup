@@ -2198,3 +2198,46 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - Droid's log entry said "The user required" for rules that Claude's prompt set. Claude corrected it and added the session line.
   - Claude's first mutation run after adding the upgrade guard mutated the wrong blocks. The guard's first occurrence had moved to the upgrade block. Claude fixed the indices, asserted four occurrences, and ran the mutations again. All were caught.
   - The re-run sub-agent asked why the ID of `catchup:fix-install-guide-local` changed during its run. Claude's own rebuild for the smoke check had changed it.
+
+## 2026-11-15 — `fix-install-guide` (#13): merge, release v0.2.0, and cleanup (Claude Code, Opus 5.5)
+
+- **Prompts** (translated from Chinese):
+  - "Yes, merge it."
+  - "I merged it manually."
+  - "Yes, publish v0.2.0 with this draft."
+  - "Yes, check the release workflow and the images."
+  - "Don't rebuild for now; continue with #71/#72."
+- **Outcome:**
+  - **Archive and PR.** Claude archived the change as `2026-11-14-fix-install-guide` (`6be77e2`). `local-deployment` gained two requirements, and strict validation of all specs passed. The two `requirements-changes.md` rows now say the change was archived. Claude pushed the branch and opened PR #88 with "Closes #13".
+  - **Merge.** The app refused to turn on auto-merge from this session, because the PR's repository did not match the session's folders. The user merged PR #88 by hand (`2f456cd`) after 8 of 8 checks passed. The issue closed, and the board moved it to Done on its own.
+  - **Cleanup.** Claude removed:
+    - both review worktrees;
+    - the local and remote branch;
+    - the `catchup:fix-install-guide-local` image;
+    - the review's scratch directories.
+
+    The 8800 instance and its rollback objects were not touched.
+  - **Release.** On the user's confirmation, Claude tagged `v0.2.0` on the merge commit. It used a lightweight tag, as `v0.1.0` is. Claude then created the GitHub release, with notes that summarize the 30 pull requests since v0.1.0, the upgrade steps, and the known limitations. The release workflow succeeded in 47 seconds. One read-only check with `docker buildx imagetools inspect`, which pulls nothing, showed:
+    - `0.2.0`, `0.2`, and `latest` have the same digest;
+    - each is built for `linux/amd64` and `linux/arm64`;
+    - each carries the revision `2f456cd` and the version `0.2.0`.
+  - **8800.** It was not rebuilt. The release changes no application code, and the user chose to wait.
+- **Problems / adjustment:**
+  - A safety check refused `rm -rf "$SP3/$d"`, because a variable as the target could expand to `/`. Nothing ran. Claude used the form the check suggested, `"${SP3:?}/${d:?}"`.
+  - Before showing the release notes, Claude checked the README's description of the extension. The draft's note on content behind a login now says that the extension saves only what is visible in the user's own tab when they press Add.
+
+## 2026-11-15 — `fix-focus-and-result-messages` (#71, #72): plan (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
+
+- **Prompts** (translated from Chinese): "Don't rebuild for now; continue with #71/#72." After the plan: "Yes, commit the plan and then start Droid."
+- **Outcome:**
+  - **One lean change.** Claude planned both issues as one lean change, because they touch the same pages.
+  - **Checked against the code.** Claude checked each finding against `main` at `2f456cd`. The issues' line numbers were from 2026-11-01, and several had moved; the design lists the current ones. The project's `openspec-propose` skill was not loaded in this session, so Claude followed its steps with the OpenSpec CLI.
+  - **Found while checking.** Save before a test sends an empty model, because the disabled Model select is skipped by form validation. When the second Save request fails, the stored key is not shown as saved. Disconnect also drops focus.
+  - **Plan.** It has 3 new requirements with 15 scenarios, in `user-interface` and `browser-extension`, and 5 task groups. The design records D-029 and its rejected alternatives.
+  - **D-023 fresh-eyes check.** A sub-agent that saw only the plan and the code probed the plan's assumptions in the frontend's jsdom, with temporary test files that it then deleted. It found 3 blockers, 7 problems that needed fixing, and 6 nits. Claude checked each one against the code and folded all of them in:
+    - **blockers:** the popup's status-line test passed with the old code, because re-appending the same node keeps its identity, so the test now also uses a `MutationObserver`. A planned test for the button while page details load could not be written, because the page shows only "Loading…" then. The list of assertions to replace named four checks on always-disabled buttons, against the plan's own rule;
+    - **jsdom:** jsdom keeps focus on a disabled button, so the busy-button tests now also check that the button is not `disabled`;
+    - **layout:** empty status regions still add a grid or flex gap, so a CSS rule takes them out of the layout;
+    - **popup styles:** the popup's position-based selectors had to move to the new content container;
+    - **missing details:** the class, icon, and role of the "not saved" note, a test setup for the Other language field, clearing the save bar on Test connection, and a duplicate alert at the old error element;
+    - **missed cases:** two more places where focus fell to the page, after `model_not_configured` and while Sources repeats the preview.

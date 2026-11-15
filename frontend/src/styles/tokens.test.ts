@@ -113,6 +113,18 @@ it('styles disabled secondary buttons with the disabled and muted tokens', () =>
   expect(disabled).toMatch(/color:\s*var\(--muted\)/)
 })
 
+it.each(['.btn', '.btn-primary'])('styles busy %s buttons like disabled buttons with a separate rule', selector => {
+  const components = readFileSync('src/styles/components.css', 'utf8')
+  const rules = layoutRules(components)
+  const disabled = rules.find(rule => rule.selector === '.btn:disabled')!.body
+  const busy = rules.find(rule => rule.selector === `${selector}[aria-disabled="true"]`)?.body ?? ''
+  expect(busy).not.toBe('')
+  for (const property of ['background', 'color']) {
+    const declaration = new RegExp(`${property}:\\s*([^;]+)`)
+    expect(busy.match(declaration)?.[1]).toBe(disabled.match(declaration)?.[1])
+  }
+})
+
 it('gives danger buttons a transparent background, not the browser default', () => {
   const components = readFileSync('src/styles/components.css', 'utf8')
   const danger = components.match(/\.btn-danger\s*\{([^}]+)\}/)?.[1]
@@ -125,7 +137,10 @@ it('does not restyle disabled buttons on hover', () => {
   const hoverRules = [...components.matchAll(/([^{}]*\.btn[^{}]*:hover[^{}]*)\{([^{}]+)\}/g)]
   expect(hoverRules.length).toBeGreaterThan(0)
   for (const [, selector] of hoverRules) {
-    for (const part of selector.split(',')) expect(part).toMatch(/:not\(:disabled\)/)
+    for (const part of selector.split(',')) {
+      expect(part).toMatch(/:not\(:disabled\)/)
+      expect(part).toContain(':not([aria-disabled="true"])')
+    }
   }
 })
 

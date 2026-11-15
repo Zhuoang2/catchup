@@ -95,7 +95,7 @@ Implementer notes:
 
 ## 2. Main screen: Generate stays focusable
 
-- [ ] 2.1 Add failing tests (design D2):
+- [x] 2.1 Add failing tests (design D2):
   1. **`frontend/src/pages/Home.test.tsx`, Generate during a run.** Focus Generate digest with `.focus()` and click it. While the run is active, check:
      - the button reads "Generating…", has `aria-disabled="true"`, and is `not.toBeDisabled()`;
      - the button is still `document.activeElement`;
@@ -113,7 +113,7 @@ Implementer notes:
   Change the existing `toBeDisabled()` assertions on the busy button to check `aria-disabled="true"`. Keep those on the first-run and no-sources buttons.
 
   Verify: each new or changed test fails on an assertion before 2.2. Record the counts.
-- [ ] 2.2 Change `frontend/src/pages/Home.tsx` and `frontend/src/styles/components.css` as D2 describes:
+- [x] 2.2 Change `frontend/src/pages/Home.tsx` and `frontend/src/styles/components.css` as D2 describes:
   - `aria-disabled` on both run buttons, and a guard in the click handler;
   - the first-digest focus move, with the focus check in the `.then` before `setDigest` (design D2);
   - the focus move to "Set up your model" after `model_not_configured`;

@@ -389,3 +389,38 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - One more DNS lookup for each new connection.
   - The wiring uses a private attribute of `httpx` 0.28 (`HTTPTransport._pool._network_backend`). A test fails if connections stop going through the backend, and `uv.lock` pins the checked versions. On the user's decision at review (2026-11-12), `safe_fetch` also fails closed at runtime: if the pool has no network backend to replace, it raises instead of connecting without the check.
   - The existing `respx` tests intercept before the network backend, so new tests patch `socket.create_connection` instead.
+
+## D-028 Python 3.12 minimum, a separate Compose file for source builds, and release v0.2.0 — accepted (2026-11-13)
+
+- **Decision.**
+  - The minimum Python is 3.12, the version CI and the image use, in `requires-python` and in the README.
+  - `compose.yaml` keeps only the published image. A new `compose.build.yaml` builds from source under the local name `catchup:local`, and the README turns it on with `COMPOSE_FILE=compose.yaml:compose.build.yaml` in `.env`.
+  - The README builds the frontend before starting the backend.
+  - The README gets backup and restore blocks that each work on their own, including a restore on a new machine.
+  - Version 0.2.0. After the merge, and with the user's confirmation, Claude Code tags `v0.2.0`, so the release workflow makes `latest` current.
+
+  Planned as the lean OpenSpec change `fix-install-guide` (issue #13).
+- **Why.**
+  - A clean-install test by a fresh agent that followed only the README (2026-11-13) found three problems:
+    - `uv run pytest` cannot collect tests on Python 3.11, the stated minimum;
+    - `docker compose up -d` starts v0.1.0, 456 commits behind `main`, and a source build was tagged locally as the published `latest`;
+    - the restore commands failed on their own.
+  - The user chose Claude's recommendation on each point (2026-11-13).
+- **Alternatives:**
+  - **Keep Python 3.11.** This means rewriting one test line and adding a 3.11 CI job. Rejected: CI would be slower, the image never runs 3.11, and uv fetches 3.12 automatically.
+  - **Default to the `edge` image.** Rejected: a release makes `latest` current, and `latest` stays the stable choice.
+  - **Serve a frontend that is built after startup.** This needs a code change. Rejected: it adds a check on every request for a development-only case. The README's order solves it.
+  - **An image-name variable, or an automatically loaded `compose.override.yaml`.** Rejected (design D4): a missing variable falls back silently to the published name, and an override file would turn on source builds for everyone.
+- **Consequences:**
+  - Docker users who build from source add one line to `.env`. Without it, `docker compose up -d --build` silently keeps running their previous build.
+  - `uv.lock` drops `tomli`, which only Python 3.11 needed.
+  - The release is an outward-facing step, so the user confirms it after the merge.
+- **Amended after review (2026-11-14).** A clean-install re-run and a spec review of the first implementation found that uv picks the newest allowed Python, not 3.12, and that the backup and restore commands could lose data. The user approved Claude's fixes:
+  - `backend/.python-version` pins the backend to Python 3.12, the version CI tests. Rejected alternative: an upper bound in `requires-python`.
+  - Secrets come from `openssl`, are written once with `set -C`, and are never empty.
+  - Backups are timestamped files, written through a `.partial` file, so no backup overwrites another. Rejected alternative: one fixed path, with a rename before each restore.
+  - Restores check the whole archive in the image before stopping or emptying anything: they read the gzip stream to its end and apply the extraction's own filter. Each block stops at its first error. Rejected alternative: a plain `r|gz` stream check, which a fresh-eyes probe showed passes some truncated archives.
+  - The source-build override sets `pull_policy: never`. Rejected alternative: `pull_policy: build`, which rebuilds on every command.
+- **Amended after the review of fix round 1 (2026-11-14).** A second clean-install re-run found that a rebuild with no source changes breaks the backup on Docker's containerd image store, and that running the blocks from a subdirectory of the checkout switches a source build to the published image. The user approved a second and last Droid round:
+  - The backup and restore blocks are re-derived from five invariants instead of being patched again. Each block runs only where `compose.yaml` and `.env` are in the current directory, uses the image name Compose used (`{{.Config.Image}}`), and finishes every check before it stops or changes anything. Rejected alternative: `docker compose up -d --force-recreate` inside each block, which restarts CatchUp an extra time only to make the container's image ID valid again.
+  - Existing source-build users upgrade in this order: back up, `git pull`, add the `COMPOSE_FILE` line, build. Adding the line before `git pull` makes every Compose command fail.

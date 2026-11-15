@@ -1985,3 +1985,216 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - At first, Claude expected the rebinding test to kill "check one answer, connect to a later one". Running the mutation showed that it does not: the test's fake DNS has only two phases. A three-phase test now covers it.
   - Next time, a plan that names a security invariant ("connect only to the checked address") will include a test that tells the checked lookup apart from any later lookup.
 - **Merge decision** (2026-11-12, translated from Chinese): "Approved; turn on auto-merge; add it." "Add it" refers to the runtime check that Claude had offered and advised against. On the user's decision, Claude added it in its review commit, about 3 source lines and one test, verified by mutation G1. This is an exception to D-023, recorded in D-027 and in the test report.
+
+## 2026-11-12 — `pin-fetch-connections` (#68): merge, rebuilding the user's instance, and cleanup (Claude Code, Opus 5.5)
+
+- **Prompts** (translated from Chinese): "Continue." Then: "OK, rebuild 8800." Then: "OK, delete the old rollback, then start on #13."
+- **Outcome:**
+  - PR #87 merged by auto-merge after 8 of 8 checks (`064d3a9`). The issue closed, and the board moved it to Done on its own. Claude removed the review worktree and both copies of the branch.
+  - Claude rebuilt port 8800 from a clean checkout of `064d3a9`:
+    - the smoke script passed 12 of 12;
+    - the volume was backed up to `catchup-e2e-bak-d034789`, with a matching checksum and a passing integrity check;
+    - the secret was passed from the old container without being shown.
+  - Claude verified the rebuilt instance:
+    - the model, sources, digests, and preferences were unchanged;
+    - a preview of a feed not yet added worked over HTTPS and through an `http://` redirect, and saved nothing;
+    - `http://127.0.0.1/` was refused.
+  - On the user's request, Claude deleted the superseded rollback: the stopped container, its image, and its backup volume.
+- **Problems / adjustment:** After the first "Continue.", the auto-mode permission check refused the command that stops 8800, because the message did not clearly approve a rebuild. Nothing had run. Claude asked, and the user approved the rebuild explicitly.
+
+## 2026-11-13 — Clean-install test and `fix-install-guide` plan (#13) (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
+
+- **Prompts** (translated from Chinese): "OK, start running the install test." The user had first asked why so much would be downloaded, and confirmed that everything would be deleted afterwards. After the findings: "Go with all your recommendations, write the plan." After the plan: "OK, commit the plan, then start running Droid."
+- **Outcome:**
+  - **Install test.** A fresh sub-agent followed only the README:
+    - a source build with Docker Compose on the host;
+    - the development setup on a clean `debian:12` container with its Python 3.11;
+    - the README's backup and restore commands.
+
+    The published `latest` image was checked from registry metadata only, to save about 420 MB.
+  - **Results.** The app installed and ran both ways. The agent found 1 blocker, 3 major problems, and 6 minor ones:
+    - the tests cannot run on Python 3.11;
+    - the frontend gives a 404 until the backend restarts;
+    - the default image is v0.1.0, and a source build was tagged as the published `latest`;
+    - restore fails on its own.
+
+    Claude checked the code behind the blocker and the 404, opened the instance in a browser (the first-run screen was correct), and deleted every resource the test created.
+  - **Plan.** Before planning, Claude probed Docker Compose and uv locally, without downloads:
+    - `COMPOSE_FILE` is read from `.env`;
+    - an override tags only its own image name;
+    - `docker compose create` creates the volume;
+    - `up --build` with no build section silently reuses a local tag;
+    - `uv lock` after raising `requires-python` removes only `tomli`.
+
+    The plan has a proposal, a `local-deployment` delta (2 added requirements, 8 scenarios), design D1–D8, and three task groups. D-028 records the decisions. The v0.2.0 tag waits for the user's confirmation after the merge.
+- **Problems / adjustment:**
+  - The sub-agent could not write its report file, so Claude saved the report from its message.
+  - A console error about the service worker also appeared on 8800, so Claude traced it to the in-app browser and did not count it.
+  - Claude's first draft of the design said that `up --build` without a build section warns. A probe showed that it does not, and the risk text now says so.
+  - D-023 fresh-eyes check. A sub-agent that saw only the plan and the code re-probed Compose and the lock refreshes in throwaway copies, and removed everything it created afterwards. It found 10 problems:
+    - the expected `uv.lock` diff was incomplete, and "offline fails" holds only with an empty cache;
+    - setting `HOME` and `DOCKER_CONFIG` on one line expands to the wrong path, and the README blocks contain single quotes, so `bash -c` cannot wrap them;
+    - Docker builds still resolve base image tags online;
+    - a source-build restore on a new machine needs a clone, because `create` builds the image;
+    - checking a preference value cannot show that the restore emptied the volume first;
+    - this machine's default Node.js (v20.19.0) is below the new minimum;
+    - the README task left out three design points, and two spec requirements had no test;
+    - several checks were brittle: hard-wrapped text, a `umask` count, and `ls -l` modes on macOS;
+    - the order of the version bump and the lock refresh;
+    - the plan must be committed before Droid starts.
+
+    Claude confirmed each one against the code or the probe output and folded all 10 into the plan. Changes include a block-file runner, a marker file, `npm` under Node 22, `stat` modes, and a clone for new-machine source restores.
+  - **Droid run 1 stopped in task 3.1** (session `5cd1f291-2e10-4652-930a-0bde79bc8df3`). Groups 1 and 2 were committed. In 3.1, both `.env` commands passed. The run then stopped for two reasons:
+    - **The plan's network rule was incomplete.** It allowed only base-image tag resolution during Docker builds. Droid checked this with a `--network none` build, which failed: after the version bump, the Dockerfile's `npm ci` needs the npm registry and `uv sync` needs PyPI for `hatchling`. Earlier builds had used the network the same way, unnoticed. Droid stopped and reported instead of working around it. This was an error in Claude's plan.
+    - **A deletion was refused.** Droid's cleanup of its temporary directory needed more than `--auto medium`, so the run ended.
+
+    Claude deleted the temporary directory and confirmed that no Compose container, volume, network, or `catchup:local` image was left. The 8800 instance was not touched.
+  - **Adjustment.** Claude told the user about the extra downloads (the frontend packages, about 108 MB unpacked, and `hatchling`). The user approved: "OK, make the changes as you said, then continue running Droid." Claude kept `--auto medium`, because a higher level would also allow pushing. In `tasks.md`:
+    - Docker builds may reach Docker Hub, GHCR, PyPI, and the npm registry;
+    - Droid deletes nothing except with `docker compose down -v`, and lists what is left for Claude to remove at review;
+    - the new-machine restore check keeps the image. The missing-image path is covered by the design probe and the review re-run.
+
+    The design's Context now names the build downloads. Droid then resumed the same session.
+
+## 2026-11-13, `fix-install-guide` (#13): implementation (Factory Droid, GPT-6.1 Sol)
+
+- **Session:** `5cd1f291-2e10-4652-930a-0bde79bc8df3`. Run 1 stopped in task 3.1 after about 5 minutes. The resumed run took 154 turns and about 5.5 minutes.
+- **Prompt excerpts:** "Implement OpenSpec change fix-install-guide using the openspec-apply-change skill. Work through openspec/changes/fix-install-guide/tasks.md in order and check off each task only after its verification passes." Also: "Do not edit proposal.md, design.md, or the spec deltas. Commit after each task group." The resume prompt said: "Continue with task 3.1 from the start, with a new clone of the branch at its current head, then do task 3.2" and "Docker builds may now reach Docker Hub, GHCR, PyPI, and the npm registry; build normally, without an offline build first."
+- **Workflow and outcome:** Used `openspec-apply-change`, `tdd`, and `diagnosing-bugs`. Added configuration tests and observed all three fail on the expected assertions before changing metadata. Updated Python minimum, version fields, locks, and Compose files in `c61386f`. Added six failing README checks plus the already-passing CI Node-major guard, then fixed only the two installation sections and the User-Agent example in `36608fd`. Locks refreshed offline, with only the allowed changes. No application code, dependency ranges, Dockerfile, CI, or spec planning artifacts were edited.
+- **Diagnosis:** Ranked metadata/instruction drift first, dependency incompatibility second, and an application defect third. The observed failures and passing suites after metadata/documentation-only changes confirmed drift. A temporary lock-comparison checker initially removed compatible cp311-abi3 wheels from its expected data; correcting the checker confirmed the actual lock diff was allowed.
+- **Earlier stop:** Task 3.1's offline Docker preflight failed because the original plan allowed base-image lookup but not dependency downloads needed by `npm ci` and `hatchling`. Droid stopped rather than enabling unapproved networking. Cleanup was then refused by the permission gate. Claude Code removed the earlier temporary directory and committed the network/cleanup correction in `ce01211`; Droid did not edit the plan.
+- **Resumed verification:** Started 3.1 again from a fresh local clone of `ce01211`, with an isolated home and `readme-check` Compose project. Exact README blocks ran in separate shells. Both secrets were private and silent; source build left the published tag untouched; health matched; backup/restore recovered the preference and removed visible/hidden post-backup markers; the new-volume restore passed while keeping the image as instructed. Frontend-before-backend startup returned 200 HTML. One extra post-stop port-bind assertion was overstrict for TCP TIME_WAIT; shutdown logs, process exit, and a refused connection confirmed the backend was stopped, without changing application code.
+- **Final checks:** Python 3.12.13; local npm under Node v22.17.1. Backend **906 passed**, frontend **281 passed** plus production build, extension **114 passed**, strict OpenSpec validation passed, and the existing Docker smoke script passed all **12** checks. Non-Docker installs used caches, with no external networking in tests. The report maps all eight scenarios and explicitly leaves the clean Debian/minimum-version review re-run unperformed.
+- **Cleanup handoff:** Brought down only the `readme-check` project with `docker compose down -v` and stopped the temporary backend. The existing smoke script cleaned up its own resources. No manual host-file or image deletion was attempted in the resumed run. Full paths for the retained temporary directories and generated checkout files, plus both local image tags/IDs, are in `test-report-fix-install-guide.md`. Protected resources were untouched; no push, release tag, or publication was performed.
+
+## 2026-11-14 — `fix-install-guide` (#13): review of the implementation and the fix-round plan (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
+
+- **Prompts** (translated from Chinese): before the review, about the downloads for the clean re-run: "Yes, delete it all after testing." After the findings and Claude's fix plan: "Yes."
+- **Outcome:**
+  - **Claude's checks.** Claude removed what Droid had listed for removal: the temporary directory and the `catchup:local` image. Then:
+    - the Docker smoke script passed 12 of 12;
+    - the backend suite passed 906;
+    - strict validation passed.
+
+    `/code-review` (high) reported 8 findings. Claude confirmed three by probe:
+    - a failed backup truncates the previous backup to 0 bytes and keeps its old mode;
+    - an empty archive fails in `tarfile` only after the restore has emptied the volume;
+    - appending a line to a `.env` without a final newline merges it into the secret.
+  - **Spec review.** An independent sub-agent checked the diff against the plan, using stub commands and no Docker. It found 15 items. Of its 44 mutations of the new tests, 23 were caught and 21 survived. The survivors are text checks that do not look at the command blocks.
+  - **Clean-install re-run.** A fresh sub-agent followed only the new README, on `debian:12` with Node.js 22.12.0 and with Docker on the host. It ran the restore in a new shell and the new-machine restore with neither the image nor the volume present. It found:
+    - **a blocker:** with no `.python-version`, uv downloaded Python 3.15.2. `pydantic-core` has no wheel for 3.15, so `uv sync` failed;
+    - **major:** the development secret was empty when `python3` was missing. The restore wiped the volume and started CatchUp empty when the backup was missing. "Make a backup first" overwrote the backup to restore.
+    - **minor:** among others, a health check right after `up -d` failed, and a misleading "pull access denied" message appeared.
+
+    Everything it created was removed.
+  - **Classification (D-023).**
+    - **Defects:** the data-loss paths in backup and restore, the Python choice, the empty or replaced secret, `--wait`, the pull message, the `COMPOSE_FILE` append, and the order of the note for existing users.
+    - **Plan errors (Claude's):** D1 said uv fetches 3.12. Every check had set `UV_PYTHON=3.12`, which hid the problem. Task 3.1 ran only success paths. The design gave wrong lock-diff numbers.
+    - **Recorded, not fixed:** the text-only test gaps.
+    - **Rejected:** a concern about `docs/alpha-release.md`. It points to the alpha commit, whose `compose.yaml` still has `build: .`.
+  - **Fix plan.** Claude added `.python-version` 3.12 and moved secrets to `openssl` with `set -C`. Backups get timestamped files, written through a `.partial` file. The restore checks the whole archive with `tarfile.data_filter` before it stops or empties anything. All blocks use `set -e` subshells and `up -d --wait`, and the override gets `pull_policy: never`. The plan has 3 new scenarios and task group 4. Before the plan, Claude probed `pull_policy` with a throwaway `FROM scratch` image. With `never`, a missing image is built without a pull attempt. With `build`, the image is rebuilt on every `create`.
+- **Problems / adjustment:**
+  - The clean re-run sub-agent broke two rules. During the failing `uv sync`, `maturin` downloaded a Rust toolchain into the throwaway container, which was not an approved download. The agent also sent one read-only health request to the user's 8800 instance. Claude reported both to the user. The container was deleted, and nothing on 8800 changed.
+  - A sub-agent's probes found the Python problem that Claude's own probes had not shown, because they had always set `UV_PYTHON=3.12`.
+  - **D-023 fresh-eyes check of group 4.** A sub-agent that saw only the plan and the code built the planned blocks and ran them against a throwaway Compose project from the local image, offline, in bash, zsh, and dash. It removed everything it created afterwards. It found 12 problems. The most serious was that the planned archive check let some truncated backups through. A cut inside the second member's header read as a shorter valid archive, so the restore emptied the volume and started CatchUp empty, with exit 0. Claude reproduced it: 43 of 2899 cut lengths passed the plain stream check, and none passed the corrected check, which reads the gzip stream to its end. Other problems:
+    - with `COMPOSE_PROJECT_NAME` set, Compose finds the project from any directory, so a block needs `docker compose config -q` first;
+    - three existing assertions contradicted the new design;
+    - task 4.3 cloned the branch before anything said to commit;
+    - task 4.3.1 could not show the effect of `.python-version` on this Mac without a download;
+    - `#` comment lines and `!` inside double quotes break blocks pasted into interactive zsh or bash;
+    - one planned check already passed;
+    - two markers were not named;
+    - the `COMPOSE_FILE` lines needed their own block, and could create a 644 `.env` without a secret;
+    - the recovery note conflicted with the spec;
+    - there were wording problems, and `openssl` was missing from the prerequisites.
+
+    Claude folded all 12 into the design and the tasks.
+
+## 2026-11-14, `fix-install-guide` (#13): fix round 1 (Factory Droid; model identifier unavailable)
+
+- **Session:** `5cd1f291-2e10-4652-930a-0bde79bc8df3`, resumed (the implementation's session). 268 turns, about 13 minutes.
+- **Prompt (faithful excerpt):** Implement the revised tasks 4.1–4.4 in order, test-first with the tdd skill. Check off tasks only after their verification passes; commit 4.1/4.2 before 4.3, and commit after group 4. Do not edit the proposal, design, or spec deltas. Never send requests to port 8800; retain temporary files and images for review cleanup.
+- **Classification and diagnosis:** This round addresses real behavior defects and errors in the earlier plan, not the recorded marginal text-test survivors. Ranked causes: unsafe shell ordering, unconstrained uv interpreter selection, then wrong Compose lifecycle assumptions. The revised tests and live probes confirmed those causes. Re-derived secret creation and backup/restore commands from their invariants instead of layering patches over unsafe ordering; no application code changed.
+- **Test first:** Replaced the three contradictory assertions, added block-local tests, and observed **11 assertion failures, 10 passes** before implementation. Guards mark already-correct masks, CI Node major, and paste safety. Added the Python pin and pull policy; rewrote only the approved README sections. A new test regex initially missed the valid `.env)` terminator; corrected the checker. All **21 installation cases**, **917 backend tests**, and **114 extension tests** passed before committing 4.1/4.2 as `1374516`.
+- **Committed re-run:** Two fresh local clones of `1374516`, raw blocks saved and run in separate shells with isolated HOME. Without `UV_PYTHON`, install/run used **3.12.13**; an offline dry-run without the pin selected **3.14.6**. Both secret paths were private/silent, refused repeats unchanged, and made no file without OpenSSL. COMPOSE_FILE setup refused a missing environment, was idempotent, and preserved a non-newline-terminated file. Immediate health after `--wait` passed.
+- **Failure and recovery checks:** Two timestamped backups were mode 600 in a mode-700 directory. Wrong-directory backup failures with and without a project variable preserved both hashes. Missing and half-length archives left the service running with preferences and markers unchanged. The exact README validator rejected **all 2,391 truncated lengths** and accepted the full archive in one network-disabled container. Making a third backup did not overwrite the first two; restoring the first recovered its preferences and removed visible/hidden markers. New-machine restore refused populated data without stopping the service; after `down -v`, the second clone restored correctly, without a pull-denied message or rebuild.
+- **Final verification:** Python **3.12.13**, local npm under Node **22.17.1**. Backend **917 passed**, frontend **281 passed** plus build, extension **114 passed**, strict OpenSpec validation and all **12 Docker smoke checks** passed. No external networking in tests. Report updated with all eleven scenarios, actual hashes/results, and placeholders replacing old absolute paths. An initial report path-scan also caught a non-path slash-separated phrase; it was rewritten before saving. No further clean-Debian/exact-minimum run was performed by Droid after the fixes.
+- **Handoff:** Both readme-check installations are down, and no development backend was started. The existing smoke script cleaned up its resources. No manual host-file/directory/image deletion, no port-8800 request, no protected-resource changes, and no prune/push/release occurred. Temporary verification helpers and fixtures remain under one temporary root, with both local images, for Claude Code to remove using the full paths in the final message. No planning artifact was edited; task checkboxes were updated only after verification.
+
+## 2026-11-14 — `fix-install-guide` (#13): review of fix round 1 and the plan for fix round 2 (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
+
+- **Prompts** (translated from Chinese): the user approved the second fix round with "Yes, do it as the second Droid fix round."
+- **Outcome:**
+  - **Claude's checks.** Claude removed what Droid had listed for removal: the temporary directories and the `catchup:local` image. Then the backend suite passed 917, strict validation passed, and the Docker smoke script passed 12 of 12. `/code-review` (high) on the round's diff reported 8 minor findings. Among them: the development secret command hides a missing `.env.example`, nothing says what to do with a leftover `.partial` file, and the README says both that Python need not be installed and that `python3` must be.
+  - **Spec review.** An independent sub-agent checked the round's diff against the plan with stub commands, in bash 3.2, zsh 5.9, dash, and a simulated interactive zsh paste. It found no defect in the changed blocks. The README's archive check rejected every cut length of two real archives. Mutations of the new tests left five meaningful gaps: the secret blocks' `&&` and single `>` redirect, the `COMPOSE_FILE` block's `>>`, the subshell parentheses, the backup step order, and identical archive checks in both restore blocks.
+  - **Clean-install re-run.** A fresh sub-agent followed only the README, on `debian:12` (with `UV_PYTHON` unset) and with Docker on the host. Every documented step worked: uv chose Python 3.12.16, 917 backend and 281 frontend tests passed, the secret was written once, backups never replaced each other, and every damaged backup was refused before anything stopped. It found two major problems, which Claude reproduced with probes:
+    - **A rebuild breaks the backup.** With Docker Desktop's containerd image store, a rebuild with no source changes gives `catchup:local` a new ID and removes the old one. The running container still names the old ID, so the backup stopped CatchUp and then failed with "No such image". Probe: after a no-change rebuild of a throwaway image, the old ID was gone, and the image name from `{{.Config.Image}}` still worked.
+    - **A subdirectory switches to the published image.** From `backend/`, Compose finds `../compose.yaml` but does not read `COMPOSE_FILE` from `../.env`. `docker compose config -q` still passes, so a block's final start would replace a source build with the published image. Probe with a dummy project: the root resolved `catchup:local`, the subdirectory resolved the published name.
+
+    It also found minor problems: no backup before an upgrade, the wrong order for existing source-build users, missing `curl`, `ca-certificates`, and `apt update` on a minimal Debian, a raw traceback for a rejected backup, no commands for the new-machine file modes, and the published start command placed before the source-build step.
+  - **Classification (D-023).** The two major problems and the unclear error after `docker compose down` are defects in behavior, so a second Droid round is allowed. It is the last one. Recorded, not fixed: editing the tracked `compose.yaml` to expose CatchUp, `[ -s .env ]` checking only that the file is not empty, a `create` in the new-machine block that can recreate a stopped container after `.env` changed, identical-archive-check tests, wording nits, and two overstated lines in the test report.
+  - **Fix plan.** Because round 1 had already patched the backup and restore blocks, Claude re-derived them from five invariants (design D5): run only in the installation directory, use names that survive a rebuild, check before changing anything, fail safe, and paste safely. Each block now starts with a check for `compose.yaml` and `.env` in the current directory, stops with a message when there is no container, and uses `{{.Config.Image}}`. The backup finds its names before it stops CatchUp. The plan adds two scenarios, "Backup after a rebuild" and "Commands outside the installation directory", and task group 5. Task 5.3 runs the changed blocks with Docker on this Mac only, including a rebuild followed by a backup, every data block from a subdirectory, and the upgrade of a checkout from before this change.
+- **Problems / adjustment:**
+  - **D-023 fresh-eyes check of group 5.** A sub-agent that saw only the plan and the code rebuilt the 5.1 checks on a README copy written from the design. It ran the planned blocks with a stub `docker` in bash, zsh, dash, and interactive bash and zsh, and probed Compose and git with a throwaway image and project. It found no blocker, three problems that needed fixing, and five nits. Claude checked each one and folded seven into the plan:
+    - comparing the secret and `COMPOSE_FILE` blocks after collapsing whitespace missed line-break mutations that change their meaning. Joining `set -C` with the next line still matched, but wrote an empty secret. The tasks now compare the blocks line by line;
+    - in task 5.3, backups A and B held the same preference, so the check after `docker compose down` could not fail. Each backup now gets its own value, with a marker;
+    - the network rule did not cover the builds in group 5, so Droid might have stopped or tried an offline build. The builds may now use the four registries;
+    - with a bind mount at `/data`, the volume name is empty, and the backup would fail only after stopping CatchUp. The blocks now stop first with a message, and the README says they work only with the named volume;
+    - smaller fixes: the order check on the existing-users note, two contradictions in the design's wording, and a deletion rule that named an unused project.
+
+    Rejected: the uncommitted session line in `ai-usage-log.md`. Claude added it, and it is part of this plan commit. Recorded, not fixed: the source upgrade block, run from a subdirectory, still switches to the published image. The README warns about this in its text.
+
+## 2026-11-14, `fix-install-guide` (#13): fix round 2 (Factory Droid, GPT-6.1 Sol)
+
+- **Session:** `5cd1f291-2e10-4652-930a-0bde79bc8df3`, resumed. 406 turns, about 15 minutes.
+- **Prompt excerpt:** "Continue OpenSpec change fix-install-guide with fix round 2: task group 5 in openspec/changes/fix-install-guide/tasks.md (plan commit 6bce12a)." Also: "Work test-first with the tdd skill: write the 5.1 tests and watch them fail, then make the 5.2 changes." The prompt, written by Claude Code, required a commit before 5.3 and after group 5, no edits to proposal/design/spec deltas, restricted build networking, no removal except the named projects' Compose down commands, no protected-resource/port-8800 access, and no prune/push/tag/release.
+- **Context and diagnosis:** Re-read the revised design and spec, especially the review findings and D5 invariants I1–I5. Ranked causes: stale image IDs after a rebuild; parent-directory Compose discovery without the source override; successful but empty container lookup after `down`. Predictions were that a configured image name, explicit current-directory guard, and non-empty container/volume checks would preserve backups and refuse unsafe contexts. The tests and live checks confirmed those causes. This last round implements the approved behavior defects/plan corrections, not the recorded marginal survivors.
+- **Test first / commit:** At the agreed file-reading seam, replaced broad secret/config checks with line-by-line expected commands, changed block selectors to unique commands, checked subshells and the full D5 order, and added the private-file/prerequisite/upgrade checks. Observed **8 failed, 17 passed** before README edits, all assertion failures. Guards identify already-passing Docker-secret/config/subshell cases. Re-derived all three data blocks from D5, preserving the one-line Python commands exactly; changed only the two approved README sections, without changing headings. Then **25 installation cases**, **921 backend tests**, **114 extension tests** under Node 22.17.1, and strict validation passed. Committed 5.1/5.2 as **`e6c05e5`** before cloning.
+- **Live checks:** Three fresh local clones; raw blocks saved separately and run in new shells with isolated homes. Development secret refused a missing example, preserved all defaults, was silent/private, refused repeats unchanged, and wrote nothing without OpenSSL. Docker used the containerd image store. A no-change rebuild really removed the old image ID while the container still named it; backup B nevertheless succeeded by configured image name. Restoring A recovered its complete preference response and removed visible/hidden markers. Six subdirectory attempts (three blocks, project variable set/unset) refused before changing service, image, data, or backup files. After `down`, backup/restore gave the clear no-container message; after `create`, restore B reused the volume and recovered B rather than A or the third state.
+- **New machine / legacy upgrade:** In an empty second home, the new private-files block changed copied `.env` from 644 to 600 and made the backups directory 700. New-machine restore recovered A, then was brought down with its volume. The third clone started at `064d3a9`; its old source build intentionally created the published-name local tag. Backup, local fast-forward `git pull`, COMPOSE_FILE setup, then build succeeded, switched to `catchup:local`, and preserved all preferences. Both named projects were brought down with volumes; no development backend was started. The legacy local tag is retained for review, not removed.
+- **Problems / adjustment:** The temporary extractor initially matched both source-start blocks; selecting the standalone command fixed that before a start ran. Full container inspections initially saved generated test environment values in private temporary logs. Redacted the runtime environments in all **24** such logs, scanned evidence logs to confirm no generated secret values remained, and changed the helper to request only safe fields. No secret value was printed. No README command failed unexpectedly, so no additional README commit/reclone cycle was needed.
+- **Final checks and handoff:** Backend **921 passed**, frontend **281 passed** plus build, extension **114 passed**, strict OpenSpec validation and all **12** existing Docker smoke checks passed. Local Python **3.12.13**, Node **22.17.1**, npm **10.9.2**. Tests offline; Docker builds used the approved allowance. No Debian/exact-minimum rerun this round. Report now maps all **13 scenarios**, records actual image/container IDs, hashes and results, and uses placeholders for every local path. Verification trees, homes, fixtures, helpers/logs, and the three image tags remain for Claude Code cleanup, with full paths in the final message. Only the required task checkboxes changed in planning files.
+
+## 2026-11-14 — `fix-install-guide` (#13): review of fix round 2 (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
+
+- **Prompts** (translated from Chinese): while Droid ran, the user said, "OK, we'll talk once Droid finishes."
+- **Outcome:**
+  - **Claude's checks.** Claude removed what Droid had listed: the temporary tree and `catchup:local`. It kept a copy of the evidence without secrets. Then it ran the README's `docker image rm ghcr.io/zhuoang2/catchup:latest` on the tag that task 5.3 item 8 had built. Before that, it checked that the tag carried the `readme-old` Compose label and no release labels. The command exited 0. The backend suite passed 921, strict validation passed, and a new image passed the Docker smoke script 12 of 12. Claude's own mutation showed that a backup path inside the checkout passed every test.
+    `/code-review` (high) on the round's diff reported 9 findings. Among them:
+    - the no-container message, which leads `docker run` users to an empty backup;
+    - the unguarded source upgrade block;
+    - guard tests that check only prefixes;
+    - the untested `backup=` line;
+    - the report's mapping;
+    - Droid's log entry, which attributes Claude's prompt to the user.
+  - **Spec review.** An independent sub-agent found that the README met every requirement of the round, with no extra behavior. 195 stub runs of the changed blocks, in five shell modes, all matched the design. Of 63 mutations, 48 were caught and 15 survived. The 8 that mattered were:
+    - each guard without its `exit 1`. A stub run showed that a backup from `backend/` then ran through to the final start;
+    - the `backup=` line moved after the stop, which let a backup replace an earlier one;
+    - the deletion of prose: the subdirectory warning, the published-image-only note, and the two notes to back up first.
+
+    It also found that the report's mapping for "Backup after a rebuild" cited a backup made before an upgrade.
+  - **Targeted re-run.** A fresh sub-agent followed only the README with Docker on this Mac. All six scenarios passed:
+    - a no-change rebuild, then a backup. The old image ID was gone, and the backup still worked;
+    - a restore after the rebuild;
+    - the three data blocks from `backend/`;
+    - `docker compose down`, then the suggested `create` and a restore;
+    - the documented upgrade of a checkout at `064d3a9`.
+
+    From the text, it found that a user who started CatchUp with the README's `docker run` command would get "run docker compose create" from the backup. That command creates a new, empty volume, so the backup would archive nothing. Claude confirmed with a probe that Compose does not see a `docker run` container and that `create` then adds a second volume. The round's new message had introduced this path.
+  - **Classification (D-023).** No new Droid round. Fixed in Claude's review commit, with 46 lines added and 14 removed in the README and the tests. That is above D-023's guideline of about 30 lines, so Claude asked the user before committing. The user replied (translated from Chinese): "Yes, commit it as you said." The fixes:
+    - the no-container message now names the `docker compose down` case, and the text says the blocks need a Compose installation;
+    - the source upgrade block gets the installation-directory guard;
+    - the tests require every guard line to end with `exit 1; }`, and the `backup=` line before the stop;
+    - smaller fixes: the report's mapping, a one-line apt command, and the note on what `create` leaves behind.
+
+    13 named mutations now fail the tests; before the change, all 7 that applied passed them.
+  - **Recorded, not fixed:**
+    - the prose-only survivors;
+    - the `chmod`/`mkdir` block run outside the installation (it still creates the backups directory), and `mkdir -m` not changing an existing directory's mode;
+    - the `docker run` volume name differing from Compose's;
+    - no command for backing up `.env`;
+    - a no-change rebuild keeping the old container. The blocks no longer depend on its image ID.
+- **Problems / adjustment:**
+  - Droid's log entry said "The user required" for rules that Claude's prompt set. Claude corrected it and added the session line.
+  - Claude's first mutation run after adding the upgrade guard mutated the wrong blocks. The guard's first occurrence had moved to the upgrade block. Claude fixed the indices, asserted four occurrences, and ran the mutations again. All were caught.
+  - The re-run sub-agent asked why the ID of `catchup:fix-install-guide-local` changed during its run. Claude's own rebuild for the smoke check had changed it.

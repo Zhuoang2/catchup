@@ -270,7 +270,7 @@ The review of group 4 found the problems listed in design "Context" (review of f
   - the 5.1 tests pass, and `UV_PYTHON=3.12 uv run pytest` passes in `backend/`;
   - `npm test -- --run` passes in `extension/` under Node 22;
   - `DO_NOT_TRACK=1 openspec validate fix-install-guide --strict` passes.
-- [ ] 5.3 Run the changed blocks with Docker on this Mac (no `debian:12` this time). Use a new temporary clone of the committed branch named `<tmp>/readme-check`, so that Compose's default project name is also `readme-check`. Save each block exactly as written and run it as in 4.3, with `env HOME=<tmp home> DOCKER_CONFIG="$REAL_DOCKER_CONFIG" COMPOSE_PROJECT_NAME=readme-check bash <block file>`, from the directory the item names. Check modes with `stat -f %Lp`. Where an item sets `backup=`, copy the block to a second file and change only that line; record the change. If you fix the README during 5.3, commit the fix, rerun the 5.1 tests, clone again, and repeat the item.
+- [x] 5.3 Run the changed blocks with Docker on this Mac (no `debian:12` this time). Use a new temporary clone of the committed branch named `<tmp>/readme-check`, so that Compose's default project name is also `readme-check`. Save each block exactly as written and run it as in 4.3, with `env HOME=<tmp home> DOCKER_CONFIG="$REAL_DOCKER_CONFIG" COMPOSE_PROJECT_NAME=readme-check bash <block file>`, from the directory the item names. Check modes with `stat -f %Lp`. Where an item sets `backup=`, copy the block to a second file and change only that line; record the change. If you fix the README during 5.3, commit the fix, rerun the 5.1 tests, clone again, and repeat the item.
 
   **Deleting, for this task.** Besides `docker compose down -v`, you may run `docker compose down` (without `-v`) in item 6, for the `readme-check` project only. Do not run `docker image rm` or any other removal. When a step needs a clean directory, create a new one.
 
@@ -289,7 +289,7 @@ The review of group 4 found the problems listed in design "Context" (review of f
   Both projects publish port 8000, so finish items 1–7 before item 8. Clean up: `docker compose down -v` for every project you started, and stop any backend. In your final message, list the remaining temporary directories and images with full paths, including the `ghcr.io/zhuoang2/catchup:latest` tag from item 8. In the test report, use placeholders; see 5.4.
 
   Verify: every item passes. If a README command fails as written, fix the README as described above.
-- [ ] 5.4 Update `docs/process/test-report-fix-install-guide.md`:
+- [x] 5.4 Update `docs/process/test-report-fix-install-guide.md`:
   - add a "Fix round 2" section with the 5.1 counts, the 5.3 items and results, and the full checks below;
   - update the scenario mapping for the two new scenarios, "Backup after a rebuild" and "Commands outside the installation directory";
   - use placeholders, not local paths, as in 4.4.

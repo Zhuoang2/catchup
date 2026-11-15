@@ -182,8 +182,9 @@ Command-run assertions in 3.1 were additional temporary verification checks.
 
 ## Scenario mapping and guard checks
 
-This mapping reflects the revised spec at `d30ef34`. Groups 1–3 above are
-historical success-path results; failure-path evidence is from fix round 1.
+This mapping reflects the revised spec at `6bce12a`. Groups 1–3 above are
+historical success-path results. Fix rounds 1 and 2 below distinguish their
+own failure-path checks; round 2 did not repeat the round 1 truncation loop.
 
 | Requirement / scenario | Evidence |
 | --- | --- |
@@ -198,11 +199,19 @@ historical success-path results; failure-path evidence is from fix round 1.
 | Backup: private backup outside checkout | Private, unique, atomic backup-block test; 4.3.4 checks two separate files under `<tmp home>/catchup-backups`, file modes 600, and directory mode 700. |
 | Backup: failed backup keeps earlier backups | Atomic-backup test; 4.3.4 compares the first two SHA-256 values after wrong-directory failures with and without the project variable, with no new archive/partial file; 4.3.6 proves making a third backup preserves the first two. |
 | Backup: unreadable backup leaves installation unchanged | Restore-ordering test; 4.3.5 missing and half-length archives fail before the service stops, retaining preferences and markers. All 2,391 truncated lengths fail the exact archive-check code; the full archive passes. |
+| Backup: backup after a rebuild | The three data-block tests require `{{.Config.Image}}` and reject `{{.Image}}`; backup ordering requires derivation before stop. In 5.3.3 the old image ID actually disappeared after a no-change rebuild, yet backup B succeeded and the service ran afterwards. 5.3.4 restored backup A; 5.3.8 backed up and upgraded the legacy checkout. |
+| Backup: commands outside the installation directory | Ordered I1 guard checks in all three data-block tests. In 5.3.5 all three raw blocks refused `backend/`, each with and without the project variable: six exit-1 results, unchanged container/image/running state, preferences and backup files, and no published-image tag. |
 
 Guard comments identify the already-correct private creation masks, the
 CI Node-major check (Node 24), and both paste-safety cases. The other
 original passing checks remain in the suite. Existing backend README-context
 and extension docs tests remain compatibility checks.
+Round 2 also marks the exact Docker-secret and COMPOSE_FILE blocks and
+both subshell cases as guards. Its development-secret failure paths are
+verified in 5.3.1; private new-machine setup in 5.3.7; recovery after
+`down` in 5.3.6. Source-image isolation held through 5.3.2–7. Item 5.3.8
+intentionally built the old checkout under the legacy published tag, then
+switched to the local name; that tag is retained for review cleanup.
 
 ## Historical group 3 review handoff
 
@@ -364,3 +373,192 @@ For Claude Code to remove (full paths are in the final handoff message):
 Ignored checkout dependencies/build outputs remain available for review.
 Tool and BuildKit caches were retained. All local filesystem locations in
 this report use placeholders; the required path scan prints nothing.
+
+## Fix round 2
+
+Date: 2026-11-14 (local; archive names use UTC). Started at plan commit
+`6bce12a`. Re-read the revised review context, D4–D6, D8, I1–I5, risks,
+tasks, and spec. No proposal, design, or spec delta was edited.
+
+### Test first and implementation, 5.1/5.2
+
+`UV_PYTHON=3.12 UV_OFFLINE=1 uv run pytest tests/test_install_docs.py -q`:
+- before README edits: **8 failed, 17 passed, 0.28 s**, all assertion
+  failures about old or missing content, not lookup exceptions;
+- after README edits: **25 passed, 1.82 s**.
+
+Tests now compare the secret and COMPOSE_FILE blocks line by line with
+each line stripped, not whitespace-collapsed. Data-block selectors use
+their unique write/empty/emptiness commands, not the `create` text that
+also appears in the new error message. Checks cover subshells, ordered
+directory/container/volume checks, rebuild-safe image names, private copied
+files, apt prerequisites, and first-upgrade order.
+
+Already-passing guards: exact Docker secret, exact COMPOSE_FILE block,
+and both subshell cases. Existing masks, CI Node major, and paste-safety
+guards remain. Other tests and the Docker smoke script already existed;
+the temporary 5.3 assertions are additional live checks.
+
+The three data blocks were written anew from D5's ordered invariants.
+An independent old/new comparison verified that every one-line archive
+write, check, emptying, and extraction command is byte-identical.
+All headings and all README text outside the two approved sections are
+unchanged.
+
+Pre-5.3 verification:
+
+| Check | Actual result |
+| --- | --- |
+| Backend suite, Python 3.12.13 | **921 passed, 24.89 s** |
+| Extension suite, Node v22.17.1 / npm 10.9.2 | **114 passed, 8 files, 1.50 s** |
+| Strict OpenSpec validation | Exit **0**, valid |
+| README scope, headings, preserved Python commands; `git diff --check` | Passed |
+
+Committed 5.1/5.2 as **`e6c05e55e06d87d4cc1be18037905588501d3073`**
+before the first 5.3 clone.
+
+Ranked causes and predictions:
+1. A rebuild can remove an image ID retained by a running container;
+   using its configured image name should keep the archive commands usable.
+2. Compose can discover a parent configuration without applying its source
+   override; checking for both files in the current directory should refuse
+   every subdirectory attempt before Compose runs.
+3. After `down`, `ps -aq` succeeds with no output; explicit non-empty checks
+   should give a recovery instruction before any stop or archive write.
+
+The review probes and the live results below confirmed those causes.
+No application-code defect or dependency change was involved.
+
+### Committed command checks, 5.3
+
+All three local clones started from `e6c05e5`. Blocks extracted from that
+committed README were saved individually at `<tmp>/blocks` and run in
+separate bash processes, with isolated HOME, the saved real Docker config,
+and the specified project name. Only the documented `backup=` line
+substitutions differed. `stat -f %Lp` supplied the mode checks.
+No Debian container, external test networking, or port-8800 request.
+
+Before item 1:
+- `ghcr.io/zhuoang2/catchup:latest`: **absent**;
+- `docker info --format '{{json .DriverStatus}}'`:
+  **`[["driver-type","io.containerd.snapshotter.v1"]]`**;
+- no existing containers or volumes for either test project; port 8000 free.
+
+| Item | Actual result |
+| --- | --- |
+| 5.3.1, missing example | Development block in a new directory without `.env.example`: exit **1**, `Run this from the repository root.`, no `.env`. |
+| 5.3.1, creation/repeat | With copied example: exit **0**, empty stdout/stderr, mode **600**, one **64-hex** secret line, every other line preserved in order. Repeat: exit **1**, unchanged contents and SHA-256. No value/hash displayed. |
+| 5.3.1, no OpenSSL | Absolute bash with PATH containing only a `grep` link: exit **127**, no `.env`. |
+| 5.3.2, source build | Raw Docker secret and COMPOSE_FILE blocks passed, followed by raw `up -d --build --wait`. Immediate raw health command returned **`{"status":"ok"}`**. Image name **`catchup:local`**, published tag absent. |
+| 5.3.2, backup A | Set language **`zh-Hans`**, images **true** via API GET/PUT with Origin `http://localhost:8000`. Backup A succeeded, printed its path, mode **600**, directory **700**; service running. |
+| 5.3.3, rebuild/backup B | No-change `up -d --build --wait` passed. Container ID and its stored image ID were unchanged (below), but inspecting that old image ID exited **1**, `No such image`. Set language **`en`**, images **false**; backup B succeeded with its own printed path/mode **600**, without altering A. Service running. The round-1 failure condition really occurred. |
+| 5.3.4, restore after rebuild | Changed preferences again, added visible and hidden post-backup markers, then restored A. Complete preference response matched A; both markers absent; both A/B SHA-256 values unchanged. |
+| 5.3.5, subdirectories | From `<tmp>/readme-check/backend`, ran backup, restore A, and new-machine A, each with project variable set and unset. All **6** exited **1** with the I1 directory message. Container ID, configured image, stored image ID, volume and running state unchanged; preferences/files unchanged; published tag still absent. |
+| 5.3.6, down/recreate | Set third preferences (`zh-Hans`, images **false**), distinct from A and B; added visible/hidden markers. `docker compose down` retained the volume. Backup and restore B each exited **1** with the no-container recovery message, creating no file. `docker compose create` reused the same volume; restore B then passed, recovered B rather than A/third, and removed both markers. A/B hashes unchanged. |
+| 5.3.7, new machine | `down -v`, second clone `<tmp>/readme-check-new`, and initially empty `<tmp home 2>`. Copied same `.env`, deliberately set **644**; raw private-files block made it **600** and created backups directory **700**. Copied A there; new-machine restore passed into a new volume/container, using `catchup:local`, with A's complete preferences. Same `.env` contents and backup hash. Then `down -v`. |
+| 5.3.8, legacy upgrade | Third clone `<tmp>/readme-old`, project **`readme-old`**, branch `old` at **`064d3a9`**, upstream `origin/fix-install-guide`. Old build deliberately created the local **`ghcr.io/zhuoang2/catchup:latest`** tag. Set preference, then followed **backup → `git pull` → COMPOSE_FILE → build**. Backup succeeded in old checkout; pull fast-forwarded to `e6c05e5`; new container used **`catchup:local`**, and complete preferences/backup hash were unchanged. Then `down -v`. No image-removal command was run. |
+| Cleanup | `readme-check` and `readme-old` are down; no test project containers or named volumes remain. No development backend was started. Files/directories and image tags retained for review. |
+
+Rebuild observations (5.3.3), both before and after:
+- container ID:
+  `bb6f4af4de6e8dda0e187ee2ff29c4b178aee1120e3923cbbb185c865e58f7bd`;
+- container `{{.Image}}`:
+  `sha256:3ec1b87223cc8f5cf61d12a2faaf69351067c3e38e2bcb5de8cf8c0f9c0799ff`;
+- configured image: **`catchup:local`**;
+- inspecting that old image after the rebuild: **exit 1**. The new backup
+  uses the configured name instead, so it still succeeds.
+
+The no-container message in item 6 was exactly
+`No CatchUp container here; run docker compose create, then run this block again.`
+The six item-5 failures used
+`Run this from your installation directory (the one with compose.yaml and .env).`
+
+Backups under `<tmp home>/catchup-backups`:
+
+| Backup | File | SHA-256 |
+| --- | --- | --- |
+| A | `catchup-20261115T060218Z.tar.gz` | `f7b9f4f62b9ecbd13d4011a25d9a9d9b149898e99cdabef6ef45edc411ba860a` |
+| B | `catchup-20261115T060227Z.tar.gz` | `9e30649d69b06ab014e9075897f99f88bd22c89956ae54133f69290602fc4fdd` |
+| Legacy pre-upgrade | `catchup-20261115T060424Z.tar.gz` | `561db623255afec065a6b80168255054a9a740a13dd3f515028c48dec4b1fd35` |
+
+All were mode **600**. The copy of A in `<tmp home 2>/catchup-backups`
+has the same basename and SHA-256. There is no partial archive.
+For the copied restore blocks, only `backup=` was changed:
+
+| Copied block file | Replacement line |
+| --- | --- |
+| `restore-A.sh`, `new-machine-A.sh` | `backup="<tmp home>/catchup-backups/catchup-20261115T060218Z.tar.gz"` |
+| `restore-B.sh` | `backup="<tmp home>/catchup-backups/catchup-20261115T060227Z.tar.gz"` |
+| `new-machine-A-new-home.sh` | `backup="<tmp home 2>/catchup-backups/catchup-20261115T060218Z.tar.gz"` |
+
+No README fix was needed during 5.3, so no additional commit/reclone loop.
+
+Harness notes: the first extractor ambiguously matched both source starts;
+it was corrected to select the standalone command before any start ran.
+Temporary full-container inspection logs initially included generated test
+environment values. All **24** such logs had runtime environments redacted,
+all evidence logs were scanned for the generated values, and the helper
+now requests only safe inspection fields. No secret value was printed.
+
+### Full checks, 5.4
+
+Backend commands used **Python 3.12.13** with
+`UV_PYTHON=3.12 UV_OFFLINE=1`. Every local npm command first selected
+Node 22 with `source ~/.nvm/nvm.sh && nvm use 22`; recorded Node
+**v22.17.1**, npm **10.9.2**. npm used offline mode with audit/funding
+requests disabled. Tests used no external network. Docker builds used
+the approved normal network allowance, including the old-checkout build;
+there was no offline build attempt. `git pull` fetched only its local
+temporary-clone upstream.
+
+| Command | Actual result |
+| --- | --- |
+| `UV_PYTHON=3.12 UV_OFFLINE=1 uv run pytest` (backend) | Exit **0**, **921 passed**, **25.99 s** |
+| `npm test -- --run` (frontend) | Exit **0**, **281 passed**, **14 files**, **7.15 s** |
+| `npm run build` (frontend) | Exit **0**, TypeScript and Vite passed; **40 modules**, build **263 ms** |
+| `npm test -- --run` (extension) | Exit **0**, **114 passed**, **8 files**, **4.49 s** |
+| `DO_NOT_TRACK=1 openspec validate fix-install-guide --strict` | Exit **0**, valid |
+| `docker build -t catchup:fix-install-guide-local .` | Exit **0** |
+| `scripts/docker-smoke.sh catchup:fix-install-guide-local` | Exit **0**, all **12** existing smoke checks passed |
+
+No clean-Debian or exact-minimum run was performed this round, as 5.3
+instructs. These macOS Docker checks cover the new rebuild/directory/down
+cases; the independent targeted review run remains for Claude Code.
+
+The only direct removal commands were `docker compose down` (item 6)
+and `docker compose down -v` for `readme-check` and `readme-old`.
+The unmodified smoke script performed its own cleanup. No host file,
+directory, or Docker image was deleted manually. No protected resource,
+port 8800, Docker prune, push, release tag, or publication was used.
+
+### Retained fix-round-2 artifacts
+
+This is the current cleanup handoff, superseding earlier rounds' lists.
+All contents of `<tmp>` remain for Claude Code:
+- `<tmp>/readme-check`, the first clone, including its private `.env`;
+- `<tmp>/readme-check-new`, the second clone and copied private `.env`;
+- `<tmp>/readme-old`, the legacy/upgraded clone and its private `.env`;
+- `<tmp home>` and `<tmp home 2>`, including the three original backups
+  and the copied A;
+- `<tmp>/development-missing-example`, `<tmp>/development-secret`,
+  `<tmp>/development-no-openssl`, and `<tmp>/bin-without-openssl`;
+- `<tmp>/blocks`, `<tmp>/logs`, `<tmp>/verify.py`,
+  `<tmp>/evidence.json`, and the root-level red/green/full-check logs.
+
+The prior listed ignored checkout dependencies/build outputs were reused
+and remain. Tool/BuildKit caches remain. No test project container,
+network, volume, or development backend remains.
+
+Retained image tags, all local:
+
+| Tag | ID |
+| --- | --- |
+| `catchup:local` | `sha256:8ff9dbeef8ea708edbd94ce548e4df3dff7144b6730d9302a6de7e0c5c7118ac` |
+| `catchup:fix-install-guide-local` | `sha256:d15e79272b8e7a153e8f2835ede0ecefe168d732bad3e6bcb0d93b1051f66058` |
+| `ghcr.io/zhuoang2/catchup:latest` | `sha256:c38633faabd5dd5d4cabe355e2249880fe81fe6f00a7a4f42622542b89e53c4f` |
+
+The last tag is the **legacy local source build from item 8, not a fetched
+release**. It remained at its recorded ID after the upgrade and final
+build. Claude Code removes it at review; Droid did not run the README's
+image-removal command. Actual cleanup paths are in the final message.
+All local paths in this report are placeholders.

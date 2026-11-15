@@ -34,6 +34,7 @@
 .field-hint { color: var(--muted); font-size: .85em; }
 .field-error { color: var(--error); font-size: .9em; }
 .inline-msg { display: inline-flex; gap: .35rem; align-items: center; font-size: .9em; }
+.app [role="status"]:empty { position: absolute; }
 .msg-ok { color: var(--ok); }
 .msg-error { color: var(--error); }
 .chip, .badge, .reason { display: inline-flex; align-items: center; gap: .3rem; font-size: .86em; font-weight: 600; padding: .15rem .55rem; white-space: nowrap; line-height: 1.5; }

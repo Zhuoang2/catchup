@@ -3,6 +3,13 @@ import { readFileSync } from 'node:fs'
 
 const css = readFileSync('src/styles/tokens.css', 'utf8')
 
+it('takes empty app status regions out of layout without hiding them', () => {
+  const components = readFileSync('src/styles/components.css', 'utf8')
+  const rule = components.match(/\.app \[role="status"\]:empty\s*\{([^}]+)\}/)?.[1] ?? ''
+  expect(rule).toMatch(/position:\s*absolute/)
+  expect(rule).not.toMatch(/display:\s*none|visibility:\s*hidden/)
+})
+
 function tokens(text: string): Record<string, string> {
   return Object.fromEntries([...text.matchAll(/(--[\w-]+):\s*(#[\da-f]{6})\s*;/gi)]
     .map(([, key, value]) => [key, value.toLowerCase()]))

@@ -42,7 +42,7 @@ Implementer notes:
 
 ## 1. Settings: Save results at Save, focus, and status regions
 
-- [ ] 1.1 In `frontend/src/pages/Settings.test.tsx`, add or change these failing tests (design D1, D3, D4):
+- [x] 1.1 In `frontend/src/pages/Settings.test.tsx`, add or change these failing tests (design D1, D3, D4):
   1. **Save before choosing a model.** Save with no model listed, and `PUT /api/settings/model` answering `invalid_model_config`. Check:
      - the Model select has `aria-invalid="true"`, and its `aria-describedby` names an alert that reads "Test the connection, then choose a model.";
      - the message appears once on the page, and the API key field is not marked invalid;
@@ -76,7 +76,7 @@ Implementer notes:
   Run `npm test -- --run src/pages/Settings.test.tsx` in `frontend/` under Node 22.
 
   Verify: each new or changed test fails on an assertion before 1.2. Record the counts.
-- [ ] 1.2 Change `frontend/src/pages/Settings.tsx` as D1, D3, and D4 describe:
+- [x] 1.2 Change `frontend/src/pages/Settings.tsx` as D1, D3, and D4 describe:
   - the save bar's persistent status region and its alert;
   - the field mapping for `invalid_model_config` and `invalid_language`, with linked error paragraphs for the Model select and the Other language field;
   - updating `last4`, `savedBaseUrl`, and the key field right after the model request succeeds;

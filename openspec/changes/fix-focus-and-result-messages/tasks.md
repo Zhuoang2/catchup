@@ -189,17 +189,17 @@ Implementer notes:
 
 ## 5. Full checks and report
 
-- [ ] 5.1 Run the full checks, with `npm` under Node 22:
+- [x] 5.1 Run the full checks, with `npm` under Node 22:
   - `uv run pytest` in `backend/`;
   - `npm test -- --run` and `npm run build` in `frontend/`;
   - `npm test -- --run` and `npm run build` in `extension/`;
   - `DO_NOT_TRACK=1 openspec validate fix-focus-and-result-messages --strict`.
 
   Verify: every command passes.
-- [ ] 5.2 Run `docker build -t catchup:fix-focus-local .`, then `scripts/docker-smoke.sh catchup:fix-focus-local`.
+- [x] 5.2 Run `docker build -t catchup:fix-focus-local .`, then `scripts/docker-smoke.sh catchup:fix-focus-local`.
 
   Verify: the build passes, and the smoke script passes every check.
-- [ ] 5.3 Write `docs/process/test-report-fix-focus-and-result-messages.md`. It contains:
+- [x] 5.3 Write `docs/process/test-report-fix-focus-and-result-messages.md`. It contains:
   - the Node.js and Python versions;
   - each group's failing counts before its change, and the passing counts after;
   - the commands of 5.1 and 5.2 with their real results;

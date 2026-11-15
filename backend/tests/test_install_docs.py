@@ -114,7 +114,9 @@ def test_readme_creates_private_env_and_backup_files():
     assert "umask 077" in development
     assert "umask 077" in secret
     assert "umask 077" in backup
-    assert "docker compose create" in command_block("Run with Docker", "docker compose create")
+    assert "docker compose create" in command_block(
+        "Run with Docker", 'any(Path("/data").iterdir())'
+    )
 
 
 def test_readme_user_agent_example_matches_release():
@@ -145,14 +147,18 @@ def assert_in_order(block, phrases):
 @pytest.mark.parametrize("heading", ["Development setup", "Run with Docker"])
 def test_secret_blocks_refuse_replacement_and_require_openssl(heading):
     block = command_block(heading, "printf 'CATCHUP_SECRET_KEY=")
-    assert "set -C" in block
-    assert "openssl rand -hex 32" in block
-    assert "python3" not in block
-    assert block.strip().startswith("(") and block.strip().endswith(")")
-    redirect = re.search(r">\s*\.env(?=\s|\)|$)", block)
-    assert redirect, "Secret block must write .env"
-    for setting in ("umask 077", "set -C"):
-        assert 0 <= block.find(setting) < redirect.start(), setting
+    expected = r"""(
+      [ -f .env.example ] || { echo 'Run this from the repository root.' >&2; exit 1; }
+      umask 077; set -C
+      key="$(openssl rand -hex 32)" &&
+        { grep -v '^CATCHUP_SECRET_KEY=' .env.example; printf 'CATCHUP_SECRET_KEY=%s\n' "$key"; } > .env
+    )"""
+    if heading == "Run with Docker":
+        # Guard: the Docker secret block already matches the safe D6 command.
+        expected = r"""(umask 077; set -C; key="$(openssl rand -hex 32)" && printf 'CATCHUP_SECRET_KEY=%s\n' "$key" > .env)"""
+    assert [line.strip() for line in block.strip().splitlines()] == [
+        line.strip() for line in expected.strip().splitlines()
+    ]
 
 
 @pytest.mark.parametrize("heading", ["Development setup", "Run with Docker"])
@@ -162,18 +168,28 @@ def test_readme_names_secret_and_test_prerequisites_outside_commands(heading):
     )
     assert "openssl" in text
     if heading == "Development setup":
+        assert "sudo apt update && sudo apt install git curl ca-certificates openssl python3" in text
         assert "git clone https://github.com/Zhuoang2/catchup" in command_block(
             heading, "git clone"
         )
-        assert "frontend tests run" in text.lower()
+        assert "frontend tests" in text.lower()
         assert "`python3`" in text
+    else:
+        assert "sudo apt update && sudo apt install curl ca-certificates openssl" in text
 
 
 def test_source_build_configuration_is_separate_guarded_and_idempotent():
     block = command_block("Run with Docker", "COMPOSE_FILE=compose.yaml:compose.build.yaml")
-    assert "[ -s .env ] ||" in block
-    assert "grep -qx 'COMPOSE_FILE=compose.yaml:compose.build.yaml' .env ||" in block
-    assert "printf '\\nCOMPOSE_FILE=compose.yaml:compose.build.yaml\\n'" in block
+    # Guard: the D4 block already preserves .env and appends on its own line.
+    expected = r"""(
+      set -e
+      [ -s .env ] || { echo 'Create .env with the instance secret first.' >&2; exit 1; }
+      grep -qx 'COMPOSE_FILE=compose.yaml:compose.build.yaml' .env ||
+        printf '\nCOMPOSE_FILE=compose.yaml:compose.build.yaml\n' >> .env
+    )"""
+    assert [line.strip() for line in block.strip().splitlines()] == [
+        line.strip() for line in expected.strip().splitlines()
+    ]
     assert "docker compose" not in block
     assert "docker compose up -d --build --wait" in command_block(
         "Run with Docker", "docker compose up -d --build --wait"
@@ -183,6 +199,28 @@ def test_source_build_configuration_is_separate_guarded_and_idempotent():
     note = docker.find("Existing source-build users")
     assert 0 <= note < docker.find(upgrade)
     assert "docker image rm ghcr.io/zhuoang2/catchup:latest" in docker[note:docker.find(upgrade)]
+
+
+def test_existing_source_build_upgrade_backs_up_before_fetching_override():
+    docker = readme_section("Run with Docker")
+    upgrade = command_block("Run with Docker", "git pull")
+    start = docker.find("Existing source-build users")
+    end = docker.find(upgrade)
+    assert 0 <= start < end, "Existing-user note must precede source upgrade"
+    note = collapse_whitespace(docker[start:end])
+    assert_in_order(note.lower(), (
+        "make a backup", "git pull", "compose_file",
+        "docker compose up -d --build --wait",
+    ))
+    assert "docker image rm ghcr.io/zhuoang2/catchup:latest" in note
+
+
+@pytest.mark.parametrize("heading", ["Development setup", "Run with Docker"])
+def test_commands_that_can_stop_are_wrapped_in_subshells(heading):
+    # Guard: existing exit/set-e blocks already protect the user's shell.
+    for block in command_blocks(heading):
+        if "exit" in block or "set -e" in block:
+            assert block.strip().startswith("(") and block.strip().endswith(")")
 
 
 def test_every_docker_compose_start_waits_for_health():
@@ -199,34 +237,57 @@ def test_every_docker_compose_start_waits_for_health():
 
 def test_backup_block_uses_unique_private_atomic_files():
     block = command_block("Run with Docker", 'mode="w|gz"')
-    for phrase in (
-        "set -e", "docker compose config -q", "umask 077",
-        '"$HOME/catchup-backups"', "date -u", '[ ! -e "$backup" ]',
-        ".partial", "mv",
-    ):
-        assert phrase in block, phrase
+    assert "{{.Config.Image}}" in block
+    assert "{{.Image}}" not in block
+    assert "date -u" in block
+    assert_in_order(block, (
+        "set -e", '[ -f compose.yaml ] && [ -f .env ] ||',
+        "docker compose config -q", "umask 077",
+        'mkdir -p "$HOME/catchup-backups"', '[ ! -e "$backup" ]',
+        "docker compose ps -aq catchup", '[ -n "$container" ] ||',
+        '[ -n "$volume" ] ||', "{{.Config.Image}}",
+        "docker compose stop catchup", '"$backup.partial"',
+        'mv "$backup.partial" "$backup"', "docker compose up -d --wait",
+        r"""printf '%s\n' "$backup" """.strip(),
+    ))
     assert "catchup-data.tar.gz" not in block
 
 
 def test_restore_checks_whole_archive_before_stopping_or_emptying():
-    block = command_block("Run with Docker", "iterdir")
-    assert "set -e" in block
+    block = command_block("Run with Docker", "shutil.rmtree")
+    assert "{{.Config.Image}}" in block
+    assert "{{.Image}}" not in block
     assert "tarfile.data_filter" in block
     assert_in_order(block, (
-        "docker compose config -q", '[ -s "$backup" ]', "gzip.GzipFile",
-        "docker compose stop catchup", "iterdir", "extractall",
-        "docker compose up -d --wait",
+        "set -e", '[ -f compose.yaml ] && [ -f .env ] ||',
+        "docker compose config -q", '[ -s "$backup" ]',
+        "docker compose ps -aq catchup", '[ -n "$container" ] ||',
+        '[ -n "$volume" ] ||', "{{.Config.Image}}", "gzip.GzipFile",
+        "docker compose stop catchup", "shutil.rmtree",
+        "extractall", "docker compose up -d --wait",
     ))
 
 
 def test_new_machine_restore_checks_archive_and_refuses_existing_data():
-    block = command_block("Run with Docker", "docker compose create")
-    assert "set -e" in block
+    block = command_block("Run with Docker", 'any(Path("/data").iterdir())')
+    assert "{{.Config.Image}}" in block
+    assert "{{.Image}}" not in block
     assert_in_order(block, (
+        "set -e", '[ -f compose.yaml ] && [ -f .env ] ||',
         "docker compose config -q", '[ -s "$backup" ]', "docker compose create",
+        "docker compose ps -aq catchup", '[ -n "$container" ] ||',
+        '[ -n "$volume" ] ||', "{{.Config.Image}}",
         "gzip.GzipFile", 'any(Path("/data").iterdir())', "extractall",
         "docker compose up -d --wait",
     ))
+
+
+def test_new_machine_restore_makes_copied_files_private_first():
+    private = command_block("Run with Docker", "chmod 600 .env")
+    restore = command_block("Run with Docker", 'any(Path("/data").iterdir())')
+    assert 'mkdir -p -m 700 "$HOME/catchup-backups"' in private
+    docker = readme_section("Run with Docker")
+    assert docker.find(private) < docker.find(restore)
 
 
 @pytest.mark.parametrize("heading", ["Development setup", "Run with Docker"])

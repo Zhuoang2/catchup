@@ -14,15 +14,16 @@ The project is under active development. Requirements live in
 
 Install git, [uv](https://docs.astral.sh/uv/), and Node.js 22.12 or newer
 from [nodejs.org](https://nodejs.org) or a version manager. Distribution
-packages can be older than these minimums. CI and the Docker image use
+packages can be older than this Node.js version. CI and the Docker image use
 Node.js 24. Python 3.12 or newer is supported; uv installs and uses Python
 3.12 for the backend, as `backend/.python-version` specifies, so you do not
 need to install it yourself.
 
-The frontend tests run `python3` from `PATH` (any Python 3); install it if
-it is missing. Secret generation needs `openssl`, included with macOS and
-most Linux installs. On Debian or Ubuntu, install it with `apt install
-openssl`.
+Only the frontend tests need a separate Python: they run `python3` from
+`PATH` (any Python 3). Secret generation needs `openssl`, included with
+macOS and most Linux installs. On Debian or Ubuntu, install these tools
+with `sudo apt update && sudo apt install git curl ca-certificates openssl
+python3`.
 
 Clone the repository:
 
@@ -43,7 +44,10 @@ worktree of that clone, including worktrees on branches created before the
 hook was added. Then create the environment file:
 
 ```sh
-(umask 077; set -C; key="$(openssl rand -hex 32)" &&
+(
+  [ -f .env.example ] || { echo 'Run this from the repository root.' >&2; exit 1; }
+  umask 077; set -C
+  key="$(openssl rand -hex 32)" &&
   { grep -v '^CATCHUP_SECRET_KEY=' .env.example; printf 'CATCHUP_SECRET_KEY=%s\n' "$key"; } > .env
 )
 ```
@@ -253,8 +257,11 @@ explicitly say whether such a provider counts as a third party.
 
 Install Docker with Compose **2.24 or newer**. No local Python, uv, or Node
 installation is needed. Secret generation needs `openssl`, included with
-macOS and most Linux installs; on Debian or Ubuntu, use `apt install
-openssl`. Choose a published image or a source build.
+macOS and most Linux installs. On Debian or Ubuntu, use
+`sudo apt update && sudo apt install curl ca-certificates openssl`.
+Choose a published image or a source build. Run every Compose command
+from the installation directory (the one with `compose.yaml` and `.env`),
+not from a subdirectory such as `backend/`.
 
 ### Published image
 
@@ -299,7 +306,9 @@ Compose pins `CATCHUP_DATA_DIR=/data` and
 `CATCHUP_FRONTEND_DIST=/app/frontend`, even if `.env` contains values
 intended for development.
 
-For the published image:
+For the published image only, start CatchUp with the command below.
+For a source build, skip this start command and continue with the
+`COMPOSE_FILE` step below instead:
 
 ```sh
 docker compose up -d --wait
@@ -360,21 +369,31 @@ its port (in nginx, `$http_host`, not `$host`). Provide your own access
 control and TLS. Collected content is sent to the configured model provider,
 even when CatchUp itself runs locally.
 
-To upgrade the published image without deleting the volume:
+Before upgrading the published image, make a backup with [Back up](#back-up).
+Then upgrade without deleting the volume:
 
 ```sh
 docker compose pull && docker compose up -d --wait
 ```
 
-**Existing source-build users:** first add
-`COMPOSE_FILE=compose.yaml:compose.build.yaml` to `.env` with the block above.
-Without that line, `up -d --build` silently keeps running your previous
-build under the published tag instead of rebuilding. After your first
+**Existing source-build users:** if your checkout predates
+`compose.build.yaml`, do your first upgrade in this order:
+
+1. Make a backup with [Back up](#back-up); the block works in the old setup.
+2. Run `git pull`, so that `compose.build.yaml` exists.
+3. Add `COMPOSE_FILE=compose.yaml:compose.build.yaml` to `.env` with the
+   block above.
+4. Run `docker compose up -d --build --wait`.
+
+Before `git pull`, adding that line makes every Compose command fail.
+Without the line, `up -d --build` silently keeps running your previous
+build under the published tag instead of rebuilding. After the first
 build as `catchup:local`, you can remove the old local tag with
 `docker image rm ghcr.io/zhuoang2/catchup:latest`, so switching back to the
 published image later pulls the real one.
 
-For a source-built service, after adding that line:
+For later source-built upgrades, make a backup with [Back up](#back-up),
+then:
 
 ```sh
 git pull
@@ -383,14 +402,22 @@ docker compose up -d --build --wait
 
 The named `catchup-data` volume survives container replacement; migrations
 run automatically before the server accepts requests. Each block below
-works in a new shell. Run it from your installation directory. It finds
-Compose's actual volume name (including the project name) and uses the
-installation's image, so source builds work too.
+works in a new shell. Run it from your installation directory, not a
+subdirectory. It finds Compose's actual volume name (including the project
+name) and uses the installation's image name, so source builds work too.
+These blocks work only with the named volume. For a bind mount, stop
+CatchUp and back up by copying its directory instead.
 
 Each block stops at its first error. If a backup fails, fix the cause and
-start CatchUp again with `docker compose up -d --wait`. If a restore fails
+start CatchUp again with `docker compose up -d --wait`. A leftover
+`.partial` file is not a backup and can be deleted. If a restore fails
 after emptying the volume, run the restore again with a good backup
 instead of starting CatchUp on the emptied volume.
+
+When an archive check rejects a backup, it prints a Python error (a
+traceback). In "Restore into this installation", nothing has been stopped
+or changed at that point. In the new-machine block, only the empty
+container and volume from `create` exist.
 
 ### Back up
 
@@ -401,15 +428,18 @@ one. A failed archive write leaves a `.partial` file, not a usable backup:
 ```sh
 (
   set -e
+  [ -f compose.yaml ] && [ -f .env ] || { echo 'Run this from your installation directory (the one with compose.yaml and .env).' >&2; exit 1; }
   docker compose config -q
   umask 077
   mkdir -p "$HOME/catchup-backups"
   backup="$HOME/catchup-backups/catchup-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
   [ ! -e "$backup" ] || { echo 'Backup already exists; try again later.' >&2; exit 1; }
-  docker compose stop catchup
   container="$(docker compose ps -aq catchup)"
+  [ -n "$container" ] || { echo 'No CatchUp container here; run docker compose create, then run this block again.' >&2; exit 1; }
   volume="$(docker inspect "$container" --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')"
-  image="$(docker inspect "$container" --format '{{.Image}}')"
+  [ -n "$volume" ] || { echo 'No named volume at /data; these commands work only with the named volume.' >&2; exit 1; }
+  image="$(docker inspect "$container" --format '{{.Config.Image}}')"
+  docker compose stop catchup
   docker run --rm --network none -v "$volume:/data:ro" --entrypoint python "$image" \
     -c 'import sys, tarfile; t = tarfile.open(fileobj=sys.stdout.buffer, mode="w|gz"); t.add("/data", arcname="."); t.close()' \
     > "$backup.partial"
@@ -435,12 +465,15 @@ volume, including hidden files:
 ```sh
 (
   set -e
+  [ -f compose.yaml ] && [ -f .env ] || { echo 'Run this from your installation directory (the one with compose.yaml and .env).' >&2; exit 1; }
   docker compose config -q
   backup="$HOME/catchup-backups/catchup-YYYYMMDDTHHMMSSZ.tar.gz"
   [ -s "$backup" ] || { echo 'Choose an existing non-empty backup file.' >&2; exit 1; }
   container="$(docker compose ps -aq catchup)"
+  [ -n "$container" ] || { echo 'No CatchUp container here; run docker compose create, then run this block again.' >&2; exit 1; }
   volume="$(docker inspect "$container" --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')"
-  image="$(docker inspect "$container" --format '{{.Image}}')"
+  [ -n "$volume" ] || { echo 'No named volume at /data; these commands work only with the named volume.' >&2; exit 1; }
+  image="$(docker inspect "$container" --format '{{.Config.Image}}')"
   docker run --rm --network none -i --entrypoint python "$image" \
     -c 'import gzip, shutil, sys, tarfile; f = gzip.GzipFile(fileobj=sys.stdin.buffer); t = tarfile.open(fileobj=f, mode="r|"); [tarfile.data_filter(m, "/data") for m in t]; shutil.copyfileobj(f, open("/dev/null", "wb"))' \
     < "$backup"
@@ -457,11 +490,18 @@ volume, including hidden files:
 ### Restore on a new machine
 
 Set up the same install path described above, without starting CatchUp.
-Skip secret generation: securely copy the same `.env` instead, with mode
-600, including the original secret and the source-build `COMPOSE_FILE`
+Skip secret generation: securely copy the same `.env` instead,
+including the original secret and the source-build `COMPOSE_FILE`
 line if used. For the published image, get `compose.yaml`. For a source
 build, clone the repository: `create` builds a missing image, so it needs
 the Dockerfile and sources, not just the Compose files.
+
+In the installation directory, make the copied files private:
+
+```sh
+chmod 600 .env
+mkdir -p -m 700 "$HOME/catchup-backups"
+```
 
 Copy the backup into `"$HOME/catchup-backups"`, then replace the example
 `backup=` filename below with it. This refuses a volume that already
@@ -470,13 +510,16 @@ holds data; use "Restore into this installation" for that case:
 ```sh
 (
   set -e
+  [ -f compose.yaml ] && [ -f .env ] || { echo 'Run this from your installation directory (the one with compose.yaml and .env).' >&2; exit 1; }
   docker compose config -q
   backup="$HOME/catchup-backups/catchup-YYYYMMDDTHHMMSSZ.tar.gz"
   [ -s "$backup" ] || { echo 'Choose an existing non-empty backup file.' >&2; exit 1; }
   docker compose create
   container="$(docker compose ps -aq catchup)"
+  [ -n "$container" ] || { echo 'No CatchUp container here; run docker compose create, then run this block again.' >&2; exit 1; }
   volume="$(docker inspect "$container" --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')"
-  image="$(docker inspect "$container" --format '{{.Image}}')"
+  [ -n "$volume" ] || { echo 'No named volume at /data; these commands work only with the named volume.' >&2; exit 1; }
+  image="$(docker inspect "$container" --format '{{.Config.Image}}')"
   docker run --rm --network none -i --entrypoint python "$image" \
     -c 'import gzip, shutil, sys, tarfile; f = gzip.GzipFile(fileobj=sys.stdin.buffer); t = tarfile.open(fileobj=f, mode="r|"); [tarfile.data_filter(m, "/data") for m in t]; shutil.copyfileobj(f, open("/dev/null", "wb"))' \
     < "$backup"

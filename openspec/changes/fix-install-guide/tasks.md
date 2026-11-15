@@ -235,7 +235,7 @@ The review of groups 1–3 found the problems listed in design "Context" (review
 
 The review of group 4 found the problems listed in design "Context" (review of fix round 1). Design D4, D5, D6, D8, "Risks", and the spec delta are revised; read them again before you start. D5 now derives the three data blocks from the invariants I1–I5: write those blocks again from the D5 step lists instead of editing the round 1 lines one by one, but keep the existing one-line `tarfile` write, archive check, emptying, and extraction commands exactly as they are. The implementer notes above still apply, including "Never touch these" and "Out of scope", with the changes to "Deleting" given in 5.3. "Network" applies with one change: the Docker builds in 5.3 and 5.4 may contact Docker Hub, GHCR, PyPI, and the npm registry, as in 3.1 and 3.2. Build normally, with the network on; do not try an offline build first. 5.3 item 8 builds the source of commit `064d3a9`, which may need package downloads if the build cache lacks them. This is the last Droid round for this change. Work test-first: write the 5.1 tests, watch them fail, then make the 5.2 changes.
 
-- [ ] 5.1 In `backend/tests/test_install_docs.py`, add or change these tests. Check each property inside the block it belongs to, as in 4.1.
+- [x] 5.1 In `backend/tests/test_install_docs.py`, add or change these tests. Check each property inside the block it belongs to, as in 4.1.
 
   First, find blocks by text that only that block contains. The `[ -n "$container" ]` message names `docker compose create`, so `command_block("Run with Docker", "docker compose create")` would return the backup block. Find the backup block by `mode="w|gz"`, the restore block by `shutil.rmtree`, and the new-machine block by `any(Path("/data").iterdir())`, and change the existing tests to use these.
 
@@ -255,7 +255,7 @@ The review of group 4 found the problems listed in design "Context" (review of f
   Mark as *guard* any check that already passes before 5.2.
 
   Verify: each new or changed check fails before 5.2 on an assertion, for missing or old content, not on an exception. Record the counts.
-- [ ] 5.2 Make the changes in `README.md` (design D4, D5, D6). Keep the README's other sections and the existing headings unchanged, and wrap new prose at about 76 characters.
+- [x] 5.2 Make the changes in `README.md` (design D4, D5, D6). Keep the README's other sections and the existing headings unchanged, and wrap new prose at about 76 characters.
   - **D6:** the development secret block, the two `sudo apt update && …` commands, and the Python wording in "Development setup".
   - **D4:**
     - the text before the published start command says that it is for the published image only, and that a source build continues with the `COMPOSE_FILE` step;

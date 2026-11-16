@@ -181,9 +181,8 @@ may act when it is requested, so do not save pages that show such links.
 
 Known limits:
 
-- A page saved while a digest run is in its context pass may be summarized
-  in that run without linked context. This short window can produce a
-  summary without links.
+- A page saved while a digest run reads linked pages waits for the next run,
+  which reads its links first.
 - On a short page beside a longer sponsor block, the saved text can include
   the sponsor text, or hold only that text.
 
@@ -573,6 +572,7 @@ without sending show notes or descriptions to the model.
 
 For website items, CatchUp reads related links and author replies from public pages
 only. Context fetches honor each site's robots.txt.
+When a site's robots.txt cannot be read because of a server error or a network failure, CatchUp skips that site's linked pages and author replies for that run.
 `CATCHUP_LINKS_PER_ITEM` (default 8) limits linked pages per item.
 `CATCHUP_CONTEXT_FETCHES_PER_RUN` (default 60) limits requests per run
 (including robots.txt).

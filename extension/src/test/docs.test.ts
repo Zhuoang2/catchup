@@ -21,12 +21,12 @@ it('documents loading, connection, permissions, and the X risk', () => {
   }
 })
 
-it('documents collection boundaries, reader license and the context-pass limit', () => {
+it('documents collection boundaries, reader license and the linked-pages wait', () => {
   const readme = readFileSync(resolve('../README.md'), 'utf8')
   const extension = readme.split('## Browser extension')[1]?.split(/^## /m)[0]
   for (const text of ['cookies', 'saved passwords', 'site storage', 'background reading',
     'scroll', 'click', 'open pages', 'Mozilla Readability', 'Apache-2.0',
-    'context pass', 'summary without links', 'without your cookies', 'sponsor text']) {
+    'reads linked pages', 'waits for the next run', 'without your cookies', 'sponsor text']) {
     expect(extension, text).toContain(text)
   }
 })

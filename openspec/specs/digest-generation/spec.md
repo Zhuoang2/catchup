@@ -28,7 +28,7 @@ While a run is active, the system SHALL report its stage (collecting, summarizin
 - **THEN** the user sees "Linked pages read: 7 of 20"
 
 ### Requirement: Include every pending item
-A run SHALL include every item that is new and has not appeared in any saved digest, with no limit on the number of items. There is one exception: a podcast episode still waiting for its transcript (see the `transcripts` capability) is held back. It is included once a transcript is found or its wait ends. YouTube items are also held back while they are in their caption wait, or when their captions are not yet fetched because of the per-run caption limit. They are included once captions are found or the wait ends. Items MUST be marked as delivered only when the digest containing them is saved. Each item MUST appear in at most one saved digest.
+A run SHALL include every item that is new and has not appeared in any saved digest, with no limit on the number of items. There is one exception: a podcast episode still waiting for its transcript (see the `transcripts` capability) is held back. It is included once a transcript is found or its wait ends. YouTube items are also held back while they are in their caption wait, or when their captions are not yet fetched because of the per-run caption limit. They are included once captions are found or the wait ends. Items recorded after the run's context pass has started, such as a page saved from the browser or the recent entries of a source confirmed during the pass, are also left out of that run: they stay pending, are not counted in its source outcomes or waiting counts, and are handled by the next run, including its context pass. Items MUST be marked as delivered only when the digest containing them is saved. Each item MUST appear in at most one saved digest.
 
 #### Scenario: Long gap
 - **WHEN** 140 items are pending at the start of a run and none is waiting for a transcript
@@ -45,6 +45,10 @@ A run SHALL include every item that is new and has not appeared in any saved dig
 #### Scenario: Item never repeated
 - **WHEN** an item appeared in a saved digest, either summarized or under Creator updates
 - **THEN** it does not appear in any later digest
+
+#### Scenario: Page saved while linked pages are read
+- **WHEN** the user saves a page from the browser while a run is reading linked pages
+- **THEN** that run's digest does not include the page, the page stays pending, and the next run reads its linked pages and includes it
 
 ### Requirement: No digest when nothing is new
 When a run finds no pending items to include, the system SHALL NOT save a digest. It MUST tell the user that there is no new content and show the sources whose check failed or flagged a possible gap. When podcast episodes or YouTube videos are being held back for transcripts or captions, or YouTube videos are deferred to a later run, the message MUST state how many.

@@ -2284,3 +2284,71 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - Claude's summary of the review proposed adding `inline-msg` to the save-bar alert. Checking the other alerts showed the gap is missing everywhere, so Claude left it for a separate fix.
   - Claude's first mutation script matched two places in `Settings.tsx`, because `save()` and `testConnection()` start with the same lines. Its count check stopped it before any change; Claude anchored the mutation on `event.preventDefault()` and ran it again.
   - Five anonymous Docker volumes created earlier that day, before the first run, and one from 2026-11-13 were not created by these runs. Claude did not delete them, because their source was unknown.
+
+## 2026-11-16 — `fix-robots-errors-and-late-items` (#76, #70): plan (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
+
+- **Prompts** (translated from Chinese): "Yes, start writing the lean proposal for #76 + #70." This followed Claude's suggestion to fix the two issues in parallel with the user's own source test (#14), because both are backend-only and their fixes were already decided. After reviewing the plan, the user approved it: "Yes, commit the plan and then start running Droid."
+- **Outcome:**
+  - **One lean change.** Claude planned both issues as one lean change, because both are small defects in the linked-page pass from the same system review.
+  - **Checked against the code.** Claude checked both issues against `main` at `3b3713e`. The issue line numbers for the runner had moved; the design lists the current ones.
+  - **Probe before planning.** In a scratch worktree, Claude:
+    - put the planned robots rule into `robots.py` and ran the backend suite. Only `test_failed_robots_request_allows`, which pins the old rule, failed (921 passed);
+    - reproduced #70. A page saved through `POST /api/captures` while the pass fetched a linked page was delivered in that run, without context;
+    - added the planned id cutoff. The page then waited, and the next run read its link and delivered it with its context.
+  - **Plan.**
+    - Two modified requirements, in `content-collection` and `digest-generation`, with four new scenarios.
+    - Three task groups, with 9 named mutations.
+    - D-030 and its rejected alternatives.
+
+    A robots.txt that cannot be read refuses its origin for the run. 4xx answers keep today's meaning: 401 and 403 refuse, the others allow. A run summarizes only items up to the highest id recorded before its pass.
+  - **D-023 fresh-eyes check.** A sub-agent that saw only the plan and the code:
+    - wrote every planned test in its own scratch worktree, and checked each failure's status code;
+    - applied both fixes and ran all 9 mutations: each failed its named tests;
+    - checked every line reference.
+
+    It found 2 problems and 5 notes. Claude checked each one against the code or the test setup, and folded all of them into the plan:
+    - **respx:** `assert_all_called` defaults to `True`. Three tests that expect a route not to be called would have failed with a mock error after the fix;
+    - **swallowed assert:** an `assert` inside a respx side effect is swallowed by the pass's `except Exception`. The late-page test now records the capture's status and checks it after the run;
+    - **notes:**
+      - the test rules now name both existing robots tests that change;
+      - `Retry-After` must stay above 10 seconds, because the test setup makes `safe_fetch`'s sleep raise;
+      - the late-page test copies the token call instead of calling a helper that seeds again, and imports `DigestItem`;
+      - the proposal no longer lists a test file that no task changes, and the tasks tell Droid not to edit the decision log or the requirements table;
+      - the spec says "origin" instead of "site", because robots rules are kept per scheme, host, and port.
+- **Problems / adjustment:**
+  - The sub-agent once ran `uv run python -c` in the main checkout's `backend/` by mistake. uv reinstalled the editable package in that checkout's `.venv`. No tracked file changed.
+
+## 2026-11-16, `fix-robots-errors-and-late-items` (#76, #70): implementation (Factory Droid, GPT-6.1 Sol)
+
+- **Sessions:** one Droid session, `c6ce6410-675a-4199-810c-934abfd8c519`. Run 1 (about 7.8 minutes) committed groups 1 and 2, then stopped at task 3.1, because `--auto medium` refuses `scripts/docker-smoke.sh`; Droid then removed its worktree. Claude Code built the image and ran the smoke script itself in a replacement worktree at `5d17e70`, and resumed the same session there for group 3 (168 turns, about 2.9 minutes). The excerpts below were written by Droid; Claude Code added this line and corrected the attribution at review.
+- **Prompt (faithful excerpts):** "Implement OpenSpec change fix-robots-errors-and-late-items using the openspec-apply-change skill. Work through openspec/changes/fix-robots-errors-and-late-items/tasks.md in order and check off each task only after its verification passes. Work test-first with the tdd skill ... Run every named mutation, restore the code after each, and record the results ... Commit after each task group." On resumption: "Your previous run ended in task 3.1: running scripts/docker-smoke.sh needed more than --auto medium, which we keep ... Do not run docker build or the smoke script again, and do not remove the catchup:fix-robots-local image ... Run 'uv run pytest' in backend/ and 'DO_NOT_TRACK=1 openspec validate fix-robots-errors-and-late-items --strict' again, and record their real results."
+- **Outcome:** Run 1 committed the robots refusal rule and README sentence in `5d22465`, then the pre-context item cutoff in `5d17e70`. Tests were written first: robots checks initially had 13 behavior failures; the late-capture check initially found two items in the first digest instead of one. All R1–R5 and L1–L4 mutations failed their named tests and were restored individually. The restored focused suites passed. The resumed full backend suite passed **938 tests in 27.80s**; strict OpenSpec validation passed. Scenario mappings, actual commands, and mutation failures are in `test-report-fix-robots-errors-and-late-items.md`.
+- **Problems / adjustment:** Run 1 stopped at the Docker smoke step because its permission level was insufficient; its worktree was later removed, and group 3 documentation still needed to be written. Claude Code then built `catchup:fix-robots-local` and ran the unchanged smoke script at `5d17e70` in the replacement worktree, passing all 12 checks with no container or volume left behind, and gave Droid these results in the resume prompt. Droid recorded those as Claude Code's results rather than rerunning them. The image remains for Claude Code's live check and later removal. Fresh preflights and library probes supported the implementation; the design's known SQLite rowid-reuse limit stayed out of scope. The live check remains **not performed**. No plans or spec deltas changed, nothing was deleted in the resumed run, no request went to port 8800, and no push, tag, release, or Docker prune was performed.
+
+## 2026-11-16 — `fix-robots-errors-and-late-items` (#76, #70): review (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
+
+- **Prompts** (translated from Chinese): after the plan, "OK, commit the plan and start Droid." After the review report, which asked whether to narrow the spec wording (A) or run a second Droid round (B), "Yes, go with A, and open the follow-up issue too."
+- **Outcome:**
+  - **Droid runs.** Run 1 stopped at task 3.1, because `--auto medium` refuses the smoke script, and Droid removed its worktree. Claude kept that level, created a replacement worktree at `5d17e70`, built `catchup:fix-robots-local`, and ran `scripts/docker-smoke.sh` there (12 of 12, no leftovers). Claude then resumed the session with `droid exec -s <session> --cwd <worktree>` to write group 3.
+  - **Claude's checks.** Before the review edits, 938 backend tests passed and strict validation passed. The source diff matches D1 and D2, one change in each file.
+  - **Live check (#70).** A container from the branch image on a local port (not 8800), a local stub model, and a public feed. Claude saved a page through `POST /api/captures` while run 1 read linked pages. Run 1 delivered 5 feed items without it, and the page stayed waiting. Run 2 delivered it with its link read: `context_status` `gathered`, one context row, one digest entry.
+  - **`/code-review` (high)** reported 5 findings: the report and Droid's log entry saying the user supplied Claude's Docker results; the missing session id; a 136-character rule line; late items not named in a "no new content" outcome; and a DNS test that is weak on its own. Claude confirmed the first two, recorded the long line as churn, and rejected the last two (a design Non-Goal; the suite pins the rule as a whole).
+  - **Spec review.** An independent sub-agent found no defect in the code. Of 24 new mutations, 16 were caught; it also reran Droid's 9 on the full suite. Its findings, all checked by Claude against the code:
+    - a README known-limit bullet still described the old #70 behavior (D-023 b);
+    - a link that redirects into a refused origin is still fetched, and the robots cache key is the origin as written (`SITE.example`, `:443`). Both predate this change, but the spec delta said "MUST NOT fetch any page from that origin";
+    - M15 and N2 survived: no test checked that a network-error refusal is cached, or that the late page is left out before the summary stage;
+    - this report listed absolute local paths, and design D1 misstated what RFC 9309 says about oversized robots.txt.
+  - **Classification (D-023).** No (a) item, so no second Droid round. The user chose to narrow the spec instead of fixing the redirect and key cases now, because that means changing `safe_fetch`. Claude opened #90 for them and added it to the board. Claude's review commit:
+    - the spec delta and the README sentence now say what the code does: no context fetch starts from a URL on a refused origin, and redirects are not checked; design Risks names #90;
+    - design D1 quotes RFC 9309 section 2.5 and calls the oversized refusal a fail-closed choice;
+    - the README bullet and the phrases in `extension/src/test/docs.test.ts`;
+    - tests: a second link to the unreachable site with one robots request (kills M15); `items_total == 1` and no summary after run 1 (kills N2); 400 and 499 allow cases (kill M2 and M6, which also survived). About 10 test lines;
+    - the report's attribution, its local paths, and a review section; Droid's session line and attribution in its log entry; this entry.
+
+    With these edits, 940 backend tests passed and strict validation passed.
+  - **Recorded, not fixed:** the long rule line; N1 (marginal: items recorded during the caption pass wait one run); N3 and N5 (equivalent); M1 (status 399).
+- **Problems / adjustment:**
+  - Claude's live-check driver first used `/api/runs`, which does not exist (404); the run endpoints are under `/api/digest-runs`. On the rerun, adding the feed again returned 422 because the source already existed, so the driver now skips it when a feed source is present.
+  - A scripted test edit matched two test functions with the same lines; Claude scoped the replacement to the target function.
+  - Claude did not run the extension test suite locally: the review worktree has no `node_modules`, and installing them needs a download. Claude checked the changed phrases with an equivalent script; CI runs the suite.
+  - Claude's first review report to the user said that every mutation other than M15, N1, N2, and N3 was caught. M1, M2, M6, and N5 had also survived. Claude corrected this in its next report and added the 400 and 499 cases.

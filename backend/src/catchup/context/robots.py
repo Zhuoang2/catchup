@@ -27,6 +27,6 @@ class RobotsCache:
                 parser.parse(response.content.decode("utf-8", errors="replace").splitlines())
                 self._rules[origin] = parser
             except FetchError as exc:
-                self._rules[origin] = exc.status_code not in (401, 403)
+                self._rules[origin] = exc.status_code is not None and 400 <= exc.status_code < 500 and exc.status_code not in (401, 403)
         rule = self._rules[origin]
         return rule if isinstance(rule, bool) else rule.can_fetch("CatchUp", url)

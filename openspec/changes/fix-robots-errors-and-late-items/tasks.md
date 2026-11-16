@@ -66,7 +66,7 @@ Implementer notes:
 
 ## 2. Items recorded during the context pass wait for the next run (#70)
 
-- [ ] 2.1 Write the failing tests in `backend/tests/test_context_gather.py`.
+- [x] 2.1 Write the failing tests in `backend/tests/test_context_gather.py`.
   - Add `test_page_saved_during_context_pass_waits_for_next_run` (spec scenario "Page saved while linked pages are read").
     - Setup:
       - `setup(environment, [("https://docs.example/page", "Page")])` and `stub_collection(monkeypatch)`;
@@ -94,7 +94,7 @@ Implementer notes:
   - Add `test_item_recorded_during_source_checks_is_included`. `seed(environment)` with one item and no links. Call `stub_collection(monkeypatch, on_check=...)`, where `on_check` adds a second pending feed item to the seeded source in its own session and commits. Give the item the same fields as `seed`: `identity_key="late"`, its own link, a title, `content_text`, `content_origin="feed"`, and `state="pending"`. Assert that the run's `status` is `"succeeded"`, and that `digest_item_count` is 2.
 
   Verify: run `uv run pytest tests/test_context_gather.py` in `backend/`. Before 2.2, `test_page_saved_during_context_pass_waits_for_next_run` fails on its first-run assertions: today the capture is delivered in the first run (probe). `test_item_recorded_during_source_checks_is_included` passes before 2.2. It guards the cutoff's position, and must still pass after 2.2.
-- [ ] 2.2 Implement design D2 in `backend/src/catchup/digest/runner.py`.
+- [x] 2.2 Implement design D2 in `backend/src/catchup/digest/runner.py`.
   - Immediately before `gather_context(...)`, read `max(Item.id)` in a short session (`0` when there is none).
   - Add `Item.id <= cutoff` to the pending query that feeds `select_pending`.
   - Change nothing else.

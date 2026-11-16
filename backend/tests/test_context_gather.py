@@ -6,7 +6,7 @@ import pytest
 import respx
 from sqlalchemy import select
 
-from catchup.models import DigestRun, Item, ItemContext, Source
+from catchup.models import DigestItem, DigestRun, Item, ItemContext, Source
 from catchup.net.host_spacing import HostSpacer
 from test_digest_runner import FakeModel, environment, execute, saved_capture, seed, stub_collection
 
@@ -729,6 +729,75 @@ def test_exhaustion_without_a_row_keeps_cached_summary(
     assert len(model.calls) == 1
     digest = environment.get(f"/api/digests/{result['digest_id']}").json()
     assert digest["topics"][0]["items"][0]["summary"] == "Previously summarized"
+
+
+def test_page_saved_during_context_pass_waits_for_next_run(environment, monkeypatch, public_dns):
+    setup(environment, [("https://docs.example/page", "Page")])
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        seeded_id = session.scalar(select(Item.id))
+    token = environment.post("/api/settings/extension-tokens", json={"name": "Chrome"}).json()["token"]
+    captures = []
+
+    def save_page(_request):
+        response = environment.post("/api/captures", json={
+            "url": "https://blog.example/post", "title": "Late post", "text": "Late text",
+            "links": [{"url": "https://ref.example/a", "text": "Reference"}],
+        }, headers={"Authorization": f"Bearer {token}", "Origin": "chrome-extension://abcdefghijklmnop"})
+        captures.append((response.status_code, response.json()["id"]))
+        return httpx.Response(200, text=html("Page", "Substantial text " * 30))
+
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        page = router.get("https://docs.example/page").mock(side_effect=save_page)
+        router.get("https://ref.example/robots.txt").mock(return_value=httpx.Response(404))
+        reference = router.get("https://ref.example/a").mock(return_value=httpx.Response(
+            200, text=html("A", "Ref text " * 40),
+        ))
+        first = execute(environment)
+        assert page.call_count == len(captures) == 1
+        status, capture_id = captures[0]
+        assert status == 201
+        assert first["status"] == "succeeded"
+        assert first["digest_item_count"] == 1
+        with environment.app.state.session_factory() as session:
+            assert session.get(Item, seeded_id).state == "delivered"
+            capture = session.get(Item, capture_id)
+            assert capture.state == "pending"
+            assert capture.context_status is None
+            assert session.scalars(select(DigestItem).where(DigestItem.item_id == capture_id)).all() == []
+        assert not reference.called
+
+        second = execute(environment)
+        assert second["status"] == "succeeded"
+        assert reference.call_count == 1
+        with environment.app.state.session_factory() as session:
+            capture = session.get(Item, capture_id)
+            assert capture.state == "delivered"
+            assert capture.context_status == "gathered"
+            assert [part.url for part in capture.contexts] == ["https://ref.example/a"]
+            snapshots = session.scalars(select(DigestItem).where(DigestItem.item_id == capture_id)).all()
+            assert len(snapshots) == 1
+
+
+def test_item_recorded_during_source_checks_is_included(environment, monkeypatch):
+    seed(environment)
+
+    def record_item():
+        with environment.app.state.session_factory() as session:
+            source = session.scalar(select(Source))
+            session.add(Item(
+                source_id=source.id, identity_key="late", link="https://s0.example/late",
+                title="Late feed item", content_text="Late feed text",
+                content_origin="feed", state="pending",
+            ))
+            session.commit()
+
+    stub_collection(monkeypatch, on_check=record_item)
+    with respx.mock(assert_all_mocked=True):
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert result["digest_item_count"] == 2
 
 
 def test_deleted_item_during_context_plan_does_not_fail_run(environment, monkeypatch):

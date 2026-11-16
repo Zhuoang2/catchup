@@ -294,12 +294,14 @@ def run_digest(app: FastAPI, run_id: int) -> None:
             )
             session.commit()
         caption_pass(factory, transcripts)
+        with factory() as session:
+            cutoff = session.scalar(select(func.max(Item.id))) or 0
         gather_context(factory, run_id, app.state.settings, spacer)
 
         with factory() as session:
             rows = session.execute(
                 select(Item, Source).join(Source, Item.source_id == Source.id)
-                .where(Item.state == "pending").order_by(Item.id)
+                .where(Item.state == "pending", Item.id <= cutoff).order_by(Item.id)
             ).all()
             ready, creator_updates, waiting, deferred = select_pending(
                 rows, utc_now(), app.state.settings.transcript_wait_days,

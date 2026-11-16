@@ -109,7 +109,7 @@ Implementer notes:
 
 ## 3. Checks and report
 
-- [ ] 3.1 Run the full checks:
+- [x] 3.1 Run the full checks:
   - `uv run pytest` in `backend/` (record the count);
   - `DO_NOT_TRACK=1 openspec validate fix-robots-errors-and-late-items --strict`;
   - `docker build -t catchup:fix-robots-local .` from the repository root, then `scripts/docker-smoke.sh catchup:fix-robots-local`.

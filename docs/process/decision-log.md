@@ -446,3 +446,23 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
 - **Consequences:**
   - A busy button must ignore clicks itself, so each handler checks the flag.
   - Empty status regions need a CSS rule so that they take no space in grid and flex layouts.
+
+## D-030 An unreadable robots.txt refuses its site for the run, and a run summarizes only items recorded before its linked-page pass — accepted (2026-11-16)
+
+- **Decision.**
+  - **robots.txt.** When a site's robots.txt cannot be read because of a server error (HTTP 5xx), a network error, or another failure without a 4xx answer, the linked-page pass fetches no page from that site for the rest of the run. 401 and 403 still refuse the site. Other 4xx answers, including 404 and 429, still mean "no robots.txt", and every page is allowed.
+  - **Late items.** A run records the highest item id just before its linked-page pass. It summarizes, and lists under Creator updates, only pending items up to that id. Items recorded later, such as a page saved with the extension or the entries of a source confirmed during the pass, wait for the next run, which also gathers their context.
+
+  Planned as the lean OpenSpec change `fix-robots-errors-and-late-items` (issues #76 and #70).
+- **Why.**
+  - A system review on 2026-11-01 found that an unreachable robots.txt allowed every path (#76). RFC 9309, section 2.3.1.4, requires complete disallow in that case. The user decided on 2026-11-01 to follow the RFC.
+  - The same review found that an item recorded during the pass was delivered in that run without its context, and was never gathered again (#70). Claude reproduced it with a probe on `main` at `3b3713e` on 2026-11-16.
+- **Alternatives:**
+  - **Disallow only for 5xx and network errors, and keep "allow" for redirect and size failures.** Rejected: telling them apart needs the user-facing error messages, and the RFC permits disallow for those cases.
+  - **Retry robots.txt once before disallowing.** Rejected: a 503 with a short `Retry-After` is already retried once, and the next run reads robots.txt again.
+  - **Summarize only items whose context was gathered.** Rejected: items that the per-run fetch limit left unreached must still be summarized in that run.
+  - **Refuse saves and source confirms while a run is active.** Rejected: the pass can take minutes (#64).
+  - **`AUTOINCREMENT` on item ids, so a deleted id is never reused.** Rejected for now: it needs a table rebuild migration for a rare case (design, Risks).
+- **Consequences:**
+  - When a site's robots.txt fails for a moment, that run's items from it are summarized without its linked pages.
+  - A run whose only pending items arrived during its pass ends with "no new content". The items appear in the next run.

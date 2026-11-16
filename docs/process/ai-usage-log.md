@@ -2284,3 +2284,36 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - Claude's summary of the review proposed adding `inline-msg` to the save-bar alert. Checking the other alerts showed the gap is missing everywhere, so Claude left it for a separate fix.
   - Claude's first mutation script matched two places in `Settings.tsx`, because `save()` and `testConnection()` start with the same lines. Its count check stopped it before any change; Claude anchored the mutation on `event.preventDefault()` and ran it again.
   - Five anonymous Docker volumes created earlier that day, before the first run, and one from 2026-11-13 were not created by these runs. Claude did not delete them, because their source was unknown.
+
+## 2026-11-16 — `fix-robots-errors-and-late-items` (#76, #70): plan (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
+
+- **Prompts** (translated from Chinese): "Yes, start writing the lean proposal for #76 + #70." This followed Claude's suggestion to fix the two issues in parallel with the user's own source test (#14), because both are backend-only and their fixes were already decided. After reviewing the plan, the user approved it: "Yes, commit the plan and then start running Droid."
+- **Outcome:**
+  - **One lean change.** Claude planned both issues as one lean change, because both are small defects in the linked-page pass from the same system review.
+  - **Checked against the code.** Claude checked both issues against `main` at `3b3713e`. The issue line numbers for the runner had moved; the design lists the current ones.
+  - **Probe before planning.** In a scratch worktree, Claude:
+    - put the planned robots rule into `robots.py` and ran the backend suite. Only `test_failed_robots_request_allows`, which pins the old rule, failed (921 passed);
+    - reproduced #70. A page saved through `POST /api/captures` while the pass fetched a linked page was delivered in that run, without context;
+    - added the planned id cutoff. The page then waited, and the next run read its link and delivered it with its context.
+  - **Plan.**
+    - Two modified requirements, in `content-collection` and `digest-generation`, with four new scenarios.
+    - Three task groups, with 9 named mutations.
+    - D-030 and its rejected alternatives.
+
+    A robots.txt that cannot be read refuses its origin for the run. 4xx answers keep today's meaning: 401 and 403 refuse, the others allow. A run summarizes only items up to the highest id recorded before its pass.
+  - **D-023 fresh-eyes check.** A sub-agent that saw only the plan and the code:
+    - wrote every planned test in its own scratch worktree, and checked each failure's status code;
+    - applied both fixes and ran all 9 mutations: each failed its named tests;
+    - checked every line reference.
+
+    It found 2 problems and 5 notes. Claude checked each one against the code or the test setup, and folded all of them into the plan:
+    - **respx:** `assert_all_called` defaults to `True`. Three tests that expect a route not to be called would have failed with a mock error after the fix;
+    - **swallowed assert:** an `assert` inside a respx side effect is swallowed by the pass's `except Exception`. The late-page test now records the capture's status and checks it after the run;
+    - **notes:**
+      - the test rules now name both existing robots tests that change;
+      - `Retry-After` must stay above 10 seconds, because the test setup makes `safe_fetch`'s sleep raise;
+      - the late-page test copies the token call instead of calling a helper that seeds again, and imports `DigestItem`;
+      - the proposal no longer lists a test file that no task changes, and the tasks tell Droid not to edit the decision log or the requirements table;
+      - the spec says "origin" instead of "site", because robots rules are kept per scheme, host, and port.
+- **Problems / adjustment:**
+  - The sub-agent once ran `uv run python -c` in the main checkout's `backend/` by mistake. uv reinstalled the editable package in that checkout's `.venv`. No tracked file changed.

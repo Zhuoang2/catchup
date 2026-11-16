@@ -326,7 +326,7 @@ describe('model settings', () => {
     expect(screen.getByLabelText('Other language')).toBeInTheDocument()
   })
 
-  it('shows invalid-language saves as form-wide errors, not key errors', async () => {
+  it('links invalid-language saves to Other language with the partial-save result at Save', async () => {
     const original = fetchMock.getMockImplementation()!
     fetchMock.mockImplementation(async (url: string, options?: RequestInit) => {
       if (url === '/api/settings/model' && options?.method === 'PUT') return respond({
@@ -340,19 +340,31 @@ describe('model settings', () => {
     })
     const { container } = render(<Settings />)
     await screen.findByRole('button', { name: 'Save' })
+    fireEvent.change(screen.getByLabelText('Digest language'), { target: { value: 'other' } })
+    fireEvent.change(screen.getByLabelText('Other language'), { target: { value: '   ' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Choose a valid language.')
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Choose a valid language.')
+    expect(screen.getByLabelText('Other language')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByLabelText('Other language')).toHaveAttribute('aria-describedby', alert.id)
+    expect(screen.getAllByText('Choose a valid language.')).toHaveLength(1)
+    expect(within(container.querySelector('.save-bar')!).getByRole('status')).toHaveTextContent(
+      'The model settings were saved, but the Digest and YouTube settings were not. Check the Other language field.')
     expect(screen.getByLabelText('API key')).not.toHaveAttribute('aria-invalid')
     expect(screen.getByLabelText('API key')).toHaveAttribute('aria-describedby', 'key-saved key-hint')
     await expectAccessible(container)
   })
 
-  it('shows load failures even after the loading state ends', async () => {
+  it('shows load failures above the Model provider heading', async () => {
     fetchMock.mockImplementation(async (url: string) => url === '/api/settings/model'
       ? respond({ error: { code: 'request_failed', message: 'Could not load settings.' } }, 503)
       : respond({ digest_language: 'en', youtube_captions: false, youtube_skip_shorts: true }))
     const { container } = render(<Settings />)
-    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load settings.')
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Could not load settings')
+    expect(within(alert).queryByText('Could not load settings', { selector: 'strong' })).toBeInTheDocument()
+    expect(alert.compareDocumentPosition(screen.getByRole('heading', { name: 'Step 1: Model provider' }))
+      & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.queryByText('Loading settings…')).toBeNull()
     expect(screen.getByLabelText('API key')).not.toHaveAttribute('aria-invalid')
     await expectAccessible(container)
@@ -390,6 +402,194 @@ describe('model settings', () => {
     expect(calls).toEqual(['/api/settings/model', '/api/settings/model', '/api/settings/preferences'])
     expect(key).toHaveValue('')
     expect(key).not.toHaveAttribute('placeholder', expect.stringContaining('3f9a'))
+  })
+})
+
+describe('Settings results and focus', () => {
+  function saveBar() {
+    return screen.getByRole('button', { name: 'Save' }).closest<HTMLElement>('.save-bar')!
+  }
+
+  it.each([
+    ['', 'Model', 'Test the connection, then choose a model.'],
+    ['saved-model', 'Base URL', 'Enter a valid provider URL, such as https://api.deepseek.com.'],
+  ])('links invalid model configuration %s to %s', async (model, label, message) => {
+    mockModelProvider({
+      saved: { base_url: 'https://api.deepseek.com', model_id: model, key_set: true, api_key_last4: '1234' },
+      put: () => respond({ error: { code: 'invalid_model_config', message: 'Invalid model configuration.' } }, 422),
+    })
+    const { container } = render(<Settings/>)
+    await screen.findByLabelText('API key')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    const alert = await screen.findByRole('alert')
+    expect(screen.getByLabelText(label)).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByLabelText(label)).toHaveAttribute('aria-describedby', alert.id)
+    expect(alert).toHaveTextContent(message)
+    expect(screen.getAllByText(message)).toHaveLength(1)
+    expect(screen.getByLabelText('API key')).not.toHaveAttribute('aria-invalid')
+    expect(within(saveBar()).getByRole('status')).toHaveTextContent(
+      `Settings were not saved. Check the ${label} field.`)
+    await expectAccessible(container)
+  })
+
+  it('shows the missing instance secret once in the save bar without marking a field', async () => {
+    mockModelProvider({ put: () => respond({ error: { code: 'secret_not_configured', message: 'No secret.' } }, 400) })
+    const { container } = render(<Settings/>)
+    fireEvent.change(await screen.findByLabelText('API key'), { target: { value: 'fake-3f9a' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    const alert = await screen.findByRole('alert')
+    expect(saveBar()).toContainElement(alert)
+    expect(alert).toHaveTextContent('Set CATCHUP_SECRET_KEY on the server before saving an API key.')
+    expect(screen.getAllByText('Set CATCHUP_SECRET_KEY on the server before saving an API key.')).toHaveLength(1)
+    expect(container.querySelector('[aria-invalid="true"]')).toBeNull()
+    await expectAccessible(container)
+  })
+
+  it('announces Settings saved in the status region present before Save', async () => {
+    mockModelProvider()
+    render(<Settings/>)
+    await screen.findByLabelText('API key')
+    const status = saveBar().querySelector('[role="status"]')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await screen.findByText('Settings saved.')
+    expect(within(saveBar()).getByRole('status')).toBe(status)
+    expect(status).toHaveTextContent('Settings saved.')
+  })
+
+  it('shows the newly saved key and partial save when preferences cannot connect', async () => {
+    const original = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (url: string, options?: RequestInit) => {
+      if (url === '/api/settings/preferences' && options?.method === 'PUT') throw new Error('Offline')
+      return original(url, options)
+    })
+    mockModelProvider()
+    render(<Settings/>)
+    const key = await screen.findByLabelText('API key')
+    fireEvent.change(key, { target: { value: 'fake-3f9a' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await screen.findByRole('alert')
+    expect(saveBar()).toHaveTextContent(
+      'The model settings were saved, but the Digest and YouTube settings were not. Could not connect to CatchUp.')
+    expect(screen.getByText(/Saved key ending in/)).toHaveTextContent('Saved key ending in 3f9a')
+    expect(key).toHaveValue('')
+  })
+
+  it.each(['field', 'form'])('Test connection clears the save bar after a %s error', async kind => {
+    mockModelProvider({ put: () => respond({ error: {
+      code: kind === 'field' ? 'auth_failed' : 'secret_not_configured', message: 'Refused.',
+    } }, 400) })
+    render(<Settings/>)
+    await screen.findByLabelText('API key')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await screen.findByRole('alert')
+    expect(saveBar().textContent).not.toBe('Save')
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    expect(within(saveBar()).getByRole('status')).toBeEmptyDOMElement()
+    expect(within(saveBar()).queryByRole('alert')).toBeNull()
+  })
+
+  it('clears the save bar on a model choice but keeps the key error from a test', async () => {
+    mockModelProvider({ put: () => respond({ error: { code: 'secret_not_configured', message: 'No secret.' } }, 400),
+      test: () => respond({ error: { code: 'auth_failed', message: 'Rejected' } }, 401) })
+    render(<Settings/>)
+    await screen.findByLabelText('API key')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await within(saveBar()).findByRole('alert')
+    fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'saved-model' } })
+    expect(within(saveBar()).getByRole('status')).toBeEmptyDOMElement()
+    expect(within(saveBar()).queryByRole('alert')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    await screen.findByText('The provider rejected the API key.')
+    fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'saved-model' } })
+    await waitFor(() => expect(modelPuts()).toHaveLength(3))
+    expect(screen.getByText('The provider rejected the API key.')).toBeInTheDocument()
+    expect(screen.getByLabelText('API key')).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('removes the old save-bar alert when the next Save succeeds', async () => {
+    let refuse = true
+    mockModelProvider({ put: body => refuse
+      ? respond({ error: { code: 'secret_not_configured', message: 'No secret.' } }, 400)
+      : respond({ base_url: body.base_url, model_id: body.model_id, key_set: true, api_key_last4: '1234' }) })
+    render(<Settings/>)
+    await screen.findByLabelText('API key')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await within(saveBar()).findByRole('alert')
+    refuse = false
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await within(saveBar()).findByText('Settings saved.')
+    expect(within(saveBar()).queryByRole('alert')).toBeNull()
+  })
+
+  it('keeps empty save, browser, and X status regions on the page without child nodes', async () => {
+    render(<Settings/>)
+    await screen.findByLabelText('X API token')
+    const browser = screen.getByRole('heading', { name: 'Step 4: Browser extension' }).closest('section')!
+    const x = screen.getByRole('heading', { name: 'Step 5: X accounts' }).closest('section')!
+    const statuses = [
+      saveBar().querySelector('[role="status"]'),
+      [...browser.querySelectorAll('[role="status"]')].find(node => !node.hasAttribute('aria-label')),
+      x.querySelector('[role="status"]'),
+    ]
+    for (const status of statuses) {
+      expect(status).toBeInTheDocument()
+      expect(status!.childNodes).toHaveLength(0)
+    }
+  })
+
+  it('moves focus through X deletion and announces counts in the existing status region', async () => {
+    const original = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (url: string, options?: RequestInit) =>
+      url === '/api/settings/x/delete-all'
+        ? respond({ digest_items: 3, digests: 1, accounts: 2 }) : original(url, options))
+    render(<Settings/>)
+    await screen.findByLabelText('X API token')
+    const heading = screen.getByRole('heading', { name: 'Step 5: X accounts' })
+    const status = heading.closest('section')!.querySelector('[role="status"]')
+    screen.getByRole('button', { name: 'Delete all X data' }).focus()
+    fireEvent.click(document.activeElement!)
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByRole('button', { name: 'Delete all X data' })).toHaveFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete all X data' }))
+    const confirm = screen.getByRole('button', { name: 'Delete X data' })
+    confirm.focus()
+    fireEvent.click(confirm)
+    await screen.findByText('Deleted 3 X digest items, 1 digest, and 2 X accounts.')
+    expect(heading).toHaveFocus()
+    expect(within(heading.closest('section')!).getByRole('status')).toBe(status)
+  })
+
+  it('focuses Connected browsers after Disconnect and keeps the browser status region', async () => {
+    const original = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (url: string, options?: RequestInit) => {
+      if (url === '/api/settings/extension-tokens/1') return respond(null, 204)
+      if (url === '/api/settings/extension-tokens') return respond([{
+        id: 1, name: 'Chrome', created_at: '2026-10-21T12:00:00Z', last_used_at: null,
+      }])
+      return original(url, options)
+    })
+    render(<Settings/>)
+    const disconnect = await screen.findByRole('button', { name: 'Disconnect Chrome' })
+    const heading = screen.getByRole('heading', { name: 'Connected browsers' })
+    const section = heading.closest('section')!
+    const status = [...section.querySelectorAll('[role="status"]')].find(node => !node.hasAttribute('aria-label'))
+    disconnect.focus()
+    fireEvent.click(disconnect)
+    await screen.findByText('Chrome disconnected.')
+    expect(heading).toHaveFocus()
+    expect(within(section).getAllByRole('status').find(node => !node.hasAttribute('aria-label'))).toBe(status)
+  })
+
+  it('announces X token saved in the existing X status region', async () => {
+    render(<Settings/>)
+    const input = await screen.findByLabelText('X API token')
+    const section = input.closest('section')!
+    const status = section.querySelector('[role="status"]')
+    fireEvent.change(input, { target: { value: 'fake-token' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save X token' }))
+    await screen.findByText('X token saved.')
+    expect(within(section).getByRole('status')).toBe(status)
   })
 })
 
@@ -692,6 +892,7 @@ describe('X accounts settings', () => {
     expect(fetchMock.mock.calls.filter(([url]) => url === '/api/settings/x/delete-all')).toHaveLength(1)
   })
 
+  // Guard: the confirmation already stays mounted when deletion fails.
   it('shows the active-run refusal and keeps the confirmation', async () => {
     const original = fetchMock.getMockImplementation()!
     fetchMock.mockImplementation(async (url: string, options?: RequestInit) =>

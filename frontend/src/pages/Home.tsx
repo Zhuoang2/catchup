@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError, request } from '../api/client'
 import { DigestArticle } from '../components/DigestArticle'
@@ -140,8 +140,18 @@ export default function Home() {
   const [error, setError] = useState<{ title: string; message: string; source?: 'poll' } | null>(null)
   const [newDigestError, setNewDigestError] = useState<{ id: number; message: string } | null>(null)
   const pageMounted = useRef(false)
+  const generateScreenRef = useRef<HTMLButtonElement>(null)
+  const runBarRef = useRef<HTMLButtonElement>(null)
+  const setupRef = useRef<HTMLAnchorElement>(null)
+  const focusNext = useRef<'generate' | 'setup' | null>(null)
   const [pendingDigests] = useState(() => new Set<number>())
   useDocumentTitle(digest ? `Latest · No. ${digest.id}` : 'Latest')
+
+  useLayoutEffect(() => {
+    if (focusNext.current === 'generate') runBarRef.current?.focus()
+    if (focusNext.current === 'setup') setupRef.current?.focus()
+    focusNext.current = null
+  }, [digest?.id, modelReady])
 
   useEffect(() => {
     pageMounted.current = true
@@ -193,6 +203,7 @@ export default function Home() {
     pendingDigests.add(id)
     request<Digest>(`/digests/${id}`)
       .then(result => { if (pageMounted.current) {
+        if (!digest && generateScreenRef.current === document.activeElement) focusNext.current = 'generate'
         setDigest(previous => !previous || result.id > previous.id ? result : previous)
         setNewDigestError(previous => previous?.id === id ? null : previous)
       } })
@@ -202,6 +213,7 @@ export default function Home() {
   }, [run?.status, run?.digest_id, digest?.id])
 
   async function generate() {
+    if (running || modelReady === null) return
     setError(null)
     setNewDigestError(null)
     try {
@@ -213,6 +225,9 @@ export default function Home() {
           title: 'Could not resume digest run', message: (refreshError as Error).message,
         }) }
       } else if (reason instanceof ApiError && reason.code === 'model_not_configured') {
+        if (document.activeElement === (digest ? runBarRef.current : generateScreenRef.current)) {
+          focusNext.current = 'setup'
+        }
         setModelReady(false)
       } else setError({ title: 'Could not start digest', message: (reason as Error).message })
     }
@@ -239,7 +254,7 @@ export default function Home() {
       <section className="run-bar" aria-label="Digest run">
         <div className="run-bar-actions">
           {firstRun ? <>
-            <Link className={buttonClass('primary', 'lg')} to="/settings">Set up your model</Link>
+            <Link className={buttonClass('primary', 'lg')} to="/settings" ref={setupRef}>Set up your model</Link>
             <Button disabled aria-describedby="home-model-why">Generate digest</Button>
             <p className="hero-meta" id="home-model-why">Available once a model is set up and a source is added.</p>
           </> : noSources ? <>
@@ -249,7 +264,7 @@ export default function Home() {
           </> : <>
             {configurationError && <Link className={buttonClass('primary')} to="/settings">Check settings</Link>}
             <Button variant={running || state === 'idle' || state === 'failed' && !configurationError ? 'primary' : 'secondary'}
-              size="lg" type="button" onClick={() => void generate()} disabled={running || modelReady === null}>
+              size="lg" type="button" ref={runBarRef} onClick={() => void generate()} aria-disabled={running || modelReady === null}>
               {running ? 'Generating…' : state === 'failed' ? 'Try again' : 'Generate digest'}
             </Button>
           </>}
@@ -274,7 +289,7 @@ export default function Home() {
       className="hero">
       <div className="hero-actions">
         {firstRun ? <>
-          <Link className={buttonClass('primary', 'lg')} to="/settings">Set up your model</Link>
+          <Link className={buttonClass('primary', 'lg')} to="/settings" ref={setupRef}>Set up your model</Link>
           <Button disabled aria-describedby="generate-why">Generate digest</Button>
           <p className="hero-meta" id="generate-why">Available once a model is set up and a source is added.</p>
         </> : noSources ? <>
@@ -283,7 +298,7 @@ export default function Home() {
           <p className="hero-meta" id="generate-sources-why">Available once a source is added.</p>
         </> : <>
           <Button variant={running || state === 'idle' || state === 'failed' && !configurationError ? 'primary' : 'secondary'}
-            size="lg" type="button" onClick={() => void generate()} disabled={running || modelReady === null}>
+            size="lg" type="button" ref={generateScreenRef} onClick={() => void generate()} aria-disabled={running || modelReady === null}>
             {running ? 'Generating…' : state === 'failed' ? 'Try again' : 'Generate digest'}
           </Button>
         </>}

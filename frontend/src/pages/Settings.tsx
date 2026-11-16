@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode, type Ref } from 'react'
 import { ApiError, request } from '../api/client'
 import { shortDateTime } from '../components/format'
 import { Icon } from '../components/Icon'
 import { useDocumentTitle } from '../components/useDocumentTitle'
-import { Button, PageHead, Switch } from '../components/ui'
+import { Alert, Button, PageHead, Switch } from '../components/ui'
 
 type ModelSettings = { base_url: string; model_id: string; key_set: boolean; api_key_last4: string | null }
 type ModelSave = { base_url: string; model_id: string; api_key: string }
@@ -30,11 +30,11 @@ function errorMessage(error: unknown): string {
   return 'Could not connect to CatchUp.'
 }
 
-function SettingsSection({ number, title, children }: {
-  number: number; title: string; children: ReactNode
+function SettingsSection({ number, title, children, headingRef }: {
+  number: number; title: string; children: ReactNode; headingRef?: Ref<HTMLHeadingElement>
 }) {
   return <section className="settings-section">
-    <h2 className="settings-title"><span className="step-num" aria-hidden="true">{number}</span>
+    <h2 className="settings-title" ref={headingRef} tabIndex={headingRef ? -1 : undefined}><span className="step-num" aria-hidden="true">{number}</span>
       <span className="sr-only">Step {number}: </span>{title}</h2>{children}
   </section>
 }
@@ -52,7 +52,9 @@ export default function Settings() {
   const [skipShorts, setSkipShorts] = useState(true)
   const [showImages, setShowImages] = useState(true)
   const [error, setError] = useState('')
-  const [errorField, setErrorField] = useState<'key' | 'base' | null>(null)
+  const [errorField, setErrorField] = useState<'key' | 'base' | 'model' | 'other' | null>(null)
+  const [saveError, setSaveError] = useState('')
+  const [loadError, setLoadError] = useState('')
   const [message, setMessage] = useState('')
   const [modelStatus, setModelStatus] = useState('')
   const [modelError, setModelError] = useState('')
@@ -72,6 +74,19 @@ export default function Settings() {
   const [xMessage, setXMessage] = useState('')
   const [xDeleteConfirm, setXDeleteConfirm] = useState(false)
   const tokenRef = useRef<HTMLInputElement>(null)
+  const xHeadingRef = useRef<HTMLHeadingElement>(null)
+  const browserHeadingRef = useRef<HTMLHeadingElement>(null)
+  const xDeleteRef = useRef<HTMLButtonElement>(null)
+  const xCancelRef = useRef<HTMLButtonElement>(null)
+  const focusNext = useRef<'x' | 'browser' | 'delete' | 'cancel' | null>(null)
+
+  useLayoutEffect(() => {
+    const targets = { x: xHeadingRef, browser: browserHeadingRef, delete: xDeleteRef, cancel: xCancelRef }
+    if (focusNext.current) {
+      targets[focusNext.current].current?.focus()
+      focusNext.current = null
+    }
+  })
 
   useEffect(() => {
     let mounted = true
@@ -91,7 +106,7 @@ export default function Settings() {
       setYoutubeCaptions(preferences.youtube_captions)
       setSkipShorts(preferences.youtube_skip_shorts)
       setShowImages(preferences.show_images !== false)
-    }).catch((err: unknown) => { if (mounted) setError(errorMessage(err)) })
+    }).catch((err: unknown) => { if (mounted) setLoadError(errorMessage(err)) })
       .finally(() => { if (mounted) setLoading(false) })
     return () => { mounted = false }
   }, [])
@@ -154,6 +169,7 @@ export default function Settings() {
         '/settings/x/delete-all', { method: 'POST' })
       setXLast4(null)
       setXToken('')
+      focusNext.current = 'x'
       setXDeleteConfirm(false)
       setXMessage(`Deleted ${removed.digest_items} X digest ${removed.digest_items === 1 ? 'item' : 'items'}, ` +
         `${removed.digests} ${removed.digests === 1 ? 'digest' : 'digests'}, and ` +
@@ -194,6 +210,7 @@ export default function Settings() {
     setBrowserError(''); setBrowserMessage('')
     try {
       await request<void>(`/settings/extension-tokens/${browser.id}`, { method: 'DELETE' })
+      focusNext.current = 'browser'
       setBrowsers(previous => previous.filter(row => row.id !== browser.id))
       if (connectedBrowser?.id === browser.id) setConnectedBrowser(null)
       setBrowserMessage(`${browser.name} disconnected.`)
@@ -204,13 +221,19 @@ export default function Settings() {
     const field = err instanceof ApiError
       ? err.code === 'connection_failed' ? 'base'
         : ['auth_failed', 'insufficient_balance', 'api_key_required', 'missing_api_key'].includes(err.code)
-          ? 'key' : null
+          ? 'key' : !inModelGroup && err.code === 'invalid_model_config' ? (model ? 'base' : 'model')
+            : !inModelGroup && err.code === 'invalid_language' && language === 'other' ? 'other' : null
       : null
+    const text = !inModelGroup && err instanceof ApiError && err.code === 'invalid_model_config'
+      ? model ? 'Enter a valid provider URL, such as https://api.deepseek.com.'
+        : 'Test the connection, then choose a model.'
+      : errorMessage(err)
     if (inModelGroup && !field) setModelError(errorMessage(err))
     else {
-      setError(errorMessage(err))
+      setError(text)
       setErrorField(field)
     }
+    return field
   }
 
   function queueModelSave(values: ModelSave, success: (saved: ModelSettings) => string, failure: string) {
@@ -233,6 +256,7 @@ export default function Settings() {
 
   async function testConnection() {
     setError(''); setErrorField(null); setMessage('')
+    setSaveError('')
     setModelStatus(''); setModelError('')
     const testedBaseUrl = baseUrl
     const testedKey = key
@@ -259,6 +283,7 @@ export default function Settings() {
   }
 
   function chooseModel(choice: string) {
+    setMessage(''); setSaveError('')
     setModel(choice)
     if (!key && baseUrl.trim() === savedBaseUrl) {
       void queueModelSave({ base_url: savedBaseUrl, model_id: choice, api_key: '' },
@@ -269,13 +294,18 @@ export default function Settings() {
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(''); setErrorField(null); setMessage('')
+    setSaveError('')
     setModelStatus(''); setModelError('')
+    let modelSaved = false
     try {
       const saved = await request<ModelSettings>('/settings/model', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ base_url: baseUrl, model_id: model, api_key: key }),
       })
       setSavedBaseUrl(saved.base_url)
+      setLast4(saved.api_key_last4)
+      setKey('')
+      modelSaved = true
       await request<Preferences>('/settings/preferences', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -284,10 +314,17 @@ export default function Settings() {
           show_images: showImages,
         }),
       })
-      setLast4(saved.api_key_last4)
-      setKey('')
       setMessage('Settings saved.')
-    } catch (err) { showError(err) }
+    } catch (err) {
+      const field = showError(err)
+      const prefix = modelSaved
+        ? 'The model settings were saved, but the Digest and YouTube settings were not.'
+        : 'Settings were not saved.'
+      if (field) {
+        const labels = { model: 'Model', base: 'Base URL', key: 'API key', other: 'Other language' }
+        setMessage(`${prefix} Check the ${labels[field]} field.`)
+      } else setSaveError((modelSaved ? prefix + ' ' : '') + errorMessage(err))
+    }
   }
 
   const keyDescription = [last4 ? 'key-saved' : null, 'key-hint',
@@ -297,6 +334,7 @@ export default function Settings() {
     <PageHead title="Settings" lede={last4
       ? 'Your model, digest language, YouTube options, browser extension, and X accounts.'
       : 'Three quick steps, plus optional X accounts and a browser extension. Your key stays on this computer, encrypted.'}/>
+    {loadError && <Alert tone="error" title="Could not load settings">{loadError}</Alert>}
     {loading ? <p>Loading settings…</p> : <form className="settings-form" onSubmit={event => void save(event)}>
       <SettingsSection number={1} title="Model provider">
         <p className="note"><Icon name="info"/>Content will be sent to your configured model provider.</p>
@@ -320,16 +358,20 @@ export default function Settings() {
           <p className="inline-msg msg-ok" role="status">
             {modelStatus && <Icon name="check"/>}{modelStatus}</p>
         </div>
-        {error && errorField && <p className="field-error" id={errorField === 'base' ? 'base-error' : 'key-error'}
+        {error && (errorField === 'base' || errorField === 'key') && <p className="field-error" id={errorField === 'base' ? 'base-error' : 'key-error'}
           role="alert"><Icon name="alert"/>{error}</p>}
         {modelError && <p className="field-error" role="alert" id="model-error">
           <Icon name="alert"/>{modelError}</p>}
         <div className="field"><label className="field-label" htmlFor="model">Model</label>
           <select className="input select" id="model" value={model}
+            aria-invalid={errorField === 'model' || undefined}
+            aria-describedby={errorField === 'model' ? 'model-select-error' : undefined}
             onChange={event => chooseModel(event.target.value)} disabled={!models.length} required>
             {!model && <option value="">Test the connection to list models</option>}
             {models.map(id => <option key={id} value={id}>{id}</option>)}
-          </select></div>
+          </select>
+          {error && errorField === 'model' && <p className="field-error" id="model-select-error" role="alert">
+            <Icon name="alert"/>{error}</p>}</div>
       </SettingsSection>
       <SettingsSection number={2} title="Digest">
         <div className="field"><label className="field-label" htmlFor="lang">Digest language</label>
@@ -342,7 +384,11 @@ export default function Settings() {
         </div>
         {language === 'other' && <div className="field"><label className="field-label" htmlFor="other">Other language</label>
           <input className="input" id="other" value={otherLanguage} maxLength={40}
-            onChange={event => setOtherLanguage(event.target.value)} required/></div>}
+            aria-invalid={errorField === 'other' || undefined}
+            aria-describedby={errorField === 'other' ? 'other-error' : undefined}
+            onChange={event => setOtherLanguage(event.target.value)} required/>
+          {error && errorField === 'other' && <p className="field-error" id="other-error" role="alert">
+            <Icon name="alert"/>{error}</p>}</div>}
         <Switch label="Show images from source sites" checked={showImages}
           onChange={event => setShowImages(event.target.checked)} describedBy="images-note"/>
         <p className="field-hint" id="images-note">
@@ -359,8 +405,9 @@ export default function Settings() {
         <Switch label="Skip Shorts" checked={skipShorts} onChange={event => setSkipShorts(event.target.checked)}/>
       </SettingsSection>
       <div className="save-bar"><Button variant="primary" type="submit">Save</Button>
-        {message === 'Settings saved.' && <p className="inline-msg msg-ok" role="status">
-          <Icon name="check"/>{message}</p>}</div>
+        <p className={`inline-msg ${message === 'Settings saved.' ? 'msg-ok' : 'msg-error'}`} role="status">
+          {message && <Icon name={message === 'Settings saved.' ? 'check' : 'alert'}/>}{message}</p>
+        {saveError && <p className="field-error" role="alert"><Icon name="alert"/>{saveError}</p>}</div>
     </form>}
     {!loading && <SettingsSection number={4} title="Browser extension">
       <form onSubmit={event => void connectBrowser(event)}>
@@ -380,8 +427,8 @@ export default function Settings() {
       </div>}
       <p role="status" aria-label="Copy result">{copyMessage}</p>
       {browserError && <p role="alert" className="field-error">{browserError}</p>}
-      {browserMessage && <p role="status">{browserMessage}</p>}
-      <h3 className="section-label">Connected browsers</h3>
+      <p role="status">{browserMessage}</p>
+      <h3 className="section-label" ref={browserHeadingRef} tabIndex={-1}>Connected browsers</h3>
       <ul>{browsers.map(browser => <li key={browser.id}>
         <strong>{browser.name}</strong>{' '}<span>Connected <time dateTime={browser.created_at}>
           {shortDateTime(browser.created_at)}</time></span>{' '}<span>Last used:{' '}
@@ -391,7 +438,7 @@ export default function Settings() {
           onClick={() => void disconnectBrowser(browser)}>Disconnect</Button>
       </li>)}</ul>
     </SettingsSection>}
-    {!loading && <SettingsSection number={5} title="X accounts">
+    {!loading && <SettingsSection number={5} title="X accounts" headingRef={xHeadingRef}>
       <form onSubmit={event => void saveX(event)}>
         <div className="field"><label className="field-label" htmlFor="x-token">X API token</label>
           {xLast4 && <p className="key-saved" id="x-token-saved"><Icon name="check"/>
@@ -418,13 +465,13 @@ export default function Settings() {
           {' '}Pages saved from X with the extension stay.</p>
         <div className="actions">
           <Button type="button" variant="danger-solid" onClick={() => void deleteAllX()}>Delete X data</Button>
-          <Button type="button" variant="ghost" onClick={() => setXDeleteConfirm(false)}>Cancel</Button>
+          <Button type="button" variant="ghost" ref={xCancelRef}
+            onClick={() => { focusNext.current = 'delete'; setXDeleteConfirm(false) }}>Cancel</Button>
         </div>
-      </div> : <Button type="button" variant="danger"
-        onClick={() => { setXError(''); setXErrorOnToken(false); setXMessage(''); setXDeleteConfirm(true) }}>Delete all X data</Button>}
+      </div> : <Button type="button" variant="danger" ref={xDeleteRef}
+        onClick={() => { setXError(''); setXErrorOnToken(false); setXMessage(''); focusNext.current = 'cancel'; setXDeleteConfirm(true) }}>Delete all X data</Button>}
       {xError && <p className="field-error" id="x-token-error" role="alert"><Icon name="alert"/>{xError}</p>}
-      {xMessage && <p className="inline-msg msg-ok" role="status"><Icon name="check"/>{xMessage}</p>}
+      <p className="inline-msg msg-ok" role="status">{xMessage && <Icon name="check"/>}{xMessage}</p>
     </SettingsSection>}
-    {error && !errorField && <p className="field-error" role="alert"><Icon name="alert"/>{error}</p>}
   </section>
 }

@@ -35,6 +35,91 @@ afterEach(() => {
 })
 
 describe('sources', () => {
+  it('keeps Save and preview focused until the repeated preview answers, then focuses its heading', async () => {
+    let finish!: (response: ReturnType<typeof respond>) => void
+    const pending = new Promise<ReturnType<typeof respond>>(resolve => { finish = resolve })
+    let previews = 0
+    fetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/sources') return respond([])
+      if (path === '/api/settings/x') return respond({ token_set: true, token_last4: 'oken' })
+      if (path === '/api/sources/preview') return ++previews === 1
+        ? respond({ error: { code: 'x_token_required', message: 'X token needed.' } }, 422) : pending
+      throw Error(path)
+    })
+    const { container } = page()
+    const status = container.querySelector('[role="status"]')
+    fireEvent.change(screen.getByLabelText('Website or feed URL'), { target: { value: 'https://x.com/writer' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    const token = await screen.findByLabelText('X API token')
+    fireEvent.change(token, { target: { value: 'fake-token' } })
+    const save = screen.getByRole('button', { name: 'Save and preview' })
+    save.focus()
+    fireEvent.click(save)
+    await waitFor(() => expect(previews).toBe(2))
+    expect(token.closest('form')).toBeInTheDocument()
+    expect(save).toHaveFocus()
+    await act(async () => { finish(respond({ ...preview, kind: 'x', title: 'Writer', username: 'writer' })) })
+    expect(screen.queryByLabelText('X API token')).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Writer' })).toHaveFocus()
+    expect(screen.getByRole('status')).toBe(status)
+    expect(status).toHaveTextContent('X token saved.')
+    await expectAccessible(container)
+  })
+
+  it('focuses the address and shows the error when the token saves but the repeated preview fails', async () => {
+    let previews = 0
+    fetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/sources') return respond([])
+      if (path === '/api/settings/x') return respond({ token_set: true, token_last4: 'oken' })
+      if (path === '/api/sources/preview') return ++previews === 1
+        ? respond({ error: { code: 'x_token_required', message: 'X token needed.' } }, 422)
+        : respond({ error: { code: 'x_account_not_found', message: 'Not found.' } }, 422)
+      throw Error(path)
+    })
+    const { container } = page()
+    const address = screen.getByLabelText('Website or feed URL')
+    fireEvent.change(address, { target: { value: 'https://x.com/writer' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    fireEvent.change(await screen.findByLabelText('X API token'), { target: { value: 'fake-token' } })
+    const save = screen.getByRole('button', { name: 'Save and preview' })
+    save.focus()
+    fireEvent.click(save)
+    expect(await screen.findByRole('alert')).toHaveTextContent('X account not found.')
+    expect(address).toHaveFocus()
+    await expectAccessible(container)
+  })
+
+  it('focuses the empty address after Confirm source and announces in the existing status region', async () => {
+    const original = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (path: string, options?: RequestInit) =>
+      path === '/api/sources' && options?.method === 'POST' ? respond(saved, 201) : original(path, options))
+    const { container } = page()
+    const status = container.querySelector('[role="status"]')
+    const address = screen.getByLabelText('Website or feed URL')
+    fireEvent.change(address, { target: { value: saved.feed_url } })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    const confirm = await screen.findByRole('button', { name: 'Confirm source' })
+    confirm.focus()
+    fireEvent.click(confirm)
+    await screen.findByText('Source saved.')
+    expect(address).toHaveValue('')
+    expect(address).toHaveFocus()
+    expect(screen.getByRole('status')).toBe(status)
+    await expectAccessible(container)
+  })
+
+  it('returns focus to the address after Cancel in the preview', async () => {
+    page()
+    const address = screen.getByLabelText('Website or feed URL')
+    fireEvent.change(address, { target: { value: saved.feed_url } })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    const cancel = await screen.findByRole('button', { name: 'Cancel' })
+    cancel.focus()
+    fireEvent.click(cancel)
+    expect(address).toHaveFocus()
+    expect(screen.queryByRole('region', { name: 'Source preview' })).toBeNull()
+  })
+
   it('previews an X account with a public profile instead of its internal id', async () => {
     const xPreview = { feed_url: 'x:user:123', site_url: 'https://x.com/writer',
       title: 'Sample Writer', username: 'writer', kind: 'x', captions_enabled: false,

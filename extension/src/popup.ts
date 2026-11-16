@@ -116,11 +116,13 @@ export async function initPopup(): Promise<void> {
   const server = typeof saved.server === 'string' ? saved.server : DEFAULT_SERVER
   const token = typeof saved.token === 'string' ? saved.token : ''
 
-  function disconnected() {
+  function disconnected(focusOptions = false) {
+    const options = button('Open options', () => chrome.runtime.openOptionsPage())
     root.replaceChildren(
       element('p', 'Connect this browser in CatchUp → Settings → Browser extension.'),
-      button('Open options', () => chrome.runtime.openOptionsPage()),
+      options,
     )
+    if (focusOptions) options.focus()
   }
   if (!token || !validServer(server)) { disconnected(); return }
   root.textContent = 'Connecting to CatchUp…'
@@ -170,6 +172,9 @@ export async function initPopup(): Promise<void> {
   const statusText = element('p')
   statusText.setAttribute('role', 'status')
   statusText.setAttribute('aria-live', 'polite')
+  const content = element('div')
+  content.className = 'popup-content'
+  root.replaceChildren(content, statusText)
   const host = (() => { try { return normalizedHost(new URL(tab.url ?? '').hostname) } catch { return '' } })()
   const isX = isXHost(host)
   const username = xUsername(tab.url ?? '')
@@ -177,25 +182,26 @@ export async function initPopup(): Promise<void> {
     try { return new URL(tab.url ?? '').pathname } catch { return '' }
   })())
 
-  function connected() {
+  function connected(focusTarget?: 'follow' | 'add') {
     const follow = button(username ? 'Follow this account' : 'Follow this site',
       () => { void previewSite() })
     const add = button('Add this page to my next digest', () => { void savePage(add) })
-    root.replaceChildren(
+    content.replaceChildren(
       element('h2', tab.title || 'Current tab'),
       element('p', host),
       element('p', `${waiting} ${waiting === 1 ? 'page' : 'pages'} waiting`),
       ...(tab.url?.startsWith('http') && (!isX || username) ? [follow] : []),
       add,
       button('Open CatchUp', () => { void chrome.tabs.create({ url: server }) }),
-      statusText,
     )
     add.className = 'primary'
+    if (focusTarget === 'follow') follow.focus()
+    if (focusTarget === 'add') add.focus()
   }
 
   async function savePage(add: HTMLButtonElement) {
-    if (add.disabled) return
-    add.disabled = true
+    if (add.getAttribute('aria-disabled') === 'true') return
+    add.setAttribute('aria-disabled', 'true')
     statusText.textContent = ''
     try {
       if (tab.id === undefined) throw new Error('unreadable')
@@ -226,29 +232,30 @@ export async function initPopup(): Promise<void> {
       const saved = await api<{ id: number; waiting: number }>('/captures', capture)
       waiting = saved.waiting
       const remove = button('Remove', () => { void removePage(saved.id, remove) })
-      connected()
+      connected('add')
       statusText.textContent = 'Saved. It will be in your next digest.'
-      root.append(remove)
+      content.append(remove)
     } catch (error) {
-      if ((error as ApiError).status === 401) disconnected()
+      if ((error as ApiError).status === 401) disconnected(true)
       else if ((error as ApiError).code) statusText.textContent = (error as ApiError).message
       else statusText.textContent = "This page can't be read by extensions."
     } finally {
-      add.disabled = false
+      add.setAttribute('aria-disabled', 'false')
     }
   }
 
   async function removePage(id: number, remove: HTMLButtonElement) {
-    remove.disabled = true
+    if (remove.getAttribute('aria-disabled') === 'true') return
+    remove.setAttribute('aria-disabled', 'true')
     try {
       await api(`/captures/${id}`, undefined, 'DELETE')
       waiting = Math.max(0, waiting - 1)
-      connected()
+      connected('add')
       statusText.textContent = 'Removed.'
     } catch (error) {
-      if ((error as ApiError).status === 401) disconnected()
-      else { statusText.textContent = (error as ApiError).message ?? 'Could not remove this page.'; remove.disabled = false }
-    }
+      if ((error as ApiError).status === 401) disconnected(true)
+      else statusText.textContent = (error as ApiError).message ?? 'Could not remove this page.'
+    } finally { remove.setAttribute('aria-disabled', 'false') }
   }
 
   async function previewSite() {
@@ -263,8 +270,10 @@ export async function initPopup(): Promise<void> {
         feed: 'Website feed', podcast: 'Podcast', youtube: 'YouTube channel', x: 'X account',
       }
       const xDisplay = preview.kind === 'x' && !!preview.username
+      const heading = element('h2', preview.title)
+      heading.tabIndex = -1
       section.append(
-        element('h2', preview.title),
+        heading,
         element('p', kindLabels[preview.kind] ?? preview.kind),
         ...(xDisplay ? [element('p', `@${preview.username}`), element('p', preview.site_url)]
           : [element('p', preview.feed_url)]),
@@ -274,12 +283,13 @@ export async function initPopup(): Promise<void> {
             : "CatchUp will follow the whole site's feed, not only this page.")] : []),
         entries,
         button('Confirm', () => { void confirmSite(preview) }),
-        button('Cancel', connected),
+        button('Cancel', () => connected('follow')),
       )
-      root.replaceChildren(section, statusText)
+      content.replaceChildren(section)
       section.querySelector('button')!.className = 'primary'
+      heading.focus()
     } catch (error) {
-      if ((error as ApiError).status === 401 && (error as ApiError).code !== 'x_token_rejected') disconnected()
+      if ((error as ApiError).status === 401 && (error as ApiError).code !== 'x_token_rejected') disconnected(true)
       else if ((error as ApiError).code === 'x_token_required') showXTokenPrompt()
       else statusText.textContent = sourceError(error as ApiError)
     }
@@ -299,12 +309,13 @@ export async function initPopup(): Promise<void> {
     const save = button('Save', () => { void saveXToken() })
     section.append(label, hint, save,
       button('Open CatchUp', () => { void chrome.tabs.create({ url: server }) }))
-    root.replaceChildren(section, statusText)
+    content.replaceChildren(section)
     statusText.textContent = 'X token needed.'
+    input.focus()
 
     async function saveXToken() {
-      if (save.disabled) return
-      save.disabled = true
+      if (save.getAttribute('aria-disabled') === 'true') return
+      save.setAttribute('aria-disabled', 'true')
       statusText.textContent = ''
       try {
         await api('/settings/x', { token: input.value }, 'PUT')
@@ -312,19 +323,19 @@ export async function initPopup(): Promise<void> {
         await previewSite()
       } catch (error) {
         if ((error as ApiError).status === 401 && (error as ApiError).code !== 'x_token_rejected')
-          disconnected()
+          disconnected(true)
         else statusText.textContent = sourceError(error as ApiError)
-      } finally { save.disabled = false }
+      } finally { save.setAttribute('aria-disabled', 'false') }
     }
   }
 
   async function confirmSite(preview: Preview) {
     try {
       await api('/sources', { feed_url: preview.feed_url })
-      connected()
+      connected('follow')
       statusText.textContent = 'Source saved.'
     } catch (error) {
-      if ((error as ApiError).status === 401) disconnected()
+      if ((error as ApiError).status === 401) disconnected(true)
       else statusText.textContent = sourceError(error as ApiError)
     }
   }

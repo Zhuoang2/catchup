@@ -2198,3 +2198,89 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - Droid's log entry said "The user required" for rules that Claude's prompt set. Claude corrected it and added the session line.
   - Claude's first mutation run after adding the upgrade guard mutated the wrong blocks. The guard's first occurrence had moved to the upgrade block. Claude fixed the indices, asserted four occurrences, and ran the mutations again. All were caught.
   - The re-run sub-agent asked why the ID of `catchup:fix-install-guide-local` changed during its run. Claude's own rebuild for the smoke check had changed it.
+
+## 2026-11-15 — `fix-install-guide` (#13): merge, release v0.2.0, and cleanup (Claude Code, Opus 5.5)
+
+- **Prompts** (translated from Chinese):
+  - "Yes, merge it."
+  - "I merged it manually."
+  - "Yes, publish v0.2.0 with this draft."
+  - "Yes, check the release workflow and the images."
+  - "Don't rebuild for now; continue with #71/#72."
+- **Outcome:**
+  - **Archive and PR.** Claude archived the change as `2026-11-14-fix-install-guide` (`6be77e2`). `local-deployment` gained two requirements, and strict validation of all specs passed. The two `requirements-changes.md` rows now say the change was archived. Claude pushed the branch and opened PR #88 with "Closes #13".
+  - **Merge.** The app refused to turn on auto-merge from this session, because the PR's repository did not match the session's folders. The user merged PR #88 by hand (`2f456cd`) after 8 of 8 checks passed. The issue closed, and the board moved it to Done on its own.
+  - **Cleanup.** Claude removed:
+    - both review worktrees;
+    - the local and remote branch;
+    - the `catchup:fix-install-guide-local` image;
+    - the review's scratch directories.
+
+    The 8800 instance and its rollback objects were not touched.
+  - **Release.** On the user's confirmation, Claude tagged `v0.2.0` on the merge commit. It used a lightweight tag, as `v0.1.0` is. Claude then created the GitHub release, with notes that summarize the 30 pull requests since v0.1.0, the upgrade steps, and the known limitations. The release workflow succeeded in 47 seconds. One read-only check with `docker buildx imagetools inspect`, which pulls nothing, showed:
+    - `0.2.0`, `0.2`, and `latest` have the same digest;
+    - each is built for `linux/amd64` and `linux/arm64`;
+    - each carries the revision `2f456cd` and the version `0.2.0`.
+  - **8800.** It was not rebuilt. The release changes no application code, and the user chose to wait.
+- **Problems / adjustment:**
+  - A safety check refused `rm -rf "$SP3/$d"`, because a variable as the target could expand to `/`. Nothing ran. Claude used the form the check suggested, `"${SP3:?}/${d:?}"`.
+  - Before showing the release notes, Claude checked the README's description of the extension. The draft's note on content behind a login now says that the extension saves only what is visible in the user's own tab when they press Add.
+
+## 2026-11-15 — `fix-focus-and-result-messages` (#71, #72): plan (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
+
+- **Prompts** (translated from Chinese): "Don't rebuild for now; continue with #71/#72." After the plan: "Yes, commit the plan and then start Droid."
+- **Outcome:**
+  - **One lean change.** Claude planned both issues as one lean change, because they touch the same pages.
+  - **Checked against the code.** Claude checked each finding against `main` at `2f456cd`. The issues' line numbers were from 2026-11-01, and several had moved; the design lists the current ones. The project's `openspec-propose` skill was not loaded in this session, so Claude followed its steps with the OpenSpec CLI.
+  - **Found while checking.** Save before a test sends an empty model, because the disabled Model select is skipped by form validation. When the second Save request fails, the stored key is not shown as saved. Disconnect also drops focus.
+  - **Plan.** It has 3 new requirements with 15 scenarios, in `user-interface` and `browser-extension`, and 5 task groups. The design records D-029 and its rejected alternatives.
+  - **D-023 fresh-eyes check.** A sub-agent that saw only the plan and the code probed the plan's assumptions in the frontend's jsdom, with temporary test files that it then deleted. It found 3 blockers, 7 problems that needed fixing, and 6 nits. Claude checked each one against the code and folded all of them in:
+    - **blockers:** the popup's status-line test passed with the old code, because re-appending the same node keeps its identity, so the test now also uses a `MutationObserver`. A planned test for the button while page details load could not be written, because the page shows only "Loading…" then. The list of assertions to replace named four checks on always-disabled buttons, against the plan's own rule;
+    - **jsdom:** jsdom keeps focus on a disabled button, so the busy-button tests now also check that the button is not `disabled`;
+    - **layout:** empty status regions still add a grid or flex gap, so a CSS rule takes them out of the layout;
+    - **popup styles:** the popup's position-based selectors had to move to the new content container;
+    - **missing details:** the class, icon, and role of the "not saved" note, a test setup for the Other language field, clearing the save bar on Test connection, and a duplicate alert at the old error element;
+    - **missed cases:** two more places where focus fell to the page, after `model_not_configured` and while Sources repeats the preview.
+
+## 2026-11-15, `fix-focus-and-result-messages` (#71, #72): implementation (Factory Droid, GPT-6.1 Sol for the completion run)
+
+- **Sessions:** Claude Code started three runs. Run 1 failed at once, before a session started, because the branch was still checked out in the main checkout. Run 2 (`658e003f-400e-4c85-980a-d6381cbf45c4`, 31 turns, about 33 seconds) stopped before editing anything: the plan's deletion rule forbade the cleanup trap in `scripts/docker-smoke.sh`. Run 3 (`c139ed76-a845-40f8-9dc9-da08d1d1b415`) added a clarification that the script's own cleanup is allowed. It ran about 6 minutes, committed groups 1–4 and task 5.1, and ended at task 5.2 with "insufficient permission" for the smoke script. The resumed session took 152 turns and about 2.3 minutes for tasks 5.2 and 5.3. The excerpts below were written by Droid; Claude Code added this line and corrected the attribution at review.
+- Prompt (faithful excerpt): "Implement OpenSpec change fix-focus-and-result-messages using the openspec-apply-change skill. Work through openspec/changes/fix-focus-and-result-messages/tasks.md in order and check off each task only after its verification passes. Work test-first with the tdd skill: in each group, write the tests first and watch them fail on an assertion (except the tests marked guard), then change the code. Do not edit proposal.md, design.md, or the spec deltas. Commit after each task group." The request also required Node 22, restricted network access, no manual deletion, no traffic to port 8800, and no push, tag, or release.
+- Completion prompt (faithful excerpt): "Claude Code ran task 5.2 for you in this worktree at ba4e93f: 'docker build -t catchup:fix-focus-local .' passed, and 'scripts/docker-smoke.sh catchup:fix-focus-local' passed all 12 checks ... Its own cleanup left no container or volume. Do not run docker build or the smoke script again. Check off 5.2 and record in the report that Claude Code ran it ... Then do task 5.3 exactly as tasks.md says ... and commit group 5, including the 5.1 checkbox already changed in tasks.md."
+- Outcome: Implemented Settings save-bar results, linked field errors and partial-save state, persistent frontend/popup status regions, focus handoffs, and guarded focusable busy controls. Groups 1–4 each committed after verification. Red runs produced **14**, **11**, **4**, and **17** assertion failures respectively; final checks passed **922 backend**, **303 frontend**, and **131 extension** tests, both builds, and strict OpenSpec validation. Claude Code supplied the successful Docker build and **12-check smoke** result at `ba4e93f`; the completion run recorded it without rerunning Docker. See `test-report-fix-focus-and-result-messages.md` for commands, guards, scenario mapping, ranked causes, and review limits.
+- Problems / adjustment: Installed missing locked Node dependencies under Node 22.17.1 and created the Python 3.12.13 backend environment from the offline uv cache. Corrected an initial CSS test matcher TypeError and reran red before implementation; corrected an Element/HTMLElement test-helper type caught by the first frontend build. Droid's earlier local Docker build passed, but its smoke attempt was blocked at the configured permission level; Claude Code ran the build and smoke itself and gave Droid the results, instead of raising Droid's permissions. Real keyboard and screen-reader checks remain for review. No manual deletion, protected-resource changes, provider requests, or publication; generated paths and the local image are listed for review cleanup.
+
+## 2026-11-15 — `fix-focus-and-result-messages` (#71, #72): review (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
+
+- **Prompts** (translated from Chinese): after the review report, "Yes, make the review commit as you said." After Claude reported the larger size and the new source change, "Yes, commit at this size."
+- **Outcome:**
+  - **Droid runs.** Run 1 failed because Claude had left the branch checked out in the main checkout; Claude switched that checkout back to `main`. Run 2 stopped on the plan's deletion rule, which Claude had worded too broadly: it also forbade the smoke script's own cleanup. Claude clarified the rule in run 3's prompt, and fixed the wording in `tasks.md` in this commit. Run 3 ended at the smoke script, because `--auto medium` refuses its `docker rm -f` trap. Claude kept that level, built the image and ran the smoke script itself at `ba4e93f` (12 of 12, no leftovers), and resumed the session to record it and do task 5.3.
+  - **Claude's checks.** Claude moved Droid's worktree into its review scratchpad. The move broke the backend's editable `.venv`, so Claude recreated it from the offline uv cache. Backend 922, frontend 303, and extension 131 tests passed, and both builds and strict validation passed.
+  - **Live keyboard check.** Claude served the built frontend with a stub API (no real data, keys, or network) in its built-in browser, and used only the keyboard. Every check matched the design:
+    - Home: busy Generate keeps focus and has `aria-disabled`; a second Enter sends no second request; after the first digest, focus is on run-bar Generate;
+    - Settings: Save with no model names the Model field and marks the select; a missing instance secret shows once at Save; Test connection clears the save bar; Delete all X data and Disconnect put focus where the design says; empty status regions take no space;
+    - Sources: the X token form stays while the preview repeats; then focus moves to the preview heading, and to the empty address field after Confirm or Cancel, with the results in the status region that was already there.
+  - **`/code-review` (high)** reported 8 findings: Droid's log entry placed among the 2026-10-28 entries; the report and the log saying the user supplied Claude's smoke result; the missing session line; the `tasks.md` deletion note; an `error` state set for Save errors without a field, which never renders; the save-bar alert's icon touching its text; `aria-disabled="false"` on the idle Generate button; and the popup resetting an Add button that a new view had already replaced.
+  - **Spec review.** An independent sub-agent found every requirement implemented, with no wrong behavior. Of 80 mutations, 69 were caught. Five survivors mattered:
+    - the busy-Add test could not fail. It counted requests right after the second click, before the async handler would send one;
+    - nothing tested that a model choice clears the save bar, that a successful Save removes an old alert, that `model_not_configured` moves focus in the run-bar layout, or that the popup status line stays attached through the X token prompt.
+
+    It also found that a model choice cleared Test connection's field errors, such as a rejected key. No requirement asks for that; Claude confirmed it in the code.
+  - **Flaky focus tests.** While Claude checked the review commit, the new Disconnect focus test failed once in four full frontend runs, and passed alone. The page moved focus in a `useEffect`. React Testing Library's `findBy*` can return after the content changes but before that effect runs, and the test then checks focus at once. A probe confirmed it: with `useEffect`, 2 of 200 runs found the text before the focus moved; with `useLayoutEffect`, none of 200 did. 12 new focus assertions in this change follow that pattern. In a browser, the effect runs right after the paint, so users were not affected.
+  - **Classification (D-023).** No item needs another Droid round. Claude's review commit:
+    - `chooseModel` clears only the save bar's results (one source line). A Model field error from Save cannot exist while the Model select is enabled, so no extra branch is needed;
+    - the focus effects in Settings, Home, and Sources use `useLayoutEffect` (six source lines), so focus moves in the same commit as the content. This fixes all 12 assertions at the cause instead of wrapping each in `waitFor`. Claude rebuilt the frontend and repeated the keyboard checks for those three pages; all passed;
+    - tests for the five survivors. The busy-Add test now waits 20 ms before counting. 7 named mutations now fail the tests;
+    - this entry; Droid's entry moved to the end, with its sessions and corrected attribution; the report's attribution, mapping, and a section on these additions; the `tasks.md` deletion note.
+
+    The test changes add about 50 lines, above D-023's guideline of about 30, and the source changes grew from one line to seven, so Claude asked the user before committing. The user replied (translated from Chinese): "Yes, commit at this size."
+  - **Recorded, not fixed:**
+    - the save-bar alert's icon touching its text. The old form-wide error and six other `field-error` paragraphs with an icon look the same, so it needs one fix for all of them, outside this change;
+    - the unused `error` state for Save errors without a field, `aria-disabled="false"` on the idle button, and the reset of a replaced Add button. None changes what the user sees or hears;
+    - the popup status line's colour changed, because the old colour came from a position-based selector that matched it by accident;
+    - the marginal or equivalent mutation survivors;
+    - an older Settings copy test (`selects the token and announces copy failure when clipboard is rejected`, from `cde27f3`) failed once when two test files ran in parallel, and passed three times alone. Its status region is always on the page, so `findByRole` can return before the text arrives.
+- **Problems / adjustment:**
+  - Claude's summary of the review proposed adding `inline-msg` to the save-bar alert. Checking the other alerts showed the gap is missing everywhere, so Claude left it for a separate fix.
+  - Claude's first mutation script matched two places in `Settings.tsx`, because `save()` and `testConnection()` start with the same lines. Its count check stopped it before any change; Claude anchored the mutation on `event.preventDefault()` and ran it again.
+  - Five anonymous Docker volumes created earlier that day, before the first run, and one from 2026-11-13 were not created by these runs. Claude did not delete them, because their source was unknown.

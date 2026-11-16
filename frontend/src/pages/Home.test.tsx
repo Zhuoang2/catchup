@@ -901,6 +901,61 @@ function mockPage(options: { ready?: boolean; run?: unknown; sources?: unknown[]
 beforeEach(() => { vi.stubGlobal('fetch', fetchMock) })
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); fetchMock.mockReset() })
 
+it.each(['Generate screen', 'run bar'])('keeps busy Generate focusable in the %s and ignores a second activation', async layout => {
+  const { container } = mockPage({ latest: layout === 'run bar' ? digest : null })
+  const generate = await screen.findByRole('button', { name: 'Generate digest' })
+  const original = fetchMock.getMockImplementation()!
+  fetchMock.mockImplementation(async (path: string, options?: RequestInit) =>
+    path === '/api/digest-runs' && options?.method === 'POST' ? respond(run) : original(path, options))
+  generate.focus()
+  fireEvent.click(generate)
+  await screen.findByRole('button', { name: 'Generating…' })
+  expect(generate).toHaveAttribute('aria-disabled', 'true')
+  expect(generate).not.toBeDisabled()
+  expect(generate).toHaveFocus()
+  fireEvent.click(generate)
+  expect(fetchMock.mock.calls.filter(([path, options]) =>
+    path === '/api/digest-runs' && options?.method === 'POST')).toHaveLength(1)
+  await expectAccessible(container)
+})
+
+it('moves focus to run-bar Generate when the first digest replaces the Generate screen', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  const waitForPollTimer = watchPollTimer()
+  mockPage()
+  const generate = await screen.findByRole('button', { name: 'Generate digest' })
+  const original = fetchMock.getMockImplementation()!
+  fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+    if (path === '/api/digest-runs' && options?.method === 'POST') return respond(run)
+    if (path === '/api/digest-runs/1') return respond({ ...run, status: 'succeeded', digest_id: 8 })
+    if (path === '/api/digests/8') return respond({ ...digest, id: 8 })
+    return original(path, options)
+  })
+  generate.focus()
+  fireEvent.click(generate)
+  await waitForPollTimer()
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  await screen.findByRole('heading', { name: 'Technology' })
+  expect(screen.getByRole('button', { name: 'Generate digest' })).toHaveFocus()
+})
+
+it.each([['Generate screen', true], ['run bar', true], ['run bar', false]])(
+  'moves focus to model setup in the %s only when Generate was focused (%s)', async (layout, focused) => {
+  mockPage({ latest: layout === 'run bar' ? digest : null })
+  const generate = await screen.findByRole('button', { name: 'Generate digest' })
+  const original = fetchMock.getMockImplementation()!
+  fetchMock.mockImplementation(async (path: string, options?: RequestInit) =>
+    path === '/api/digest-runs' && options?.method === 'POST'
+      ? respond({ error: { code: 'model_not_configured', message: 'Set up your model.' } }, 400)
+      : original(path, options))
+  if (focused) generate.focus()
+  fireEvent.click(generate)
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Generate digest' })).toBeDisabled())
+  const setup = screen.getAllByRole('link', { name: 'Set up your model' })[0]
+  expect(setup).toHaveClass('btn-primary')
+  expect(focused ? setup : document.body).toHaveFocus()
+})
+
 it.each([['existing sources', sources], ['no sources (fresh install)', []]])(
   'puts model setup first with a visible disabled Generate and a state-aware rail: %s', async (_case, list) => {
   const { container } = mockPage({ ready: false, sources: list })
@@ -945,7 +1000,7 @@ it('does not show last-digest links in the no-digest guidance', async () => {
 
 it('shows a running run, not the no-sources state, when sources are empty', async () => {
   const { container } = mockPage({ ready: true, sources: [], run: { ...run, status: 'collecting' } })
-  expect(await screen.findByRole('button', { name: 'Generating…' })).toBeDisabled()
+  expect(await screen.findByRole('button', { name: 'Generating…' })).toHaveAttribute('aria-disabled', 'true')
   expect(screen.getByRole('button', { name: 'Generating…' })).toHaveClass('btn-primary')
   expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
   expect(screen.queryByRole('link', { name: 'Add sources' })).toBeNull()
@@ -964,7 +1019,7 @@ it.each(['collecting', 'summarizing'])('shows %s progress and named source outco
     .toHaveTextContent('1 podcast · 1 YouTube · 1 website')
   if (status === 'collecting') expect(screen.getByRole('status')).toHaveTextContent('Checking sources, 2 of 3')
   expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
-  expect(screen.getByRole('button', { name: 'Generating…' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Generating…' })).toHaveAttribute('aria-disabled', 'true')
   expect(screen.getByRole('button', { name: 'Generating…' })).toHaveClass('btn-primary')
   await expectAccessible(container)
 })
@@ -1117,7 +1172,7 @@ it('keeps an active run visible when the latest digest fails to load', async () 
   expect(await screen.findByRole('progressbar', { name: 'Items summarized: 5 of 12' })).toBeInTheDocument()
   expect(screen.getByRole('alert')).toHaveTextContent('Latest unavailable')
   expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
-  expect(screen.getByRole('button', { name: 'Generating…' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Generating…' })).toHaveAttribute('aria-disabled', 'true')
 })
 
 it('keeps a startup latest-digest error visible through successful progress polls', async () => {

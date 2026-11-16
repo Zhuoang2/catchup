@@ -36,7 +36,7 @@ def test_disallow_for_catchup_and_fetch_once_per_host(public_dns):
 
 
 @pytest.mark.parametrize("response,expected", [
-    (404, True), (401, False), (403, False), (410, True), (429, True),
+    (400, True), (404, True), (401, False), (403, False), (410, True), (429, True), (499, True),
     (500, False), (502, False), (503, False),
 ])
 def test_missing_or_restricted_robots(public_dns, response, expected):

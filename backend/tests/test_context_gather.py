@@ -325,17 +325,20 @@ def test_robots_server_error_skips_the_sites_pages(environment, monkeypatch, pub
 
 
 def test_unreachable_robots_keeps_other_sites(environment, monkeypatch, public_dns):
-    setup(environment, [("https://docs.example/a", "A"), ("https://other.example/b", "B")])
+    setup(environment, [("https://docs.example/a", "A"), ("https://other.example/b", "B"),
+                        ("https://docs.example/c", "C")])
     stub_collection(monkeypatch)
     with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
-        router.get("https://docs.example/robots.txt").mock(side_effect=httpx.ConnectTimeout("timeout"))
+        robots = router.get("https://docs.example/robots.txt").mock(side_effect=httpx.ConnectTimeout("timeout"))
         refused = router.get("https://docs.example/a").mock(return_value=httpx.Response(200))
+        also_refused = router.get("https://docs.example/c").mock(return_value=httpx.Response(200))
         router.get("https://other.example/robots.txt").mock(return_value=httpx.Response(404))
         router.get("https://other.example/b").mock(return_value=httpx.Response(
             200, text=html("Other", "Other context " * 40),
         ))
         result = execute(environment)
-    assert refused.call_count == 0
+    assert refused.call_count == also_refused.call_count == 0
+    assert robots.call_count == 1
     assert result["status"] == "succeeded"
     with environment.app.state.session_factory() as session:
         contexts = session.scalars(select(ItemContext)).all()
@@ -760,11 +763,13 @@ def test_page_saved_during_context_pass_waits_for_next_run(environment, monkeypa
         assert status == 201
         assert first["status"] == "succeeded"
         assert first["digest_item_count"] == 1
+        assert first["items_total"] == 1
         with environment.app.state.session_factory() as session:
             assert session.get(Item, seeded_id).state == "delivered"
             capture = session.get(Item, capture_id)
             assert capture.state == "pending"
             assert capture.context_status is None
+            assert capture.summary is None
             assert session.scalars(select(DigestItem).where(DigestItem.item_id == capture_id)).all() == []
         assert not reference.called
 

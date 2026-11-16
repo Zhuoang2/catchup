@@ -14,8 +14,8 @@ not new mutation runs in this worktree.
 | --- | --- | --- | --- |
 | Droid, resumed run | `backend/` | `uv run pytest` | Exit 0, **938 passed in 27.80s**. Python 3.12.13, pytest 9.1.1. uv created `.venv` and installed 60 packages. |
 | Droid, resumed run | Repository root | `DO_NOT_TRACK=1 openspec validate fix-robots-errors-and-late-items --strict` | Exit 0, `Change 'fix-robots-errors-and-late-items' is valid`. |
-| Claude Code, at `5d17e70` in this worktree | Repository root | `docker build -t catchup:fix-robots-local .` | Passed, as reported by the user at resumption. |
-| Claude Code, at `5d17e70` in this worktree | Repository root | `scripts/docker-smoke.sh catchup:fix-robots-local` | Passed all **12 checks**, as reported by the user at resumption; script cleanup left no container or volume. |
+| Claude Code, at `5d17e70` in this worktree | Repository root | `docker build -t catchup:fix-robots-local .` | Passed. Claude Code ran it and gave Droid the result in the resume prompt. |
+| Claude Code, at `5d17e70` in this worktree | Repository root | `scripts/docker-smoke.sh catchup:fix-robots-local` | Passed all **12 checks**. Claude Code ran it and gave Droid the result in the resume prompt; script cleanup left no container or volume. |
 
 Claude Code's reported smoke checks: container healthy; GET `/api/health`;
 GET `/` returns HTML; manifest, `sw.js`, and `offline.html` have the expected
@@ -23,8 +23,8 @@ types; saved zh-Hans preference; responses refuse framing; non-root process;
 database on the volume; image excludes `.env` and the backend source tree;
 preference survives restart.
 
-Droid did not rerun either Docker command in the resumed run. The user's
-resumption instruction supersedes task 3.1's image-removal instruction:
+Droid did not rerun either Docker command in the resumed run. Claude Code's
+resume prompt supersedes task 3.1's image-removal instruction:
 **`catchup:fix-robots-local` remains for Claude Code's live check and removal
 after review.** Droid deleted nothing in this resumed run and did not send
 anything to port 8800. No push, tag, release, or Docker prune was performed.
@@ -157,14 +157,93 @@ explicit known limit, not a new model/migration change.
 
 ## Not performed and retained artifacts
 
-- **Live check not performed.** Claude Code will use a branch-local instance
-  on a port other than 8800, a local stub model, and a public feed; save a page
-  while linked pages are read, then verify it stays pending until the next
-  run reads its context and delivers it. Docker smoke is not this live check.
-- Standalone frontend/extension checks were not run: neither area changed.
-- Image retained by explicit user instruction: `catchup:fix-robots-local`.
+- **Live check not performed by Droid.** Claude Code ran it at review (see
+  "Review by Claude Code" below), using a branch-local instance
+  on a port other than 8800, a local stub model, and a public feed. Docker
+  smoke is not this live check.
+- Droid ran no frontend or extension checks: neither area changed in its commits.
+- Image retained at Claude Code's request in the resume prompt: `catchup:fix-robots-local`.
   Claude Code reports no smoke container or volume left over.
-- Generated directories retained, with their contents, under the no-deletion
-  instruction:
-  - `/private/tmp/claude-501/-Users-madivhkassel-Desktop-Stanford-Fall-2026-CS-146S/fecc26ac-03ed-4f62-bdd5-ba35b7996c52/scratchpad/review-robots/backend/.venv/`
-  - `/private/tmp/claude-501/-Users-madivhkassel-Desktop-Stanford-Fall-2026-CS-146S/fecc26ac-03ed-4f62-bdd5-ba35b7996c52/scratchpad/review-robots/backend/.pytest_cache/`
+- Generated directories retained under the no-deletion instruction:
+  `backend/.venv/` and `backend/.pytest_cache/` in the worktree (both gitignored).
+
+## Review by Claude Code
+
+Date: 2026-11-16. Range reviewed: `22364fe..f5c3357`, in a separate review
+worktree. Review method: D-016 (`/code-review` at high effort, an independent
+spec sub-agent with mutations, Claude Code's own checks).
+
+### Checks
+
+| Check | Result |
+| --- | --- |
+| `docker build -t catchup:fix-robots-local .` at `5d17e70` | Passed. |
+| `scripts/docker-smoke.sh catchup:fix-robots-local` at `5d17e70` | Passed all **12 checks**; no container or volume left. |
+| `uv run pytest` in `backend/`, before the review edits | **938 passed**. |
+| `uv run pytest` in `backend/`, with the review edits | **940 passed** (two new parameter cases). |
+| `DO_NOT_TRACK=1 openspec validate fix-robots-errors-and-late-items --strict` | Valid. |
+| `extension/src/test/docs.test.ts` | Not run locally: the review worktree has no `node_modules`, and installing them needs a download. Claude Code checked the new README phrases with an equivalent script; CI runs the test. |
+
+### Live check (#70)
+
+- **Setup.**
+  - A container from `catchup:fix-robots-local` on a local port, not 8800, with its own volume.
+  - A local OpenAI-compatible stub model, which answers every summary, grouping, and merge request with fixed JSON.
+  - A public feed (Simon Willison's Weblog).
+  - A test extension token, created in that instance for this check.
+- **Steps and results.**
+  1. Run 1 started. When the run's status showed the linked-pages stage at
+     "Linked pages read: 0 of 17", a page was saved through `POST /api/captures`
+     with one link (RFC 9309 at rfc-editor.org).
+  2. Run 1 succeeded with 5 items, all from the feed. The saved page was not in
+     the digest and was still listed as waiting.
+  3. Run 2 succeeded with 1 item: the saved page, with its summary. In the
+     database, the item was `delivered` with `context_status` `gathered`. It had
+     one context row (the RFC page, 3,000 characters) and one digest entry.
+- The container and its volume were removed after the check, and the stub was stopped.
+
+The robots.txt cases are covered by the tests only, as the design says.
+
+### Findings
+
+`/code-review` (high) reported 5 findings:
+
+| Finding | Decision |
+| --- | --- |
+| This report says the user supplied Claude Code's Docker results and the image-retention request | Confirmed; fixed in this report. |
+| Droid's ai-log entry repeats that attribution and has no session id | Confirmed; fixed in the log. |
+| The new robots rule is a 136-character line | Churn (D-023 d); recorded. |
+| A run whose only pending items are late ones ends "no new content" without naming them | Rejected: a design Non-Goal. |
+| `test_unresolvable_robots_host_disallows` alone cannot tell why `allowed` is `False` | Rejected: with the 4xx allow cases, the suite pins the rule. |
+
+The spec sub-agent found no defect in the code. Its findings:
+
+| Finding | Decision |
+| --- | --- |
+| A README known-limit bullet still says a page saved during the linked-pages pass can be summarized without its links | Confirmed (D-023 b). The bullet now says the page waits for the next run, and `docs.test.ts` checks the new phrases. |
+| A link on another site that redirects into a refused origin is still fetched: robots.txt is checked only for the start URL, and `safe_fetch` follows redirects | Confirmed in the code. It predates this change, and applies to `Disallow` too. The user chose to narrow the spec delta to what the code does, record it in design Risks, and track the fix in #90. |
+| The robots cache key is the origin as the URL writes it, so `https://SITE.example` and `https://site.example:443` read robots.txt again | Confirmed, predates this change. Same decision as above; the README sentence now says that the site's linked pages and author replies are skipped. |
+| Mutation M15 (do not cache a refusal after a network error) survived | Test gap (c). `test_unreachable_robots_keeps_other_sites` now links twice to the unreachable site and checks one robots request. |
+| N1 (read the cutoff before the caption pass) survived | Marginal: the only effect is that items recorded during the caption pass wait one run. Recorded. |
+| N2 (filter by cutoff in the save query instead of the pending query) survived | Test gap (c). The late-page test now checks `items_total == 1` and that the page has no summary after run 1. N3 (filter only the summary inputs) is equivalent for saved pages; recorded. |
+| This report listed absolute local scratchpad paths | Fixed above. |
+| The report's attribution, and design D1's statement that the RFC says nothing about oversized robots.txt | Fixed: D1 now quotes RFC 9309 section 2.5 and calls the refusal a fail-closed choice. |
+
+### Mutations
+
+The spec sub-agent reran Droid's 9 mutations on the full suite. R5, L3, and L4,
+which Droid ran on narrow selections, fail 2, 12, and 103 tests. It added 24
+more, and 16 of those failed. Survivors and what was done:
+
+| Mutation | Result with the review edits |
+| --- | --- |
+| M15: do not cache `False` after a network error | Fails `test_unreachable_robots_keeps_other_sites` (2 robots requests, expected 1). |
+| N2: move the cutoff filter to the save query | Fails `test_page_saved_during_context_pass_waits_for_next_run` (`items_total` 2, expected 1). |
+| M2: refuse a 400 answer | Fails `test_missing_or_restricted_robots[400-True]` (new case). |
+| M6: refuse a 499 answer | Fails `test_missing_or_restricted_robots[499-True]` (new case). |
+| M1: allow a 399 status | Not an HTTP status a server sends in practice; recorded. |
+| N1, N3 | Recorded (see Findings). |
+| N5: cutoff from the highest pending id | Equivalent: a late item always gets an id above every existing id, except the rowid-reuse case in design Risks. Recorded. |
+
+Claude Code confirmed that M15 and N2 pass the tests without the new
+assertions, and that M2 and M6 pass the suite without the new cases.

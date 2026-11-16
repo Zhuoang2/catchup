@@ -160,15 +160,24 @@ it('focuses the token field when the popup asks for an X token', async () => {
   expect(await screen.findByLabelText('X API token')).toHaveFocus()
 })
 
-it('focuses the preview heading after saving the X token', async () => {
+it('focuses the preview heading after saving the X token and keeps the status line attached', async () => {
   mockXTokenFlow()
   await initPopup()
+  const status = screen.getByRole('status')
+  const records: MutationRecord[] = []
+  const observer = new MutationObserver(changes => records.push(...changes))
+  observer.observe(document.querySelector('#popup')!, { childList: true, subtree: true })
   fireEvent.click(screen.getByRole('button', { name: 'Follow this account' }))
   fireEvent.input(await screen.findByLabelText('X API token'), { target: { value: 'fake-token' } })
+  expect(status).toHaveTextContent('X token needed.')
   const save = screen.getByRole('button', { name: 'Save' })
   save.focus()
   fireEvent.click(save)
   expect(await screen.findByRole('heading', { name: 'Sample Writer' })).toHaveFocus()
+  records.push(...observer.takeRecords())
+  observer.disconnect()
+  expect(screen.getByRole('status')).toBe(status)
+  expect(records.some(record => [...record.removedNodes].includes(status))).toBe(false)
 })
 
 it.each(['Add', 'Remove', 'Follow', 'Confirm', 'Save'])('focuses Open options after a 401 during %s', async action => {
@@ -441,6 +450,7 @@ it('keeps busy Add focusable, ignores another click, and shows a run_active conf
   expect(add).not.toBeDisabled()
   expect(add).toHaveFocus()
   fireEvent.click(add)
+  await new Promise(resolve => setTimeout(resolve, 20))
   expect(saves()).toHaveLength(1)
   complete(response(409, { error: { code: 'run_active', message: 'A digest is being made.' } }))
   await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('A digest is being made.'))

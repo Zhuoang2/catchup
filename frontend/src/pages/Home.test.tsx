@@ -939,18 +939,21 @@ it('moves focus to run-bar Generate when the first digest replaces the Generate 
   expect(screen.getByRole('button', { name: 'Generate digest' })).toHaveFocus()
 })
 
-it('moves focus to model setup when focused Generate finds no model configured', async () => {
-  mockPage()
+it.each([['Generate screen', true], ['run bar', true], ['run bar', false]])(
+  'moves focus to model setup in the %s only when Generate was focused (%s)', async (layout, focused) => {
+  mockPage({ latest: layout === 'run bar' ? digest : null })
   const generate = await screen.findByRole('button', { name: 'Generate digest' })
   const original = fetchMock.getMockImplementation()!
   fetchMock.mockImplementation(async (path: string, options?: RequestInit) =>
     path === '/api/digest-runs' && options?.method === 'POST'
       ? respond({ error: { code: 'model_not_configured', message: 'Set up your model.' } }, 400)
       : original(path, options))
-  generate.focus()
+  if (focused) generate.focus()
   fireEvent.click(generate)
-  await screen.findByRole('heading', { name: 'Getting started' })
-  expect(screen.getAllByRole('link', { name: 'Set up your model' })[0]).toHaveFocus()
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Generate digest' })).toBeDisabled())
+  const setup = screen.getAllByRole('link', { name: 'Set up your model' })[0]
+  expect(setup).toHaveClass('btn-primary')
+  expect(focused ? setup : document.body).toHaveFocus()
 })
 
 it.each([['existing sources', sources], ['no sources (fresh install)', []]])(

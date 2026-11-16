@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode, type Ref } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode, type Ref } from 'react'
 import { ApiError, request } from '../api/client'
 import { shortDateTime } from '../components/format'
 import { Icon } from '../components/Icon'
@@ -80,7 +80,7 @@ export default function Settings() {
   const xCancelRef = useRef<HTMLButtonElement>(null)
   const focusNext = useRef<'x' | 'browser' | 'delete' | 'cancel' | null>(null)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const targets = { x: xHeadingRef, browser: browserHeadingRef, delete: xDeleteRef, cancel: xCancelRef }
     if (focusNext.current) {
       targets[focusNext.current].current?.focus()
@@ -283,7 +283,7 @@ export default function Settings() {
   }
 
   function chooseModel(choice: string) {
-    setError(''); setErrorField(null); setMessage(''); setSaveError('')
+    setMessage(''); setSaveError('')
     setModel(choice)
     if (!key && baseUrl.trim() === savedBaseUrl) {
       void queueModelSave({ base_url: savedBaseUrl, model_id: choice, api_key: '' },

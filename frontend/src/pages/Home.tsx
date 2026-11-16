@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError, request } from '../api/client'
 import { DigestArticle } from '../components/DigestArticle'
@@ -147,7 +147,7 @@ export default function Home() {
   const [pendingDigests] = useState(() => new Set<number>())
   useDocumentTitle(digest ? `Latest · No. ${digest.id}` : 'Latest')
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (focusNext.current === 'generate') runBarRef.current?.focus()
     if (focusNext.current === 'setup') setupRef.current?.focus()
     focusNext.current = null

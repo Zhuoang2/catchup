@@ -104,8 +104,8 @@ percentage was measured in this run.
 
 ## Docker checks, task 5.2
 
-**Claude Code ran task 5.2 in this worktree at `ba4e93f`.** The user supplied
-the following successful results when resuming Droid. Droid records that
+**Claude Code ran task 5.2 in this worktree at `ba4e93f`.** Claude Code gave
+Droid the following successful results when resuming it. Droid recorded that
 handoff as the task's verification and did not rerun either Docker command
 in the completion run.
 
@@ -155,7 +155,7 @@ existing parameterized test title.
 | Save and preview on the Sources page | `frontend/src/pages/Sources.test.tsx`: `keeps Save and preview focused until the repeated preview answers, then focuses its heading`, including the mounted form while pending and persistent X-token status. |
 | Confirm a source | `frontend/src/pages/Sources.test.tsx`: `focuses the empty address after Confirm source and announces in the existing status region`. |
 | First digest replaces the Generate screen | `frontend/src/pages/Home.test.tsx`: `moves focus to run-bar Generate when the first digest replaces the Generate screen`. |
-| Generate finds no model set up | `frontend/src/pages/Home.test.tsx`: `moves focus to model setup when focused Generate finds no model configured`. |
+| Generate finds no model set up | `frontend/src/pages/Home.test.tsx`: `moves focus to model setup in the %s only when Generate was focused (%s)`, Generate-screen and run-bar cases, plus a run-bar case without focus (added at review). |
 
 Additional requirement coverage includes the Base URL case of the Settings
 configuration test, the linked Other-language partial-save test, both
@@ -179,6 +179,28 @@ preview-heading focus tests; the five 401 action cases (Add, Remove, Follow,
 Confirm, Save); the initial-focus guard; the busy Remove and X-token Save
 tests; and the three CSS checks for busy appearance, hover exclusions, and
 the content-container grid/host selectors.
+
+## Claude Code review additions
+
+Added in Claude Code's review commit, after the spec review's mutations
+showed these gaps. Each new or changed test fails under its named mutation:
+
+| Gap | Test | Mutation that now fails it |
+| --- | --- | --- |
+| The busy-Add test counted requests right after the second click, before the async handler would send one, so it passed without the guard. | `keeps busy Add focusable, ignores another click, and shows a run_active conflict` now waits 20 ms before counting. | Remove the Add `aria-disabled` guard. |
+| The popup status line through the X token prompt. | `focuses the preview heading after saving the X token and keeps the status line attached`. | Re-append the status line when the token prompt opens. |
+| A model choice clears the save bar, and keeps Test connection's field errors. | `clears the save bar on a model choice but keeps the key error from a test`. | Clear `error` and `errorField` in `chooseModel`; do not clear the save bar there. |
+| A successful Save removes an old save-bar alert. | `removes the old save-bar alert when the next Save succeeds`. | Do not clear `saveError` at the start of `save()`. |
+| `model_not_configured` focus in the run-bar layout, and no move without focus. | `moves focus to model setup in the %s only when Generate was focused (%s)`. | Compare with the Generate-screen button only; drop the focus check. |
+
+The Settings, Home, and Sources focus effects now use `useLayoutEffect`.
+With `useEffect`, a `findBy*` query could return before focus moved, and
+the Disconnect focus test failed once in four full runs; a probe showed the
+same order in 2 of 200 runs, and none with `useLayoutEffect`.
+
+Claude Code also checked the built frontend with the keyboard in a browser,
+against a stub API, before and after this change. See the review entry in
+`ai-usage-log.md`.
 
 ## Review limits and leftovers
 

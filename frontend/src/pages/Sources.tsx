@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type Ref } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type Ref } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError, request } from '../api/client'
 import { parseDate, shortDateTime } from '../components/format'
@@ -133,7 +133,7 @@ export default function Sources() {
   const previewHeadingRef = useRef<HTMLHeadingElement>(null)
   const [focusAfterPreview, setFocusAfterPreview] = useState<'preview' | 'address' | null>(null)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (focusAfterPreview) {
       (focusAfterPreview === 'preview' ? previewHeadingRef : addressRef).current?.focus()
       setFocusAfterPreview(null)

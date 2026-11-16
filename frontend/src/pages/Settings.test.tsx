@@ -488,6 +488,39 @@ describe('Settings results and focus', () => {
     expect(within(saveBar()).queryByRole('alert')).toBeNull()
   })
 
+  it('clears the save bar on a model choice but keeps the key error from a test', async () => {
+    mockModelProvider({ put: () => respond({ error: { code: 'secret_not_configured', message: 'No secret.' } }, 400),
+      test: () => respond({ error: { code: 'auth_failed', message: 'Rejected' } }, 401) })
+    render(<Settings/>)
+    await screen.findByLabelText('API key')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await within(saveBar()).findByRole('alert')
+    fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'saved-model' } })
+    expect(within(saveBar()).getByRole('status')).toBeEmptyDOMElement()
+    expect(within(saveBar()).queryByRole('alert')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    await screen.findByText('The provider rejected the API key.')
+    fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'saved-model' } })
+    await waitFor(() => expect(modelPuts()).toHaveLength(3))
+    expect(screen.getByText('The provider rejected the API key.')).toBeInTheDocument()
+    expect(screen.getByLabelText('API key')).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('removes the old save-bar alert when the next Save succeeds', async () => {
+    let refuse = true
+    mockModelProvider({ put: body => refuse
+      ? respond({ error: { code: 'secret_not_configured', message: 'No secret.' } }, 400)
+      : respond({ base_url: body.base_url, model_id: body.model_id, key_set: true, api_key_last4: '1234' }) })
+    render(<Settings/>)
+    await screen.findByLabelText('API key')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await within(saveBar()).findByRole('alert')
+    refuse = false
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await within(saveBar()).findByText('Settings saved.')
+    expect(within(saveBar()).queryByRole('alert')).toBeNull()
+  })
+
   it('keeps empty save, browser, and X status regions on the page without child nodes', async () => {
     render(<Settings/>)
     await screen.findByLabelText('X API token')

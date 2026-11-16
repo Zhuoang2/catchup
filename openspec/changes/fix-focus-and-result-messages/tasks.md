@@ -32,7 +32,7 @@ Implementer notes:
   - the images `catchup:main-064d3a9` and `catchup:main-d034789`.
 
   Never send anything to port 8800. Never run `docker system prune`, `docker volume prune`, `docker image prune`, or `docker builder prune`.
-- **Deleting.** Do not delete files, directories, or Docker images yourself. In your final message, list what you created that should be removed, with full paths and image tags. Claude Code removes them at review.
+- **Deleting.** Do not delete files, directories, or Docker images yourself. Running `scripts/docker-smoke.sh` unchanged is allowed: its EXIT trap removes only the container and volume that the script creates. In your final message, list what you created that should be removed, with full paths and image tags. Claude Code removes them at review.
 - **Out of scope:**
   - the backend;
   - the extension's options page;

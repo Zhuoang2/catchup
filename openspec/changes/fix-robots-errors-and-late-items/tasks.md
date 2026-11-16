@@ -18,7 +18,7 @@ Implementer notes:
 
 ## 1. An unreachable robots.txt refuses its site for the run (#76)
 
-- [ ] 1.1 Write the failing tests.
+- [x] 1.1 Write the failing tests.
 
   In `backend/tests/test_context_robots.py`:
   - Replace `test_failed_robots_request_allows` with `test_unreachable_robots_disallows`. It is parametrized over three `side_effect`s for the robots.txt route: `httpx.ConnectTimeout`, `httpx.ConnectError`, and `httpx.ReadTimeout`. It asserts that `RobotsCache(budget=[2]).allowed("https://site.example/post")` is `False`.
@@ -49,7 +49,7 @@ Implementer notes:
   The spec scenario "robots.txt missing" maps to the existing `test_runner_stores_three_links_in_order_and_ignores_tags` (robots.txt 404, pages read). Do not add a test for it.
 
   Verify: run `uv run pytest tests/test_context_robots.py tests/test_context_gather.py` in `backend/`. Before 1.2, the network-error, DNS, 5xx, 503 `Retry-After`, unreadable-response, cache, and both gather tests fail because `allowed` returns `True`, or because a page route was called. The 404, 410, 429, 401, and 403 cases pass. No test may fail because of a mock error.
-- [ ] 1.2 Implement design D1 in `backend/src/catchup/context/robots.py`.
+- [x] 1.2 Implement design D1 in `backend/src/catchup/context/robots.py`.
   - In the `FetchError` branch, cache `True` only when `exc.status_code` is in 400–499 and is not 401 or 403. Otherwise cache `False`.
   - Change nothing else in the file.
 

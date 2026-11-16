@@ -308,6 +308,40 @@ def test_robots_refusal_and_failed_pages_do_not_fail_run(environment, monkeypatc
         assert not session.scalars(select(ItemContext)).all()
 
 
+def test_robots_server_error_skips_the_sites_pages(environment, monkeypatch, public_dns):
+    setup(environment, [("https://docs.example/a", "A"), ("https://docs.example/b", "B")])
+    stub_collection(monkeypatch)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        robots = router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(503))
+        first = router.get("https://docs.example/a").mock(return_value=httpx.Response(200))
+        second = router.get("https://docs.example/b").mock(return_value=httpx.Response(200))
+        result = execute(environment)
+    assert robots.call_count == 1
+    assert first.call_count == second.call_count == 0
+    assert result["status"] == "succeeded"
+    with environment.app.state.session_factory() as session:
+        assert session.scalars(select(ItemContext)).all() == []
+        assert session.scalar(select(Item)).state == "delivered"
+
+
+def test_unreachable_robots_keeps_other_sites(environment, monkeypatch, public_dns):
+    setup(environment, [("https://docs.example/a", "A"), ("https://other.example/b", "B")])
+    stub_collection(monkeypatch)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").mock(side_effect=httpx.ConnectTimeout("timeout"))
+        refused = router.get("https://docs.example/a").mock(return_value=httpx.Response(200))
+        router.get("https://other.example/robots.txt").mock(return_value=httpx.Response(404))
+        router.get("https://other.example/b").mock(return_value=httpx.Response(
+            200, text=html("Other", "Other context " * 40),
+        ))
+        result = execute(environment)
+    assert refused.call_count == 0
+    assert result["status"] == "succeeded"
+    with environment.app.state.session_factory() as session:
+        contexts = session.scalars(select(ItemContext)).all()
+        assert [part.url for part in contexts] == ["https://other.example/b"]
+
+
 def test_budget_leaves_unreached_items_ungathered_and_retries_do_not_refetch(
     environment, monkeypatch, public_dns,
 ):

@@ -58,7 +58,7 @@ Implementer notes:
 
 ## 2. robots.txt: one read per origin, and the budget error (D2, D3)
 
-- [ ] 2.1 Write the failing tests in `backend/tests/test_context_robots.py`.
+- [x] 2.1 Write the failing tests in `backend/tests/test_context_robots.py`.
   - Change `test_robots_request_uses_shared_budget`, the one existing test that pins the old signal. With `budget=[0]`, `allowed(...)` raises `BudgetExhausted` (`pytest.raises`), and the route is not called.
   - `test_one_robots_read_for_three_spellings`. One route, `https://site.example/robots.txt`, answers `"User-agent: *\nDisallow: /b\n"`. With `budget=[5]`, call `allowed` for `https://SITE.example/a`, `https://site.example:443/b`, and `https://site.example/c`. Assert:
     - the results are `True`, `False`, and `True`;
@@ -73,7 +73,7 @@ Implementer notes:
   - the three-spellings test fails, because robots.txt is read three times;
   - the separate-origins test fails, because `http://site.example:80/x` reads the `http` robots.txt a second time. Its other three calls guard D2 against merging too much (O2);
   - the IPv6 test fails, because the robots.txt request keeps the upper-case address and matches no route.
-- [ ] 2.2 Implement D2 and the `RobotsCache` part of D3 in `backend/src/catchup/context/robots.py`.
+- [x] 2.2 Implement D2 and the `RobotsCache` part of D3 in `backend/src/catchup/context/robots.py`.
   - Build the cache key and the robots.txt URL from the normalized origin.
   - Raise `BudgetExhausted()` at budget 0 for an origin that is not cached yet. The class sets its own code and message (design D3).
   - Let a `BudgetExhausted` from the robots.txt request propagate without caching. Keep today's rule for every other `FetchError`.

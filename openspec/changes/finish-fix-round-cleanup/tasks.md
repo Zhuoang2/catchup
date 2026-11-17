@@ -27,7 +27,7 @@ Implementer notes:
 
 ## 1. A source check loads full rows only for episodes it may update (D1)
 
-- [ ] 1.1 Write two failing tests in `backend/tests/test_podcast_collection.py`. In both, record loads with `event.listen(Item, "load", on_load)`, where `on_load(target, _context)` appends `target.identity_key`, and remove the listener in a `finally`. Mock every request the checks make with respx: the feed, and any episode page or show-notes link they fetch. Read `_resolve_episode` and `article_text` in `collection.py` to see which ones.
+- [x] 1.1 Write two failing tests in `backend/tests/test_podcast_collection.py`. In both, record loads with `event.listen(Item, "load", on_load)`, where `on_load(target, _context)` appends `target.identity_key`, and remove the listener in a `finally`. Mock every request the checks make with respx: the feed, and any episode page or show-notes link they fetch. Read `_resolve_episode` and `article_text` in `collection.py` to see which ones.
   - `test_podcast_check_loads_only_episodes_it_may_update`. Use `seed_source(client)` and one feed with three entries (guids `delivered`, `found`, and `waiting`), each with an enclosure and no transcript tag.
     1. Run `run_check(client)` once to create the three episodes.
     2. In a session, set `delivered` to `state="delivered"` with a 200,000-character `content_text`, and `found` to `transcript_status="found"` with a 200,000-character `content_text`. Leave `waiting` as created. Commit.
@@ -39,7 +39,7 @@ Implementer notes:
   - `test_feed_upgraded_to_podcast_resolves_pending_item`. Add a `Source` with `kind="feed"` and `feed_url=FEED_URL`, and one `pending` item for it with `identity_key="ep1"`, link `https://site.example/episode`, and no `transcript_status`. Run `run_check(client)` with `episode_feed()`. Assert that the source's kind is now `"podcast"`, and that the item's `transcript_status` is `"waiting"`.
 
   Verify: run `uv run pytest tests/test_podcast_collection.py` in `backend/`. Before 1.2 the two load tests fail: the podcast test records all three keys, and the website test records two. The upgrade test passes: it guards D1's `NULL` case and the query's place after the upgrade. Every existing test passes.
-- [ ] 1.2 Implement D1 in `backend/src/catchup/collection.py`.
+- [x] 1.2 Implement D1 in `backend/src/catchup/collection.py`.
   - Replace `existing_items` with the column query `known`, and build `keys`, `links`, and `possible_gap` from it.
   - Build `by_key` from the full-row query for podcast sources only, after the `source.kind` upgrade. Use `Item.transcript_status.in_(("to_fetch", "waiting")) | Item.transcript_status.is_(None)`.
   - Keep the loop and its condition unchanged.

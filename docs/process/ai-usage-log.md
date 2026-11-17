@@ -2417,3 +2417,28 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - **Recorded, not fixed:** S5 and S12 (deadline reset or over-shifted: marginal); C8 (an entry without a summary, older than this change); the INFO log for robots refusals; the equivalent survivors.
 - **Problems / adjustment:**
   - Claude's first probe for the `ValueError` finding used `lxml` directly. A second probe through feedparser showed the case cannot happen, so the finding was rejected instead of fixed.
+
+## 2026-11-17 — `finish-fix-round-cleanup` (#60): plan (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
+
+- **Prompts** (translated from Chinese): asked again which issues could be fixed in parallel with the user's own source test (#14), the user chose Claude's suggestion: "Yes, start writing the lean proposal for the rest of #60." After reviewing the plan, the user approved it: "Yes, commit the plan, then start running Droid."
+- **Outcome:**
+  - **One lean change, no spec delta** (`skip_specs: true`). It covers what PR #92 left of #60: part 3 (a poll helper in `Home.test.tsx`) and the 2026-11-01 comment (three rules no test protects, and a source check that loads every past item in full).
+  - **Checked against the code.** Claude checked every fact against `main` at `6ee13dd`. The line numbers in #60 are stale, and the design lists the current ones. There are 19 poll steps, not 20: the twentieth `watchPollTimer()` match is its definition.
+  - **Probes.**
+    - Mutation probe in a scratch worktree: removing the caption pass's summary clearing (Y1), `part.used = part.used or …` (U1), and removing the text path's summary clearing (P1) each passed the full suite (961 tests).
+    - SQLAlchemy: an `Item` `"load"` event fires once per full row loaded; a column `select` fires none. This is the seam for the two load tests.
+    - Frontend: with Node 22.17.1, `npm ci --offline` installed the locked packages from the local npm cache, and `Home.test.tsx` passed 99 tests, so Droid can run the frontend checks without downloading anything.
+  - **Plan.**
+    - D1: a column query for keys and links, and full rows only for pending podcast episodes whose transcript status is `to_fetch`, `waiting`, or empty, queried after the kind upgrade.
+    - D2: one pin test each for Y1, U1, and P1.
+    - D3: `watchPollTimer()` returns `advancePoll(ms = 1000)`.
+    - Four task groups, mutations M1–M6, Y1, U1, P1, and a before/after strength check (F1) for the frontend refactor. Group 4 tells Droid not to run Docker; Claude runs the smoke script and a live comparison at review.
+    - D-032 and its rejected alternatives.
+  - **D-023 fresh-eyes check.** A sub-agent that saw only the plan and the code wrote every planned test, applied sketches of D1 and D3 in its own scratch worktree, and ran every named mutation. It found no blocking problem. Claude checked each finding against the code or with a probe, and folded them into the plan:
+    - **should-fix:**
+      - the website-source load test must use a feed entry without an audio enclosure: with one, the check upgrades the source to a podcast and then rightly loads the pending item;
+      - mutation M4 (dropping the `NULL` part of the filter) survived, because no test covers a website source upgraded to a podcast. The plan adds `test_feed_upgraded_to_podcast_resolves_pending_item` and mutation M6 (querying before the upgrade). Claude ran the test: it passes on `main` and on the D1 sketch, and fails under M4;
+      - design's description of the Y1 test was reversed: the item must be discovered less than `caption_wait_hours` ago, or the caption pass skips it;
+    - **notes:** a frontend strength check that changed the poll interval cannot fail differently before and after the refactor, so it was replaced with removing the time advance; an ambiguous second frontend check was dropped; several line references were corrected.
+- **Problems / adjustment:**
+  - Two of Claude's own probe files first failed to run (one had no imports, one lacked the `client` fixture). Claude moved the probes into the existing test module temporarily, and removed them and the scratch worktree afterwards.

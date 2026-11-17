@@ -490,3 +490,23 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - A redirect to a new site costs one robots.txt request from the per-run budget.
   - "Linked pages read" now also counts a request that failed or was refused on the last budget unit, and, once the budget is used up, links of the same item that need no request (refused by cached rules, or blocked before any request).
   - When a post page cannot be parsed, the comment feed is tried.
+
+## D-032 A source check reads past items as keys and links, and loads full rows only for episodes it may update — accepted (2026-11-17)
+
+- **Decision.**
+  - **Source checks.** `check_source` reads only `identity_key` and `link` for the source's past items. For podcast sources it also loads, as full rows, the pending episodes whose transcript is still `to_fetch`, `waiting`, or empty, because only those can be updated by the check.
+  - **Pins.** A new test covers a website source upgraded to a podcast, whose pending item has no transcript status yet. Three rules that no test protected get one test each: the caption pass clears an earlier summary, a new summary resets the `used` flags of context rows, and a waiting episode that turns into a text post drops its earlier summary.
+  - **Frontend tests.** `watchPollTimer()` returns `advancePoll(ms)`, which waits for the poll timer and advances fake time; the 19 poll steps in `Home.test.tsx` use it.
+
+  Planned as the lean OpenSpec change `finish-fix-round-cleanup` (the rest of issue #60).
+- **Why.**
+  - A delivered transcript can be about 170,000 characters, and every source check loaded all of the source's past items in full, only to build key and link sets (#60, comment of 2026-11-01).
+  - On `main` at `6ee13dd`, removing any of the three rules passed the full backend suite (Claude's probe, 2026-11-16).
+  - #60 part 3 asked for one poll helper.
+- **Alternatives:**
+  - **`load_only` or `defer` on the full query.** Rejected: partial objects still enter the session, and the update branch would load the deferred columns lazily, one row at a time.
+  - **Keep full rows for podcast sources only.** Rejected: delivered episodes have the longest texts.
+  - **A helper that also starts the poll watch.** Rejected: the spy must be set before `render`, and the wait happens later.
+- **Consequences:**
+  - A source check's memory no longer grows with the text of the source's history.
+  - Nothing a user sees changes.

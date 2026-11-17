@@ -96,11 +96,21 @@ def check_source(session: Session, source: Source, run_id: int, settings: Settin
     if source.kind == "feed" and feed.kind != "feed":
         source.kind = feed.kind
 
-    existing_items = session.scalars(select(Item).where(Item.source_id == source.id)).all()
-    keys = {item.identity_key for item in existing_items}
-    by_key = {item.identity_key: item for item in existing_items}
+    known = session.execute(
+        select(Item.identity_key, Item.link).where(Item.source_id == source.id)
+    ).all()
+    keys = {item.identity_key for item in known}
+    by_key = {}
+    if source.kind == "podcast":
+        by_key = {
+            item.identity_key: item for item in session.scalars(select(Item).where(
+                Item.source_id == source.id,
+                Item.state == "pending",
+                Item.transcript_status.in_(("to_fetch", "waiting")) | Item.transcript_status.is_(None),
+            ))
+        }
     fallback_links = {source.feed_url, feed.feed_url} | feed.shared_links
-    links = {item.link for item in existing_items if item.link not in fallback_links}
+    links = {item.link for item in known if item.link not in fallback_links}
     matched_previous = any(
         entry.identity_key in keys or (entry.link not in fallback_links and entry.link in links)
         for entry in feed.entries
@@ -154,7 +164,7 @@ def check_source(session: Session, source: Source, run_id: int, settings: Settin
 
     check = SourceCheck(
         run_id=run_id, source_id=source.id, status="new_items" if new_count else "no_new_items",
-        possible_gap=bool(existing_items) and not matched_previous, error=None,
+        possible_gap=bool(known) and not matched_previous, error=None,
         http_status=response.status_code, entries_seen=len(feed.entries),
         new_count=new_count, checked_at=now,
     )

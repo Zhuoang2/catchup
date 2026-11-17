@@ -88,7 +88,7 @@ Implementer notes:
 
 ## 3. The linked-page pass: robots for every request, one budget signal (D1, D3)
 
-- [ ] 3.1 Write the failing tests in `backend/tests/test_context_gather.py`. Use `setup`, `stub_collection(monkeypatch)`, `html`, and `respx.mock(assert_all_mocked=True, assert_all_called=False)`.
+- [x] 3.1 Write the failing tests in `backend/tests/test_context_gather.py`. Use `setup`, `stub_collection(monkeypatch)`, `html`, and `respx.mock(assert_all_mocked=True, assert_all_called=False)`.
   - `test_redirect_to_disallowed_page_is_not_requested` (spec scenario "Link redirects to a disallowed page"). One link, `https://short.example/x`.
     - `short.example` robots.txt answers 404, and `/x` answers 302 to `https://docs.example/private`.
     - `docs.example` robots.txt answers `"User-agent: *\nDisallow: /private\n"`.
@@ -123,7 +123,7 @@ Implementer notes:
   - the last-unit test fails with `context_done` 0;
   - the three-spellings test passes, because group 2 already normalizes the key. It is the runner-level check for the spec scenario;
   - every existing test passes.
-- [ ] 3.2 Implement the `gather.py` part of D1 and D3 in `backend/src/catchup/context/gather.py`.
+- [x] 3.2 Implement the `gather.py` part of D1 and D3 in `backend/src/catchup/context/gather.py`.
   - `fetch` calls `safe_fetch(..., allow=robots.allowed)`, and lets `BudgetExhausted` propagate. Remove its own robots check and its budget checks.
   - Wrap each item's link and comment fetches in one `try … except BudgetExhausted`. Keep the rows already added, then store captured replies, run the deleted-item check, and always run the status block.
   - The comment block keeps today's feed fallback in this group. Make sure its `except Exception` does not catch `BudgetExhausted` (design D3, "Extraction handlers").

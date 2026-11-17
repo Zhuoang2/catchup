@@ -38,6 +38,14 @@ Commands below use `uv run pytest`, with the listed selection and
 | 2.2 green | `tests/test_context_robots.py` | 25 passed in 0.11s |
 | 2.2 regression | Full suite | 950 passed in 27.18s |
 | Group 2 restored | `tests/test_context_robots.py` | 25 passed in 0.12s |
+| 3.1 red | `tests/test_context_gather.py` | 3 failed, 38 passed in 4.26s. Both refused redirect targets were requested; last-unit failure counted 0, expected 1. The three-spellings test and all existing tests passed. |
+| 3.2 green | `tests/test_context_gather.py` | 41 passed in 4.38s |
+| 3.2 regression | Full suite | 954 passed in 25.26s |
+| Group 3 restored, README updated | `tests/test_context_gather.py tests/test_readme_context.py` | 42 passed in 4.57s |
+
+Group 3's structural search (`EXHAUSTED|attempted|exhausted|budget\[0\]`
+in `context/gather.py`) returned exactly one line: the unreached-item skip
+at line 72.
 
 ## Mutations
 
@@ -67,6 +75,15 @@ Every mutation below exited 1. Selections use `uv run pytest` with
 
 An initial mutation patch was rejected before any source changed or test ran.
 The corrected patch then ran as O1 above.
+
+### Group 3: `tests/test_context_gather.py`
+
+| Mutation | Selection / failed tests | Actual result |
+| --- | --- | --- |
+| G1: return `None` for budget exhaustion | `test_comment_feed_budget_cutoff_keeps_link` | 1 failed in 1.89s: progress `(3, 3)`, expected `(3, 2)`. |
+| G2: translate every last-unit fetch failure into exhaustion | `test_failed_request_on_last_budget_unit_counts_as_read` | 1 failed in 1.51s: progress `(2, 0)`, expected `(2, 1)`. |
+| G3: remove unreached-item skip | `test_budget_leaves_unreached_items_ungathered_and_retries_do_not_refetch` | 1 failed in 1.48s: second item's status `none`, expected `None`. |
+| G4: check robots only before `safe_fetch`, without `allow` | `test_redirect_to_disallowed_page_is_not_requested`; `test_redirect_to_site_with_unreadable_robots_is_not_requested` | 2 failed in 1.64s: both forbidden targets requested. |
 
 ## Review-only checks
 

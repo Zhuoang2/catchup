@@ -38,6 +38,95 @@ def html(title, text):
     return f"<html><head><title>{title}</title></head><body><article><p>{text}</p></article></body></html>"
 
 
+def test_redirect_to_disallowed_page_is_not_requested(environment, monkeypatch, public_dns):
+    setup(environment, [("https://short.example/x", "Short link")])
+    stub_collection(monkeypatch)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://short.example/robots.txt").mock(return_value=httpx.Response(404))
+        router.get("https://short.example/x").mock(return_value=httpx.Response(
+            302, headers={"location": "https://docs.example/private"},
+        ))
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(
+            200, text="User-agent: *\nDisallow: /private\n",
+        ))
+        private = router.get("https://docs.example/private").mock(return_value=httpx.Response(
+            200, text=html("Private", "Private context " * 40),
+        ))
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert not private.called
+    assert result["context_done"] == 1
+    with environment.app.state.session_factory() as session:
+        assert session.scalars(select(ItemContext)).all() == []
+
+
+def test_redirect_to_site_with_unreadable_robots_is_not_requested(environment, monkeypatch, public_dns):
+    setup(environment, [("https://short.example/x", "Short link"), ("https://other.example/b", "Other")])
+    stub_collection(monkeypatch)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://short.example/robots.txt").mock(return_value=httpx.Response(404))
+        router.get("https://short.example/x").mock(return_value=httpx.Response(
+            302, headers={"location": "https://down.example/p"},
+        ))
+        router.get("https://down.example/robots.txt").mock(return_value=httpx.Response(503))
+        refused = router.get("https://down.example/p").mock(return_value=httpx.Response(
+            200, text=html("Down", "Unreadable robots context " * 40),
+        ))
+        router.get("https://other.example/robots.txt").mock(return_value=httpx.Response(404))
+        router.get("https://other.example/b").mock(return_value=httpx.Response(
+            200, text=html("Other", "Other context " * 40),
+        ))
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert not refused.called
+    with environment.app.state.session_factory() as session:
+        assert [row.url for row in session.scalars(select(ItemContext)).all()] == ["https://other.example/b"]
+
+
+def test_three_spellings_of_one_site_share_robots(environment, monkeypatch, public_dns):
+    setup(environment, [
+        ("https://SITE.example/a", "A"), ("https://site.example:443/b", "B"), ("https://site.example/c", "C"),
+    ])
+    stub_collection(monkeypatch)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        robots = router.get("https://site.example/robots.txt").mock(return_value=httpx.Response(
+            200, text="User-agent: *\nDisallow: /b\n",
+        ))
+        router.get("https://site.example/a").mock(return_value=httpx.Response(
+            200, text=html("A", "First site context " * 40),
+        ))
+        refused = router.get("https://site.example/b").mock(return_value=httpx.Response(
+            200, text=html("B", "Refused site context " * 40),
+        ))
+        router.get("https://site.example/c").mock(return_value=httpx.Response(
+            200, text=html("C", "Last site context " * 40),
+        ))
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert robots.call_count == 1
+    assert not refused.called
+    with environment.app.state.session_factory() as session:
+        assert [row.url for row in session.scalars(select(ItemContext).order_by(ItemContext.position)).all()] == [
+            "https://site.example/a", "https://site.example/c",
+        ]
+
+
+def test_failed_request_on_last_budget_unit_counts_as_read(environment, monkeypatch, public_dns):
+    setup(environment, [("https://docs.example/one", "One"), ("https://docs.example/two", "Two")])
+    stub_collection(monkeypatch)
+    environment.app.state.settings = replace(environment.app.state.settings, context_fetches_per_run=2)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").mock(return_value=httpx.Response(404))
+        router.get("https://docs.example/one").mock(return_value=httpx.Response(404))
+        unreached = router.get("https://docs.example/two").mock(return_value=httpx.Response(200))
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert (result["context_total"], result["context_done"]) == (2, 1)
+    assert not unreached.called
+    with environment.app.state.session_factory() as session:
+        assert session.scalar(select(Item)).context_status == "none"
+
+
 def capture_with_context(client, *, links=(), replies=()):
     seed(client, sources=0)
     token = client.post("/api/settings/extension-tokens", json={"name": "Chrome"}).json()["token"]

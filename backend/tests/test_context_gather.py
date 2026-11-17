@@ -111,6 +111,25 @@ def test_three_spellings_of_one_site_share_robots(environment, monkeypatch, publ
         ]
 
 
+@pytest.mark.parametrize("paths,rules,budget,counts", [
+    (["one", "private/x", "three"], "Disallow: /private", 2, (3, 2)),
+    (["one"], "Disallow: /one", 1, (1, 1)),
+])
+def test_refused_links_count_as_read_once_budget_is_used(
+    environment, monkeypatch, public_dns, paths, rules, budget, counts,
+):
+    setup(environment, [(f"https://docs.example/{path}", path) for path in paths])
+    stub_collection(monkeypatch)
+    environment.app.state.settings = replace(environment.app.state.settings, context_fetches_per_run=budget)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").mock(
+            return_value=httpx.Response(200, text=f"User-agent: *\n{rules}\n"))
+        for path in paths:
+            router.get(f"https://docs.example/{path}").mock(return_value=httpx.Response(404))
+        result = execute(environment)
+    assert (result["context_total"], result["context_done"]) == counts
+
+
 def test_failed_request_on_last_budget_unit_counts_as_read(environment, monkeypatch, public_dns):
     setup(environment, [("https://docs.example/one", "One"), ("https://docs.example/two", "Two")])
     stub_collection(monkeypatch)
@@ -784,6 +803,7 @@ def test_comment_budget_cutoff_keeps_link_without_requesting_post(
         post = router.get("https://s0.example/0").mock(return_value=httpx.Response(200))
         result = execute(environment)
     assert result["status"] == "succeeded" and post.call_count == 0
+    assert (result["context_total"], result["context_done"]) == (2, 1)
     with environment.app.state.session_factory() as session:
         item = session.scalar(select(Item))
         assert item.context_status == "gathered"

@@ -626,6 +626,18 @@ def test_allow_runs_after_the_address_check_and_before_budget_and_spacing(resolv
     assert budget == [1]
 
 
+def test_allow_runs_again_on_retry_and_later_hops(resolve):
+    seen = []
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(PUBLIC).mock(side_effect=[
+            httpx.Response(429, headers={"Retry-After": "0"}),
+            httpx.Response(302, headers={"location": "/next"}),
+        ])
+        router.get("https://public.example/next").mock(return_value=httpx.Response(200, content=b"ok"))
+        assert safe_fetch(PUBLIC, allow=lambda url: seen.append(url) or True).content == b"ok"
+    assert seen == [PUBLIC, PUBLIC, "https://public.example/next"]
+
+
 def test_time_in_allow_does_not_count_against_the_deadline(resolve, monkeypatch):
     clock = [100.0]
     monkeypatch.setattr("catchup.net.safe_fetch.monotonic", lambda: clock[0])

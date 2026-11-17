@@ -63,7 +63,7 @@ The motivation is in proposal.md ("Why"). The code on `main` at `9d6866a`:
 **Non-Goals:**
 - #60 part 3 (the frontend poll helper) and the items in the 2026-11-01 comment on #60.
 - Merging `gathered` and `none`. Both stay: tests and diagnosis read them, and merging would change a stored value for no behavior gain.
-- Normalizing a trailing dot or an internationalized host name.
+- Normalizing a trailing dot, an internationalized host name, or one IPv6 address written two ways (`[2001:db8:0::1]` and `[2001:db8::1]`).
 - Feed discovery's `same_origin` check. It still compares the raw `netloc`.
 - Skipping the comment-feed request when the entry has no author.
 - Robots checks for source checks and feed discovery. They do not use robots.txt today.
@@ -123,6 +123,8 @@ The robots.txt URL is built from that origin, so all spellings fetch the same ro
 - **Effect on progress.** "Linked pages read" (`context_done`) counts every fetch that finished: read, failed, or refused. A fetch stopped by `BudgetExhausted` is not counted, as today. Two edge cases change; the stored context and `context_status` do not:
   - a request that used the last unit and then failed, or was refused, is now counted, like the same request one unit earlier. Today it becomes `EXHAUSTED`;
   - once the budget is 0, a later link of the same item that needs no unit (refused by cached robots rules, blocked by the address check, or failing DNS) is now counted, and the item moves on to its next link. Today the item stops at once. Such links cost a DNS lookup but no request. The item stops at the first link that needs a unit.
+
+  The same holds for an item's post-page fetch after its links used up the budget, and for items with captured replies that are processed after the budget is used up: their fetches that need no unit are counted, and the first one that needs a unit costs a DNS lookup and stops the item.
 - **Alternative: keep the sentinel, and only delete the flags.** Rejected: the sentinel is what forces the three translations and the extra checks.
 
 ### D4. `author_replies` fetches the comment feed through a function

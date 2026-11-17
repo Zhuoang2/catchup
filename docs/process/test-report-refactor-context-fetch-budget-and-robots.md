@@ -189,3 +189,81 @@ This is a local timing observation, not a performance guarantee or test threshol
 - Frontend and extension checks: not run; neither area changed.
 - Statement coverage: not remeasured; the coverage summary distinguishes
   this run's test counts from the earlier measured percentage.
+
+## Review by Claude Code
+
+Date: 2026-11-16. Range reviewed: `7d9c934..f7254bf`, in a separate review
+worktree. Review method: D-016 (`/code-review` at high effort, an independent
+spec sub-agent with mutations, Claude Code's own checks).
+
+### Checks
+
+| Check | Result |
+| --- | --- |
+| `uv run pytest` in `backend/`, at `f7254bf` | **958 passed**. |
+| `uv run pytest` in `backend/`, with the review edits | **961 passed** (three new test cases). |
+| `DO_NOT_TRACK=1 openspec validate refactor-context-fetch-budget-and-robots --strict` | Valid. |
+| `docker build -t catchup:refactor90-local .` at `f7254bf` | Passed. |
+| `scripts/docker-smoke.sh catchup:refactor90-local` | Passed all **12 checks**; no container or volume left. |
+
+### Live comparison
+
+- **Setup.** Two images, one built from a clean `main` worktree at `9d6866a`
+  and one from the branch at `f7254bf`. Each ran in its own container, on a
+  local port (not 8800), with a fresh volume. Both used a local
+  OpenAI-compatible stub model, and the same public feed (Simon Willison's
+  Weblog).
+- **Run.** One digest on each, one after the other.
+- **Result.** Both runs succeeded with 5 items, and "Linked pages read" ended
+  at 20 of 22 on both. The 45 stored rows (item link, `context_status`,
+  context kind, URL, and text length) were identical. So no redirect target in
+  that feed was refused, and the refactor changed nothing observable on it.
+- Both containers and their volumes were removed, and the stub was stopped.
+
+The redirect and spelling cases are covered by the tests only, as the design
+says.
+
+### Findings
+
+`/code-review` (high) reported 5 findings:
+
+| Finding | Decision |
+| --- | --- |
+| Droid's log entry has no session id | Confirmed; added to the log. |
+| `RobotsCache.allowed` raises on a URL without a host or with another scheme | Latent: its only caller, `safe_fetch`, checks the address first. Recorded. |
+| `except BudgetExhausted: raise` in the link-extraction handler is dead code | Confirmed; removed (two lines). |
+| The feed-entry parse catches only `ParserError` | Rejected: a probe showed that feedparser removes the encoding declaration that would raise `ValueError`. |
+| `fetch_feed` is a closure defined for each item | Churn (D-023 d); recorded. |
+
+The spec sub-agent found no defect. It re-ran the planned red stages, which
+matched this report. Of its 36 mutations, 23 were caught. Survivors and decisions:
+
+| Mutation | Decision |
+| --- | --- |
+| S8: treat an error raised by `allow` as a refusal | Test gap (c). `test_comment_budget_cutoff_keeps_link_without_requesting_post` now also checks `(context_total, context_done) == (2, 1)`. |
+| G8: put back the in-loop budget `break` | Test gap (c). New `test_refused_links_count_as_read_once_budget_is_used`, first case: a link refused by cached rules after the budget is used is counted, `(3, 2)`. |
+| G9: turn a refusal on the last unit into `BudgetExhausted` | Test gap (c). Second case of the same test: `(1, 1)`. |
+| S7: skip `allow` on the retry, and on later hops | Test gap (c): it would also skip robots.txt for a redirect after a retry. New `test_allow_runs_again_on_retry_and_later_hops`. |
+| S5, S12: reset the deadline, or shift it twice as far | Marginal: a redirect chain could get more than 30 seconds. Recorded. |
+| C8: drop the check for an entry without a summary | Marginal, and older than this change. Recorded. |
+| S9, R1, G5, G6, G13, C11 | Equivalent. G5's code was removed. |
+
+The sub-agent also noted:
+- robots.txt refusals are now logged at INFO ("Context fetch skipped
+  (robots_disallowed)"). This is harmless, and recorded;
+- the D3 progress effect also applies to an item's post page, and to items
+  with captured replies. design D3 now says so;
+- one IPv6 address written two ways still reads robots.txt twice. It is now
+  a Non-Goal;
+- Droid's `coverage-summary.md` entry is accurate.
+
+### Review mutations
+
+| Mutation | Result with the review edits |
+| --- | --- |
+| S7 | Fails `test_allow_runs_again_on_retry_and_later_hops`. |
+| S8 | Fails `test_comment_budget_cutoff_keeps_link_without_requesting_post`. |
+| G8 | Fails the first case of `test_refused_links_count_as_read_once_budget_is_used`. |
+| G9 | Fails both cases of `test_refused_links_count_as_read_once_budget_is_used`. |
+
+All four passed the full suite before the review edits (the sub-agent's run).

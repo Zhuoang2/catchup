@@ -105,8 +105,6 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
                             item_id=item.id, ref=f"L{position}", kind="link", url=response.url,
                             title=title, text=content, position=position,
                         ))
-                    except BudgetExhausted:
-                        raise
                     except Exception as exc:
                         logger.warning("Context extraction skipped (%s)", type(exc).__name__)
                 if comments:

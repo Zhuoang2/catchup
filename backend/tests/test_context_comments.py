@@ -164,3 +164,39 @@ def test_feed_fallback_limits_input_to_ten_entries(monkeypatch):
         for i in range(11)
     ) + "</channel></rss>").encode()
     assert author_replies(page(), "Writer", feed) == [f"Reply {i}" for i in range(10)]
+
+
+def test_feed_function_is_called_only_without_comment_markup():
+    calls = []
+    feed = (b"<rss version='2.0' xmlns:dc='http://purl.org/dc/elements/1.1/'>"
+            b"<channel><item><title>By: Writer</title><dc:creator>Writer</dc:creator>"
+            b"<description>Feed reply.</description></item></channel></rss>")
+
+    def fetch_feed():
+        calls.append("feed")
+        return feed
+
+    assert author_replies(
+        page(comment("one", "Writer", "Reply.", classes="bypostauthor")),
+        "Writer", fetch_feed=fetch_feed,
+    ) == ["Reply."]
+    assert calls == []
+    assert author_replies(page(), "Writer", fetch_feed=fetch_feed) == ["Feed reply."]
+    assert calls == ["feed"]
+
+
+def test_unparseable_feed_entry_is_skipped():
+    feed = (b"<rss version='2.0' xmlns:dc='http://purl.org/dc/elements/1.1/'>"
+            b"<channel><item><title>By: Writer</title><dc:creator>Writer</dc:creator>"
+            b"<description><![CDATA[<!-- c -->]]></description></item>"
+            b"<item><title>By: Writer</title><dc:creator>Writer</dc:creator>"
+            b"<description>Real reply.</description></item></channel></rss>")
+    assert author_replies(page(), "Writer", feed) == ["Real reply."]
+
+
+def test_empty_page_counts_as_no_comment_markup():
+    feed = (b"<rss version='2.0' xmlns:dc='http://purl.org/dc/elements/1.1/'>"
+            b"<channel><item><title>By: Writer</title><dc:creator>Writer</dc:creator>"
+            b"<description>Feed reply.</description></item></channel></rss>")
+    assert author_replies(b"", "Writer", feed) == ["Feed reply."]
+    assert author_replies(b"   ", "Writer", feed) == ["Feed reply."]

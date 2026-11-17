@@ -127,6 +127,32 @@ def test_failed_request_on_last_budget_unit_counts_as_read(environment, monkeypa
         assert session.scalar(select(Item)).context_status == "none"
 
 
+def test_unparseable_post_page_falls_back_to_comment_feed(environment, monkeypatch, public_dns):
+    setup(environment, [], comments=1)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        item = session.scalar(select(Item))
+        item.entry_author = "Writer"
+        item.comment_feed_url = "https://s0.example/comments/feed"
+        session.commit()
+    feed = (b"<rss version='2.0' xmlns:dc='http://purl.org/dc/elements/1.1/'>"
+            b"<channel><item><title>By: Writer</title><dc:creator>Writer</dc:creator>"
+            b"<description>Author clarifies the point.</description></item></channel></rss>")
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://s0.example/robots.txt").mock(return_value=httpx.Response(404))
+        router.get("https://s0.example/0").mock(return_value=httpx.Response(200, content=b""))
+        comments = router.get("https://s0.example/comments/feed").mock(return_value=httpx.Response(
+            200, content=feed,
+        ))
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert comments.call_count == 1
+    assert (result["context_total"], result["context_done"]) == (2, 2)
+    with environment.app.state.session_factory() as session:
+        rows = session.scalars(select(ItemContext)).all()
+        assert [(row.ref, row.text) for row in rows] == [("A1", "Author clarifies the point.")]
+
+
 def capture_with_context(client, *, links=(), replies=()):
     seed(client, sources=0)
     token = client.post("/api/settings/extension-tokens", json={"name": "Chrome"}).json()["token"]

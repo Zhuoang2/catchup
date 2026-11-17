@@ -42,10 +42,17 @@ Commands below use `uv run pytest`, with the listed selection and
 | 3.2 green | `tests/test_context_gather.py` | 41 passed in 4.38s |
 | 3.2 regression | Full suite | 954 passed in 25.26s |
 | Group 3 restored, README updated | `tests/test_context_gather.py tests/test_readme_context.py` | 42 passed in 4.57s |
+| 4.1 red | `tests/test_context_comments.py tests/test_context_gather.py` | 4 failed, 58 passed in 4.54s. Unknown `fetch_feed`, feed-entry `ParserError`, empty-page `AttributeError`, and no feed request for empty post, as planned. |
+| 4.2 callback/parser green, before set | Same selection | 62 passed in 5.25s |
+| 4.2 set green | Same selection | 62 passed in 6.00s |
+| 4.2 regression | Full suite | 958 passed in 30.01s |
+| Group 4 restored | Same two-module selection | 62 passed in 4.48s |
 
 Group 3's structural search (`EXHAUSTED|attempted|exhausted|budget\[0\]`
 in `context/gather.py`) returned exactly one line: the unreached-item skip
 at line 72.
+After group 4, the structural search for `comment ')` in `context/gather.py`
+returned no matches: only `author_replies` checks comment markup.
 
 ## Mutations
 
@@ -84,6 +91,37 @@ The corrected patch then ran as O1 above.
 | G2: translate every last-unit fetch failure into exhaustion | `test_failed_request_on_last_budget_unit_counts_as_read` | 1 failed in 1.51s: progress `(2, 0)`, expected `(2, 1)`. |
 | G3: remove unreached-item skip | `test_budget_leaves_unreached_items_ungathered_and_retries_do_not_refetch` | 1 failed in 1.48s: second item's status `none`, expected `None`. |
 | G4: check robots only before `safe_fetch`, without `allow` | `test_redirect_to_disallowed_page_is_not_requested`; `test_redirect_to_site_with_unreadable_robots_is_not_requested` | 2 failed in 1.64s: both forbidden targets requested. |
+
+### Group 4
+
+| Mutation | Selection / failed tests | Actual result |
+| --- | --- | --- |
+| C1: fetch feed despite comment markup | `tests/test_context_comments.py::test_feed_function_is_called_only_without_comment_markup` | 1 failed in 0.05s: callback called, expected no call. |
+| C2: omit feed's total increase | `tests/test_context_gather.py::test_comment_feed_fallback_counts_extra_fetch_and_saves_named_reply` | 1 failed in 1.65s: progress `(1, 2)`, expected `(2, 2)`. |
+| C4: restore missing `html.ParserError` | `tests/test_context_comments.py::test_empty_page_counts_as_no_comment_markup`; `tests/test_context_gather.py::test_unparseable_post_page_falls_back_to_comment_feed` | 2 failed in 1.91s: `AttributeError` and no feed request. |
+| C3: require author before invoking feed callback | `tests/test_context_gather.py::test_comment_feed_budget_cutoff_keeps_link` | 1 failed in 1.66s: progress `(2, 2)`, expected `(3, 2)`. |
+| C5: re-raise unparseable feed-entry error | `tests/test_context_comments.py::test_unparseable_feed_entry_is_skipped` | 1 failed in 0.07s: `ParserError` instead of retaining the real reply. |
+
+## Timing: 2,000 sibling comments
+
+Scratch Python ran as `uv run python /dev/stdin` with a heredoc, so its script
+path was outside the repository without creating a file to delete outside
+the worktree. No scratch file is committed or left behind.
+
+The identical 261,815-byte page has 2,000 sibling `li.comment.bypostauthor`
+nodes, each with a `span.fn` containing Writer and a `div.comment-content`
+containing `Reply {i}.`. Both implementations return replies 0 through 9
+in order. After one checked warmup, `timeit.repeat` ran five single calls.
+D4 was present on both sides; only D5's set change differed.
+
+| Version | Five seconds-per-call measurements | Median |
+| --- | --- | --- |
+| List lookup, before D5 | 0.107799, 0.111862, 0.112295, 0.115756, 0.117328 | 0.112295s |
+| Set lookup, initial measurement overlapping the narrow test suite | 0.036641, 0.038851, 0.040037, 0.039697, 0.039149 | 0.039149s |
+| Set lookup, repeated without concurrent tests for a comparable measurement | 0.034347, 0.034937, 0.033448, 0.034083, 0.033588 | 0.034083s |
+
+The serial medians show about 3.29x faster extraction on this synthetic page.
+This is a local timing observation, not a performance guarantee or test threshold.
 
 ## Review-only checks
 

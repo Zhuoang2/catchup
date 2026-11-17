@@ -142,7 +142,7 @@ Implementer notes:
 
 ## 4. Comment replies: one markup check, set lookup (D4, D5)
 
-- [ ] 4.1 Write the failing tests.
+- [x] 4.1 Write the failing tests.
 
   In `backend/tests/test_context_comments.py`:
   - `test_feed_function_is_called_only_without_comment_markup`.
@@ -166,7 +166,7 @@ Implementer notes:
   - the feed-function test fails on the unknown `fetch_feed` argument, the empty-page test fails with `AttributeError`, and the feed-entry test fails with `ParserError`;
   - the gather test fails, because the feed is not requested;
   - every existing test passes.
-- [ ] 4.2 Implement D4 and D5.
+- [x] 4.2 Implement D4 and D5.
   - In `backend/src/catchup/context/comments.py`, add `fetch_feed`, catch `lxml.etree.ParserError` instead of `html.ParserError`, skip feed entries whose summary cannot be parsed, and use a set for the four membership tests.
   - In `backend/src/catchup/context/gather.py`, pass a `fetch_feed` that counts the feed in `context_total` and `context_done`, and calls `fetch`. Remove the page parse and the XPath from `gather.py`.
 

@@ -2,6 +2,7 @@
 
 import feedparser
 from lxml import html
+from lxml.etree import ParserError
 
 
 def _text(element) -> str:
@@ -24,18 +25,20 @@ def _bounded(replies: list[str]) -> list[str]:
     return result
 
 
-def author_replies(page: bytes, author: str | None, feed: bytes | None = None) -> list[str]:
+def author_replies(page: bytes, author: str | None, feed: bytes | None = None, *, fetch_feed=None) -> list[str]:
     try:
         tree = html.fromstring(page)
         comments = tree.xpath(
             "//*[self::li or self::div][contains(concat(' ', normalize-space(@class), ' '), ' comment ')]"
         )
-    except (ValueError, TypeError, html.ParserError):
+    except (ValueError, TypeError, ParserError):
         comments = []
     if comments:
+        comment_set = set(comments)
+
         def within(node, selector):
             return [element for element in node.xpath(selector)
-                    if next((ancestor for ancestor in element.iterancestors() if ancestor in comments), None) is node]
+                    if next((ancestor for ancestor in element.iterancestors() if ancestor in comment_set), None) is node]
 
         content_selector = (
             ".//*[contains(concat(' ', normalize-space(@class), ' '), ' comment-content ')]"
@@ -60,14 +63,14 @@ def author_replies(page: bytes, author: str | None, feed: bytes | None = None) -
                 continue
             parent = next((
                 ancestor for ancestor in node.iterancestors()
-                if ancestor in comments
+                if ancestor in comment_set
             ), None)
             if parent is None:
                 for ancestor in node.iterancestors():
                     if ancestor.tag not in ("ol", "ul") or "children" not in (ancestor.get("class") or "").split():
                         continue
                     sibling = ancestor.getprevious()
-                    while sibling is not None and sibling not in comments:
+                    while sibling is not None and sibling not in comment_set:
                         sibling = sibling.getprevious()
                     if sibling is not None:
                         parent = sibling
@@ -75,20 +78,26 @@ def author_replies(page: bytes, author: str | None, feed: bytes | None = None) -
             if parent is None:
                 for anchor in within(node, ".//a[starts-with(@href, '#')]"):
                     target = tree.xpath("//*[@id=$ident]", ident=anchor.get("href", "")[1:])
-                    if target and target[0] in comments and target[0] is not node:
+                    if target and target[0] in comment_set and target[0] is not node:
                         parent = target[0]
                         break
             previous = within(parent, content_selector) if parent is not None else []
             prefix = f"In reply to: {_text(previous[0])}\n" if previous else ""
             replies.append(prefix + _text(body[0]))
         return _bounded(replies)
+    if feed is None and fetch_feed is not None:
+        feed = fetch_feed()
     if not feed or not author:
         return []
     parsed = feedparser.parse(feed)
-    return _bounded([
-        _text(html.fromstring(entry.get("summary", "")))
-        for entry in parsed.entries[:10]
-        if _name(entry.get("author") or "") == _name(author)
-        and "pingback" not in (entry.get("title", "") + " " + entry.get("summary", "")).casefold()
-        and entry.get("summary")
-    ])
+    replies = []
+    for entry in parsed.entries[:10]:
+        if (_name(entry.get("author") or "") != _name(author)
+                or "pingback" in (entry.get("title", "") + " " + entry.get("summary", "")).casefold()
+                or not entry.get("summary")):
+            continue
+        try:
+            replies.append(_text(html.fromstring(entry["summary"])))
+        except ParserError:
+            continue
+    return _bounded(replies)

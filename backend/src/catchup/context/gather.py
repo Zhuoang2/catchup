@@ -114,17 +114,16 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
                     progress(done=1)
                     if page is not None:
                         try:
-                            reply_texts = author_replies(page.content, item.entry_author)
-                            document = html.fromstring(page.content)
-                            markup = document.xpath(
-                                "//*[self::li or self::div][contains(concat(' ', normalize-space(@class), ' '), ' comment ')]"
-                            )
-                            if not markup and item.comment_feed_url:
+                            def fetch_feed():
                                 progress(total=1)
                                 feed = fetch(item.comment_feed_url)
                                 progress(done=1)
-                                if feed is not None:
-                                    reply_texts = author_replies(page.content, item.entry_author, feed.content)
+                                return feed.content if feed is not None else None
+
+                            reply_texts = author_replies(
+                                page.content, item.entry_author,
+                                fetch_feed=fetch_feed if item.comment_feed_url else None,
+                            )
                             if reply_texts:
                                 session.add(ItemContext(
                                     item_id=item.id, ref="A1", kind="author_replies", url=page.url,

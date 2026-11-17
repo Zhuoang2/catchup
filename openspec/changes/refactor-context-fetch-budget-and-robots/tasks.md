@@ -27,7 +27,7 @@ Implementer notes:
 
 ## 1. `safe_fetch`: one budget error and a per-request check (D1, D3)
 
-- [ ] 1.1 Write the failing tests in `backend/tests/test_safe_fetch.py`. Use the `resolve` fixture and `PUBLIC`. Import `BudgetExhausted` inside the new tests, not at the top of the module: until 1.2, a module-level import would stop all 62 existing tests from being collected. Move it to the module import in 1.2.
+- [x] 1.1 Write the failing tests in `backend/tests/test_safe_fetch.py`. Use the `resolve` fixture and `PUBLIC`. Import `BudgetExhausted` inside the new tests, not at the top of the module: until 1.2, a module-level import would stop all 62 existing tests from being collected. Move it to the module import in 1.2.
   - `test_budget_exhausted_is_a_fetch_error`. Call `safe_fetch(PUBLIC, budget=[0])` under `respx.mock(assert_all_mocked=True, assert_all_called=False)`, with a `PUBLIC` route. Assert that it raises `BudgetExhausted`, that the error is a `FetchError` with code `fetch_failed` and the message "Feed probing request limit reached.", and that the route was not called.
   - `test_allow_sees_every_request_url`. `PUBLIC` answers 302 to `https://public.example/two`, which answers 302 to `https://public.example/three`, which answers 200 `b"ok"`. Pass `allow` as a function that appends each URL to a list and returns `True`. Assert:
     - the list is the three URLs, in order;
@@ -42,7 +42,7 @@ Implementer notes:
   - `test_time_in_allow_does_not_count_against_the_deadline`. Replace `catchup.net.safe_fetch.monotonic` with a list-backed clock that starts at `100.0`. `allow` moves the clock forward by 40 seconds and returns `True`. `PUBLIC` answers 200 `b"ok"`. Assert that the content is `b"ok"`.
 
   Verify: run `uv run pytest tests/test_safe_fetch.py` in `backend/`. Before 1.2, the new tests fail on the missing import, or on the unknown `allow` argument. Every existing test passes.
-- [ ] 1.2 Implement D1 and the `safe_fetch` part of D3 in `backend/src/catchup/net/safe_fetch.py`.
+- [x] 1.2 Implement D1 and the `safe_fetch` part of D3 in `backend/src/catchup/net/safe_fetch.py`.
   - Add `class BudgetExhausted(FetchError)`, whose constructor takes no arguments and sets today's code and message (design D3). Raise `BudgetExhausted()` where the budget runs out.
   - Add the keyword argument `allow=None`. Call it after `_check_address(current)`, and before the budget unit is taken. When it returns `False`, raise `FetchError("robots_disallowed", "robots.txt does not allow this page.")`.
   - Measure the time spent in `allow` with `monotonic()`, and add it to `deadline`.

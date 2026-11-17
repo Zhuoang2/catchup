@@ -9,6 +9,7 @@ from email.utils import parsedate_to_datetime
 from importlib.metadata import PackageNotFoundError, version
 from math import ceil
 from time import monotonic, sleep
+from typing import Callable
 from urllib.parse import urljoin, urlsplit
 
 import httpcore
@@ -31,6 +32,11 @@ class FetchError(Exception):
         self.code = code
         self.status_code = status_code
         self.retry_after = retry_after
+
+
+class BudgetExhausted(FetchError):
+    def __init__(self):
+        super().__init__("fetch_failed", "Feed probing request limit reached.")
 
 
 def user_agent() -> str:
@@ -134,7 +140,8 @@ def _client() -> httpx.Client:
 
 
 def safe_fetch(url: str, *, same_origin: str | None = None, budget: list[int] | None = None,
-               spacer=None, max_bytes: int | None = None) -> FetchResponse:
+               spacer=None, max_bytes: int | None = None,
+               allow: Callable[[str], bool] | None = None) -> FetchResponse:
     current = url
     limit = MAX_BYTES if max_bytes is None else max_bytes
     limit_label = f"{limit // (1024 * 1024)} MB" if limit % (1024 * 1024) == 0 else f"{limit} bytes"
@@ -158,9 +165,15 @@ def safe_fetch(url: str, *, same_origin: str | None = None, budget: list[int] | 
                 if same_origin is not None and f"{parts.scheme}://{parts.netloc}" != same_origin:
                     raise FetchError("fetch_failed", "Feed probing must stay on the same origin.")
                 _check_address(current)
+                if allow is not None:
+                    started = monotonic()
+                    permitted = allow(current)
+                    deadline += monotonic() - started
+                    if not permitted:
+                        raise FetchError("robots_disallowed", "robots.txt does not allow this page.")
                 if budget is not None:
                     if budget[0] <= 0:
-                        raise FetchError("fetch_failed", "Feed probing request limit reached.")
+                        raise BudgetExhausted()
                     budget[0] -= 1
                 if spacer is not None:
                     spacer.wait(current)

@@ -466,3 +466,27 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
 - **Consequences:**
   - When a site's robots.txt fails for a moment, that run's items from it are summarized without its linked pages.
   - A run whose only pending items arrived during its pass ends with "no new content". The items appear in the next run.
+
+## D-031 Check robots.txt for every request of a context fetch, compare origins after normalizing, and signal the fetch budget one way — accepted (2026-11-16)
+
+- **Decision.**
+  - **Redirects.** Every request of a context fetch, including each redirect target, is checked against the robots.txt of its own origin before it is sent. A refused target is not requested, and the fetch counts as refused. `safe_fetch` takes an optional per-request check for this; only the linked-page pass uses it.
+  - **Origins.** robots.txt is cached per origin after lowercasing the host and dropping the scheme's default port, so `https://SITE.example`, `https://site.example:443`, and `https://site.example` share one read. Scheme and non-default ports stay separate.
+  - **Budget.** Running out of the per-run fetch budget raises one `BudgetExhausted` error, a `FetchError` with today's code and message. The linked-page pass catches it once per item, and drops its sentinel, its translations, and two flags that no longer change the outcome.
+  - **Comments.** `author_replies` fetches the comment feed through a function, called only when the page has no comment markup, and uses a set for comment-node lookups. It catches `lxml.etree.ParserError`, for the page and for each feed entry; the `html.ParserError` it named does not exist.
+
+  Planned as the lean OpenSpec change `refactor-context-fetch-budget-and-robots` (issue #90, and parts 1 and 2 of #60).
+- **Why.**
+  - The review of `fix-robots-errors-and-late-items` found on 2026-11-16 that redirects into a refused origin were still fetched, and that the cache key depended on how the URL was written (#90). The spec was narrowed to what the code did, and the fix was left for this change.
+  - The fix changes the same code that #60 asked to clean up: three budget signals translated back and forth, two vestigial flags, and a duplicated comment-markup parse. Doing both at once touches `gather.fetch` and `safe_fetch` once.
+  - Planning probes found that an empty post page makes `author_replies` raise `AttributeError` instead of falling back to the comment feed, and that one unparseable feed entry loses all of an item's replies.
+- **Alternatives:**
+  - **Follow redirects in the linked-page pass instead of in `safe_fetch`.** Rejected: it repeats the redirect limit, address checks, and retry that `safe_fetch` owns.
+  - **Check robots.txt for the final URL only.** Rejected: the target would already be requested.
+  - **Key the cache by host alone.** Rejected: HTTP, HTTPS, and other ports can serve different robots.txt files (RFC 9309, section 2.3).
+  - **Keep the `EXHAUSTED` sentinel, and only delete the flags.** Rejected: the sentinel is what forces the translations.
+  - **Fix #90 alone, and leave #60 for later.** Rejected: the same lines would be patched twice (D-023).
+- **Consequences:**
+  - A redirect to a new site costs one robots.txt request from the per-run budget.
+  - "Linked pages read" now also counts a request that failed or was refused on the last budget unit, and, once the budget is used up, links of the same item that need no request (refused by cached rules, or blocked before any request).
+  - When a post page cannot be parsed, the comment feed is tried.

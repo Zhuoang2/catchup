@@ -2352,3 +2352,34 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - A scripted test edit matched two test functions with the same lines; Claude scoped the replacement to the target function.
   - Claude did not run the extension test suite locally: the review worktree has no `node_modules`, and installing them needs a download. Claude checked the changed phrases with an equivalent script; CI runs the suite.
   - Claude's first review report to the user said that every mutation other than M15, N1, N2, and N3 was caught. M1, M2, M6, and N5 had also survived. Claude corrected this in its next report and added the 400 and 499 cases.
+
+## 2026-11-16 — `refactor-context-fetch-budget-and-robots` (#90, #60): plan (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
+
+- **Prompts** (translated from Chinese): asked which issues could be fixed in parallel with the user's own source test (#14), the user chose Claude's suggestion: "Yes, start writing the lean proposal for #90 + #60." After reviewing the plan, the user approved it: "Yes, commit the plan, then start running Droid."
+- **Outcome:**
+  - **One lean change.** #90 (robots.txt for redirect targets, and one cache entry per origin) has to change `gather.fetch` and `safe_fetch`, the same code that #60 asked to clean up. Claude planned both together, so that the code is changed once (D-023). The scope is #60 parts 1 and 2. Part 3 (a frontend test helper) and the items in the 2026-11-01 comment on #60 stay out.
+  - **Checked against the code.** Claude checked every fact in both issues against `main` at `9d6866a`. The line numbers in #60 predate #76 and #70; the design lists the current ones.
+  - **Probes.** Claude probed `urlsplit` and `httpx.URL` normalization, `RobotFileParser.can_fetch`, lxml element hashing, and lxml's parse errors. The last one found a latent bug: `comments.py` names `html.ParserError`, which does not exist, so an empty post page raises `AttributeError` instead of falling back to the comment feed.
+  - **Plan.**
+    - One modified requirement in `content-collection`, with three new scenarios.
+    - Five task groups, with 17 named mutations.
+    - D-031 and its rejected alternatives.
+
+    `safe_fetch` gets an optional per-request check, which the linked-page pass uses for robots.txt on every request. Origins are compared with the host's case and the default port ignored. One `BudgetExhausted` error replaces three budget signals. `author_replies` fetches the comment feed through a function. Group 5 tells Droid not to run Docker, because the smoke script stopped the last two runs at `--auto medium`; Claude runs it at review.
+  - **D-023 fresh-eyes check.** A sub-agent that saw only the plan and the code wrote every planned test and a sketch of the design in its own scratch worktree. With the sketch, the full suite passed (956), and it ran every named mutation. It reported 1 blocking problem, 2 should-fix problems, and 9 notes. Claude checked each one against the code or with a probe, and folded them into the plan:
+    - **blocking:** in respx 0.23.1, a route without a port matches every port, so the planned separate-origins test would fail even with a correct fix. The test now registers the `:8443` route first, and the test rules say so;
+    - **should-fix:**
+      - a module-level import of the new error would stop all 62 existing `safe_fetch` tests from being collected before the fix. The new tests import it themselves;
+      - mutation O3 had a reading that survived. The test now calls `allowed` twice;
+    - **notes:**
+      - a second edge case in the progress counter, now described in D3;
+      - one constructor for the budget error;
+      - a wrong line reference;
+      - the test that catches C3;
+      - a second parse error: one unparseable feed entry loses all of an item's replies. It is now in D4, with a test;
+      - an IPv6 bracket test;
+      - the grep check's wording;
+      - an extraction rule that no test can tell apart. It is recorded as equivalent;
+      - committing the plan before Droid runs.
+- **Problems / adjustment:**
+  - Claude's first draft said the separate-origins test would pass before the fix. Working through the `:80` call showed that it fails; Claude corrected it before the sub-agent ran, and the sub-agent then found the respx port problem behind it.

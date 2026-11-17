@@ -9,12 +9,13 @@ const fetchMock = vi.fn()
 const respond = (value: unknown, status = 200) => ({ ok: status < 400, status, json: async () => value })
 function watchPollTimer() {
   const pollTimer = vi.spyOn(window, 'setInterval')
-  return async () => {
+  return async function advancePoll(ms = 1000) {
     try {
       await waitFor(() => expect(pollTimer).toHaveBeenCalledWith(expect.any(Function), 1000))
     } finally {
       pollTimer.mockRestore()
     }
+    await act(async () => { await vi.advanceTimersByTimeAsync(ms) })
   }
 }
 const run = {
@@ -454,7 +455,7 @@ it.each([
   ['first', null],
 ])('swaps the %s article after a run, retaining status and focus', async (_case, latest) => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
-  const waitForPollTimer = watchPollTimer()
+  const advancePoll = watchPollTimer()
   const next = { ...digest, id: 9, topics: [{ ...digest.topics[0], title: 'New edition' }] }
   fetchMock.mockImplementation(async (path: string) => {
     if (path === '/api/settings/model') return respond({ key_set: true })
@@ -476,8 +477,7 @@ it.each([
     link.focus()
     focus.mockClear()
   }
-  await waitForPollTimer()
-  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  await advancePoll()
   expect(await screen.findByRole('heading', { name: 'New edition' })).toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Technology' })).toBeNull()
   await waitFor(() => expect(document.title).toBe('Latest · No. 9 · CatchUp'))
@@ -492,7 +492,7 @@ it.each([
 
 it('keeps the previous article and links to the new edition when detail loading fails', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
-  const waitForPollTimer = watchPollTimer()
+  const advancePoll = watchPollTimer()
   fetchMock.mockImplementation(async (path: string) => {
     if (path === '/api/settings/model') return respond({ key_set: true })
     if (path === '/api/sources') return respond(sources)
@@ -506,8 +506,7 @@ it('keeps the previous article and links to the new edition when detail loading 
   })
   render(<MemoryRouter><Home/></MemoryRouter>)
   await screen.findByRole('progressbar')
-  await waitForPollTimer()
-  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  await advancePoll()
   expect(await screen.findByText('Could not load the new digest')).toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'View digest' })).toHaveAttribute('href', '/digests/9')
   expect(screen.getByRole('heading', { name: 'Technology' })).toBeInTheDocument()
@@ -534,7 +533,7 @@ it('keeps Generate available when the latest digest fails to load', async () => 
 
 it('drops the startup latest-digest error when a run delivers a digest', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
-  const waitForPollTimer = watchPollTimer()
+  const advancePoll = watchPollTimer()
   fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
     if (path === '/api/settings/model') return respond({ key_set: true })
     if (path === '/api/sources') return respond(sources)
@@ -551,8 +550,7 @@ it('drops the startup latest-digest error when a run delivers a digest', async (
   expect(await screen.findByRole('alert')).toHaveTextContent('Could not load the latest digest')
   fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
   await screen.findByRole('progressbar')
-  await waitForPollTimer()
-  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  await advancePoll()
   expect(await screen.findByRole('heading', { name: 'Technology' })).toBeInTheDocument()
   expect(screen.queryByText('Could not load the latest digest')).toBeNull()
   expect(screen.queryByRole('alert')).toBeNull()
@@ -660,7 +658,7 @@ it('pairs the latest-digest error title with its own failure message', async () 
 
 it('retains page-details failure separately when a failed latest load is replaced', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
-  const waitForPollTimer = watchPollTimer()
+  const advancePoll = watchPollTimer()
   fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
     if (path === '/api/settings/model') return respond({ key_set: true })
     if (path === '/api/sources') return respond({
@@ -685,8 +683,7 @@ it('retains page-details failure separately when a failed latest load is replace
   expect(alerts[1]).toHaveTextContent('Sources unavailable')
   fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
   await screen.findByRole('progressbar')
-  await waitForPollTimer()
-  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  await advancePoll()
   expect(await screen.findByRole('heading', { name: 'Technology' })).toBeInTheDocument()
   const bar = screen.getByRole('region', { name: 'Digest run' })
   expect(within(bar).getByRole('alert')).toHaveTextContent('Could not load some page details')
@@ -700,7 +697,7 @@ it.each([
   ['succeeded', 9],
 ])('keeps a fetched edition when the next run ends %s', async (secondStatus, shownId) => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
-  const waitForPollTimer = watchPollTimer()
+  const advancePoll = watchPollTimer()
   let release!: (value: ReturnType<typeof respond>) => void
   const pending = new Promise<ReturnType<typeof respond>>(resolve => { release = resolve })
   let ninthFetches = 0
@@ -725,14 +722,12 @@ it.each([
   })
   render(<MemoryRouter><Home/></MemoryRouter>)
   await screen.findByRole('progressbar')
-  await waitForPollTimer()
-  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  await advancePoll()
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/digests/8', undefined))
-  const waitForSecondPollTimer = watchPollTimer()
+  const advanceSecondPoll = watchPollTimer()
   fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
   await screen.findByRole('progressbar')
-  await waitForSecondPollTimer()
-  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  await advanceSecondPoll()
   if (secondStatus === 'succeeded') {
     expect(await screen.findByRole('heading', { name: 'Newer edition' })).toBeInTheDocument()
   } else expect(screen.getByRole('status')).toHaveTextContent('No new content')
@@ -749,7 +744,7 @@ it.each([
 
 it('hides an older digest fetch error after an overlapping run shows a newer edition', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
-  const waitForPollTimer = watchPollTimer()
+  const advancePoll = watchPollTimer()
   let release8!: (response: ReturnType<typeof respond>) => void
   const pending8 = new Promise<ReturnType<typeof respond>>(resolve => { release8 = resolve })
   fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
@@ -767,16 +762,14 @@ it('hides an older digest fetch error after an overlapping run shows a newer edi
   })
   render(<MemoryRouter><Home/></MemoryRouter>)
   await screen.findByRole('progressbar')
-  await waitForPollTimer()
-  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  await advancePoll()
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/digests/8', undefined))
-  const waitForSecondPollTimer = watchPollTimer()
+  const advanceSecondPoll = watchPollTimer()
   fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
   await screen.findByRole('progressbar')
   await act(async () => { release8(respond({ error: { code: 'not_found', message: 'Missing 8' } }, 404)); await pending8 })
   expect(await screen.findByRole('alert')).toHaveTextContent('Could not load the new digest')
-  await waitForSecondPollTimer()
-  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  await advanceSecondPoll()
   expect(await screen.findByRole('heading', { name: 'Newer edition' })).toBeInTheDocument()
   expect(screen.queryByRole('alert')).toBeNull()
   expect(screen.queryByRole('link', { name: 'View digest' })).toBeNull()
@@ -784,7 +777,7 @@ it('hides an older digest fetch error after an overlapping run shows a newer edi
 
 it('hides an older fetch error when the newer digest resolves in the same tick', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
-  const waitForPollTimer = watchPollTimer()
+  const advancePoll = watchPollTimer()
   let release8!: (response: ReturnType<typeof respond>) => void
   let release9!: (response: ReturnType<typeof respond>) => void
   const pending8 = new Promise<ReturnType<typeof respond>>(resolve => { release8 = resolve })
@@ -803,14 +796,12 @@ it('hides an older fetch error when the newer digest resolves in the same tick',
   })
   render(<MemoryRouter><Home/></MemoryRouter>)
   await screen.findByRole('progressbar')
-  await waitForPollTimer()
-  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  await advancePoll()
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/digests/8', undefined))
-  const waitForSecondPollTimer = watchPollTimer()
+  const advanceSecondPoll = watchPollTimer()
   fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
   await screen.findByRole('progressbar')
-  await waitForSecondPollTimer()
-  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  await advanceSecondPoll()
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/digests/9', undefined))
   await act(async () => {
     release9(respond({ ...digest, id: 9, topics: [{ ...digest.topics[0], title: 'Newer edition' }] }))
@@ -824,7 +815,7 @@ it('hides an older fetch error when the newer digest resolves in the same tick',
 
 it('keeps the higher digest error when an older pending fetch also fails', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
-  const waitForPollTimer = watchPollTimer()
+  const advancePoll = watchPollTimer()
   let release8!: (response: ReturnType<typeof respond>) => void
   const pending8 = new Promise<ReturnType<typeof respond>>(resolve => { release8 = resolve })
   fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
@@ -843,14 +834,12 @@ it('keeps the higher digest error when an older pending fetch also fails', async
   })
   render(<MemoryRouter><Home/></MemoryRouter>)
   await screen.findByRole('progressbar')
-  await waitForPollTimer()
-  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  await advancePoll()
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/digests/8', undefined))
-  const waitForSecondPollTimer = watchPollTimer()
+  const advanceSecondPoll = watchPollTimer()
   fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
   await screen.findByRole('progressbar')
-  await waitForSecondPollTimer()
-  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  await advanceSecondPoll()
   expect(await screen.findByRole('alert')).toHaveTextContent('Missing 9')
   expect(screen.getByRole('link', { name: 'View digest' })).toHaveAttribute('href', '/digests/9')
   await act(async () => {
@@ -921,7 +910,7 @@ it.each(['Generate screen', 'run bar'])('keeps busy Generate focusable in the %s
 
 it('moves focus to run-bar Generate when the first digest replaces the Generate screen', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
-  const waitForPollTimer = watchPollTimer()
+  const advancePoll = watchPollTimer()
   mockPage()
   const generate = await screen.findByRole('button', { name: 'Generate digest' })
   const original = fetchMock.getMockImplementation()!
@@ -933,8 +922,7 @@ it('moves focus to run-bar Generate when the first digest replaces the Generate 
   })
   generate.focus()
   fireEvent.click(generate)
-  await waitForPollTimer()
-  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  await advancePoll()
   await screen.findByRole('heading', { name: 'Technology' })
   expect(screen.getByRole('button', { name: 'Generate digest' })).toHaveFocus()
 })
@@ -1082,7 +1070,7 @@ it('does not claim to have summarized zero items before an interrupted run', asy
 
 it('polls from summarizing to success with a persistent status region using fake timers', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
-  const waitForPollTimer = watchPollTimer()
+  const advancePoll = watchPollTimer()
   fetchMock.mockImplementation(async (path: string) => {
     if (path === '/api/settings/model') return respond({ key_set: true })
     if (path === '/api/sources') return respond(sources)
@@ -1096,8 +1084,7 @@ it('polls from summarizing to success with a persistent status region using fake
   render(<MemoryRouter><Home/></MemoryRouter>)
   expect(await screen.findByRole('status')).toHaveTextContent('Summarizing, 5 of 12')
   const statusRegion = screen.getByRole('status')
-  await waitForPollTimer()
-  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  await advancePoll()
   expect(statusRegion).toBe(screen.getByRole('status'))
   expect(statusRegion).toHaveTextContent('Digest ready: 12 items')
   expect(await screen.findByRole('heading', { name: 'Technology' })).toBeInTheDocument()
@@ -1107,7 +1094,7 @@ it('polls from summarizing to success with a persistent status region using fake
 
 it('announces a polled run failure only through the persistent status region', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
-  const waitForPollTimer = watchPollTimer()
+  const advancePoll = watchPollTimer()
   fetchMock.mockImplementation(async (path: string) => {
     if (path === '/api/settings/model') return respond({ key_set: true })
     if (path === '/api/sources') return respond(sources)
@@ -1119,8 +1106,7 @@ it('announces a polled run failure only through the persistent status region', a
   })
   render(<MemoryRouter><Home/></MemoryRouter>)
   await screen.findByRole('progressbar')
-  await waitForPollTimer()
-  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  await advancePoll()
   expect(screen.getByText('Provider is unavailable.')).toBeInTheDocument()
   expect(screen.queryByRole('alert')).toBeNull()
   expect(screen.getByRole('status')).toHaveTextContent('Digest generation failed: Provider is unavailable.')
@@ -1132,7 +1118,7 @@ it.each([
   [2, 0, 2, '2 items in Creator updates'],
 ])('announces %i saved items (%i summarized, %i in Creator updates)', async (saved, summarized, updates, text) => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
-  const waitForPollTimer = watchPollTimer()
+  const advancePoll = watchPollTimer()
   fetchMock.mockImplementation(async (path: string) => {
     if (path === '/api/settings/model') return respond({ key_set: true })
     if (path === '/api/sources') return respond(sources)
@@ -1148,8 +1134,7 @@ it.each([
   const { container } = render(<MemoryRouter><Home/></MemoryRouter>)
   await screen.findByRole('progressbar')
   const statusRegion = screen.getByRole('status')
-  await waitForPollTimer()
-  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  await advancePoll()
   expect(screen.getByRole('status').textContent).toBe(`Digest ready: ${text}`)
   expect(await screen.findByRole('heading', { name: 'Technology' })).toBeInTheDocument()
   expect(screen.getByRole('status')).toBe(statusRegion)
@@ -1177,7 +1162,7 @@ it('keeps an active run visible when the latest digest fails to load', async () 
 
 it('keeps a startup latest-digest error visible through successful progress polls', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
-  const waitForPollTimer = watchPollTimer()
+  const advancePoll = watchPollTimer()
   fetchMock.mockImplementation(async (path: string) => {
     if (path === '/api/settings/model') return respond({ key_set: true })
     if (path === '/api/sources') return respond(sources)
@@ -1191,8 +1176,7 @@ it('keeps a startup latest-digest error visible through successful progress poll
   })
   render(<MemoryRouter><Home/></MemoryRouter>)
   expect(await screen.findByRole('alert')).toHaveTextContent('Could not load the latest digest')
-  await waitForPollTimer()
-  await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+  await advancePoll(2000)
   expect(fetchMock.mock.calls.filter(([path]) => path === '/api/digest-runs/1')).toHaveLength(2)
   expect(screen.getByRole('alert')).toHaveTextContent('Could not load the latest digest')
 })
@@ -1222,7 +1206,7 @@ it('does not invent source counts when the source list cannot be read', async ()
 
 it('starts one run and shows its saved article without requesting the list', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
-  const waitForPollTimer = watchPollTimer()
+  const advancePoll = watchPollTimer()
   fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
     if (path === '/api/settings/model') return respond({ key_set: true })
     if (path === '/api/sources') return respond(sources)
@@ -1240,8 +1224,7 @@ it('starts one run and shows its saved article without requesting the list', asy
   expect(await screen.findByRole('progressbar', { name: 'Sources checked: 2 of 3' })).toBeInTheDocument()
   expect(fetchMock.mock.calls.filter(([path, options]) => path === '/api/digest-runs'
     && options?.method === 'POST')).toHaveLength(1)
-  await waitForPollTimer()
-  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  await advancePoll()
   await screen.findByText('New from sources you follow, listed without a summary because no transcript or captions were available.')
   expect(screen.getByRole('heading', { name: 'Technology' })).toBeInTheDocument()
   await waitFor(() => expect(document.title).toBe('Latest · No. 9 · CatchUp'))
@@ -1315,7 +1298,7 @@ it.each([null, digest])('keeps running progress in first run with digest %s', as
 
 it('uses action-specific alerts when starting or checking a run fails', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
-  const waitForPollTimer = watchPollTimer()
+  const advancePoll = watchPollTimer()
   let started = false
   fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
     if (path === '/api/settings/model') return respond({ key_set: true })
@@ -1340,8 +1323,7 @@ it('uses action-specific alerts when starting or checking a run fails', async ()
   expect(await screen.findByRole('alert')).toHaveTextContent('Could not start digest')
   fireEvent.click(screen.getByRole('button', { name: 'Generate digest' }))
   expect(await screen.findByRole('progressbar')).toBeInTheDocument()
-  await waitForPollTimer()
-  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  await advancePoll()
   expect(screen.getByRole('alert')).toHaveTextContent('Could not check digest progress')
 })
 

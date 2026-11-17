@@ -85,10 +85,10 @@ Implementer notes:
 
 ## 3. One poll helper in `Home.test.tsx` (D3)
 
-- [ ] 3.1 Record the baseline, with the environment from the implementer notes.
+- [x] 3.1 Record the baseline, with the environment from the implementer notes.
   - Run `npx vitest run src/pages/Home.test.tsx` in `frontend/`. Record the count; the probe found 99 passing tests.
   - Apply (F1, before): delete the 19 `await act(async () => { await vi.advanceTimersByTimeAsync(…) })` lines that follow the poll waits. Run the same command, record the names of the failing tests, and restore the file.
-- [ ] 3.2 Implement D3 in `frontend/src/pages/Home.test.tsx`.
+- [x] 3.2 Implement D3 in `frontend/src/pages/Home.test.tsx`.
   - `watchPollTimer()` returns `advancePoll(ms = 1000)`, which waits for the poll timer, restores the spy, and then advances fake time by `ms` inside `act`.
   - Replace each of the 19 waits and the `act` step after it with `await advancePoll()`. Name the first watcher in a test `advancePoll`, and a second one `advanceSecondPoll`. The site that advances 2000 ms passes `2000`.
   - Change nothing else in the file.

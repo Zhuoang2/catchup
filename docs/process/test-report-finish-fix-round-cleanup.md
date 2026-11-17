@@ -108,10 +108,32 @@ After restoration:
 - `npm run build`: **exit 0** (`tsc --noEmit` and Vite; 40 modules transformed).
 - Frontend diff contains only the helper and the 19 poll-step replacements.
 
-## Remaining verification
+## Group 4: final checks
 
-Group 4 has not yet run.
+All final commands passed on the restored implementation:
+
+| Directory | Command | Actual result |
+| --- | --- | --- |
+| `backend/` | `UV_OFFLINE=1 uv run pytest` | Exit 0, **967 passed in 32.98s** |
+| `frontend/` | `npm_config_offline=true npm test -- --run` | Exit 0, **307 passed in 14 files**, 7.49s |
+| `frontend/` | `npm_config_offline=true npm run build` | Exit 0, TypeScript check and Vite build passed; **40 modules** transformed |
+| Repository root | `DO_NOT_TRACK=1 openspec validate finish-fix-round-cleanup --strict` | Exit 0, change valid; `skip_specs` INFO accepts zero deltas |
+
+The final suites contain six new backend tests (961 original + 6 = 967), no
+new frontend tests, and no changes to existing test assertions. All nine named
+backend mutations were killed, with each mutation restored before the next.
+F1's two isolated runs failed the same 12 tests. The only red results were the
+planned initial load checks and mutation checks; there are no unresolved test
+failures. No plan adjustment was needed.
+
+## Review-only checks not performed
 
 Docker build, `scripts/docker-smoke.sh`, and the live before/after comparison
 from the design's Migration Plan: **not performed**. Claude Code runs these
-at review, per task 4.1. No requests were sent to port 8800.
+at review, per task 4.1. The live comparison still needs fresh main/branch
+instances, a stub model, the same public podcast and website feeds, and two
+runs on each to compare counters and stored items after delivery.
+
+No Docker images, containers, or volumes were removed or pruned. No requests
+were sent to port 8800. No pushes, tags, releases, pull requests, or other
+external writes were made.

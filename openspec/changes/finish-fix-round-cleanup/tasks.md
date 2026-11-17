@@ -56,7 +56,7 @@ Implementer notes:
 
 ## 2. Pins for three rules (D2)
 
-- [ ] 2.1 Add `test_found_caption_replaces_earlier_summary` to `backend/tests/test_caption_pass.py`. Use `ready`, and `videos(client, 1, status="caption_wait", discovered=NOW - timedelta(hours=6))` as `test_caption_wait_retries_then_finds_caption` does.
+- [x] 2.1 Add `test_found_caption_replaces_earlier_summary` to `backend/tests/test_caption_pass.py`. Use `ready`, and `videos(client, 1, status="caption_wait", discovered=NOW - timedelta(hours=6))` as `test_caption_wait_retries_then_finds_caption` does.
   - Set the item's `summary` to "Old description summary", and its `summary_language` to `"en"`.
   - Monkeypatch `fetch_captions` to return `("found", "Transcript now available")`.
   - Run `execute(client)`, and assert:
@@ -65,14 +65,14 @@ Implementer notes:
     - the item's `summary` is not "Old description summary".
 
   Verify: the test passes on unchanged code. Under (Y1), removing `item.summary = None` and `item.summary_language = None` after captions are found (`runner.py:117-118`), it fails. Restore the code.
-- [ ] 2.2 Add `test_new_summary_resets_used_context_rows` to `backend/tests/test_digest_runner.py`.
+- [x] 2.2 Add `test_new_summary_resets_used_context_rows` to `backend/tests/test_digest_runner.py`.
   - Use `seed(environment)` and `stub_collection(monkeypatch)`.
   - Give the item `context_status="gathered"`, no summary, and two `ItemContext` rows, `L1` and `L2` (kind `link`, positions 1 and 2), both with `used=True`. The gathered status keeps the pass from fetching anything.
   - Use `FakeModel([{"summary": "New summary", "used": ["L2"]}, {"topics": [{"title": "Topic", "overview": "Overview", "item_refs": ["i1"]}]}])`, as `test_newly_gathered_link_invalidates_cached_summary` does.
   - Run `execute(environment)`, and assert that the run succeeded, `L1.used` is `False`, and `L2.used` is `True`.
 
   Verify: the test passes on unchanged code. Under (U1), `part.used = part.used or part.ref in result.used` (`runner.py:375`), it fails. Restore the code.
-- [ ] 2.3 Add `test_waiting_episode_that_becomes_text_drops_earlier_summary` to `backend/tests/test_podcast_collection.py`.
+- [x] 2.3 Add `test_waiting_episode_that_becomes_text_drops_earlier_summary` to `backend/tests/test_podcast_collection.py`.
   1. Use `seed_source(client)`, and run `run_check(client)` with `episode_feed()`, so that the episode is `waiting`.
   2. Set its `summary` to "Old description-based summary" and its `summary_language` to `"en"`.
   3. Run `run_check(client)` with a feed that lists the same entry (`guid` `ep1`) without an enclosure. Mock any page that `article_text` fetches for it.

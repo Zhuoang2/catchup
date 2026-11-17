@@ -49,9 +49,25 @@ Every M5 failure:
 After restoring M6, `UV_OFFLINE=1 uv run pytest tests/test_podcast_collection.py
 tests/test_collection.py`: **43 passed**. Existing backend tests were not edited.
 
+## Group 2: summary and context pins
+
+Each new test passed on unchanged production code before its isolated mutation.
+Each mutation then failed the named test (exit 1, **1 failed**). Source changes
+were reversed immediately; no production change is retained in this group.
+
+| Mutation | New test and command (`UV_OFFLINE=1` prefix) | Observed failure |
+| --- | --- | --- |
+| Y1: remove both caption-found summary-clearing lines in `runner.py` | `uv run pytest tests/test_caption_pass.py::test_found_caption_replaces_earlier_summary` | No model messages contained the new transcript |
+| U1: preserve prior `used` via `part.used or part.ref in result.used` | `uv run pytest tests/test_digest_runner.py::test_new_summary_resets_used_context_rows` | `L1.used` stayed `True` |
+| P1: remove both text-conversion summary-clearing lines in `collection.py` | `uv run pytest tests/test_podcast_collection.py::test_waiting_episode_that_becomes_text_drops_earlier_summary` | Old summary remained after status became `text` |
+
+Y1 and U1 each passed again individually after restoration (**1 passed** each).
+After P1 restoration, `UV_OFFLINE=1 uv run pytest`: **967 passed**, including
+all three new pins and all 961 original backend tests.
+
 ## Remaining verification
 
-Groups 2–4 have not yet run.
+Groups 3–4 have not yet run.
 
 Docker build, `scripts/docker-smoke.sh`, and the live before/after comparison
 from the design's Migration Plan: **not performed**. Claude Code runs these

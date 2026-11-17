@@ -291,3 +291,20 @@ def test_keyboard_interrupt_during_captions_still_stops_the_run(ready, monkeypat
     monkeypatch.setattr("catchup.digest.runner.fetch_captions", interrupt)
     with pytest.raises(KeyboardInterrupt):
         execute(client)
+
+
+def test_found_caption_replaces_earlier_summary(ready, monkeypatch):
+    client, model = ready
+    videos(client, 1, status="caption_wait", discovered=NOW - timedelta(hours=6))
+    with client.app.state.session_factory() as session:
+        item = session.scalar(select(Item))
+        item.summary = "Old description summary"
+        item.summary_language = "en"
+        session.commit()
+    monkeypatch.setattr("catchup.digest.runner.fetch_captions",
+                        lambda *_args: ("found", "Transcript now available"))
+    result = execute(client)
+    assert result["status"] == "succeeded"
+    assert any("Transcript now available" in str(messages) for messages, _ in model.calls)
+    with client.app.state.session_factory() as session:
+        assert session.scalar(select(Item.summary)) != "Old description summary"

@@ -259,3 +259,27 @@ def test_feed_upgraded_to_podcast_resolves_pending_item(client):
     with client.app.state.session_factory() as session:
         assert session.scalar(select(Source.kind)) == "podcast"
         assert session.scalar(select(Item.transcript_status)) == "waiting"
+
+
+def test_waiting_episode_that_becomes_text_drops_earlier_summary(client):
+    seed_source(client)
+    with respx.mock(assert_all_mocked=True) as router:
+        feed = router.get(FEED_URL).mock(return_value=httpx.Response(200, content=episode_feed()))
+        assert run_check(client) == "new_items"
+        with client.app.state.session_factory() as session:
+            item = session.scalar(select(Item))
+            assert item.transcript_status == "waiting"
+            item.summary = "Old description-based summary"
+            item.summary_language = "en"
+            session.commit()
+        feed.mock(return_value=httpx.Response(200, content=episode_feed().replace(
+            b'<enclosure url="https://site.example/a.mp3" type="audio/mpeg"/>', b"",
+        )))
+        router.get("https://site.example/episode").mock(return_value=httpx.Response(
+            200, text="<html><body><p>Short show notes</p></body></html>"))
+        assert run_check(client) == "no_new_items"
+    with client.app.state.session_factory() as session:
+        item = session.scalar(select(Item))
+        assert item.transcript_status == "text"
+        assert item.summary is None
+        assert item.summary_language is None

@@ -1559,3 +1559,31 @@ def test_keyboard_interrupt_in_a_source_check_still_stops(environment):
 
     with pytest.raises(KeyboardInterrupt):
         check_one_source(environment.app.state.session_factory, run.id, 1, check)
+
+
+def test_new_summary_resets_used_context_rows(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        item = session.scalar(select(Item))
+        item.context_status = "gathered"
+        for position in (1, 2):
+            session.add(ItemContext(
+                item_id=item.id, ref=f"L{position}", kind="link",
+                url=f"https://docs.example/{position}", title=f"Notes {position}",
+                text=f"Context for link {position}", position=position, used=True,
+            ))
+        session.commit()
+    model = FakeModel([
+        {"summary": "New summary", "used": ["L2"]},
+        {"topics": [{"title": "Topic", "overview": "Overview", "item_refs": ["i1"]}]},
+    ])
+    environment.app.state.model_client_factory = lambda *_: model
+    with respx.mock(assert_all_mocked=True) as router:
+        result = execute(environment)
+        assert not router.calls
+    assert result["status"] == "succeeded"
+    with environment.app.state.session_factory() as session:
+        contexts = {part.ref: part for part in session.scalars(select(ItemContext))}
+        assert contexts["L1"].used is False
+        assert contexts["L2"].used is True

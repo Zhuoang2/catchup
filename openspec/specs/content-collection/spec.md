@@ -161,7 +161,7 @@ For each entry of a website feed, the system SHALL keep the entry's links in bod
   Each linked page's extracted text MUST be cut to 3,000 characters, and an item's linked context MUST stay within 16,000 characters.
 - **Author replies.** When the feed reports comments on the post, the author's own replies are read from the post page, each with the comment it answers, including when the theme lists replies after the comment they answer rather than inside it. At most 10 replies and 4,000 characters are kept. When the page shows none, the post's comment feed is used.
 
-Every context fetch MUST go through the safe fetcher with the run's host spacing. It MUST honor the site's robots.txt for CatchUp's User-Agent, and MUST count against a per-run limit (default 60). robots.txt is read once per run for each origin: the URL's scheme, host, and port, as the URL writes them. When it cannot be read because of a server error (HTTP 5xx), a network error, or any other failure that returns no 4xx status, the system MUST NOT start a context fetch from a URL on that origin for the rest of the run. A 401 or 403 answer also refuses every such fetch. Any other 4xx answer means that the origin has no robots.txt, and every page is allowed. robots.txt is checked for the URL that a context fetch starts from, not for the pages it redirects to. A context fetch that fails, is refused, or exceeds the limit MUST be skipped without failing the source check or the run. Gathered context SHALL be stored with the item and reused by later runs. When the per-run limit stops an item's fetches before they are done, the item keeps the context gathered so far, and this run's summary uses it. Podcast episodes and YouTube videos MUST NOT get linked or comment context.
+Every context fetch MUST go through the safe fetcher with the run's host spacing. It MUST honor the site's robots.txt for CatchUp's User-Agent, and MUST count against a per-run limit (default 60). robots.txt is read once per run for each origin. Two URLs have the same origin when their scheme, host, and port are the same: the host ignores letter case, and a URL without a port has its scheme's default port (80 for HTTP, 443 for HTTPS). When robots.txt cannot be read because of a server error (HTTP 5xx), a network error, or any other failure that returns no 4xx status, the system MUST NOT request any URL on that origin in a context fetch for the rest of the run. A 401 or 403 answer also refuses every such request. Any other 4xx answer means that the origin has no robots.txt, and every page is allowed. Before a context fetch follows a redirect, the system MUST check the target against the robots.txt of the target's origin in the same way. A refused target is not requested, and the fetch counts as refused. A context fetch that fails, is refused, or exceeds the limit MUST be skipped without failing the source check or the run. Gathered context SHALL be stored with the item and reused by later runs. When the per-run limit stops an item's fetches before they are done, the item keeps the context gathered so far, and this run's summary uses it. Podcast episodes and YouTube videos MUST NOT get linked or comment context.
 
 #### Scenario: Short post with linked pages
 - **WHEN** a pending website item links to its GitHub release, a project page, a changelog, and two of the site's tag pages
@@ -182,6 +182,18 @@ Every context fetch MUST go through the safe fetcher with the run's host spacing
 #### Scenario: robots.txt cannot be reached
 - **WHEN** the request for a site's robots.txt times out, and the item also links to a page on another site whose robots.txt answers 404
 - **THEN** no page of the first site is fetched in that run, and the page on the other site is read as context
+
+#### Scenario: Link redirects to a disallowed page
+- **WHEN** a linked page redirects to a page on another site, and that site's robots.txt disallows CatchUp's User-Agent for the target's path
+- **THEN** the target is not requested, and the item is summarized without that page
+
+#### Scenario: Link redirects to a site whose robots.txt cannot be read
+- **WHEN** a linked page redirects to another site whose robots.txt answers HTTP 503, and the item has a second link on a third site
+- **THEN** the target is not requested, and the second link is still read as context
+
+#### Scenario: One site written three ways
+- **WHEN** an item links to `https://SITE.example/a`, `https://site.example:443/b`, and `https://site.example/c`
+- **THEN** that site's robots.txt is requested once in the run, and its rules apply to all three links
 
 #### Scenario: robots.txt missing
 - **WHEN** a site's robots.txt answers HTTP 404

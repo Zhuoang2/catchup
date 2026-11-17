@@ -1,7 +1,30 @@
 # Test report: refactor-context-fetch-budget-and-robots
 
 Date: 2026-11-16. Issues: #90 and #60. Runner: Factory Droid, GPT-6.1 Sol.
-Starting commit: `7d9c934`. Implementation and verification are in progress.
+Starting commit: `7d9c934`. All five task groups are complete.
+
+Implementation commits: `668e404` (group 1), `b6e8f6a` (group 2),
+`00c2627` (group 3), and `ebbdd11` (group 4).
+
+## Final checks
+
+| Directory | Command | Actual result |
+| --- | --- | --- |
+| `backend/` | `uv run pytest` (environment below) | Exit 0, **958 passed in 29.75s**. Python 3.12.13, pytest 9.1.1, respx 0.23.1. |
+| Repository root | `DO_NOT_TRACK=1 openspec validate refactor-context-fetch-budget-and-robots --strict` | Exit 0, change is valid. |
+| Repository root | `DO_NOT_TRACK=1 openspec list --json` | Exit 0, this worktree is the OpenSpec root; 8/9 tasks complete before writing this final report. |
+| Repository root | `DO_NOT_TRACK=1 openspec instructions apply --change refactor-context-fetch-budget-and-robots --json` | Exit 0, final progress **9/9**, state `all_done`. |
+
+All final checks passed. The planned red tests and mutation failures below
+are intentional verification outcomes, not outstanding failures.
+
+The change adds **17 test functions / 18 collected cases**: six safe-fetch
+cases, four robots cases, five gather cases, and three comments cases.
+Only the existing `test_robots_request_uses_shared_budget` changes its
+expectation; the safe-fetch import also adds the new error as task 1.2 requires.
+Every other existing test remains unchanged and passes.
+All **17 named mutations** fail their required tests in **18 isolated runs**
+(O3 has both required forms), and the implementation is restored.
 
 ## Environment and commands
 
@@ -19,8 +42,39 @@ installation. Syncing is disabled. HTTP/DNS routes in the new tests are mocked;
 clocks and waits are virtual. The existing safe-fetch transport regression
 includes a loopback-only socket test. No external source requests are made.
 
-The plan's latest AI-log entry records Claude Code's fresh-agent preflight
+The plan's AI-log entry records Claude Code's fresh-agent preflight
 and library probes before this run.
+
+## Scenario-to-test mapping
+
+Modified requirement: **Gather related context for website items**.
+Paths below are relative to `backend/tests/`. “Existing” means unchanged
+by this change. Complementary unit and runner tests cover some narratives
+rather than one fixture reproducing every narrative detail.
+
+| Spec scenario | Tests | Provenance |
+| --- | --- | --- |
+| Short post with linked pages | `test_context_links.py::test_keeps_body_order_and_applies_limit_after_filtering`; `test_context_gather.py::test_runner_stores_three_links_in_order_and_ignores_tags` | Existing |
+| Author replies in comments | `test_context_comments.py::test_marked_author_replies_include_parent_text`; `test_context_gather.py::test_author_reply_context_and_disable_switch` | Existing |
+| robots.txt disallows a linked page | `test_context_robots.py::test_disallow_for_catchup_and_fetch_once_per_host`; `test_context_gather.py::test_robots_refusal_and_failed_pages_do_not_fail_run` | Existing |
+| robots.txt answers a server error | `test_context_gather.py::test_robots_server_error_skips_the_sites_pages` | Existing |
+| robots.txt cannot be reached | `test_context_gather.py::test_unreachable_robots_keeps_other_sites` | Existing |
+| Link redirects to a disallowed page | `test_context_gather.py::test_redirect_to_disallowed_page_is_not_requested` | New: no target request, no stored context, successful run, one completed fetch |
+| Link redirects to a site whose robots.txt cannot be read | `test_context_gather.py::test_redirect_to_site_with_unreadable_robots_is_not_requested` | New: no target request; exactly the other site's context retained |
+| One site written three ways | `test_context_gather.py::test_three_spellings_of_one_site_share_robots`; `test_context_robots.py::test_one_robots_read_for_three_spellings` | New: one robots read; rules apply to all three links; only `/a` and `/c` stored |
+| robots.txt missing | `test_context_gather.py::test_runner_stores_three_links_in_order_and_ignores_tags`; `test_context_robots.py::test_missing_or_restricted_robots[404-True]` | Existing |
+| Per-run fetch limit reached | `test_context_gather.py::test_budget_leaves_unreached_items_ungathered_and_retries_do_not_refetch`; `test_context_gather.py::test_second_item_keeps_partial_context_in_successful_digest` | Existing |
+| Article links on the same site | `test_context_links.py::test_taxonomy_is_a_whole_first_segment_and_www_is_same_site` | Existing, explicitly retains `/archives/10000`; runner storage is covered by existing linked-page tests |
+| Link redirects to a login page | `test_context_gather.py::test_link_redirecting_to_login_does_not_store_the_final_page` | Existing |
+| Context gathered once | `test_digest_runner.py::test_failed_run_reuses_gathered_context_without_fetching_again` | Existing |
+
+Additional new tests pin per-request checking order and callback deadline
+exclusion, shared budget exception type/propagation, scheme/port separation,
+IPv6 brackets, last-unit failure progress, lazy comment-feed fetching,
+empty-page fallback, and skipping only an unparseable feed entry.
+Existing tests still pin reply ordering, parent selection, reply/text caps,
+linked-text caps, audio/YouTube exclusion, captured replies, partial context,
+and cached-summary invalidation.
 
 ## Test-first results
 
@@ -56,7 +110,9 @@ returned no matches: only `author_replies` checks comment markup.
 
 ## Mutations
 
-Each mutation is applied alone, run, and restored in a `finally` block.
+Each mutation is applied alone, run, and immediately restored. The batch
+mutation runners use a `finally` block; the separate O1 run restored its
+patch immediately after the observed failure.
 Source equality with the pre-mutation content is checked after each group.
 Every mutation below exited 1. Selections use `uv run pytest` with
 `--tb=short -q`; test names are node IDs in the stated test module.
@@ -130,3 +186,6 @@ This is a local timing observation, not a performance guarantee or test threshol
 - Live comparison from design Migration Plan: not performed. Claude Code
   runs it at review on fresh instances, neither on port 8800.
 - No pushes, tags, releases, PRs, Docker cleanup, or requests to port 8800.
+- Frontend and extension checks: not run; neither area changed.
+- Statement coverage: not remeasured; the coverage summary distinguishes
+  this run's test counts from the earlier measured percentage.

@@ -183,7 +183,7 @@ Implementer notes:
 
 ## 5. Checks and report
 
-- [ ] 5.1 Run the full checks:
+- [x] 5.1 Run the full checks:
   - `uv run pytest` in `backend/` (record the count);
   - `DO_NOT_TRACK=1 openspec validate refactor-context-fetch-budget-and-robots --strict`.
 

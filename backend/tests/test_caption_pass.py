@@ -307,4 +307,4 @@ def test_found_caption_replaces_earlier_summary(ready, monkeypatch):
     assert result["status"] == "succeeded"
     assert any("Transcript now available" in str(messages) for messages, _ in model.calls)
     with client.app.state.session_factory() as session:
-        assert session.scalar(select(Item.summary)) != "Old description summary"
+        assert session.scalar(select(Item.summary)) == "English summary"

@@ -2445,9 +2445,31 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 
 ## 2026-11-17 — `finish-fix-round-cleanup` (#60): implementation (Factory Droid, GPT-6.1 Sol)
 
+- **Session:** one Droid run, `bbeb74f3-91ed-4d7a-ba9e-7a1ed5da0d38` (140 turns, about 7.9 minutes). It finished all four groups without stopping. Droid then removed its worktree and kept the branch. The excerpts below were written by Droid; Claude Code added this line at review.
 - **Prompt excerpt:** “Implement OpenSpec change finish-fix-round-cleanup using the openspec-apply-change skill. Work through openspec/changes/finish-fix-round-cleanup/tasks.md in order and check off each task only after its verification passes. Work test-first with the tdd skill: in each group, write the tests first and watch them fail, or pass, as tasks.md states, then change the code. Run every named mutation (M1-M6, Y1, U1, P1) and the F1 before/after check alone, restore the code after each, and record the real results in the test report. Do not edit proposal.md or design.md. Commit after each task group. If a task is blocked, a stated red or green expectation does not hold, or the plan looks wrong, stop and report instead of improvising.”
 - **Constraints followed:** all OpenSpec commands use `DO_NOT_TRACK=1`; frontend uses Node 22.17.1 and `npm ci --offline --no-audit --no-fund`. Locked backend packages were installed offline from cache, without adding dependencies. No package/lock changes, real external network requests in tests, Docker build/smoke or cleanup, requests to port 8800, or remote writes. Proposal, design, decision log, and requirements-change log were not edited.
 - **Outcome:** activated `openspec-apply-change` and `tdd`, read the required context, and followed all four groups in order. Group 1's two load tests failed exactly as planned while the upgrade guard passed; narrowed collection queries then passed. Added three green-on-current-code pins with no retained production changes. Consolidated only the 19 Home poll steps. Groups 1–3 were committed as `505c107`, `5a9d6a6`, and `1fda293`; group 4 records final verification and process evidence.
 - **Verification:** all nine isolated backend mutations M1–M6/Y1/U1/P1 failed their required tests and were restored. M5 failed three existing possible-gap tests, all named in the report. F1 before/after each failed the same 12 Home tests (87 passed); both restorations matched the pre-mutation file exactly. Home passed all 99 tests before and after refactoring. Final backend suite: **967 passed** (six new tests); frontend: **307 passed in 14 files**; TypeScript/Vite build and strict OpenSpec validation passed. The report is `docs/process/test-report-finish-fix-round-cleanup.md`.
 - **Problems / adjustment:** no blocked task, unexpected red/green result, or plan adjustment. The worktree lacked installed dependencies, so the existing locked packages were installed from local caches with network access disabled. The offline frontend install succeeded (124 packages). The content-search equivalent of the timer-advance count found exactly one occurrence, inside the helper. All observed failures were the requested test-first or mutation checks.
 - **Left for review:** Claude Code's independent review, Docker build/smoke, and main/branch live comparison with two runs per instance. These were not performed or claimed as passed. The change was not archived.
+
+## 2026-11-17 — `finish-fix-round-cleanup` (#60): review (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
+
+- **Prompts** (translated from Chinese): after the review report, which asked whether to commit the review edits, archive the change, and open a PR that closes #60, "Yes, commit and open a PR."
+- **Outcome:**
+  - **Droid run.** One run finished all four groups (session line in Droid's entry). The offline frontend install worked, so Droid ran the frontend checks itself this time.
+  - **Claude's checks.** 967 backend tests and 307 frontend tests (Node 22) passed; the build and strict validation passed. Claude built the branch image and ran `scripts/docker-smoke.sh` (12 of 12, no leftovers).
+  - **Live comparison.** Claude built a second image from a clean `main` worktree, and ran two digests on each image: fresh volumes, local ports (not 8800), a local stub model, and the same podcast feed with transcripts plus the same website feed. Run payloads, all 181 stored items, and all 6 source-check rows were identical.
+  - **`/code-review` (high)** reported 6 findings. Claude confirmed two (the missing session id; the Y1 test's weak summary assertion), recorded two (an older fake-timer gap in `Home.test.tsx`; an untyped `by_key`), and rejected two that design D1 intends.
+  - **Spec review.** An independent sub-agent found no defect and no behavior change. It re-ran every named mutation and the F1 check, compared old and new `check_source` on 5,000 random scenarios with no difference, and ran 23 extra mutations, of which 13 were caught. Claude re-ran the three survivors that matter (A8, A12, A13) on the full suite: all three passed it.
+  - **Classification (D-023).** No (a) or (b) item, so no Droid fix round. Claude's review commit:
+    - `test_first_check_fetches_transcript_for_confirmed_episode` (A8: the first check after adding a podcast fetches the transcript of a pending `to_fetch` episode);
+    - `test_check_leaves_other_sources_items_alone` (A12, A13: another source's episode with the same guid is neither updated nor treated as known);
+    - the Y1 test now asserts the new summary;
+    - the report's review section; Droid's session line; this entry.
+
+    About 35 test lines. With these edits, 969 backend tests passed; A8, A12, A13, and Y1 each fail a test.
+  - **Recorded, not fixed:** A2 and A14 (extra rows loaded, no change in results); the equivalent survivors; 7 poll-helper tests that pass without the time advance (`shouldAdvanceTime`, older than this change).
+- **Problems / adjustment:**
+  - Claude's first comparison run called `/api/runs`, which does not exist (the route is `/api/digest-runs`); both instances were removed and the comparison was run again on fresh volumes.
+  - The sub-agent wrote one scratch file outside its worktree (`/tmp/ignore`, a copy of the old `collection.py`). Claude checked it and deleted it.

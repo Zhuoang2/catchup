@@ -283,3 +283,37 @@ def test_waiting_episode_that_becomes_text_drops_earlier_summary(client):
         assert item.transcript_status == "text"
         assert item.summary is None
         assert item.summary_language is None
+
+
+def test_first_check_fetches_transcript_for_confirmed_episode(client):
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(FEED_URL).mock(return_value=httpx.Response(
+            200, content=episode_feed((TRANSCRIPT_URL, "text/vtt"))))
+        router.get(TRANSCRIPT_URL).mock(return_value=httpx.Response(200, content=VTT))
+        assert client.post("/api/sources", json={"feed_url": FEED_URL}).status_code == 201
+        assert run_check(client) == "no_new_items"
+    with client.app.state.session_factory() as session:
+        item = session.scalar(select(Item))
+        assert item.transcript_status == "found" and "Spoken content" in item.content_text
+
+
+def test_check_leaves_other_sources_items_alone(client):
+    seed_source(client)
+    with client.app.state.session_factory() as session:
+        other = Source(title="Other", kind="podcast", site_url="https://other.example/",
+                       feed_url="https://other.example/feed.xml", input_url="https://other.example/feed.xml")
+        session.add(other)
+        session.flush()
+        session.add(Item(source_id=other.id, identity_key="ep1", link="https://site.example/episode",
+                         title="Other episode", content_text="Other notes", content_origin="feed",
+                         state="pending", transcript_status="waiting", summary="Other summary"))
+        session.commit()
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(FEED_URL).mock(return_value=httpx.Response(200, content=episode_feed().replace(
+            b'<enclosure url="https://site.example/a.mp3" type="audio/mpeg"/>', b"")))
+        router.get("https://site.example/episode").mock(return_value=httpx.Response(
+            200, text="<html><body><p>Short show notes</p></body></html>"))
+        assert run_check(client) == "new_items"
+    with client.app.state.session_factory() as session:
+        prior = session.scalar(select(Item).where(Item.source_id == other.id))
+        assert (prior.transcript_status, prior.summary) == ("waiting", "Other summary")

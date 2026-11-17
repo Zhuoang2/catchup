@@ -137,3 +137,81 @@ runs on each to compare counters and stored items after delivery.
 No Docker images, containers, or volumes were removed or pruned. No requests
 were sent to port 8800. No pushes, tags, releases, pull requests, or other
 external writes were made.
+
+## Review by Claude Code
+
+Date: 2026-11-17. Range reviewed: `dd1ec68..faebe4d`, in a separate review
+worktree. Review method: D-016 (`/code-review` at high effort, an independent
+spec sub-agent with mutations, Claude Code's own checks).
+
+### Checks
+
+| Check | Result |
+| --- | --- |
+| `uv run pytest` in `backend/`, at `faebe4d` | **967 passed**. |
+| `uv run pytest` in `backend/`, with the review edits | **969 passed** (two new tests). |
+| `npm ci --offline`, `npx vitest run`, and `npm run build` in `frontend/`, Node 22.17.1 | **307 passed** in 14 files; build passed. |
+| `DO_NOT_TRACK=1 openspec validate finish-fix-round-cleanup --strict` | Valid. |
+| `docker build -t catchup:cleanup60-local .` at `faebe4d` | Passed. |
+| `scripts/docker-smoke.sh catchup:cleanup60-local` | Passed all **12 checks**; no container or volume left. |
+
+### Live comparison
+
+- **Setup.** Two images, one built from a clean `main` worktree at `6ee13dd`
+  and one from the branch at `faebe4d`. Each ran in its own container, on a
+  local port (not 8800), with a fresh volume and a local OpenAI-compatible
+  stub model. Each instance added the same two public feeds: a podcast feed
+  with `podcast:transcript` tags (Podnews Daily, `https://podnews.net/rss`)
+  and a website feed (Simon Willison's Weblog).
+- **Runs.** Two digests on each instance. The second run checked both sources
+  again after the first run's items were delivered; on the branch, that check
+  loads no full rows for the podcast source, because no episode is pending.
+- **Result.** Run 1 on both: 10 items summarized, 5 podcast transcripts
+  found, "Linked pages read" 21 of 23. Run 2 on both: no new items. Both run
+  payloads, without ids and times, were identical. All 181 stored items
+  (kind, key, link, state, transcript status, content origin, text length,
+  summary set, summary language, context status, context rows, used rows)
+  and all 6 source-check rows were identical.
+- Both containers and their volumes were removed, and the stub was stopped.
+
+### Findings
+
+`/code-review` (high) reported 6 findings:
+
+| Finding | Decision |
+| --- | --- |
+| Droid's log entry has no session id | Confirmed; added to the log. |
+| The Y1 test asserts only that the summary is not the old one | Confirmed (c). It now asserts the new summary, `"English summary"`, as design D2 says; Y1 still fails it. |
+| 7 of the 15 tests with a poll helper pass without the time advance | Confirmed, older than this change: `shouldAdvanceTime` moves the fake clock with real time. The refactor keeps the same failing set (12 tests). Recorded. |
+| The loop condition is always true for the rows now loaded | Rejected: design D1 keeps it on purpose. |
+| A podcast check now runs two queries | Rejected: intended by D1; one extra local SQLite query. |
+| `by_key = {}` has no type annotation | Churn (D-023 d): no type checker runs. Recorded. |
+
+The spec sub-agent found no defect and no behavior change. Besides re-running
+the named mutations and the F1 check (all matched this report), it compared
+the old and new `check_source` on 5,000 random scenarios (feed, podcast, and
+YouTube sources, kind upgrades, random item states and feed entries, two or
+three checks each): no difference in stored rows, check results, or request
+order, while full-row loads fell from 33,946 to 4,955. It checked that the
+kind upgrade is still flushed before the new queries. Of its 23 extra
+mutations, 13 were caught. Survivors and decisions:
+
+| Mutation | Decision |
+| --- | --- |
+| A8: drop `"to_fetch"` from the full-row query | Test gap (c) on the main path: a confirmed podcast episode is stored as pending `to_fetch`, and the first check fetches its transcript. The same word in the old loop condition was not tested either. New `test_first_check_fetches_transcript_for_confirmed_episode`. |
+| A12, A13: drop `Item.source_id == source.id` from the column query, or from the full-row query | Test gap (c). A13's filter is new in this change; A12's is older. New `test_check_leaves_other_sources_items_alone`: another source's pending episode with the same guid and link is not updated, and the checked source still records its entry. |
+| A2: build `by_key` for every kind except `feed` | Marginal: YouTube checks would load pending rows again, with no change in results. Recorded. |
+| A14: `state != "delivered"` instead of `state == "pending"` | Marginal: the loop condition blocks the extra rows. Recorded. |
+| A6, A10, A15, T3, T4 | Equivalent. |
+
+### Review mutations
+
+| Mutation | Result with the review edits |
+| --- | --- |
+| A8 | Fails `test_first_check_fetches_transcript_for_confirmed_episode`. |
+| A12 | Fails `test_check_leaves_other_sources_items_alone`. |
+| A13 | Fails `test_check_leaves_other_sources_items_alone`. |
+| Y1 | Fails `test_found_caption_replaces_earlier_summary`. |
+
+A8, A12, and A13 passed the full suite before the review edits (967 tests).
+Both new tests also pass with the `collection.py` from `dd1ec68`.

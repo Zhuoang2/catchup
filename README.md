@@ -571,7 +571,8 @@ in Settings. Creator updates show a reason for missing transcripts or captions
 without sending show notes or descriptions to the model.
 
 For website items, CatchUp reads related links and author replies from public pages
-only. Context fetches honor each site's robots.txt.
+only. Context fetches honor each site's robots.txt, including the sites that
+links redirect to.
 When a site's robots.txt cannot be read because of a server error or a network failure, CatchUp skips that site's linked pages and author replies for that run.
 `CATCHUP_LINKS_PER_ITEM` (default 8) limits linked pages per item.
 `CATCHUP_CONTEXT_FETCHES_PER_RUN` (default 60) limits requests per run

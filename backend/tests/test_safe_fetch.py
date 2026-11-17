@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from catchup.config import Settings
 from catchup.main import create_app
-from catchup.net.safe_fetch import FetchError, MAX_BYTES, parse_retry_after, safe_fetch
+from catchup.net.safe_fetch import BudgetExhausted, FetchError, MAX_BYTES, parse_retry_after, safe_fetch
 
 PUBLIC = "https://public.example/feed"
 REAL_CONNECT = socket.socket.connect
@@ -554,3 +554,98 @@ def test_retry_requires_budget_and_deadline(resolve, monkeypatch):
         with pytest.raises(FetchError, match="request limit"):
             safe_fetch(PUBLIC, budget=[1])
         assert route.call_count == 1
+
+
+def test_budget_exhausted_is_a_fetch_error(resolve):
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        route = router.get(PUBLIC).mock(return_value=httpx.Response(200))
+        with pytest.raises(BudgetExhausted) as error:
+            safe_fetch(PUBLIC, budget=[0])
+        assert not route.called
+    assert isinstance(error.value, FetchError)
+    assert (error.value.code, str(error.value)) == (
+        "fetch_failed", "Feed probing request limit reached.",
+    )
+
+
+def test_allow_sees_every_request_url(resolve):
+    seen = []
+
+    def allow(url):
+        seen.append(url)
+        return True
+
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(PUBLIC).mock(return_value=httpx.Response(
+            302, headers={"location": "https://public.example/two"},
+        ))
+        router.get("https://public.example/two").mock(return_value=httpx.Response(
+            302, headers={"location": "https://public.example/three"},
+        ))
+        router.get("https://public.example/three").mock(return_value=httpx.Response(200, content=b"ok"))
+        result = safe_fetch(PUBLIC, allow=allow)
+    assert seen == [PUBLIC, "https://public.example/two", "https://public.example/three"]
+    assert result.content == b"ok"
+
+
+def test_refused_redirect_target_is_not_requested(resolve):
+    budget = [5]
+    target = "https://public.example/private"
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get(PUBLIC).mock(return_value=httpx.Response(302, headers={"location": target}))
+        private = router.get(target).mock(return_value=httpx.Response(200))
+        with pytest.raises(FetchError) as error:
+            safe_fetch(PUBLIC, budget=budget, allow=lambda url: url != target)
+        assert not private.called
+    assert error.value.code == "robots_disallowed"
+    assert budget == [4]
+
+
+@pytest.mark.parametrize("blocked_address", [True, False])
+def test_allow_runs_after_the_address_check_and_before_budget_and_spacing(resolve, blocked_address):
+    seen = []
+    budget = [1]
+    if blocked_address:
+        resolve["public.example"] = ["127.0.0.1"]
+
+    def allow(url):
+        seen.append(url)
+        return False
+
+    class Spacer:
+        def wait(self, _url):
+            pytest.fail("spacing waited before allow")
+
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        route = router.get(PUBLIC).mock(return_value=httpx.Response(200))
+        with pytest.raises(FetchError) as error:
+            safe_fetch(PUBLIC, budget=budget, spacer=Spacer(), allow=allow)
+        assert not route.called
+    assert error.value.code == ("blocked_address" if blocked_address else "robots_disallowed")
+    assert seen == ([] if blocked_address else [PUBLIC])
+    assert budget == [1]
+
+
+def test_allow_runs_again_on_retry_and_later_hops(resolve):
+    seen = []
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(PUBLIC).mock(side_effect=[
+            httpx.Response(429, headers={"Retry-After": "0"}),
+            httpx.Response(302, headers={"location": "/next"}),
+        ])
+        router.get("https://public.example/next").mock(return_value=httpx.Response(200, content=b"ok"))
+        assert safe_fetch(PUBLIC, allow=lambda url: seen.append(url) or True).content == b"ok"
+    assert seen == [PUBLIC, PUBLIC, "https://public.example/next"]
+
+
+def test_time_in_allow_does_not_count_against_the_deadline(resolve, monkeypatch):
+    clock = [100.0]
+    monkeypatch.setattr("catchup.net.safe_fetch.monotonic", lambda: clock[0])
+
+    def allow(_url):
+        clock[0] += 40
+        return True
+
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(PUBLIC).mock(return_value=httpx.Response(200, content=b"ok"))
+        assert safe_fetch(PUBLIC, allow=allow).content == b"ok"

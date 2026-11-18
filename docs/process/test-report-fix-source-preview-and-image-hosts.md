@@ -130,6 +130,63 @@ byte-for-byte with restored `git diff` compared to the pre-mutation diff.
 | P5 | connected replaces content without incrementing views | 2 failed, 86 skipped; both test 2 cases |
 | P6 | omit finally releasing trigger aria-disabled | 1 failed, 87 skipped; test 3 |
 
+## Diagnosis
+
+Ranked hypotheses were recorded after reproducing each symptom and before
+implementing its fix:
+
+| Symptom | Ranked hypotheses | Confirmed cause |
+| --- | --- | --- |
+| Local feed/capture candidates survive | 1. permissive shared filter; 2. feed URL rewriting; 3. capture bypasses filtering | Both paths preserve the local URL and use a filter accepting any HTTP(S) host |
+| Saved digest exposes local images | 1. unfiltered serializer; 2. route caching; 3. storage mutation | Detail and latest share a serializer returning the stored images unchanged |
+| Sources stale preview/error and no busy progress | 1. missing request invalidation; 2. response normalization; 3. wrong Confirm feed selection | Late answers change the UI before Confirm; no request counter or busy guard |
+| Popup late preview replaces saved view/status | 1. missing busy/view guards; 2. capture-save ordering; 3. focus handling alone | Success replaces content and error overwrites status after a save, without checking which view requested the preview |
+
+The fixes address these causes at the approved seams; no stored state meanings,
+rows, dependency versions, or API shapes changed.
+
+## Group 5: final checks
+
+All six final commands were rerun after groups 1–4, with no active mutations:
+
+| Directory | Command | Actual result |
+| --- | --- | --- |
+| `backend/` | `uv run pytest` | exit 0, 1025 passed (33.49 s) |
+| `frontend/` | `npm test -- --run` | exit 0, 312 passed in 14 files |
+| `frontend/` | `npm run build` | exit 0, TypeScript and Vite passed |
+| `extension/` | `npm test -- --run` | exit 0, 135 passed in 8 files |
+| `extension/` | `npm run build` | exit 0, TypeScript, Vite, and build checker passed |
+| repository root | `DO_NOT_TRACK=1 openspec validate fix-source-preview-and-image-hosts --strict` | exit 0, change is valid |
+
+Both JavaScript projects used
+`export PATH="$HOME/.nvm/versions/node/v22.17.1/bin:$PATH"` for every test/build.
+The OpenSpec status, list, and apply-instructions reads also exited 0.
+
+### Coverage summary
+
+These are behavioral test counts, not a measured line-coverage percentage:
+
+| Suite | Existing tests unchanged | New test cases | Final total |
+| --- | --- | --- | --- |
+| Backend | 969 | 56 (53 public-host table rows, feed, capture, saved digest) | 1025 |
+| Frontend | 307 | 5 Sources tests | 312 |
+| Extension | 131 | 4 popup cases | 135 |
+
+New backend test/mutation mapping:
+`test_public_image_address_is_kept` kills H3/H7;
+`test_nonpublic_image_address_is_dropped` kills H1/H2/H4/H5/H6/H10;
+`test_entry_images_on_local_addresses_are_dropped` and
+`test_capture_drops_images_on_local_addresses` each kill H8;
+`test_saved_digest_never_returns_local_images` kills H9.
+Frontend and popup mappings are recorded in their mutation tables above.
+
+All 24 named mutations H1–H10, F1–F8, P1–P6 were killed individually and restored.
+All specified red expectations held; all green checks passed. The only
+nonzero test commands were the deliberate pre-fix red runs and mutation runs.
+No real-network test or new sleep was added, apart from the existing popup
+pattern's short 20 ms waits. No temporary mutation scripts or helper files
+were created.
+
 ## Review-only checks
 
 - Docker build and `scripts/docker-smoke.sh`: not performed, explicitly excluded

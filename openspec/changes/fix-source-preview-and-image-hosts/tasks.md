@@ -117,7 +117,7 @@ Implementer notes:
 
 ## 5. Checks and report
 
-- [ ] 5.1 Run the full checks:
+- [x] 5.1 Run the full checks:
   - `uv run pytest` in `backend/` (record the count);
   - `npm test -- --run` and `npm run build` in `frontend/` and in `extension/`, with Node 22.17.1 (record the counts);
   - `DO_NOT_TRACK=1 openspec validate fix-source-preview-and-image-hosts --strict`.

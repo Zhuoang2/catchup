@@ -29,7 +29,7 @@ Implementer notes:
 
 ## 1. One public-address rule, and image candidates with public addresses only (D3)
 
-- [ ] 1.1 Write `backend/tests/test_public_hosts.py` with two parametrized tests of `is_public_url` from `catchup.net.public_hosts`. Run them and watch them fail on the missing module.
+- [x] 1.1 Write `backend/tests/test_public_hosts.py` with two parametrized tests of `is_public_url` from `catchup.net.public_hosts`. Run them and watch them fail on the missing module.
   - Kept (`True`): `https://cdn.example.com/a.png`, `HTTPS://CDN.Example.COM/a.png`, `http://example.com./a.png`, `http://example.com:8080/a.png`, `https://my_bucket.cdn.example.com/a.png`, `https://xn--fsqu00a.example/a.png`, `http://8.8.8.8/a.png`, `http://[2606:4700:4700::1111]/a.png`, `http://[64:ff9b::808:808]/a.png`.
   - Dropped (`False`):
     - private and special IPv4: `http://192.168.1.1/cam.jpg`, `http://10.0.0.5/a.png`, `http://172.16.0.1/a.png`, `http://127.0.0.1/a.png`, `http://169.254.169.254/a.png`, `http://100.64.0.1/a.png`, `http://0.0.0.0/a.png`, `http://224.0.0.1/a.png`, `http://user@192.168.0.1/a.png`;
@@ -41,17 +41,17 @@ Implementer notes:
     - other: `ftp://example.com/a.png`, `http://`, `http://[::1/a.png`, `http://[v1.abc]/a.png`, `https://[object Object]`.
 
   Verify: both tests fail with an import error.
-- [ ] 1.2 Create `backend/src/catchup/net/public_hosts.py` as in design D3.
+- [x] 1.2 Create `backend/src/catchup/net/public_hosts.py` as in design D3.
   - Move the address rule from `_public_answers` in `net/safe_fetch.py` into `is_public_address(address)`, with the NAT64 step. `_public_answers` calls it and raises the same `FetchError("blocked_address", …)` when it is false. Keep `NAT64_PREFIX` importable from `safe_fetch` if anything imports it (check with `grep -rn NAT64_PREFIX backend`).
   - Add `is_public_url(url)` with the five steps in D3. Use `split_url` from `catchup.net.urls`. It makes no network call.
 
   Verify: the tests from 1.1 pass, and `uv run pytest tests/test_safe_fetch.py` passes unchanged.
-- [ ] 1.3 Write two failing tests that go through `filter_image_urls`:
+- [x] 1.3 Write two failing tests that go through `filter_image_urls`:
   - in `backend/tests/test_discovery.py`, `test_entry_images_on_local_addresses_are_dropped`. Use `image_feed` with HTML images `http://192.168.1.1/cam.jpg`, `https://cdn.example.com/chart.png`, `http://2130706433/x.png`, `http://localhost:631/p.png`, `http://printer/p.png`, `http://nas.local/p.jpg`, and `http://192.168.1.1\@cdn.example.com/b.png`, and a `media:content` image `http://[::1]:9000/m.png`. Parse it with `parse_feed(FetchResponse(...))`, and assert that the entry's image URLs are exactly `["https://cdn.example.com/chart.png"]`;
   - in `backend/tests/test_extension_api.py`, `test_capture_drops_images_on_local_addresses`. Call `save_page(client, connected, images=[{"url": "http://[::1]:9000/i.png", "alt": "Local"}, {"url": "https://example.com/photo.png", "alt": "Photo"}])`, and assert that the stored `image_candidates` URLs are exactly `["https://example.com/photo.png"]`.
 
   Verify: both tests fail on the current `filter_image_urls`.
-- [ ] 1.4 In `filter_image_urls` (`backend/src/catchup/sources/feeds.py:116-140`), replace the scheme-and-host condition with `not is_public_url(url)`. Keep the other rules.
+- [x] 1.4 In `filter_image_urls` (`backend/src/catchup/sources/feeds.py:116-140`), replace the scheme-and-host condition with `not is_public_url(url)`. Keep the other rules.
 
   Verify:
   - the tests from 1.3 pass, and `uv run pytest` passes in `backend/`;

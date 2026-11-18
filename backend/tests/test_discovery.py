@@ -142,6 +142,21 @@ def test_entry_html_keeps_images_in_order_with_figure_caption():
     ]
 
 
+def test_entry_images_on_local_addresses_are_dropped():
+    raw = image_feed(
+        "<img src='http://192.168.1.1/cam.jpg'>"
+        "<img src='https://cdn.example.com/chart.png'>"
+        "<img src='http://2130706433/x.png'>"
+        "<img src='http://localhost:631/p.png'>"
+        "<img src='http://printer/p.png'>"
+        "<img src='http://nas.local/p.jpg'>"
+        "<img src='http://192.168.1.1\\@cdn.example.com/b.png'>",
+        media="<media:content url='http://[::1]:9000/m.png' medium='image'/>",
+    )
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert [image.url for image in entry.images] == ["https://cdn.example.com/chart.png"]
+
+
 def test_wordpress_media_skips_avatars_and_channel_blavatar():
     raw = image_feed("", channel="<image><url>https://site.example/blavatar/42</url></image>",
                      media="<media:content url='https://gravatar.com/avatar/abc' medium='image'/>"

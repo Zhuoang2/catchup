@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 import feedparser
 from lxml import etree
 
+from catchup.net.public_hosts import is_public_url
 from catchup.net.safe_fetch import FetchResponse
 from catchup.net.urls import join_url, split_url
 
@@ -124,7 +125,7 @@ def filter_image_urls(
         parts = split_url(url) if url is not None else None
         if parts is None:
             continue
-        if (parts.scheme.lower() not in ("http", "https") or not parts.hostname
+        if (not is_public_url(url)
                 or "/avatar/" in parts.path.lower() or "/blavatar/" in parts.path.lower()
                 or (image.width is not None and image.height is not None
                     and image.width <= 1 and image.height <= 1)

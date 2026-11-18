@@ -48,6 +48,20 @@ H4 omitted the ASCII-name check; H5 omitted the `local` suffix; H6 allowed
 single-label names; H7 omitted NAT64 conversion; H8 restored the old HTTP(S)
 scheme-and-host candidate condition; H10 omitted backslash rejection.
 
+## Group 2: saved digest images
+
+- Red: `uv run pytest tests/test_digest_history.py::test_saved_digest_never_returns_local_images`,
+  1 failed because the response included all three stored images.
+- Green: `uv run pytest`, 1025 passed. The new test exercises detail and latest
+  routes and verifies all three original image entries remain stored.
+- H9 alone: return `item.images or []` unfiltered, then run
+  `uv run pytest -q tests/test_digest_history.py::test_saved_digest_never_returns_local_images`:
+  exit 1, 1 failed. Restored byte-for-byte and compared the restored `git diff`
+  with its pre-mutation value.
+- `git diff -- README.md`: only the requested Privacy paragraph was added.
+  Searches for `Privacy` in `backend/tests`, `frontend/src`, and `extension/src`
+  found no tests referring to that heading.
+
 ## Review-only checks
 
 - Docker build and `scripts/docker-smoke.sh`: not performed, explicitly excluded

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from catchup.db import get_session
 from catchup.errors import AppError
 from catchup.models import Digest, DigestItem, DigestRun, DigestTopic
+from catchup.net.public_hosts import is_public_url
 
 router = APIRouter(prefix="/api/digests")
 
@@ -72,7 +73,11 @@ def _serialize_digest(digest: Digest, session: Session) -> dict:
             "published_at": item.published_at, "summary": item.summary,
             "summary_unavailable": item.summary_unavailable,
             "also_read": item.context_links or [],
-            "images": item.images or [],
+            "images": [
+                image for image in (item.images or [])
+                if isinstance(image, dict) and isinstance(image.get("url"), str)
+                and is_public_url(image["url"])
+            ],
         })
     creator_groups: dict[tuple[str, str | None], list[dict]] = {}
     for topic in topics:

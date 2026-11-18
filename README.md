@@ -202,6 +202,11 @@ sites with your IP address but sends no referrer. In Settings → Digest,
 **Show images from source sites** is on by default; turn it off to prevent
 these image requests. If CatchUp cannot read that setting, images are shown.
 
+CatchUp never shows an image whose address points at this computer or a local
+network, such as `192.168.…`, `localhost`, or `printer.local`, including in
+digests saved earlier. It does not look up names, so a public-looking name
+that points at a local address is not caught; turn images off if that matters.
+
 ## X accounts
 
 To follow a public account, create an App under your own developer account at

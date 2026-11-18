@@ -59,16 +59,16 @@ Implementer notes:
 
 ## 2. Stored images are filtered when a digest is read (D4)
 
-- [ ] 2.1 Write a failing test in `backend/tests/test_digest_history.py`, `test_saved_digest_never_returns_local_images`.
+- [x] 2.1 Write a failing test in `backend/tests/test_digest_history.py`, `test_saved_digest_never_returns_local_images`.
   - In a session, add a `Source`, a `DigestRun`, a `Digest`, a `DigestTopic`, and one `DigestItem` whose `images` is `[{"url": "http://192.168.1.1/cam.jpg", "alt": "Camera"}, {"url": "https://cdn.example/chart.png", "alt": "Chart"}, {"url": "http://printer/p.png", "alt": "Printer"}]`, as `seed_history` does.
   - Assert that `GET /api/digests/{id}` and `GET /api/digests/latest` both return that item's `images` as exactly `[{"url": "https://cdn.example/chart.png", "alt": "Chart"}]`.
   - Assert that the stored `DigestItem.images` still has all three entries.
 
   Verify: the test fails on the current code.
-- [ ] 2.2 In `_serialize_digest` (`backend/src/catchup/api/digests.py:75`), return only the entries of `item.images` that are dicts whose `url` is a string passing `is_public_url`, in order.
+- [x] 2.2 In `_serialize_digest` (`backend/src/catchup/api/digests.py:75`), return only the entries of `item.images` that are dicts whose `url` is a string passing `is_public_url`, in order.
 
   Verify: the test from 2.1 passes, and `uv run pytest` passes. Mutation H9 fails it. Restore the code.
-- [ ] 2.3 In `README.md`, section "Privacy", add after the paragraph about images from source sites: CatchUp never shows an image whose address points at this computer or a local network, such as `192.168.…`, `localhost`, or `printer.local`, and this includes digests saved earlier. It does not look up names, so a public-looking name that points at a local address is not caught; turn images off if that matters.
+- [x] 2.3 In `README.md`, section "Privacy", add after the paragraph about images from source sites: CatchUp never shows an image whose address points at this computer or a local network, such as `192.168.…`, `localhost`, or `printer.local`, and this includes digests saved earlier. It does not look up names, so a public-looking name that points at a local address is not caught; turn images off if that matters.
 
   Verify: `git diff README.md` shows only this paragraph. If a test checks the README text (`grep -rln "Privacy" backend/tests frontend/src extension/src`), it still passes.
 

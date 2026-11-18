@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
-from sqlalchemy import event
+from sqlalchemy import event, select
 
 from catchup.main import create_app
 from catchup.models import AppSettings, Digest, DigestItem, DigestRun, DigestTopic, Item, ItemContext, Source, SourceCheck
@@ -52,6 +52,42 @@ def seed_history(client):
                 ])
         session.commit()
         return source.id
+
+
+def test_saved_digest_never_returns_local_images(test_settings):
+    with TestClient(create_app(test_settings)) as client:
+        images = [
+            {"url": "http://192.168.1.1/cam.jpg", "alt": "Camera"},
+            {"url": "https://cdn.example/chart.png", "alt": "Chart"},
+            {"url": "http://printer/p.png", "alt": "Printer"},
+        ]
+        with client.app.state.session_factory() as session:
+            source = Source(title="Pictures", site_url="https://example.test",
+                            feed_url="https://example.test/feed", input_url="https://example.test/feed")
+            run = DigestRun(status="succeeded")
+            session.add_all([source, run])
+            session.flush()
+            digest = Digest(run_id=run.id, model_id="test", item_count=1, source_count=1)
+            session.add(digest)
+            session.flush()
+            digest_id = digest.id
+            topic = DigestTopic(digest_id=digest_id, position=0, title="Pictures", overview="Saved")
+            session.add(topic)
+            session.flush()
+            session.add(DigestItem(
+                digest_id=digest_id, topic_id=topic.id, position=0, title="Chart",
+                link="https://example.test/chart", source_name=source.title,
+                summary="A chart", summary_unavailable=False, images=images,
+            ))
+            session.commit()
+        for path in (f"/api/digests/{digest_id}", "/api/digests/latest"):
+            response = client.get(path)
+            assert response.status_code == 200
+            assert response.json()["topics"][0]["items"][0]["images"] == [
+                {"url": "https://cdn.example/chart.png", "alt": "Chart"},
+            ]
+        with client.app.state.session_factory() as session:
+            assert session.scalar(select(DigestItem)).images == images
 
 
 def test_latest_digest_is_null_without_history(test_settings):

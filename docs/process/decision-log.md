@@ -510,3 +510,27 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
 - **Consequences:**
   - A source check's memory no longer grows with the text of the source's history.
   - Nothing a user sees changes.
+
+## D-033 Show only the preview of the address in the field, and never show images on local addresses — accepted (2026-11-17)
+
+- **Decision.**
+  - **Sources page.** While a preview loads, Preview and "Save and preview" stay focusable but are announced as unavailable and do nothing, and the status region says "Loading the preview…". A request counter drops every answer that arrives after the address field changed, so Confirm saves only a preview of the address the field shows.
+  - **Popup.** "Follow this site" and "Follow this account" get the same busy state and progress message. A preview that answers after the popup's content changed, for example after the page was saved, is ignored.
+  - **Image addresses.** One public-address rule serves CatchUp's own fetches and image addresses. An image is not kept when its host is a non-public IP address, a numeric form that a browser reads as an IPv4 address (unless it is a public address in plain dotted form), `localhost` or a name under it, a name without a dot, a name under `local`, `internal`, `home.arpa`, or `lan`, or anything other than a plain ASCII name. An address with a backslash is not kept either, because browsers read it as `/` and may request another host than Python's parser reports. Names are not looked up.
+  - **Stored images.** Saved digests return only images that pass the same check, so digests saved before the rule are covered without rewriting rows.
+
+  Planned as the lean OpenSpec change `fix-source-preview-and-image-hosts` (issue #73, and the security comment on #65).
+- **Why.**
+  - A probe in the system review of 2026-11-01 showed a slower answer for an earlier address replacing a newer preview, and Confirm saving it (#73).
+  - `filter_image_urls` kept any `http` or `https` image with a host, so a digest could make the reader's browser request `http://192.168.1.1/…` or `http://localhost:631/…` (#65, comment of 2026-11-02). The reader's browser parses hosts with the WHATWG rules, which read forms such as `2130706433` and `0x7f.1` as IPv4 addresses.
+- **Alternatives:**
+  - **Compare each answer's address with the field.** Rejected: an address changed and typed back would accept a dropped answer, and the server may normalize the address.
+  - **Abort the request.** Rejected for now: the API client takes no signal, and aborting does not stop the server's work.
+  - **Normalize hosts as a browser does, then check them.** Rejected: more code that must match browsers exactly, for hosts real feeds do not use.
+  - **Resolve image hosts during collection.** Rejected: the reader's browser may resolve them differently and later, and lookups would add traffic to every check.
+  - **Serve images through CatchUp.** Rejected for this change: it changes the privacy model and needs a new endpoint. It is the only way to catch public names that resolve to local addresses.
+  - **Rewrite stored rows with a migration.** Rejected: the read-time filter covers them without changing data.
+- **Consequences:**
+  - A public-looking name that resolves to a local address is still shown. The README says so.
+  - A few public images are dropped: non-punycode IDN hosts, public IPv4 addresses in numeric shorthand, and single-label names.
+  - An item collected before the update can show fewer images than its summary chose.

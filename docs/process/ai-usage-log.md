@@ -2473,3 +2473,31 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - **Problems / adjustment:**
   - Claude's first comparison run called `/api/runs`, which does not exist (the route is `/api/digest-runs`); both instances were removed and the comparison was run again on fresh volumes.
   - The sub-agent wrote one scratch file outside its worktree (`/tmp/ignore`, a copy of the old `collection.py`). Claude checked it and deleted it.
+
+## 2026-11-17 — `fix-source-preview-and-image-hosts` (#73, #65): plan (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
+
+- **Prompts** (translated from Chinese): asked again which issues could be fixed in parallel with the user's own source test (#14), the user chose Claude's suggestion: "Yes, start writing the lean proposal for #73 + #65." After reviewing the plan, the user approved it: "Yes, commit the plan, then start running Droid."
+- **Outcome:**
+  - **One lean change with three spec deltas.** It covers #73 (Sources page and popup previews) and the security comment on #65 (digest images on local addresses). The rest of #65 waits for the user's source test.
+  - **Checked against the code.** Claude checked every fact against `main` at `866be0d`, and traced every place that writes or reads stored images: candidates are written in four places, all through `filter_image_urls`, and saved digests are read only by `_serialize_digest`.
+  - **Probes.**
+    - Python 3.12.13: `urlsplit` keeps numeric host forms (`2130706433`, `0x7f.1`, `127.1`), percent-encoded and full-width hosts, and trailing dots as text; `ipaddress` treats IPv4-mapped addresses by their IPv4 address.
+    - A script of the planned host rule matched the expected result on all 50 rows of the test table.
+    - Node 22.17.1 with `npm ci --offline` installed the extension's locked packages from the local npm cache.
+  - **Plan.**
+    - D1: a request counter and a busy state on the Sources page;
+    - D2: a view counter and a busy Follow button in the popup;
+    - D3: one public-address rule shared with `safe_fetch`, and an image-address check in five steps, with no DNS lookups;
+    - D4: stored images are filtered when a digest is read.
+    - Five task groups and named mutations H1–H10, F1–F8, and P1–P6. Group 5 tells Droid not to run Docker.
+    - D-033 and its rejected alternatives.
+  - **D-023 fresh-eyes check.** A sub-agent that saw only the plan and the code wrote a prototype of every group in a scratch worktree: backend 1,022, frontend 311, and extension 135 tests passed, and it then restored the worktree. Claude checked each finding before changing the plan:
+    - **blocking:** a backslash bypassed the rule. For `http://192.168.1.1\@cdn.example.com/a.png`, `urlsplit` reports the host `cdn.example.com`, but Node's WHATWG parser, which browsers share, requests `192.168.1.1`. Claude reproduced both. The rule now refuses any address with a backslash (rows, mutation H10, and a spec scenario);
+    - **should-fix:**
+      - every NAT64 address is also `reserved`, so H7 must fail the public NAT64 row, not the private one;
+      - one popup test passed on the old code; it now asserts the busy state first (P6);
+      - the busy guard must come after `preventDefault()`, or the browser submits the form natively (F7);
+      - `saveXAndPreview` also needs the stale check after its repeated preview (F8);
+    - **minor:** IPv6 literals are recognized by the bracket in `netloc`, line references, and three test setup traps.
+- **Problems / adjustment:**
+  - Claude's own 50-row probe did not include backslash forms, because it compared the rule with `urlsplit` rather than with a browser's parser. The fresh-eyes check, which compared with Node's `new URL()`, found the bypass. For the next host or URL rule, the probe compares with the WHATWG parser directly.

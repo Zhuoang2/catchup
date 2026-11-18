@@ -18,6 +18,8 @@ type Source = {
   http_status: number | null; rate_limited: boolean; waiting_count?: number
 }
 
+const LOADING = 'Loading the preview…'
+
 const messages: Record<string, string> = {
   invalid_url: 'Enter a valid HTTP or HTTPS URL.',
   blocked_address: 'This address is not allowed.',
@@ -114,6 +116,8 @@ export default function Sources() {
   useDocumentTitle('Sources')
   const [url, setUrl] = useState('')
   const [preview, setPreview] = useState<Preview | null>(null)
+  const [previewing, setPreviewing] = useState(false)
+  const previewRequest = useRef(0)
   const [sources, setSources] = useState<Source[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [fieldError, setFieldError] = useState('')
@@ -168,39 +172,66 @@ export default function Sources() {
 
   async function previewSource(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setPreview(null); setFieldError(''); setPageError(''); setMessage(''); setNeedsXToken(false)
+    if (previewing) return
+    const id = ++previewRequest.current
+    setPreviewing(true)
+    setPreview(null); setFieldError(''); setPageError(''); setMessage(LOADING); setNeedsXToken(false)
     try {
-      setPreview(await request<Preview>('/sources/preview', {
+      const result = await request<Preview>('/sources/preview', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
-      }))
+      })
+      if (id !== previewRequest.current) return
+      setPreview(result)
     } catch (err) {
+      if (id !== previewRequest.current) return
       if (err instanceof ApiError && err.code === 'x_token_required') setNeedsXToken(true)
       setFieldError(describeError(err))
     }
+    setMessage('')
+    setPreviewing(false)
   }
 
   async function saveXAndPreview(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setFieldError(''); setXTokenError(''); setMessage('')
+    if (previewing) return
+    const id = ++previewRequest.current
+    setPreviewing(true)
+    setFieldError(''); setXTokenError(''); setMessage(LOADING)
     try {
       await request('/settings/x', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: xToken }),
       })
-    } catch (err) { setXTokenError(describeError(err)); return }
+    } catch (err) {
+      if (id !== previewRequest.current) return
+      setXTokenError(describeError(err))
+      setMessage('')
+      setPreviewing(false)
+      return
+    }
+    setXToken('')
+    if (id !== previewRequest.current) {
+      setMessage(current => current === LOADING ? current : 'X token saved.')
+      return
+    }
     try {
-      setXToken('')
-      setPreview(await request<Preview>('/sources/preview', {
+      const result = await request<Preview>('/sources/preview', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
-      }))
+      })
+      if (id !== previewRequest.current) return
+      setPreview(result)
       setMessage('X token saved.')
       setFocusAfterPreview('preview')
     } catch (err) {
+      if (id !== previewRequest.current) return
       setFieldError(describeError(err))
+      setMessage('')
       setFocusAfterPreview('address')
-    } finally { setNeedsXToken(false) }
+    }
+    setNeedsXToken(false)
+    setPreviewing(false)
   }
 
   async function confirmSource() {
@@ -235,10 +266,16 @@ export default function Sources() {
     <form className="add-form card" onSubmit={event => void previewSource(event)} noValidate>
       <label className="field-label" htmlFor="url">Website or feed URL</label>
       <div className="input-row"><input className="input" id="url" type="url" value={url} ref={addressRef}
-        onChange={event => { setUrl(event.target.value); setPreview(null); setFieldError(''); setNeedsXToken(false) }}
+        onChange={event => {
+          ++previewRequest.current
+          setPreviewing(false)
+          setMessage(current => current === LOADING ? '' : current)
+          setUrl(event.target.value); setPreview(null); setFieldError(''); setNeedsXToken(false)
+        }}
         placeholder="https://example.com" required aria-invalid={fieldError ? true : undefined}
         aria-describedby={`${fieldError ? 'url-error ' : ''}url-hint`}/>
-        <Button variant={preview ? 'secondary' : 'primary'} type="submit">Preview</Button></div>
+        <Button variant={preview ? 'secondary' : 'primary'} type="submit"
+          aria-disabled={previewing || undefined}>Preview</Button></div>
       {fieldError && <p className="field-error" id="url-error" role="alert"><Icon name="alert"/>{fieldError}</p>}
       <p className="field-hint" id="url-hint">Paste a page address. CatchUp looks for its feed and shows a preview before saving.</p>
     </form>
@@ -252,7 +289,7 @@ export default function Sources() {
         <Icon name="alert"/>{xTokenError}</p>}
       <p className="field-hint" id="source-x-token-hint">Paste your own Bearer token.{' '}
         <a href="https://github.com/Zhuoang2/catchup#x-accounts">How to get one</a>.</p>
-      <Button type="submit" variant="primary">Save and preview</Button>
+      <Button type="submit" variant="primary" aria-disabled={previewing || undefined}>Save and preview</Button>
     </form>}
     {pageError && <p className="field-error" role="alert"><Icon name="alert"/>{pageError}</p>}
     <p role="status">{message}</p>

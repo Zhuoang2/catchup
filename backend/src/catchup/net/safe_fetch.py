@@ -16,12 +16,12 @@ import httpcore
 import httpx
 
 from catchup.config import validate_user_agent_contact
+from catchup.net.public_hosts import is_public_address
 from catchup.net.x_hosts import is_x_host
 
 MAX_BYTES = 5 * 1024 * 1024
 MAX_REDIRECTS = 5
 FETCH_DEADLINE_SECONDS = 30
-NAT64_PREFIX = ipaddress.IPv6Network("64:ff9b::/96")
 RATE_LIMIT_PREFIX = "The source is rate limiting requests."
 
 
@@ -104,11 +104,7 @@ def _public_answers(host: str, port: int) -> list[tuple]:
             address = ipaddress.ip_address(answer[4][0])
         except ValueError as exc:
             raise FetchError("blocked_address", "The source address is not allowed.") from exc
-        if isinstance(address, ipaddress.IPv6Address) and address in NAT64_PREFIX:
-            address = ipaddress.IPv4Address(address.packed[-4:])
-        if (not address.is_global or address.is_private or address.is_loopback
-                or address.is_link_local or address.is_reserved or address.is_multicast
-                or address.is_unspecified):
+        if not is_public_address(address):
             raise FetchError("blocked_address", "The source address is not allowed.")
     return answers
 

@@ -135,6 +135,9 @@ describe('sources', () => {
     await act(async () => { finish(respond({ token_set: true, token_last4: 'oken' })) })
     expect(screen.getByRole('status')).toHaveTextContent('X token saved.')
     expect(fetchMock.mock.calls.filter(([path]) => path === '/api/sources/preview')).toHaveLength(1)
+    fireEvent.change(address, { target: { value: 'https://x.com/other' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    expect(await screen.findByLabelText('X API token')).toHaveValue('')
   })
 
   it('ignores a repeated preview for an address that changed while it loaded', async () => {
@@ -162,6 +165,39 @@ describe('sources', () => {
     expect(screen.getByRole('button', { name: 'Preview' })).not.toHaveAttribute('aria-disabled', 'true')
   })
 
+  it.each([
+    ['succeeds', respond({ token_set: true, token_last4: 'oken' })],
+    ['fails', respond({ error: { code: 'invalid_token', message: 'Bad token.' } }, 422)],
+  ])('keeps a newer preview loading when an older token save %s', async (_outcome, answer) => {
+    let finishSave!: (response: ReturnType<typeof respond>) => void
+    const save = new Promise<ReturnType<typeof respond>>(resolve => { finishSave = resolve })
+    let finishB!: (response: ReturnType<typeof respond>) => void
+    const previewB = new Promise<ReturnType<typeof respond>>(resolve => { finishB = resolve })
+    fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+      if (path === '/api/sources') return respond([])
+      if (path === '/api/settings/x') return save
+      if (path === '/api/sources/preview') return JSON.parse(String(options?.body)).url === 'https://b.example/'
+        ? previewB : respond({ error: { code: 'x_token_required', message: 'X token needed.' } }, 422)
+      throw Error(path)
+    })
+    page()
+    const address = screen.getByLabelText('Website or feed URL')
+    fireEvent.change(address, { target: { value: 'https://x.com/writer' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    fireEvent.change(await screen.findByLabelText('X API token'), { target: { value: 'fake-token' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save and preview' }))
+    fireEvent.change(address, { target: { value: 'https://b.example/' } })
+    const button = screen.getByRole('button', { name: 'Preview' })
+    fireEvent.click(button)
+    expect(button).toHaveAttribute('aria-disabled', 'true')
+    await act(async () => { finishSave(answer) })
+    expect(screen.getByRole('status')).toHaveTextContent('Loading the preview…')
+    expect(button).toHaveAttribute('aria-disabled', 'true')
+    await act(async () => { finishB(respond({ ...preview, title: 'B News', feed_url: 'https://b.example/feed' })) })
+    expect(screen.getByRole('heading', { name: 'B News' })).toBeInTheDocument()
+    expect(button).not.toHaveAttribute('aria-disabled', 'true')
+  })
+
   it('keeps Save and preview focused until the repeated preview answers, then focuses its heading', async () => {
     let finish!: (response: ReturnType<typeof respond>) => void
     const pending = new Promise<ReturnType<typeof respond>>(resolve => { finish = resolve })
@@ -185,9 +221,11 @@ describe('sources', () => {
     await waitFor(() => expect(previews).toBe(2))
     expect(token.closest('form')).toBeInTheDocument()
     expect(save).toHaveFocus()
+    expect(status).toHaveTextContent('Loading the preview…')
     await act(async () => { finish(respond({ ...preview, kind: 'x', title: 'Writer', username: 'writer' })) })
     expect(screen.queryByLabelText('X API token')).toBeNull()
     expect(screen.getByRole('heading', { name: 'Writer' })).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Preview' })).not.toHaveAttribute('aria-disabled', 'true')
     expect(screen.getByRole('status')).toBe(status)
     expect(status).toHaveTextContent('X token saved.')
     await expectAccessible(container)
@@ -213,6 +251,8 @@ describe('sources', () => {
     fireEvent.click(save)
     expect(await screen.findByRole('alert')).toHaveTextContent('X account not found.')
     expect(address).toHaveFocus()
+    expect(screen.getByRole('status')).toBeEmptyDOMElement()
+    expect(screen.getByRole('button', { name: 'Preview' })).not.toHaveAttribute('aria-disabled', 'true')
     await expectAccessible(container)
   })
 
@@ -329,6 +369,8 @@ describe('sources', () => {
     expect(token).toHaveAttribute('aria-invalid', 'true')
     expect(token).toHaveAccessibleDescription(/Enter a printable ASCII X API token/)
     expect(url).not.toHaveAttribute('aria-invalid')
+    expect(screen.getByRole('status')).toBeEmptyDOMElement()
+    expect(screen.getByRole('button', { name: 'Save and preview' })).not.toHaveAttribute('aria-disabled', 'true')
     await expectAccessible(container)
   })
 

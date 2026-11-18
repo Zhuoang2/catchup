@@ -210,12 +210,12 @@ export default function Sources() {
       setPreviewing(false)
       return
     }
+    setXToken('')
     if (id !== previewRequest.current) {
       setMessage(current => current === LOADING ? current : 'X token saved.')
       return
     }
     try {
-      setXToken('')
       const result = await request<Preview>('/sources/preview', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),

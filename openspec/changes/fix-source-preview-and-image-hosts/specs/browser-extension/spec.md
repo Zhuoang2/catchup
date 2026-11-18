@@ -12,7 +12,7 @@ The extension's popup SHALL keep keyboard focus and screen-reader announcements 
   - after a page is saved or removed: "Add this page to my next digest";
   - when an action leads to the disconnected view: "Open options".
 - **Busy buttons.** While "Follow this site", "Follow this account", "Add this page to my next digest", Remove, or the X token's Save is working, the button MUST stay focusable and be announced as unavailable, and activating it MUST do nothing.
-- **Preview progress.** While a preview loads, the status line MUST say "Loading the preview…".
+- **Preview progress.** When a preview starts, the status line MUST say "Loading the preview…" until the preview answers, or until another action, such as saving the page, writes its own result to the status line.
 - **Late previews.** When the popup's content was replaced before a preview answered, for example because the user saved the page meanwhile, the answer MUST be ignored: the preview is not shown, the status line is not changed, and focus does not move.
 
 #### Scenario: Save a page with the keyboard

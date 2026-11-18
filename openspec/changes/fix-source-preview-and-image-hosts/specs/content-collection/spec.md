@@ -8,7 +8,7 @@ For each entry of a website feed, and for each YouTube video, the system SHALL k
 An image whose address names this computer or a device on a local network MUST NOT be kept. This applies to every item that keeps image candidates, including X posts and pages saved from the browser. An image is left out when its host is:
 - an IP address that is not public: loopback, private, link-local, shared, reserved, multicast, or unspecified, including an IPv4 address written inside an IPv6 address;
 - a number that a browser reads as an IPv4 address but that is not written as four plain decimal parts, such as `2130706433`, `0x7f.1`, or `127.1`;
-- `localhost` or a name under it, a name without a dot, or a name under `local`, `internal`, `home.arpa`, or `lan`, with or without a trailing dot;
+- `localhost` or a name under it, a name without a dot, or a name under `localdomain`, `local`, `internal`, `intranet`, `private`, `corp`, `home`, `home.arpa`, or `lan`, with or without a trailing dot;
 - anything other than ASCII letters, digits, hyphens, underscores, and dots, such as a percent-encoded or full-width host.
 
 An image whose address contains a backslash (`\`) MUST NOT be kept either: browsers read it as `/`, and may then request a different host than the address seems to name.
@@ -32,7 +32,7 @@ Keeping candidates MUST NOT look up host names.
 - **THEN** that image is not kept
 
 #### Scenario: Image on a local name
-- **WHEN** a website entry's HTML contains `http://localhost:631/p.png`, `http://printer/p.png`, and `http://nas.local/p.jpg`
+- **WHEN** a website entry's HTML contains `http://localhost:631/p.png`, `http://printer/p.png`, `http://nas.local/p.jpg`, and `http://localhost.localdomain/p.png`
 - **THEN** none of them is kept
 
 #### Scenario: Image address with a backslash

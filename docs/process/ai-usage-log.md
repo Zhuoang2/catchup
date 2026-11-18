@@ -2504,7 +2504,35 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 
 ## 2026-11-17 — `fix-source-preview-and-image-hosts` (#73, #65): implementation (Factory Droid, GPT-6.1 Sol)
 
+- **Session:** one Droid run, `8c04f894-b65d-48bc-9886-aa10e55bea08` (263 turns, about 8.2 minutes). It finished all five groups without stopping. Droid then removed its worktree and kept the branch. The excerpts below were written by Droid; Claude Code added this line at review.
 - **Prompt excerpt:** "Implement OpenSpec change fix-source-preview-and-image-hosts using the openspec-apply-change skill. Work through openspec/changes/fix-source-preview-and-image-hosts/tasks.md in order and check off each task only after its verification passes. Work test-first with the tdd skill: in each group, write the tests first and watch them fail as tasks.md states, then change the code. Run every named mutation (H1-H10, F1-F8, P1-P6) alone, restore the code after each, and record the real results in the test report." The prompt also required `DO_NOT_TRACK=1` for every OpenSpec call, no Docker/smoke run, no edits to planning artifacts or spec deltas, a commit after each group, no push, and stopping if an expected red/green result did not hold.
 - **Outcome:** Implemented the five groups in order with `openspec-apply-change`, `tdd`, and `diagnosing-bugs`. Shared the public-IP rule with fetches; refused local, ambiguous numeric, non-ASCII, and backslash image addresses without DNS; filtered stored digest images only in responses; added focusable busy/progress behavior and request/view invalidation to Sources and the popup. Added 65 test cases without changing existing test behavior. Committed each verified task group locally.
 - **Verification:** All required red runs failed as specified, while existing Sources/popup tests passed. All 24 named mutations failed the required tests individually and were restored byte-for-byte, comparing `git diff` after each. Final checks passed: backend 1,025; frontend 312; extension 135; both builds; strict OpenSpec validation. Actual commands, hypotheses, confirmed causes, and individual mutation results are in `docs/process/test-report-fix-source-preview-and-image-hosts.md`.
 - **Problems / adjustment:** No unexpected red/green result or plan blocker occurred, so no implementation-plan adjustment was made. The F7 mutation deliberately exposed native form submission (including jsdom's unimplemented `requestSubmit` warning), and the required assertion caught it. Offline locked npm installs succeeded under Node 22.17.1. Docker build, smoke, and live browser/network checks were not performed, as directed; Claude Code performs those at review. No push, PR, archive, or external-platform write was made.
+
+## 2026-11-18 — `fix-source-preview-and-image-hosts` (#73, #65): review (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
+
+- **Prompts** (translated from Chinese): after the review report, which asked about a one-line fix, more local names, and the popup's status wording, "Yes, do all three as you suggest; commit and open a PR."
+- **Outcome:**
+  - **Droid run.** One run finished all five groups (session line in Droid's entry).
+  - **Claude's checks.** Backend 1,025, frontend 312, and extension 135 tests passed; both builds and strict validation passed. Claude built the branch image and ran `scripts/docker-smoke.sh` (12 of 12, no leftovers).
+  - **Live checks.** Images from `main` and from the branch, on fresh volumes and local ports (not 8800):
+    - **Saved images.** With the same saved digests, `main`'s API returned local image addresses and its digest page requested `127.0.0.1:9` and `localhost:9`. The branch returned and requested only the public image. Claude did not open `main`'s digest with a `192.168.1.1` image in a browser, because it would have contacted a device on the user's network.
+    - **Sources preview.** With a slow address (`httpbin.org/delay/5`) changed to a fast feed before it answered, `main` showed the slow address's error beside the new preview. The branch showed progress, then only the new preview.
+    - The popup was not checked live; its tests cover it.
+  - **`/code-review` (high)** reported 6 findings. Claude confirmed three, each with a mutation:
+    - two test gaps around a token save that finishes after the address changed;
+    - a typed token left in the page's state after such a save (fixed, one line).
+
+    Claude rejected one (the busy guard reads render state; React renders between discrete events) and recorded two as churn.
+  - **Spec review.** An independent sub-agent found no defect. It re-ran all 24 named mutations and compared the image rule with Node's WHATWG parser on 531,873 generated addresses, finding no address the rule keeps that a browser would send to this computer or a local network. Of its 30 extra mutations, 18 survived; Claude reproduced the 11 real test gaps and closed them, and recorded the marginal and equivalent ones. It raised two points for the user: more local names, and the popup's status line while the page is saved during a preview.
+  - **Classification (D-023).** One small (a) item (the typed token), fixed in Claude's review commit at the user's request; the rest are (c) test gaps and two spec decisions. No Droid fix round. Claude's review commit:
+    - one line in `Sources.tsx`, and the suffixes `localdomain`, `intranet`, `private`, `corp`, and `home` in `public_hosts.py`;
+    - nine table rows, one `it.each` test, seven assertions and three steps in existing tests, and one feed-test image (56 test lines, more than the usual 30; each addition is verified by a named mutation);
+    - the content-collection and browser-extension spec wording, design notes, D-033, and the requirements row;
+    - the report's review section; Droid's session line; this entry.
+
+    With these edits, backend 1,034, frontend 314, and extension 135 tests passed.
+- **Problems / adjustment:**
+  - Claude's first browser attempts to replace the address clicked the field's label, and then used a select-all shortcut that the browser pane ignored, so the address was not replaced or was appended to. Claude reloaded the page and replaced the address by triple-clicking the input; only that run is reported.
+  - A shell loop meant to start the two containers relied on word splitting, which zsh does not do; the commands were written out one by one.

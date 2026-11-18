@@ -23,7 +23,7 @@ The rest of #65 (visible captions, formula images, the prompt) waits for the use
 - **Image addresses must be public.** CatchUp drops an image candidate when its address names this computer or a local network:
   - IP addresses that are not public, by the rule that already guards CatchUp's own fetches;
   - numeric host forms that browsers read as IPv4 addresses, such as `2130706433`, `0x7f.1`, and `127.1`, unless they are a public address in plain dotted form;
-  - `localhost` and names under it, names without a dot, and names under `.local`, `.internal`, `.home.arpa`, and `.lan`;
+  - `localhost` and names under it, names without a dot, and names under `.localdomain`, `.local`, `.internal`, `.intranet`, `.private`, `.corp`, `.home`, `.home.arpa`, and `.lan`;
   - hosts that are not plain ASCII names, such as percent-encoded or full-width forms that a browser would turn into one of the above;
   - addresses with a backslash, which browsers read as `/`: `http://192.168.1.1\@cdn.example.com/a.png` looks like a `cdn.example.com` address, but a browser requests it from `192.168.1.1`.
 

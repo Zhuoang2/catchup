@@ -38,7 +38,8 @@ def is_public_url(url: str) -> bool:
             return is_public_address(ipaddress.IPv4Address(name))
         except ValueError:
             return False
-    local_suffixes = ("localhost", "local", "internal", "home.arpa", "lan")
+    local_suffixes = ("localhost", "localdomain", "local", "internal", "intranet",
+                      "private", "corp", "home", "home.arpa", "lan")
     return "." in name and not any(
         name == suffix or name.endswith("." + suffix) for suffix in local_suffixes
     )

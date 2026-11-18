@@ -193,3 +193,122 @@ were created.
   by the implementation request; Claude Code runs them at review.
 - Live Sources slow-preview browser check and saved-digest image network check:
   not performed; Claude Code runs them at review.
+
+## Review by Claude Code
+
+Date: 2026-11-18. Range reviewed: `da3811a..35aa29b`, in a separate review
+worktree. Review method: D-016 (`/code-review` at high effort, an independent
+spec sub-agent with mutations, Claude Code's own checks and live checks).
+
+### Checks
+
+| Check | Result |
+| --- | --- |
+| `uv run pytest` in `backend/`, at `35aa29b` | **1,025 passed**. |
+| `uv run pytest` in `backend/`, with the review edits | **1,034 passed** (nine new table rows). |
+| `npx vitest run` and `npm run build` in `frontend/`, Node 22.17.1 | **312 passed** at `35aa29b`, **314** with the review edits; build passed. |
+| `npx vitest run` and `npm run build` in `extension/`, Node 22.17.1 | **135 passed**; build passed. |
+| `DO_NOT_TRACK=1 openspec validate fix-source-preview-and-image-hosts --strict` | Valid, before and after the review edits. |
+| `docker build -t catchup:fix73-local .` at `35aa29b` | Passed. |
+| `scripts/docker-smoke.sh catchup:fix73-local` | Passed all **12 checks**; no container or volume left. |
+
+### Live checks
+
+- **Setup.** Two images, one built from a clean `main` worktree at `866be0d`
+  and one from the branch at `35aa29b`. Each ran in its own container, on a
+  local port (not 8800), with a fresh volume.
+- **Saved images.** The same two digests were written into both databases:
+  - digest 1 with `http://192.168.1.1/live73-cam.jpg`,
+    `http://192.168.1.1\@cdn.example.com/live73-b.png`, and a public image;
+  - digest 2 with `http://127.0.0.1:9/live73-loop.jpg`,
+    `http://localhost:9/live73-name.png`, and the same public image.
+
+  `GET /api/digests/latest` and `/api/digests/{id}` on `main` returned all
+  three images; on the branch, only the public one. In the browser, `main`'s
+  `/digests/2` requested `http://127.0.0.1:9/live73-loop.jpg` and
+  `http://localhost:9/live73-name.png` (Chrome then refused them with
+  `ERR_UNSAFE_PORT`). On the branch, `/digests/1`, `/digests/2`, and the main
+  screen requested neither, and showed only the public image's `<img>`.
+  `main`'s digest 1 was not opened in a browser, because that would have
+  requested a device on the reviewer's own network.
+- **Sources preview.** Address A was `https://httpbin.org/delay/5` (answers
+  after at least 5 seconds, with no feed); address B was Simon Willison's
+  Atom feed. A was previewed, the field was changed to B before A answered,
+  and B was previewed.
+  - On `main`, nothing showed that A was loading, and Preview stayed
+    available. After both answered, A's error, "The URL did not return a
+    parsable feed.", was shown under B's address together with B's preview.
+  - On the branch, while A loaded, Preview had `aria-disabled="true"`, stayed
+    focusable, and the status region said "Loading the preview…"; a second
+    Enter sent no request. Editing the address made Preview available and
+    removed the message. After both answered, only B's preview was shown,
+    with no alert.
+- **Popup.** Not checked live: the built-in browser cannot load extensions.
+  The popup tests and the extension build cover it.
+- Both containers and their volumes were removed.
+
+### Findings
+
+`/code-review` (high) reported 6 findings:
+
+| Finding | Decision |
+| --- | --- |
+| No test fails when the stale check after a failed token save is removed | Confirmed (c): the mutation passed all 51 Sources tests. Fixed with a test (R1). |
+| No test covers keeping a newer preview's loading message after an older token save succeeds | Confirmed (c), a spec clause without a test. Fixed with the same test (R2). |
+| After a stale token save, the typed token stays in the page's state | Confirmed (a), minor: if the token form appears again, its field is prefilled. Fixed in the review commit with the user's approval (one line), and tested (T1). |
+| The busy guard reads `previewing` from the render, not from a ref | Rejected: React 18 renders between discrete events, so a second click or Enter sees the new state. |
+| `filter_image_urls` parses each address twice | Churn (D-023 d). Recorded. |
+| The regexes and suffix list are built inside `is_public_url` | Churn (D-023 d). Recorded. |
+
+The spec sub-agent found no missing requirement, no unrequested behavior, no
+wrong implementation, and no false claim. It re-ran all 24 named mutations,
+and each failed its named tests. It compared `is_public_url` with Node's
+WHATWG `new URL()` on 531,873 generated addresses, with and without a base
+URL: none was kept by CatchUp while a browser would request this computer or
+a local network. It traced every place that stores or shows images (four
+writers, all through `filter_image_urls`; one reader, `_serialize_digest`;
+one `<img>`). Of its 30 extra mutations, 12 were caught. Survivors and
+decisions:
+
+| Mutation | Decision |
+| --- | --- |
+| X1: drop `is_reserved` | Test gap: `[::7f00:1]` was kept. Row added. |
+| X4: allow `%` in names | Test gap: `http://nas.%6cocal/…` (a browser requests `nas.local`) was kept. Row added. |
+| X5: refuse only `\@` | Test gap: `http://127.0.0.1\x@cdn.example.com/…` (a browser requests `127.0.0.1`) was kept. Row added. |
+| X9: no exact-suffix match | Marginal; row `http://home.arpa/…` added anyway. |
+| X14, X16: stale token save | The same as R2 and R1 above. |
+| X15: "Save and preview" shows no loading message | Test gap on a spec clause. Assertion added. |
+| X17, X18: a failed token save leaves the buttons busy or the message on | Test gap. Assertions added. |
+| X19: a successful save and preview leaves Preview busy | Test gap. Assertion added. |
+| X22: a failed repeated preview leaves the loading message | Test gap. Assertion added. |
+| X25: the popup shows no loading message for the preview after a token save | Test gap on a spec clause. Assertion added. |
+| X8, X10, X11, X20 | Marginal (more images dropped, a defensive check, or a wider message reset). Recorded. |
+| X23, X24 | Equivalent: no preview can be pending in those views. Recorded. |
+
+It also raised two points for the user, who chose on 2026-11-18:
+
+- `localhost.localdomain`, `.home`, `.corp`, `.intranet`, and `.private`
+  hosts were kept. The suffixes `localdomain`, `home`, `corp`, `intranet`,
+  and `private` are now refused (spec delta, design D3, D-033, and the
+  requirements row updated). `fritz.box` stays a known limit.
+- Saving the page while a popup preview loads replaces the loading message
+  with the save's own result. The spec wording now says that the loading
+  message lasts until the preview answers or another action writes its
+  result. No code change.
+
+### Review mutations
+
+Each was applied alone to the review head and restored.
+
+| Id | Mutation | Result |
+| --- | --- | --- |
+| R1 | remove the stale check after a failed token save | `keeps a newer preview loading when an older token save fails` failed. |
+| R2 | `setMessage('X token saved.')` after a stale save | `keeps a newer preview loading when an older token save succeeds` failed. |
+| T1 | clear the typed token only on the current path (Droid's code) | `announces the saved token but does not preview an address that changed during the save` failed. |
+| X1, X4, X5, X9 | as in the table above | The matching new row failed (1 each). |
+| X15 | no loading message for "Save and preview" | `keeps Save and preview focused until the repeated preview answers, then focuses its heading` failed. |
+| X17, X18 | a failed token save keeps `previewing`, or keeps the message | `marks the X token field, not the address, when saving the token fails` failed. |
+| X19 | no `setPreviewing(false)` at the end of `saveXAndPreview` | Two X token tests failed. |
+| X22 | keep the loading message after a failed repeated preview | `focuses the address and shows the error when the token saves but the repeated preview fails` failed. |
+| X25 | the popup shows the loading message only with a trigger | `focuses the preview heading after saving the X token and keeps the status line attached` failed. |
+| S1–S5 | drop `localdomain`, `intranet`, `private`, `corp`, or `home` | The matching new row failed (1 each). |

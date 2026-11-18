@@ -170,12 +170,16 @@ it('focuses the preview heading after saving the X token and keeps the status li
   fireEvent.click(screen.getByRole('button', { name: 'Follow this account' }))
   fireEvent.input(await screen.findByLabelText('X API token'), { target: { value: 'fake-token' } })
   expect(status).toHaveTextContent('X token needed.')
+  records.push(...observer.takeRecords())
+  const beforeSave = records.length
   const save = screen.getByRole('button', { name: 'Save' })
   save.focus()
   fireEvent.click(save)
   expect(await screen.findByRole('heading', { name: 'Sample Writer' })).toHaveFocus()
   records.push(...observer.takeRecords())
   observer.disconnect()
+  expect(records.slice(beforeSave).some(record => record.target === status
+    && [...record.addedNodes].some(node => node.textContent === 'Loading the preview…'))).toBe(true)
   expect(screen.getByRole('status')).toBe(status)
   expect(records.some(record => [...record.removedNodes].includes(status))).toBe(false)
 })

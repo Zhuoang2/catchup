@@ -68,6 +68,7 @@ The motivation is in proposal.md ("Why"). The code on `main` at `866be0d`:
   - In `finally`, set `trigger` back to `aria-disabled="false"`. If the content was replaced, that button is detached and this does nothing visible.
 - The Follow button passes itself as `trigger`. `saveXToken` calls `previewSite()` without one, because its own Save button is already busy.
 - Alternative considered: also make Add busy while a preview loads. Rejected: the user may want to save the page while the feed search runs; dropping the late preview is enough.
+- Saving the page while a preview loads clears the status line and writes the save's own result there; the loading message is not restored. The spec wording says so (changed at review on 2026-11-18, when the spec review found that "While a preview loads, the status line MUST say …" did not hold in this case).
 
 ### D3. One public-address rule, and an image-address check built on it
 
@@ -78,7 +79,8 @@ The motivation is in proposal.md ("Why"). The code on `main` at `866be0d`:
     2. If the host was bracketed (`"[" in parts.netloc`), it is an IPv6 literal: `ipaddress.IPv6Address(host)`, then `is_public_address`. False when it does not parse, which also covers `[v1.abc]`-style hosts, which browsers refuse.
     3. Otherwise remove one trailing dot. The name must match `[a-z0-9_-]+(\.[a-z0-9_-]+)*`, or the result is false. This drops percent-encoded, full-width, and other non-ASCII hosts, and empty labels.
     4. If the last label is a number in a browser's sense (`[0-9]+`, or `0x` followed by zero or more hex digits), the browser reads the whole host as an IPv4 address. Then `ipaddress.IPv4Address(name)` must parse, which needs four plain decimal parts with no leading zeros, and `is_public_address` must be true. Otherwise the result is false.
-    5. Otherwise it is a name. It is false when it has no dot, or is `localhost`, `local`, `internal`, `home.arpa`, or `lan`, or ends with `.` plus one of them. Otherwise it is true.
+    5. Otherwise it is a name. It is false when it has no dot, or is `localhost`, `localdomain`, `local`, `internal`, `intranet`, `private`, `corp`, `home`, `home.arpa`, or `lan`, or ends with `.` plus one of them. Otherwise it is true.
+- The suffixes `localdomain` (the loopback name many `/etc/hosts` files define, as in `localhost.localdomain`) and `intranet`, `private`, `corp`, and `home` (names RFC 6762, Appendix G, lists as used privately) were added at review on 2026-11-18, after the spec review found them kept.
 - **`filter_image_urls`** replaces its scheme-and-host condition (`feeds.py:127`) with `not is_public_url(url)`. The avatar, 1×1, excluded, duplicate, and cap rules stay as they are.
 - Why the browser's view matters: the digest page is rendered in the reader's browser, which parses the stored address with the WHATWG URL rules, not with `urllib`. Step 4 follows the WHATWG "ends in a number" rule, so every host a browser would read as an IPv4 number is either a public dotted address or dropped. Public addresses written in other numeric forms are dropped too. They are rare in feeds.
 - Alternative considered: normalize hosts the way a browser does (percent-decoding, UTS 46 mapping, the full IPv4 number parser) and then check the result. Rejected: more code that must match browsers exactly, for hosts that real feeds do not use. Refusing anything that is not a plain ASCII name is simpler and fails safe.

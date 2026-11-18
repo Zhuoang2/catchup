@@ -150,6 +150,7 @@ def test_entry_images_on_local_addresses_are_dropped():
         "<img src='http://localhost:631/p.png'>"
         "<img src='http://printer/p.png'>"
         "<img src='http://nas.local/p.jpg'>"
+        "<img src='http://localhost.localdomain/p.png'>"
         "<img src='http://192.168.1.1\\@cdn.example.com/b.png'>",
         media="<media:content url='http://[::1]:9000/m.png' medium='image'/>",
     )

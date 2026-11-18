@@ -434,6 +434,71 @@ it.each(['reject', 'empty', 'missing'])('does not save an unreadable tab (%s)', 
   expect((await axe(document.body, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([])
 })
 
+it('keeps busy Follow focusable, shows progress, and sends one preview', async () => {
+  connect()
+  let finish!: (result: ReturnType<typeof response>) => void
+  const pending = new Promise<ReturnType<typeof response>>(resolve => { finish = resolve })
+  fetchMock.mockImplementation(async (url: string) => url.endsWith('/preview')
+    ? pending : response(200, { name: 'My browser', waiting: 3 }))
+  await initPopup()
+  const follow = screen.getByRole('button', { name: 'Follow this site' })
+  follow.focus()
+  fireEvent.click(follow)
+  expect(follow).toHaveAttribute('aria-disabled', 'true')
+  expect(follow).not.toBeDisabled()
+  expect(follow).toHaveFocus()
+  expect(screen.getByRole('status')).toHaveTextContent('Loading the preview…')
+  fireEvent.click(follow)
+  await new Promise(resolve => setTimeout(resolve, 20))
+  expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/api/sources/preview'))).toHaveLength(1)
+  finish(response(200, preview))
+  expect(await screen.findByRole('heading', { name: 'Example Site' })).toHaveFocus()
+  expect(screen.getByRole('status')).toBeEmptyDOMElement()
+})
+
+it.each([
+  { status: 200, body: preview },
+  { status: 422, body: { error: { code: 'no_feed', message: 'No feed.' } } },
+])('ignores a preview that answers after the page was saved ($status)', async ({ status, body }) => {
+  connect()
+  genericResult(captured)
+  let finish!: (result: ReturnType<typeof response>) => void
+  const pending = new Promise<ReturnType<typeof response>>(resolve => { finish = resolve })
+  fetchMock.mockImplementation(async (url: string) => {
+    if (url.endsWith('/api/sources/preview')) return pending
+    if (url.endsWith('/api/captures')) return response(201, { id: 42, waiting: 4 })
+    return response(200, { name: 'My browser', waiting: 3 })
+  })
+  await initPopup()
+  fireEvent.click(screen.getByRole('button', { name: 'Follow this site' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Add this page to my next digest' }))
+  await screen.findByText('Saved. It will be in your next digest.')
+  const add = screen.getByRole('button', { name: 'Add this page to my next digest' })
+  expect(add).toHaveFocus()
+  expect(saves()).toHaveLength(1)
+  finish(response(status, body))
+  await new Promise(resolve => setTimeout(resolve, 20))
+  expect(screen.queryByRole('heading', { name: 'Example Site' })).toBeNull()
+  expect(screen.getByRole('status')).toHaveTextContent('Saved. It will be in your next digest.')
+  expect(add).toHaveFocus()
+})
+
+it('makes Follow available again after a preview error', async () => {
+  connect()
+  let finish!: (result: ReturnType<typeof response>) => void
+  const pending = new Promise<ReturnType<typeof response>>(resolve => { finish = resolve })
+  fetchMock.mockImplementation(async (url: string) => url.endsWith('/preview')
+    ? pending : response(200, { name: 'My browser', waiting: 3 }))
+  await initPopup()
+  const follow = screen.getByRole('button', { name: 'Follow this site' })
+  fireEvent.click(follow)
+  expect(follow).toHaveAttribute('aria-disabled', 'true')
+  finish(response(422, { error: { code: 'no_feed', message: 'No feed.' } }))
+  await screen.findByText('No supported feed was found at this URL.')
+  expect(screen.getByRole('button', { name: 'Follow this site' })).toBe(follow)
+  expect(follow).not.toHaveAttribute('aria-disabled', 'true')
+})
+
 it('keeps busy Add focusable, ignores another click, and shows a run_active conflict', async () => {
   connect()
   genericResult(captured)

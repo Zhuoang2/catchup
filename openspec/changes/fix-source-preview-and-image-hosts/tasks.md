@@ -97,7 +97,7 @@ Implementer notes:
 
 ## 4. Popup: busy Follow, progress, and late previews (D2)
 
-- [ ] 4.1 Write failing tests in `extension/src/test/popup.test.ts`. Hold the preview with a deferred promise.
+- [x] 4.1 Write failing tests in `extension/src/test/popup.test.ts`. Hold the preview with a deferred promise.
   - `keeps busy Follow focusable, shows progress, and sends one preview`. Focus "Follow this site" and click it.
     - While the preview is held: the button has `aria-disabled="true"`, is not `disabled`, and has focus. The status line has the text "Loading the preview…".
     - Click it again and wait 20 ms. Exactly one `/api/sources/preview` request was made.
@@ -108,7 +108,7 @@ Implementer notes:
   - `makes Follow available again after a preview error`. Click "Follow this site" and hold the preview; check that the button has `aria-disabled="true"`. Resolve the preview with a 422 `no_feed` error. The status line shows the error, and the same button has no `aria-disabled="true"`.
 
   Verify: the new tests fail on the current code. The existing tests still pass, including `keeps one status line attached while saving, removing, previewing, and following`.
-- [ ] 4.2 Implement D2 in `extension/src/popup.ts`: the `views` counter and `show(...)` helper used by `connected()`, `showXTokenPrompt()`, and the preview; `previewSite(trigger?)` with the busy guard, "Loading the preview…", and the view check; Follow passes itself as `trigger`.
+- [x] 4.2 Implement D2 in `extension/src/popup.ts`: the `views` counter and `show(...)` helper used by `connected()`, `showXTokenPrompt()`, and the preview; `previewSite(trigger?)` with the busy guard, "Loading the preview…", and the view check; Follow passes itself as `trigger`.
 
   Verify:
   - `npx vitest run src/test/popup.test.ts` passes in `extension/`;

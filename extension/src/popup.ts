@@ -174,6 +174,11 @@ export async function initPopup(): Promise<void> {
   statusText.setAttribute('aria-live', 'polite')
   const content = element('div')
   content.className = 'popup-content'
+  let views = 0
+  function show(...nodes: Node[]) {
+    ++views
+    content.replaceChildren(...nodes)
+  }
   root.replaceChildren(content, statusText)
   const host = (() => { try { return normalizedHost(new URL(tab.url ?? '').hostname) } catch { return '' } })()
   const isX = isXHost(host)
@@ -184,9 +189,9 @@ export async function initPopup(): Promise<void> {
 
   function connected(focusTarget?: 'follow' | 'add') {
     const follow = button(username ? 'Follow this account' : 'Follow this site',
-      () => { void previewSite() })
+      () => { void previewSite(follow) })
     const add = button('Add this page to my next digest', () => { void savePage(add) })
-    content.replaceChildren(
+    show(
       element('h2', tab.title || 'Current tab'),
       element('p', host),
       element('p', `${waiting} ${waiting === 1 ? 'page' : 'pages'} waiting`),
@@ -258,10 +263,14 @@ export async function initPopup(): Promise<void> {
     } finally { remove.setAttribute('aria-disabled', 'false') }
   }
 
-  async function previewSite() {
-    statusText.textContent = ''
+  async function previewSite(trigger?: HTMLButtonElement) {
+    if (trigger?.getAttribute('aria-disabled') === 'true') return
+    trigger?.setAttribute('aria-disabled', 'true')
+    const view = views
+    statusText.textContent = 'Loading the preview…'
     try {
       const preview = await api<Preview>('/sources/preview', { url: tab.url })
+      if (views !== view) return
       const section = element('section')
       section.setAttribute('aria-label', 'Source preview')
       const entries = element('ul')
@@ -285,13 +294,17 @@ export async function initPopup(): Promise<void> {
         button('Confirm', () => { void confirmSite(preview) }),
         button('Cancel', () => connected('follow')),
       )
-      content.replaceChildren(section)
+      show(section)
+      statusText.textContent = ''
       section.querySelector('button')!.className = 'primary'
       heading.focus()
     } catch (error) {
+      if (views !== view) return
       if ((error as ApiError).status === 401 && (error as ApiError).code !== 'x_token_rejected') disconnected(true)
       else if ((error as ApiError).code === 'x_token_required') showXTokenPrompt()
       else statusText.textContent = sourceError(error as ApiError)
+    } finally {
+      trigger?.setAttribute('aria-disabled', 'false')
     }
   }
 
@@ -309,7 +322,7 @@ export async function initPopup(): Promise<void> {
     const save = button('Save', () => { void saveXToken() })
     section.append(label, hint, save,
       button('Open CatchUp', () => { void chrome.tabs.create({ url: server }) }))
-    content.replaceChildren(section)
+    show(section)
     statusText.textContent = 'X token needed.'
     input.focus()
 

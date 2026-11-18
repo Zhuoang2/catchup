@@ -99,6 +99,37 @@ with the restored `git diff` compared to the pre-mutation diff.
 | F7 | put busy guard before preventDefault | 1 failed, 50 skipped; test 1, submit returned true; jsdom also reported native requestSubmit unimplemented |
 | F8 | omit repeated-preview answer/error counter checks | 1 failed, 50 skipped; test 5 |
 
+## Group 4: popup
+
+- Red: `npx vitest run src/test/popup.test.ts`, all 4 new cases failed,
+  all 84 existing tests passed, including the persistent status-line test.
+- Green: same command, 88 passed.
+- Full extension: `npm test -- --run`, 135 passed in 8 files;
+  `npm run build`, exit 0 (TypeScript, Vite, and existing build checker).
+
+New tests:
+
+1. `keeps busy Follow focusable, shows progress, and sends one preview`:
+   busy semantics, focus, progress, one request, focused heading, cleared status.
+2. `ignores a preview that answers after the page was saved (200)` and `(422)`:
+   deferred success and error preserve the saved view, status, and Add focus.
+3. `makes Follow available again after a preview error`: the same Follow button
+   is released and the error is announced.
+
+Each mutation ran alone with
+`npx vitest run src/test/popup.test.ts -t '<test name>'`
+(the base name for test 2 selects both cases), exited 1, then was restored
+byte-for-byte with restored `git diff` compared to the pre-mutation diff.
+
+| Mutation | Change | Actual result / killing test above |
+| --- | --- | --- |
+| P1 | omit busy guard | 1 failed, 87 skipped; test 1 saw 2 previews, expected 1 |
+| P2 | omit setting Follow aria-disabled true | 1 failed, 87 skipped; test 1 |
+| P3 | omit view checks on success and error | 2 failed, 86 skipped; both test 2 cases |
+| P4 | omit loading progress message | 1 failed, 87 skipped; test 1 |
+| P5 | connected replaces content without incrementing views | 2 failed, 86 skipped; both test 2 cases |
+| P6 | omit finally releasing trigger aria-disabled | 1 failed, 87 skipped; test 3 |
+
 ## Review-only checks
 
 - Docker build and `scripts/docker-smoke.sh`: not performed, explicitly excluded

@@ -62,6 +62,43 @@ scheme-and-host candidate condition; H10 omitted backslash rejection.
   Searches for `Privacy` in `backend/tests`, `frontend/src`, and `extension/src`
   found no tests referring to that heading.
 
+## Group 3: Sources page
+
+- Red: `npx vitest run src/pages/Sources.test.tsx`, 5 new tests failed and
+  all 46 existing tests passed.
+- Green: the same command, 51 passed.
+- Full frontend: `npm test -- --run`, 312 passed in 14 files;
+  `npm run build`, exit 0 (`tsc --noEmit` and Vite).
+
+New tests (all request timing uses deferred promises):
+
+1. `shows loading progress and ignores Preview while a preview loads`:
+   focus, focusable busy button, progress, repeated click/submission suppression,
+   prevented native form submission, and clearing busy/progress on success.
+2. `shows only the preview of the address in the field`: A/B answers out of
+   order, editing clears busy/progress, and Confirm posts B's feed.
+3. `ignores an error for an earlier address`: no obsolete error or busy state.
+4. `announces the saved token but does not preview an address that changed during the save`:
+   one token PUT while busy and no obsolete preview after saving.
+5. `ignores a repeated preview for an address that changed while it loaded`:
+   no obsolete X preview or loading state.
+
+Each mutation ran alone with
+`npx vitest run src/pages/Sources.test.tsx -t '<test name>'`
+(F1 used names 2 and 3 joined by `|`), exited 1, then was restored byte-for-byte
+with the restored `git diff` compared to the pre-mutation diff.
+
+| Mutation | Change | Actual result / killing test above |
+| --- | --- | --- |
+| F1 | omit previewSource answer/error counter checks | 2 failed, 49 skipped; tests 2 and 3 |
+| F2 | omit previewing guards | 1 failed, 50 skipped; test 1 saw 3 preview requests, expected 1 |
+| F3 | omit Preview aria-disabled | 1 failed, 50 skipped; test 1 |
+| F4 | omit LOADING messages | 1 failed, 50 skipped; test 1 |
+| F5 | omit onChange counter increment and end-busy update | 1 failed, 50 skipped; test 2 |
+| F6 | omit stale-PUT branch, proceed to preview | 1 failed, 50 skipped; test 4, missing saved-token announcement |
+| F7 | put busy guard before preventDefault | 1 failed, 50 skipped; test 1, submit returned true; jsdom also reported native requestSubmit unimplemented |
+| F8 | omit repeated-preview answer/error counter checks | 1 failed, 50 skipped; test 5 |
+
 ## Review-only checks
 
 - Docker build and `scripts/docker-smoke.sh`: not performed, explicitly excluded

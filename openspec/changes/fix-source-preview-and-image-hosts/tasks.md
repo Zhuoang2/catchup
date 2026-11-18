@@ -74,7 +74,7 @@ Implementer notes:
 
 ## 3. Sources page: progress, and only the current address's preview (D1)
 
-- [ ] 3.1 Write failing tests in `frontend/src/pages/Sources.test.tsx`. Hold each preview with its own deferred promise.
+- [x] 3.1 Write failing tests in `frontend/src/pages/Sources.test.tsx`. Hold each preview with its own deferred promise.
   - `shows loading progress and ignores Preview while a preview loads`. Focus Preview and click it.
     - While the answer is held: Preview has `aria-disabled="true"`, is not `disabled`, and has focus. The status region has the text "Loading the preview…".
     - Click Preview again, and submit the form: `expect(fireEvent.submit(form)).toBe(false)`, which shows that the default submission was prevented. Exactly one `/api/sources/preview` request was made.
@@ -88,7 +88,7 @@ Implementer notes:
   - `ignores a repeated preview for an address that changed while it loaded`. Reach the X token form the same way. Let the `PUT` succeed, and hold the repeated `/api/sources/preview`. Change the address field. Resolve the held preview with an X preview titled "Writer". No "Source preview" region is shown, the status region is empty, and Preview has no `aria-disabled="true"`.
 
   Verify: the new tests fail on the current code. The existing tests still pass.
-- [ ] 3.2 Implement D1 in `frontend/src/pages/Sources.tsx`: `previewing` state, the `previewRequest` counter, `LOADING`, the guards in `previewSource` and `saveXAndPreview`, the address `onChange` change, and `aria-disabled` on Preview and "Save and preview".
+- [x] 3.2 Implement D1 in `frontend/src/pages/Sources.tsx`: `previewing` state, the `previewRequest` counter, `LOADING`, the guards in `previewSource` and `saveXAndPreview`, the address `onChange` change, and `aria-disabled` on Preview and "Save and preview".
 
   Verify:
   - `npx vitest run src/pages/Sources.test.tsx` passes, including the existing focus and status tests;

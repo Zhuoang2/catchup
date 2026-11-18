@@ -35,6 +35,133 @@ afterEach(() => {
 })
 
 describe('sources', () => {
+  it('shows loading progress and ignores Preview while a preview loads', async () => {
+    let finish!: (response: ReturnType<typeof respond>) => void
+    const pending = new Promise<ReturnType<typeof respond>>(resolve => { finish = resolve })
+    fetchMock.mockImplementation(async (path: string) =>
+      path === '/api/sources/preview' ? pending : respond([]))
+    page()
+    await screen.findByText('No sources yet')
+    fireEvent.change(screen.getByLabelText('Website or feed URL'), { target: { value: saved.feed_url } })
+    const button = screen.getByRole('button', { name: 'Preview' })
+    button.focus()
+    fireEvent.click(button)
+    expect(button).toHaveAttribute('aria-disabled', 'true')
+    expect(button).not.toBeDisabled()
+    expect(button).toHaveFocus()
+    expect(screen.getByRole('status')).toHaveTextContent('Loading the preview…')
+    fireEvent.click(button)
+    expect(fireEvent.submit(button.closest('form')!)).toBe(false)
+    expect(fetchMock.mock.calls.filter(([path]) => path === '/api/sources/preview')).toHaveLength(1)
+    await act(async () => { finish(respond(preview)) })
+    expect(screen.getByRole('heading', { name: preview.title })).toBeInTheDocument()
+    expect(button).not.toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('status')).toBeEmptyDOMElement()
+  })
+
+  it('shows only the preview of the address in the field', async () => {
+    let finishA!: (response: ReturnType<typeof respond>) => void
+    let finishB!: (response: ReturnType<typeof respond>) => void
+    const pendingA = new Promise<ReturnType<typeof respond>>(resolve => { finishA = resolve })
+    const pendingB = new Promise<ReturnType<typeof respond>>(resolve => { finishB = resolve })
+    fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+      if (path === '/api/sources/preview') {
+        return JSON.parse(options?.body as string).url === 'https://a.example/' ? pendingA : pendingB
+      }
+      if (path === '/api/sources' && options?.method === 'POST') return respond(saved, 201)
+      if (path === '/api/sources') return respond([])
+      throw Error(path)
+    })
+    page()
+    await screen.findByText('No sources yet')
+    const address = screen.getByLabelText('Website or feed URL')
+    const button = screen.getByRole('button', { name: 'Preview' })
+    fireEvent.change(address, { target: { value: 'https://a.example/' } })
+    fireEvent.click(button)
+    fireEvent.change(address, { target: { value: 'https://b.example/' } })
+    expect(button).not.toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('status')).toBeEmptyDOMElement()
+    fireEvent.click(button)
+    await act(async () => { finishB(respond({ ...preview, title: 'B News', feed_url: 'https://b.example/feed' })) })
+    await act(async () => { finishA(respond({ ...preview, title: 'A News', feed_url: 'https://a.example/feed' })) })
+    expect(screen.getByRole('heading', { name: 'B News' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'A News' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm source' }))
+    await screen.findByText('Source saved.')
+    const save = fetchMock.mock.calls.find(([path, options]) =>
+      path === '/api/sources' && options?.method === 'POST')
+    expect(JSON.parse(save?.[1].body as string)).toEqual({ feed_url: 'https://b.example/feed' })
+  })
+
+  it('ignores an error for an earlier address', async () => {
+    let finish!: (response: ReturnType<typeof respond>) => void
+    const pending = new Promise<ReturnType<typeof respond>>(resolve => { finish = resolve })
+    fetchMock.mockImplementation(async (path: string) =>
+      path === '/api/sources/preview' ? pending : respond([]))
+    page()
+    await screen.findByText('No sources yet')
+    const address = screen.getByLabelText('Website or feed URL')
+    fireEvent.change(address, { target: { value: 'https://a.example/' } })
+    const button = screen.getByRole('button', { name: 'Preview' })
+    fireEvent.click(button)
+    fireEvent.change(address, { target: { value: 'https://b.example/' } })
+    await act(async () => { finish(respond({ error: { code: 'no_feed', message: 'No feed.' } }, 422)) })
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByRole('status')).toBeEmptyDOMElement()
+    expect(button).not.toHaveAttribute('aria-disabled', 'true')
+  })
+
+  it('announces the saved token but does not preview an address that changed during the save', async () => {
+    let finish!: (response: ReturnType<typeof respond>) => void
+    const pending = new Promise<ReturnType<typeof respond>>(resolve => { finish = resolve })
+    fetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/sources') return respond([])
+      if (path === '/api/settings/x') return pending
+      if (path === '/api/sources/preview') return respond(
+        { error: { code: 'x_token_required', message: 'X token needed.' } }, 422)
+      throw Error(path)
+    })
+    page()
+    const address = screen.getByLabelText('Website or feed URL')
+    fireEvent.change(address, { target: { value: 'https://x.com/writer' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    fireEvent.change(await screen.findByLabelText('X API token'), { target: { value: 'fake-token' } })
+    const save = screen.getByRole('button', { name: 'Save and preview' })
+    fireEvent.click(save)
+    expect(save).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.click(save)
+    expect(fetchMock.mock.calls.filter(([path]) => path === '/api/settings/x')).toHaveLength(1)
+    fireEvent.change(address, { target: { value: 'https://b.example/' } })
+    await act(async () => { finish(respond({ token_set: true, token_last4: 'oken' })) })
+    expect(screen.getByRole('status')).toHaveTextContent('X token saved.')
+    expect(fetchMock.mock.calls.filter(([path]) => path === '/api/sources/preview')).toHaveLength(1)
+  })
+
+  it('ignores a repeated preview for an address that changed while it loaded', async () => {
+    let finish!: (response: ReturnType<typeof respond>) => void
+    const pending = new Promise<ReturnType<typeof respond>>(resolve => { finish = resolve })
+    let previews = 0
+    fetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/sources') return respond([])
+      if (path === '/api/settings/x') return respond({ token_set: true, token_last4: 'oken' })
+      if (path === '/api/sources/preview') return ++previews === 1
+        ? respond({ error: { code: 'x_token_required', message: 'X token needed.' } }, 422) : pending
+      throw Error(path)
+    })
+    page()
+    const address = screen.getByLabelText('Website or feed URL')
+    fireEvent.change(address, { target: { value: 'https://x.com/writer' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    fireEvent.change(await screen.findByLabelText('X API token'), { target: { value: 'fake-token' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save and preview' }))
+    await waitFor(() => expect(previews).toBe(2))
+    fireEvent.change(address, { target: { value: 'https://b.example/' } })
+    await act(async () => { finish(respond({ ...preview, kind: 'x', title: 'Writer', username: 'writer' })) })
+    expect(screen.queryByRole('region', { name: 'Source preview' })).toBeNull()
+    expect(screen.getByRole('status')).toBeEmptyDOMElement()
+    expect(screen.getByRole('button', { name: 'Preview' })).not.toHaveAttribute('aria-disabled', 'true')
+  })
+
   it('keeps Save and preview focused until the repeated preview answers, then focuses its heading', async () => {
     let finish!: (response: ReturnType<typeof respond>) => void
     const pending = new Promise<ReturnType<typeof respond>>(resolve => { finish = resolve })

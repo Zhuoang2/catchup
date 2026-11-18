@@ -210,7 +210,7 @@ spec sub-agent with mutations, Claude Code's own checks and live checks).
 | `npx vitest run` and `npm run build` in `extension/`, Node 22.17.1 | **135 passed**; build passed. |
 | `DO_NOT_TRACK=1 openspec validate fix-source-preview-and-image-hosts --strict` | Valid, before and after the review edits. |
 | `docker build -t catchup:fix73-local .` at `35aa29b` | Passed. |
-| `scripts/docker-smoke.sh catchup:fix73-local` | Passed all **12 checks**; no container or volume left. |
+| `scripts/docker-smoke.sh catchup:fix73-local` | Passed all **12 checks** at `35aa29b`, and again after rebuilding at the review commit `8b36068`; no container or volume left. |
 
 ### Live checks
 

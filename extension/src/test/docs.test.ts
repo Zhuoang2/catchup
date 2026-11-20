@@ -26,9 +26,10 @@ it('documents collection boundaries, reader license and the linked-pages wait', 
   const extension = readme.split('## Browser extension')[1]?.split(/^## /m)[0]
   for (const text of ['cookies', 'saved passwords', 'site storage', 'background reading',
     'scroll', 'click', 'open pages', 'Mozilla Readability', 'Apache-2.0',
-    'reads linked pages', 'waits for the next run', 'without your cookies', 'sponsor text']) {
+    'reads linked pages', 'waits for the next run', 'without your cookies', 'only text the page shows']) {
     expect(extension, text).toContain(text)
   }
+  expect(extension).not.toContain('sponsor text')
 })
 
 it('documents X accounts, costs, limits and account ownership without old no-follow claim', () => {

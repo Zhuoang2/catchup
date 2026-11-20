@@ -151,12 +151,12 @@ Implementer notes:
 
 ## 3. README (D7)
 
-- [ ] 3.1 In `extension/src/test/docs.test.ts`, test `documents collection boundaries, reader license and the linked-pages wait`:
+- [x] 3.1 In `extension/src/test/docs.test.ts`, test `documents collection boundaries, reader license and the linked-pages wait`:
   - replace `'sponsor text'` in the list with `'only text the page shows'`;
   - after the loop, add `expect(extension).not.toContain('sponsor text')`.
 
   Verify: the test fails on the current README.
-- [ ] 3.2 In `README.md`, section "Browser extension":
+- [x] 3.2 In `README.md`, section "Browser extension":
   - remove the "Known limits" bullet that starts "On a short page beside a longer sponsor block", with both of its lines;
   - after the line ``license is bundled in `extension/dist/readability-LICENSE.md`.`` (in the same paragraph), add exactly these three lines, so that `only text the page shows` stays on one line:
 

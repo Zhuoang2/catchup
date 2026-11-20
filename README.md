@@ -172,6 +172,9 @@ It never reads cookies, saved passwords, or site storage. It does no
 background reading and does not scroll, click, or open pages on your behalf.
 Generic page extraction uses Mozilla Readability 0.6.0 (Apache-2.0); its
 license is bundled in `extension/dist/readability-LICENSE.md`.
+It saves only text the page shows, and takes the main text from
+Readability's strict first pass, so a short post is not replaced by a
+longer sponsor block or sidebar.
 
 In the next digest run, the CatchUp server reads up to
 `CATCHUP_LINKS_PER_ITEM` links recorded on each saved page, as it does for
@@ -183,8 +186,6 @@ Known limits:
 
 - A page saved while a digest run reads linked pages waits for the next run,
   which reads its links first.
-- On a short page beside a longer sponsor block, the saved text can include
-  the sponsor text, or hold only that text.
 
 **X's terms prohibit scraping in any form.** Saving an X page is at your
 own risk and only reads what your browser currently displays after you press

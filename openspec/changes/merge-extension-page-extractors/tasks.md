@@ -32,7 +32,7 @@ Implementer notes:
 
 ## 1. One extractor (D1–D5)
 
-- [ ] 1.1 Write `extension/src/extract/page.test.ts`, importing `extractPage` from `./page`. Run it and watch it fail on the missing module. Use `REL = 'https://code.example/garden-tools/releases/1.2'`, and `fixture(name)` reading `src/extract/fixtures/${name}.html`.
+- [x] 1.1 Write `extension/src/extract/page.test.ts`, importing `extractPage` from `./page`. Run it and watch it fail on the missing module. Use `REL = 'https://code.example/garden-tools/releases/1.2'`, and `fixture(name)` reading `src/extract/fixtures/${name}.html`.
 
   **With Readability loaded** (in `beforeEach`):
   - **P1 `saves a tiny note, not the longer sponsor banner beside it`** (`blog-tiny-note`): `content_text` is exactly `'My tiny garden is ready. Start with seeds today.'`, and `links` is exactly `[{ url: 'https://garden.example/seeds', text: 'Start with seeds' }]`.
@@ -104,7 +104,7 @@ Implementer notes:
   - **P15 `falls back to the main region when Readability throws`.** First run `window.eval('window.Readability = class { parse() { throw new Error("broken") } }')`. The assertions are the same as P14.
 
   Verify: the file fails only because `./page` does not exist.
-- [ ] 1.2 Create `extension/src/extract/page.ts` as in design D1–D5.
+- [x] 1.2 Create `extension/src/extract/page.ts` as in design D1–D5.
   - Export `type CapturedPage`, the same shape as in `generic.ts`, and `extractPage(): CapturedPage`.
   - Start with the comment `// Passed directly to chrome.scripting.executeScript; keep all runtime dependencies inside.`
   - Type the Readability global locally, as `readable.ts` does, with the options `{ charThreshold: number; linkDensityModifier: number }`.

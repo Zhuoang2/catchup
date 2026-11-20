@@ -173,7 +173,7 @@ Implementer notes:
 
 ## 4. Checks and report
 
-- [ ] 4.1 Run the full checks:
+- [x] 4.1 Run the full checks:
   - `npm test -- --run` and `npm run build` in `extension/`, with Node 22.17.1 (record the counts);
   - `DO_NOT_TRACK=1 openspec validate merge-extension-page-extractors --strict` (`openspec` comes from your existing `PATH`, not from the Node 22.17.1 folder).
 

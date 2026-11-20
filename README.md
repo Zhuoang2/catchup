@@ -186,6 +186,8 @@ Known limits:
 
 - A page saved while a digest run reads linked pages waits for the next run,
   which reads its links first.
+- A sponsor block that the page does not mark as one, in its class or id,
+  can still be saved with a short post.
 
 **X's terms prohibit scraping in any form.** Saving an X page is at your
 own risk and only reads what your browser currently displays after you press

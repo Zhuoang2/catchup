@@ -89,6 +89,7 @@ Like the functions it replaces, `extractPage()` keeps every dependency inside it
 - when `visibility` is `hidden` or `collapse`:
   - an element with no element children is removed;
   - otherwise, only its own text nodes are removed, and the walk continues into its children. A child may set `visibility: visible` again;
+  - a hidden link (`a[href]`) with element children also loses its `href`, so its empty shell is not saved as a link (added at review, 2026-11-20);
 - for a live `img` with a non-empty `currentSrc`, the copy's `src` attribute is set to `currentSrc`, which is the address the page actually loaded.
 
 The copy's `<head>` is not changed, so Readability still reads JSON-LD and meta tags. The live page is never changed.
@@ -173,7 +174,7 @@ The only behavior change in this chain is that an X page whose structure does no
 ### D7. README and its contract test
 
 - **README.** In the "Browser extension" section:
-  - the "Known limits" bullet "On a short page beside a longer sponsor block, …" is removed;
+  - the "Known limits" bullet "On a short page beside a longer sponsor block, …" is removed, and a narrower bullet is added (at review, 2026-11-20): "A sponsor block that the page does not mark as one, in its class or id, can still be saved with a short post.";
   - after the sentence about Mozilla Readability, this sentence is added: "It saves only text the page shows, and takes the main text from Readability's strict first pass, so a short post is not replaced by a longer sponsor block or sidebar."
 - **Contract test.** `extension/src/test/docs.test.ts` stops requiring `'sponsor text'`. It requires `'only text the page shows'` instead, and checks that the section no longer contains `'sponsor text'`.
 
@@ -182,7 +183,9 @@ The only behavior change in this chain is that an X page whose structure does no
 - **Visibility follows the window.** Media queries decide what is hidden, so a narrow window can save a mobile-only line, such as Simon Willison's date. This is what the user sees. → Accepted.
 - **Without Readability, the fallback can include sponsor blocks.** The fallback reads the whole `body` when the page has no `article` or `main`. This happens only when `readability.js` cannot be injected but a function can, or when Readability finds no text. → Accepted; it is no worse than `generic.ts` today.
 - **A post that is mostly links** loses blocks whose link density passes the raised limit. → The title link still saves the main link; the remaining cases are recorded.
-- **A title-text false positive.** A link outside the excluded regions, whose text equals the title and which points elsewhere, is saved first. → Rare. It changes only the order and adds at most one link.
+- **A title-text false positive.** A link outside the excluded elements, whose text equals the title and which points elsewhere, is saved first, also inside a sidebar `div` such as `div#secondary`. → Rare. It changes only the order and adds at most one link. A page without a title gets no title link (added at review, 2026-11-20).
+- **A sponsor block that the page does not name.** Readability's strict attempt removes blocks by their class or id (`sponsor`, `banner`, `sidebar`, …), and the walk skips `aside`. A longer promotion in a plain `div`, or in a `div.promo-box`, beside a short post is still saved first, as on `main`. → The spec names the blocks it covers, and README keeps a narrower known limit (review, 2026-11-20).
+- **A body hidden with `display: none`.** The copy has no body, the extractor throws, and the popup reports the page as unreadable. → Accepted: the page shows nothing (review, 2026-11-20).
 - **Performance.** The pass reads one computed style per element: 24 ms for 2,702 elements on the heaviest real page. It runs only on Add.
 - **Text that stays.** Closed `<details>` content, `opacity: 0`, and clipped screen-reader text are still read, as today.
 

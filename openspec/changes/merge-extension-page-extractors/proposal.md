@@ -25,7 +25,7 @@ The browser extension reads an ordinary page with two injected functions, `exten
 - **Each link address is saved once.**
 - **The publication time** falls back to a `time[datetime]` element in the main text, then in the page's `article`, `main`, or `[role="main"]`.
 - **One fallback chain in the popup.** An X post page uses `extractX`. Any other page, and an X page whose structure does not match, gets `readability.js` and then `extractPage`. If `readability.js` cannot be injected, `extractPage` still runs.
-- **README.** The "Known limits" entry about sponsor text is removed. The extension section says that text the page hides is not saved.
+- **README.** The "Known limits" entry about sponsor text is replaced by a narrower one: a sponsor block that the page does not mark as one, by its class or id, can still be saved with a short post. The extension section says that text the page hides is not saved.
 - No change to the server, the API, the data model, the caps (16,000 characters, 8 images, 50 links), or the Readability version.
 
 ## Capabilities

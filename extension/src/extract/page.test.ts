@@ -147,13 +147,28 @@ for (const [index, extract] of execute.entries()) {
     expect(page.links).toEqual([])
   })
 
-  it(`${mode}: matches the title without its site name, and skips a header link`, () => {
-    document.documentElement.innerHTML = '<head><title>Small garden note | Field Notes</title></head><body><header><a href="https://garden.example/home">Small garden note</a></header><div class="masthead"><a href="https://notes.example/small">Small garden note</a></div><article><p>My tiny garden is ready, and the first seedlings came up this week after a long and rainy start to the season.</p><p>See <a href="https://garden.example/seeds">the seed list</a>.</p></article></body>'
+  it(`${mode}: matches the title without its site name, and skips header, aside and footer links`, () => {
+    document.documentElement.innerHTML = '<head><title>Small garden note | Field Notes</title></head><body><header><a href="https://garden.example/home">Small garden note</a></header><aside><a href="https://garden.example/aside">Small garden note</a></aside><footer><a href="https://garden.example/footer">Small garden note</a></footer><div class="masthead"><a href="https://notes.example/small">Small garden note</a></div><article><p>My tiny garden is ready, and the first seedlings came up this week after a long and rainy start to the season.</p><p>See <a href="https://garden.example/seeds">the seed list</a>.</p></article></body>'
     expect(run().links).toEqual([
       { url: 'https://notes.example/small', text: 'Small garden note' },
       { url: 'https://garden.example/seeds', text: 'the seed list' },
     ])
   })
+
+  it(`${mode}: adds no title link when the page has no title`, () => {
+    document.documentElement.innerHTML = '<head></head><body><div class="promo"><a href="https://ads.example/x"><img src="https://ads.example/x.png" alt=""></a></div><div class="entry"><p>My tiny garden is ready, and the first seedlings came up this week after a long and rainy start.</p><p>See <a href="https://garden.example/seeds">the seed list</a>.</p></div></body>'
+    expect(run().links).toEqual([{ url: 'https://garden.example/seeds', text: 'the seed list' }])
+  })
+
+  for (const readability of [true, false]) {
+    it(`${mode}: leaves out a hidden link whose content is an element ${readability ? 'with' : 'without'} Readability`, () => {
+      document.documentElement.innerHTML = '<head><title>Guide</title><style>.ghost { visibility: hidden }</style></head><body><main><p>Water tiny gardens in the morning, when the soil is cool and the leaves dry quickly. <span class="ghost"><a href="https://garden.example/share"><b>Share</b></a></span></p><p>Read <a href="https://garden.example/soil">the soil guide</a> for more.</p></main></body>'
+      if (!readability) delete (window as ReadabilityWindow).Readability
+      const page = run()
+      expect(page.content_text).not.toContain('Share')
+      expect(page.links).toEqual([{ url: 'https://garden.example/soil', text: 'the soil guide' }])
+    })
+  }
 
   it(`${mode}: falls back to the main region when Readability finds no text`, () => {
     document.documentElement.innerHTML = PLAIN

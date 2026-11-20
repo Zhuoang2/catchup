@@ -2596,9 +2596,41 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 
 ## 2026-11-20 — `merge-extension-page-extractors` (#62): implementation (Factory Droid, GPT-6.1 Sol)
 
+- **Session:** one Droid run, `3fd34d45-cda3-4863-ae16-c2cc04c0bb13` (231 turns, about 8.8 minutes). It finished all four groups without stopping; Droid then removed its worktree and kept the branch. The excerpts below were written by Droid; Claude Code added this line at review.
 - **Prompt excerpt:** "Implement OpenSpec change merge-extension-page-extractors using the openspec-apply-change skill. Work through openspec/changes/merge-extension-page-extractors/tasks.md in order and check off each task only after its verification passes. Work test-first with the tdd skill: in each group, write the tests first and watch them fail as tasks.md states, then change the code. Run every named mutation (E1-E16, U1, U2, R1) alone, restore the code after each, compare with git diff, and record the real results in the test report."
 - **Additional constraints followed:** Node 22.17.1; extension dependencies installed only with `npm ci --offline --no-audit --no-fund`; every OpenSpec CLI call prefixed with `DO_NOT_TRACK=1`; protected planning artifacts, fixtures, dependencies, and decision/requirements logs left unchanged. One commit per task group; no push, tag, PR, Docker build, or Docker smoke run.
 - **Outcome:** Activated `openspec-apply-change` and `tdd`. Two fresh, read-only Droid preflights checked code against the task groups without the design discussion and found no concrete false assumptions; group 1's reviewer highlighted preserving P13's fixture setup. A short jsdom/Readability probe checked live visibility and strict parsing behavior. Added `extractPage` and 46 direct/serialized extractor tests, migrated popup injection and its tests, removed the old extractors and tests, and made the two specified README changes with the revised contract test.
 - **Evidence:** All expected reds were observed before production edits: missing module, 9 changed/new popup failures with 80 other cases passing, and the README contract failure. Each of E1–E16, U1, U2, and R1 was applied alone and killed by every required named case; source and `git diff` matched exactly after each restoration. Final extension checks passed: 7 files / 162 tests, TypeScript and production build with artifact checks, and strict OpenSpec validation. Full case mappings and counts are in `docs/process/test-report-merge-extension-page-extractors.md`.
 - **Problems / adjustment:** The first `claude -p` preflight could not authenticate because its OAuth session had expired; read-only Droid workers replaced it. The initial mutation harness supplied partial-line patch context, which was rejected before tests or source changes; it was corrected to full-line hunks. Whitespace on copied test blank lines was removed after an initial diff check. No expected red/green result differed from the plan, and no plan or scope adjustment was made.
 - **Review still needed:** Claude Code's independent code/spec review, Docker build/smoke, real-page extractor comparison, and live visibility census were not performed here. Recorded survivors X3, X5, X8–X11 were not tested. No session identifier is included in this entry.
+
+## 2026-11-20 — `merge-extension-page-extractors` (#62): review (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
+
+- **Prompts** (translated from Chinese): after the review report, the user asked "What do you propose?". After Claude's proposal, the user replied: "Yes, do it as you suggest; commit and open a PR."
+- **Outcome:**
+  - **Droid run.** One run finished all four groups (session line in Droid's entry).
+  - **Claude's checks.**
+    - Extension 162 tests, the build, and strict validation passed.
+    - Claude built the branch image and ran `scripts/docker-smoke.sh`: 12 of 12.
+    - The branch's `extractPage` matched the planned candidate on all 27 pages: the 11 saved real pages, the variants, the invented cases, and the fixtures.
+    - On two live pages in the built-in browser, the extractor left out stylesheet-hidden text, such as share buttons, "Cancel reply", and the mobile date line at 1280 px. It left the pages unchanged, and took 2 ms and 23 ms.
+  - **`/code-review` (high)** reported 6 findings: one confirmed defect (an empty title made an image-only link the title link), one rejected, and four recorded.
+  - **Spec review.** An independent sub-agent re-ran all 19 named mutations (all killed). Claude reproduced every finding:
+    - two confirmed defects: the empty title, and a hidden link whose content is an element saved as an empty link;
+    - a spec sentence that claimed more than the code does: short pages are protected only from blocks that are an `aside` or are named by class or id. Claude probed five block shapes;
+    - "sidebars" in the title-link rule meaning only `aside`;
+    - a low-severity throw when the `body` is hidden;
+    - one test gap (M31), and several marginal or equivalent survivors.
+  - **Classification (D-023).**
+    - **Two small (a) items**, fixed in Claude's review commit at the user's choice, with no Droid fix round: 2 source lines and 17 test lines, each verified by a named mutation (K1–K3).
+    - **A wording decision**: the spec names the blocks it covers, and README keeps a narrower known limit (R2).
+    - **Recorded:** the hidden-`body` case and the marginal survivors.
+  - **Claude's review commit:**
+    - `page.ts` and `page.test.ts`;
+    - the README bullet and the docs test;
+    - the spec wording, and notes in the design and proposal;
+    - D-034 and the requirements row;
+    - the report's review section, Droid's session line, and this entry.
+- **Problems / adjustment:**
+  - **A JavaScript snippet for the browser check.** It first had to be exported from the TypeScript source with types stripped. Joining its lines into one would have broken automatic semicolon insertion, so it was pasted with its line breaks.
+  - **The browser pane's width.** When hidden, the pane first ran at width 0, so the page used its mobile layout. The desktop check was repeated at an emulated 1280 px width, and the emulation was reset afterwards.

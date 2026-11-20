@@ -566,3 +566,7 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - What is hidden can depend on the window width, through media queries.
   - When `readability.js` cannot run, the fallback can still include a sponsor block on pages without `article` or `main`.
   - A block whose link density passes the raised limit is still dropped.
+  - **After review (2026-11-20):**
+    - a hidden link with element children loses its address, and a page without a title gets no title link;
+    - the short-page rule covers a longer block that is an `aside` or that the page marks as a sponsor block, banner, or sidebar by its class or id. README keeps a narrower known limit for sponsor blocks the page does not mark;
+    - a page whose body is hidden is reported as unreadable.

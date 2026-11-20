@@ -203,3 +203,65 @@ As explicitly requested, this run did **not** perform:
 The build and jsdom fixture/popup tests above are not substitutes for those
 live checks. The change is not archived, merged, pushed, tagged, or opened as
 a pull request by this run.
+
+## Claude Code review (2026-11-20)
+
+Review of `95e963c..be593ef` in a separate worktree, with Node 22.17.1.
+
+- **Checks on the Droid branch.** Extension 7 files / 162 tests passed, `npm run build` passed (with `check-build.mjs`), and `openspec validate --strict` passed.
+- **Docker.** Claude built `catchup:fix62-local` from the branch and ran `scripts/docker-smoke.sh`: 12 of 12 passed, with no containers left.
+- **Real pages in jsdom.** The branch's `extractPage` was run with the real Readability on the 11 saved real pages, the 5 in-memory variants, the invented cases from #62, and the existing fixtures (27 pages). Every result matched the candidate in design "Evidence":
+  - the release link is first on the real release note;
+  - the short variants save the post, without the banner or the sidebar;
+  - the Python posts get their date.
+- **Live pages in the built-in browser.** The branch's `extractPage` source ran on two live pages without Readability, so it took the fallback root. It used the pages' real stylesheets.
+  - **Simon Willison's release note.** At 1280 px, the mobile date line was left out. At the pane's narrow width, the line was kept and the sidebar text was hidden. The release link was first, and the run took 2 ms.
+  - **The Tao lecture notes.** The hidden "Print (Opens in new window)", "Cancel reply", and "Subscribed" texts, all present in the page's DOM, were not saved. The run took 23 ms.
+  - On both pages, `document.documentElement.outerHTML` was unchanged.
+- **`/code-review` (high)** reported 6 findings:
+  - **Confirmed (a):** with no page title, the set of wanted titles contained `''`, so an image-only link was saved first as the title link. Reproduced with and without Readability.
+  - **Rejected:** a missing guard for a copy whose children differ. `document.cloneNode(true)` runs synchronously, so the two trees match.
+  - **Recorded:**
+    - a missing `body` throws (pre-existing);
+    - link text is trimmed but not whitespace-collapsed (pre-existing);
+    - the whitespace collapse is written twice;
+    - the page is cloned twice, which is by design.
+- **Spec review.** An independent sub-agent re-ran all 19 named mutations (all killed) and the red-phase counts, and found no false claim in this report. Claude reproduced each finding:
+  - **Confirmed (a), a hidden link with element children.** A link with `visibility: hidden` whose content is an element, such as an icon, was saved as an empty-text link. The spec says links inside a hidden element must not be read.
+  - **Confirmed (a), the empty title.** The same finding as `/code-review`'s.
+  - **Confirmed, the spec claimed more than the code does.**
+    - Short pages: a longer promotion in a plain `div` or a `div.promo-box` beside a short post is still saved first, as on `main`. Strict Readability removes only blocks named by class or id, and the walk skips `aside`. Claude's probe: an `aside` with no class, a `div.sponsor-box`, and a `div#sidebar` were left out, while `div.promo-box` and an unnamed `div` were saved.
+    - "Sidebars" in the title-link rule means only `aside`.
+  - **Confirmed, low:** a `body` with `display: none` throws, and the popup reports the page as unreadable.
+  - **Confirmed test gap:** reducing the title-link exclusion to `nav,header` survived (M31).
+  - **Marginal survivors (recorded):**
+    - `charThreshold` from 2 to 48;
+    - no "both cuts" title form;
+    - no lower-casing, or only the `' | '` separator;
+    - the `location.href` own-address check removed;
+    - no `break` after the title link;
+    - `main` checked before `article`;
+    - Readability's metadata not tried first;
+    - the README sentence shortened.
+  - **Equivalent:** `linkDensityModifier` 0.5, no cap inside `addLink`, `!page`, and `?? null`.
+- **The user's decisions (2026-11-20).** Translated from Chinese: asked for Claude's proposal, then "Yes, do it as you suggest; commit and open a PR".
+  - **Fixes.** Both (a) items are fixed in Claude's review commit, with no Droid fix round (D-023: 2 source lines and 17 test lines).
+  - **Wording.** The short-page sentence and the title-link exclusion are narrowed in the spec, and README keeps a narrower known limit.
+  - **Recorded only.** The hidden-`body` case.
+- **Claude's review commit.**
+  - **Code.** In `page.ts`, a hidden link with element children loses its `href`, and empty title forms are dropped.
+  - **New tests** in `page.test.ts`, each run directly and serialized:
+    - `adds no title link when the page has no title`;
+    - `leaves out a hidden link whose content is an element`, with and without Readability.
+  - **Extended test.** P17 also puts an `aside` link and a `footer` link with the title text before the masthead link.
+  - **Docs test.** It also requires `does not mark as one`.
+  - **Mutations,** each applied alone and restored:
+
+    | Id | Mutation | Result |
+    |---|---|---|
+    | K1 | remove the `href` removal | killed by the hidden-link tests (4) |
+    | K2 | keep empty title forms | killed by the no-title test (2) |
+    | K3 | title-link exclusion `nav,header` | killed by P17 (2) |
+    | R2 | remove the new README bullet | killed by the docs test |
+
+- **Final checks after the review commit.** Extension 7 files / 168 tests passed, `npm run build` passed, `openspec validate --strict` passed, and `git diff --check` was clean. Docker smoke on a rebuilt `catchup:fix62-local`: 12 of 12.

@@ -30,6 +30,7 @@ export function extractPage(): CapturedPage {
     if (style.display === 'none') { removed.push(copy); return }
     if (style.visibility === 'hidden' || style.visibility === 'collapse') {
       if (!live.children.length) { removed.push(copy); return }
+      if (live.matches('a[href]')) copy.removeAttribute('href')
       for (const node of [...copy.childNodes]) {
         if (node.nodeType === Node.TEXT_NODE) node.remove()
       }
@@ -126,7 +127,7 @@ export function extractPage(): CapturedPage {
     return parsed.href
   }
   const t = collapse(title)
-  const wanted = new Set([t, withoutLabel(t), withoutSite(t), withoutSite(withoutLabel(t))])
+  const wanted = new Set([t, withoutLabel(t), withoutSite(t), withoutSite(withoutLabel(t))].filter(Boolean))
   for (const anchor of shown.body.querySelectorAll('a[href]')) {
     if (anchor.closest('nav,aside,footer,header,form')) continue
     const href = httpUrl(anchor.getAttribute('href'))

@@ -117,7 +117,7 @@ Implementer notes:
 
 ## 2. One popup chain, and the old extractors removed (D6)
 
-- [ ] 2.1 Change `extension/src/test/popup.test.ts`. Keep each test's name, unless a new name is given.
+- [x] 2.1 Change `extension/src/test/popup.test.ts`. Keep each test's name, unless a new name is given.
   - **`genericResult`** (lines 51-54): return `[{ result: page }]` for every `func` call, and `[]` for `files`.
   - **Injection order.** In these three tests, the expected order becomes `['readability.js', 'extractPage']`:
     - `injects the generic extractor and saves a checked page, then removes it`;
@@ -138,7 +138,7 @@ Implementer notes:
   - **`falls back to generic when injecting readability.js rejects`**, renamed `still runs extractPage when injecting readability.js rejects`. Expect `['readability.js', 'extractPage']` and exactly one save.
 
   Verify: the changed and new tests fail on the current `popup.ts`, and all other popup tests still pass.
-- [ ] 2.2 Implement D6 in `extension/src/popup.ts`.
+- [x] 2.2 Implement D6 in `extension/src/popup.ts`.
   - Import `extractPage` and `type CapturedPage` from `./extract/page`.
   - Run `extractX` only on an X post page, as now.
   - When `page` is `null`, or the page is not an X post: inject `files: ['readability.js']` inside its own `try`/`catch`, then run `func: extractPage` and use `injections[0]?.result`.

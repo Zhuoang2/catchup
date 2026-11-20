@@ -534,3 +534,35 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - A public-looking name that resolves to a local address is still shown. The README says so.
   - A few public images are dropped: non-punycode IDN hosts, public IPv4 addresses in numeric shorthand, and single-label names.
   - An item collected before the update can show fewer images than its summary chose.
+
+## D-034 One page extractor that reads only what the page shows, and takes Readability's strict first attempt — accepted (2026-11-20)
+
+- **Decision.**
+  - **One extractor.** The browser extension reads an ordinary page with one injected function, `extractPage()`, instead of `readable.ts` and `generic.ts`.
+  - **Only what the page shows.** It works on a copy of the page without the elements the browser does not show. An element is left out when its computed `display` is `none`, which includes `hidden` and stylesheet rules. For computed `visibility: hidden` or `collapse`, the element's own text is left out. The live page is never changed.
+  - **Main text.** The main text comes from Readability's first, strict attempt (`charThreshold: 1`), with its link-density limit raised (`linkDensityModifier: 0.3`, from 0.2 to 0.5 for low-weight blocks). Readability's longest attempt is never used. Without a usable Readability result, the page's `article`, `main`, `[role="main"]`, or `body` is read.
+  - **Title link.** A link outside navigation, headers, footers, asides, and forms, whose text is the page's title (also without a leading "Label:" or a trailing site name), and which points to another page, is saved first. Each link address is saved once.
+  - **Date.** The date falls back to `time[datetime]` in the main text, then in the page's `article` or `main`.
+  - **Popup.** It keeps one chain. An X post page uses `extractX`. Every other page, and an X page that does not match, gets `readability.js` and then `extractPage`.
+
+  Planned as the lean OpenSpec change `merge-extension-page-extractors` (issue #62).
+- **Why.**
+  - On short pages, Readability returns its longest attempt when none reaches 500 characters, and that attempt can be a sponsor banner or a sidebar. Probes on simonwillison.net's page layout with shortened bodies saved only the "Sponsored by" banner, or the sidebar's tags and "Sponsor me" promo, instead of the post (#62).
+  - Readability's chosen block on a real release note leaves out the title row, so the link to the release was lost.
+  - `generic.ts` read hidden menus. Readability itself checks only inline styles and the `hidden` and `aria-hidden` attributes.
+  - The two files' 39 shared lines had drifted. For example, real blog.python.org posts were saved without the date that their `<time datetime>` shows.
+- **Alternatives:**
+  - **Keep the second, looser parse and tune its thresholds.** Rejected: two fix rounds did this, and the cause remained.
+  - **The strict attempt without the link-density modifier,** as probed in #62. Rejected: a short link post kept only its date line, and a release note without a body kept only its date line.
+  - **The page's main region without Readability.** Rejected: pages without `article` or `main`, such as simonwillison.net, would save the banner, the sidebar, and the footer.
+  - **`checkVisibility()`.** Rejected: jsdom does not have it, so the tests could not run the real path.
+  - **A title-link rule by containment or length ratio.** Rejected:
+    - containment matched the label link `Release` before the title link;
+    - a ratio fails for short release names.
+  - **Mapping Readability's chosen block back to the page and adding its sibling rows.** Rejected: it depends on Readability's internal choice and needs more code.
+- **Consequences:**
+  - On the 11 real pages checked, the saved text is unchanged.
+  - The release link is now saved, Python posts get their date, and duplicate links are merged.
+  - What is hidden can depend on the window width, through media queries.
+  - When `readability.js` cannot run, the fallback can still include a sponsor block on pages without `article` or `main`.
+  - A block whose link density passes the raised limit is still dropped.

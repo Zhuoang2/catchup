@@ -2536,3 +2536,60 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - **Problems / adjustment:**
   - Claude's first browser attempts to replace the address clicked the field's label, and then used a select-all shortcut that the browser pane ignored, so the address was not replaced or was appended to. Claude reloaded the page and replaced the address by triple-clicking the input; only that run is reported.
   - A shell loop meant to start the two containers relied on word splitting, which zsh does not do; the commands were written out one by one.
+
+## 2026-11-19 — `merge-extension-page-extractors` (#62): plan (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
+
+- **Prompts** (translated from Chinese):
+  - After #73 merged, the user chose #62: "Yes, start writing the lean proposal for #62."
+  - Claude asked to save real pages before planning, because the main rule had to be checked on them. It listed each page's address, file name, and size. The user approved: "Yes, download them by this list."
+  - After reviewing the plan, the user approved it: "Yes, commit the plan, then start running Droid."
+- **Outcome:**
+  - **Terms first.** A sub-agent read the terms of the three sites, and Claude checked the quoted lines:
+    - simonwillison.net states no terms;
+    - Terry Tao's About page allows copying "reasonable portions";
+    - the WordPress.com terms were last updated on 2026-11-09;
+    - blog.python.org is under CC BY-NC-SA 3.0.
+
+    The 11 pages (1.27 MB) were then saved one every 4 seconds, with a generic user agent, outside the repository. They are deleted after the change merges.
+  - **Reproduced on `main` `0fcb3f0`.** All 11 real pages kept their main text. In-memory variants of simonwillison.net pages with short bodies did not:
+    - one saved only the "Sponsored by" banner;
+    - others saved the sidebar and its "Sponsor me" promo.
+
+    The real release note lost its GitHub link in both Readability modes. The cause is that Readability chooses the note body (its `blogmark-body` class adds weight) and does not merge the title row beside it. It is not caused by the strict mode that #62 had suspected.
+  - **Probes.**
+    - Readability's attempts with each flag set.
+    - Three `linkDensityModifier` values on 16 pages: 0.3 keeps short link posts and bare release notes, and adds no sponsor text.
+    - jsdom's computed style on live and cloned documents.
+    - A census in the built-in browser of what the stylesheets hide on four live pages: 24 ms for 2,702 elements.
+    - A candidate extractor compared with `main` on 27 pages.
+  - **Plan.**
+    - D1: one injected `extractPage()`;
+    - D2: a visible copy of the page;
+    - D3: Readability's strict first attempt with the modifier, then the page's main region;
+    - D4: one walk, with one rule for each field;
+    - D5: the title link, matched by equality with the title's forms;
+    - D6: one popup chain;
+    - D7: the README.
+
+    Four task groups, mutations E1–E16, U1, U2, and R1, and six invented fixtures committed with the plan. Group 4 tells Droid not to run Docker. D-034 and its rejected alternatives.
+  - **D-023 fresh-eyes check.** A sub-agent that saw only the plan and the code built a prototype of every group in a scratch worktree. It got 44 extractor tests, then 160 extension tests, and a passing build, and every named mutation was killed. Claude reproduced each finding before changing the plan:
+    - **should-fix:**
+      - "moving" the old cases would leave an empty test file, which fails vitest; the tasks now copy them;
+      - natural line wrapping of the README sentence would break the docs test; the tasks now give the exact lines;
+      - the header exclusion and the site-name cut of the title rule had no test; P17, E15, and E16 were added;
+      - the fixtures had to be committed before Droid's worktree is made;
+    - **minor:** a line range, wording, and six mutations without a test, which are recorded as survivors.
+- **Problems / adjustment:**
+  - **The terms sub-agent saved the three home pages** besides the terms pages. That was outside its instructions. Claude deleted the copies and told the user. Next time, the prompt names the only files it may write.
+  - **Claude's first title-link rule** ("text inside the title, at least half its length") matched the quote page loosely and would fail for short release names. It was replaced by equality with the title's forms before the plan was written.
+  - **Three of Claude's first invented fixtures did not reproduce the real mechanism:**
+    - the link post passed on `main`;
+    - the release row was merged;
+    - the date sat inside Readability's content.
+
+    They were rebuilt from the real pages' structure (link density, the `blogmark-body` class, a body `div` beside the header), and each was checked to fail on `main` before it went into the plan.
+  - **Two shell commands failed before the download:**
+    - zsh read `--proto =https` as an expansion;
+    - curl 8.2.1 does not accept `--rate 1/4s`.
+
+    They were corrected to `'=https'` and `15/m`.

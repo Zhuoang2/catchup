@@ -17,7 +17,9 @@ Docker and browser/benchmark review checks are reserved for Claude Code.
 | 4.2 | Implemented the sequential progress tracker; first run stopped at T4's verification gap. | Resumed: context gather 56 passed (4.44 s); full backend 1064 passed (26.26 s). T4 and T7 killed on retry. |
 | 5.1–5.2 | 2 failed, 3 passed (4.64 s): measured peak 1 instead of 4; README phrase missing; spacing, budget and unexpected-error guards passed. | Initial pool check: 1 expected order-dependent failure, 137 passed. After the allowed one-worker pin: 139 passed across context, runner and README files (10.50 s); full backend 1068 passed (27.71 s). |
 | 6.1–6.2 | Replacement deleted-source test: 1 failed, 98 skipped, because the bar still read Sources checked: 2 of 3. | Node 22.17.1; offline npm ci installed 124 locked packages. Frontend: 314 passed in 14 files (5.14 s), including accessibility and unchanged status text; npm run build passed (40 modules, 273 ms). |
-| 7.1–7.3 | Final checks not reached. Evidence and this stop report were recorded without claiming completion. | See command status below. |
+| 7.1 | First part stopped before final checks; no result was claimed. | Resumed: all named final checks passed; exact summaries below. |
+| 7.2 | The first stop report retained incomplete checks explicitly. | Completed report with both attempts, every named mutation and the single existing-test worker pin. |
+| 7.3 | Partial usage entry existed at the stop. | Replaced with one combined Droid entry covering the original prompt, stop, amendment, resumed prompt and completed results. |
 
 ### Named mutations
 
@@ -114,11 +116,48 @@ Group 4 is complete; the historical stop record above is retained.
 
 | Command | Real result |
 | --- | --- |
-| `uv run --offline pytest` | Task 7.1 not reached. Latest full-suite invocation was `uv run --offline pytest -q`: `1063 passed in 33.39s`, exit 0, before group 4 mutations. |
-| Five-run concurrency loop from 7.1 | Not run after stop. |
-| `npm test -- --run` in frontend | Not run; group 6 and its offline install not reached. |
-| `npm run build` in frontend | Not run. |
-| `DO_NOT_TRACK=1 openspec validate improve-context-pass-speed-and-progress --strict` | Not run after stop. |
-| `git diff --check` | Exit 0, no output, after mutation restoration. |
+| `uv run --offline pytest` in backend | `1068 passed in 29.75s`, exit 0. |
+| Five-run concurrency loop below, in backend | All five passed, 240 tests per run, exit 0. |
+| `npm test -- --run` in frontend | `Test Files 14 passed (14)`; `Tests 314 passed (314)`; duration 5.51 s, exit 0. |
+| `npm run build` in frontend | TypeScript check passed; Vite 8.3.5: 40 modules transformed, built in 95 ms, exit 0. |
+| `DO_NOT_TRACK=1 openspec validate improve-context-pass-speed-and-progress --strict` | `Change 'improve-context-pass-speed-and-progress' is valid`, exit 0. |
+| `git diff --check` | Exit 0, no output. Also repeated after final evidence edits. |
+
+The exact repeated command was:
+
+```sh
+for i in 1 2 3 4 5; do uv run --offline pytest tests/test_context_gather.py tests/test_host_spacing.py tests/test_context_robots.py tests/test_safe_fetch.py tests/test_digest_runner.py -q || break; done
+```
+
+Its five summary lines:
+
+```text
+240 passed in 12.08s
+240 passed in 11.86s
+240 passed in 12.13s
+240 passed in 12.09s
+240 passed in 12.42s
+```
+
+Both frontend command calls used:
+
+```sh
+export PATH="$HOME/.nvm/versions/node/v22.17.1/bin:$PATH"
+```
+
+Before frontend testing, `node --version` returned `v22.17.1` and
+`npm ci --offline --no-audit --no-fund` installed 124 locked packages.
+Its existing whatwg-encoding deprecation warning did not fail installation.
+Neither package.json nor package-lock.json changed.
+
+Tests added in this change are the migration, run-timing/count, held-item,
+host/robots/budget concurrency, reachable-read/progress, and context-pool
+cases named in tasks 1–5. Existing suites supplied the regression coverage.
+The frontend test was replaced as task 6.1 required, retaining its accessibility
+check. No unrelated existing assertions were changed.
+
+Docker smoke, the benchmark comparison and the live browser check were not run,
+as instructed; Claude Code performs them at review. Stage durations from real
+user sources/model credentials remain for the user's next run after merge.
 
 No Docker command, port 8800 operation, push, merge, tag, or PR action was performed.

@@ -321,7 +321,7 @@ The context pass still reads one item after another in this group.
 
 ## 7. Final checks and report
 
-- [ ] 7.1 Run all of these:
+- [x] 7.1 Run all of these:
   - `uv run --offline pytest` in `backend/`;
   - the concurrency files five times in a row: `for i in 1 2 3 4 5; do uv run --offline pytest tests/test_context_gather.py tests/test_host_spacing.py tests/test_context_robots.py tests/test_safe_fetch.py tests/test_digest_runner.py -q || break; done`. Every run must pass;
   - `npm test -- --run` and `npm run build` in `frontend/`;
@@ -329,9 +329,9 @@ The context pass still reads one item after another in this group.
   - `git diff --check`.
 
   Do not run Docker.
-- [ ] 7.2 Write `docs/process/test-report-improve-context-pass-speed-and-progress.md`. Include:
+- [x] 7.2 Write `docs/process/test-report-improve-context-pass-speed-and-progress.md`. Include:
   - for each task, the red result and the green result;
   - a table of every named mutation, with its test and result;
   - the existing tests set to one worker in 5.2, each with its reason;
   - the commands of 7.1, with their results.
-- [ ] 7.3 Add a Droid entry to `docs/process/ai-usage-log.md`, after Claude Code's planning entry for this change. Give the prompt as run, the tool and model, the outcome, and anything that failed or was retried.
+- [x] 7.3 Add a Droid entry to `docs/process/ai-usage-log.md`, after Claude Code's planning entry for this change. Give the prompt as run, the tool and model, the outcome, and anything that failed or was retried.

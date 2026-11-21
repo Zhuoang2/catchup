@@ -26,7 +26,7 @@ Implementer notes:
   - the status-region text.
 - **Do not edit:**
   - `proposal.md`, `design.md`, or the spec deltas;
-  - `docs/process/decision-log.md` or `docs/process/requirements-changes.md`. Claude Code wrote D-035 and the requirements row with the plan.
+  - `docs/process/decision-log.md` or `docs/process/requirements-changes.md`. Claude Code wrote D-036 and the requirements row with the plan.
 - **OpenSpec.** Prefix every OpenSpec CLI call with `DO_NOT_TRACK=1`.
 - **Commits.** Commit after each task group. Do not push, tag, or open a PR.
 

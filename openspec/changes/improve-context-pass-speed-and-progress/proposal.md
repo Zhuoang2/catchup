@@ -55,7 +55,7 @@ None.
   - `frontend/src/pages/Home.test.tsx`.
 - Docs:
   - `README.md`;
-  - the decision log (D-035);
+  - the decision log (D-036);
   - the requirements-changes table;
   - a test report;
   - the AI usage log.

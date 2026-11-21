@@ -2537,6 +2537,21 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - Claude's first browser attempts to replace the address clicked the field's label, and then used a select-all shortcut that the browser pane ignored, so the address was not replaced or was appended to. Claude reloaded the page and replaced the address by triple-clicking the input; only that run is reported.
   - A shell loop meant to start the two containers relied on word splitting, which zsh does not do; the commands were written out one by one.
 
+## 2026-11-19 — Shipping section in `AGENTS.md` (D-035) (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
+
+- **Prompts** (translated from Chinese): "Check all my current Claude Code conversations. Which steps do you think I should automate?" Later, after Claude proposed two skills whose shared steps live in the user's dotfiles and whose project-specific steps live in each project's `AGENTS.md`: "Do it here." Merge approval, 2026-11-20: "Merge CS146S."
+- **Outcome:**
+  - Sub-agents read the user's Claude Code transcripts from 2026-09-27 to 2026-11-17. For this project they counted the repeated go-aheads listed in D-035, and they extracted the commands Claude actually ran after plan approval and after merge approval.
+  - Claude wrote the "Shipping" section of `AGENTS.md` from those commands and the existing D-016 and D-023 rules, and recorded D-035. The section names the board's project, field, and option IDs, which Claude checked with `gh project field-list`.
+- **Problems / adjustment:**
+  - The workflow section says Claude runs `openspec archive` after the user approves the merge. In practice Claude archived on the branch before opening the PR, so the archive commit is reviewed in the PR. The Shipping section writes down that practice.
+  - A first draft had three problems that a dry run by an independent sub-agent found, replaying #90/#60 and #73/#65 through the draft:
+    - its sample merge question offered auto-merge by default, although since 2026-11-15 the user merged each PR by hand;
+    - it would have posted a comment on every issue that stays open, including #65, where the user had declined one;
+    - fix rounds would have used `droid exec -w` while the review worktree held the branch, which fails.
+    The section now enables auto-merge and posts those comments only when the user asks, and resumes fix rounds in the review worktree. The dry run also added the review housekeeping list and the board item-id lookup (`--limit 200`).
+  - The decision was first numbered D-034. The branch for #62 (`merge-extension-page-extractors`, merged in PR #95) already used D-034, so this one is D-035. Before the PR, Claude merged `main` into this branch; the decision log and this log kept both sides' entries in order.
+
 ## 2026-11-19 — `merge-extension-page-extractors` (#62): plan (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
 
 - **Prompts** (translated from Chinese):
@@ -2659,7 +2674,7 @@ Real usage records for the technical spec, alpha reflection, and final report. E
     - D5: "New items" for held items as soon as the check is saved;
     - D6: the README.
 
-    Seven task groups, mutations D1, D2, N1, N2, M1, H1–H4, S1, S2, R1, R2, B1, T1–T7, W1–W3, Doc, and F1. Group 7 tells Droid not to run Docker. D-035 and its rejected alternatives.
+    Seven task groups, mutations D1, D2, N1, N2, M1, H1–H4, S1, S2, R1, R2, B1, T1–T7, W1–W3, Doc, and F1. Group 7 tells Droid not to run Docker. D-036 and its rejected alternatives.
   - **D-023 fresh-eyes check.** A sub-agent that saw only the plan and the code reported 14 findings, with probes in a scratch copy (`monkeypatch` with `raising=False`, `shutdown(cancel_futures=True)`, reassigning a JSON column, the Alembic batch backfill, and a 4-worker prototype that peaked at 4 in 25 of 25 trials). Claude checked each one before changing the plan; 13 were confirmed and applied to `tasks.md`:
     - four `test_db.py` checks pin the head revision `0007`, and the migration file list needs `0008`;
     - two more existing tests pin the old total;
@@ -2674,3 +2689,4 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - **Claude's first draft named the wrong test file** in the proposal's Impact (`test_digest_stages.py`). It was replaced by `test_db.py` and `test_readme_context.py`.
   - **Two lines of the first design draft were unclear:** a question left in the Risks section, and the browser check's wording. They were rewritten before the fresh-eyes check.
   - **Several tests that Claude first planned as red already pass on `main`.** Claude found some of them, and the fresh-eyes check found the rest. They stay in the plan as guards for the new code.
+  - **The decision was first numbered D-035.** PR #96 (the Shipping section) took D-035 on `main` after the plan was written, so Claude merged `main` into the branch and renumbered this change's decision to D-036 before Droid started.

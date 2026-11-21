@@ -305,7 +305,7 @@ The context pass still reads one item after another in this group.
 
 ## 6. The run bar shows linked-page progress from the start of the context pass (D2)
 
-- [ ] 6.1 In `frontend/src/pages/Home.test.tsx`, replace `keeps source progress during the source checks despite planned linked pages`. It pins a state that the backend can no longer produce: `context_total > 0` while sources are still being checked.
+- [x] 6.1 In `frontend/src/pages/Home.test.tsx`, replace `keeps source progress during the source checks despite planned linked pages`. It pins a state that the backend can no longer produce: `context_total > 0` while sources are still being checked.
 
   The new test is **`shows linked-page progress after a source is deleted during the checks`.**
   - Use `mockPage({ run: { ...run, context_total: 20, context_done: 7 } })`, where `run` has 2 of its 3 sources checked.
@@ -315,7 +315,7 @@ The context pass still reads one item after another in this group.
 
   Watch it fail, because today's bar reads "Sources checked: 2 of 3". `keeps the article beneath named run progress and source checks` and `shows linked-page progress after every source is checked without changing status text` stay unchanged.
 
-- [ ] 6.2 In `frontend/src/pages/Home.tsx`, show the linked-page line when the run is `collecting` and `context_total > 0`. Verify with `npm test -- --run` and `npm run build` in `frontend/`.
+- [x] 6.2 In `frontend/src/pages/Home.tsx`, show the linked-page line when the run is `collecting` and `context_total > 0`. Verify with `npm test -- --run` and `npm run build` in `frontend/`.
 
   **Mutation F1:** restore the `source_checks.length === run.sources_total` condition. Run the new test.
 

@@ -16,7 +16,7 @@ Docker and browser/benchmark review checks are reserved for Claude Code.
 | 4.1 | First run: 14 failed, 2 passed: 7 missing reachable_reads cases, old initial total 6, cap total 8, deleted-item total 2, four changed expectations. Commit-between-reads and the unchanged refused-page guard passed. | Resumed: approved new limit-cut test passed against existing 4.2 code (1 passed in 1.69 s); all 4.1 tests: 17 passed, 39 deselected. |
 | 4.2 | Implemented the sequential progress tracker; first run stopped at T4's verification gap. | Resumed: context gather 56 passed (4.44 s); full backend 1064 passed (26.26 s). T4 and T7 killed on retry. |
 | 5.1–5.2 | 2 failed, 3 passed (4.64 s): measured peak 1 instead of 4; README phrase missing; spacing, budget and unexpected-error guards passed. | Initial pool check: 1 expected order-dependent failure, 137 passed. After the allowed one-worker pin: 139 passed across context, runner and README files (10.50 s); full backend 1068 passed (27.71 s). |
-| 6.1–6.2 | Not started after the stop condition. | Frontend untouched. |
+| 6.1–6.2 | Replacement deleted-source test: 1 failed, 98 skipped, because the bar still read Sources checked: 2 of 3. | Node 22.17.1; offline npm ci installed 124 locked packages. Frontend: 314 passed in 14 files (5.14 s), including accessibility and unchanged status text; npm run build passed (40 modules, 273 ms). |
 | 7.1–7.3 | Final checks not reached. Evidence and this stop report were recorded without claiming completion. | See command status below. |
 
 ### Named mutations
@@ -53,7 +53,7 @@ Exit 1 below means the named assertion killed the mutation, not a collection err
 | W3 | unexpected_item_error_fails_the_run | Killed, 1 failed (1.57 s): run succeeded after swallowing task exceptions. |
 | R1 (pool) | two_items_on_one_site_share_robots_and_spacing | Killed, 1 failed (2.38 s): robots.txt requested twice. |
 | Doc | readme_documents_public_context_limits_and_robots | Killed, 1 failed (0.02 s): concurrency phrase missing. |
-| F1 | shows linked-page progress after a source is deleted during the checks | Not run: group 6 not reached. |
+| F1 | shows linked-page progress after a source is deleted during the checks | Killed, 1 failed, 98 skipped (1.48 s): Linked pages read: 7 of 20 progressbar missing. |
 
 ### Stop condition and diagnosis
 

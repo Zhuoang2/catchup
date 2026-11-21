@@ -302,6 +302,27 @@ def test_failed_check_with_held_items_stays_failed(environment, monkeypatch, out
     assert outcomes_before_captions == [("failed", "failed")]
 
 
+def test_source_deleted_while_held_items_are_counted(environment, monkeypatch):
+    from catchup.digest import runner
+
+    seed(environment)
+    stub_outcomes(monkeypatch, {"Source 0": "no_new_items"})
+    original = runner.select_pending
+    deleted = False
+
+    def delete_source(*args, **kwargs):
+        nonlocal deleted
+        if not deleted:
+            deleted = True
+            with environment.app.state.session_factory() as session:
+                session.delete(session.scalar(select(Source)))
+                session.commit()
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(runner, "select_pending", delete_source)
+    assert execute(environment)["status"] == "no_new_content"
+
+
 def saved_capture(client, *, site_name="X · Name", image=False):
     token = client.post("/api/settings/extension-tokens", json={"name": "Chrome"}).json()["token"]
     response = client.post("/api/captures", json={

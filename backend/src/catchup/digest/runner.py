@@ -167,8 +167,14 @@ def _show_held_items(factory, run_id: int, source_id: int, settings) -> None:
             rows, utc_now(), settings.transcript_wait_days, settings.caption_wait_hours,
         )
         if ready or updates:
-            check.status = "new_items"
-            session.get(Source, source_id).last_check_status = "new_items"
+            session.execute(
+                update(SourceCheck).where(SourceCheck.id == check.id).values(status="new_items")
+                .execution_options(synchronize_session=False)
+            )
+            session.execute(
+                update(Source).where(Source.id == source_id).values(last_check_status="new_items")
+                .execution_options(synchronize_session=False)
+            )
             session.commit()
 
 

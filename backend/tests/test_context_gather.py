@@ -41,6 +41,69 @@ def html(title, text):
     return f"<html><head><title>{title}</title></head><body><article><p>{text}</p></article></body></html>"
 
 
+@pytest.mark.parametrize("urls,units,expected", [
+    (["https://bad.example:abc/x", "https://a.example/1"], 2, 2),
+    (["/comments/feed", "ftp://a.example:21/f", "https://user:secret@a.example/x"], 0, 3),
+], ids=["h", "i"])
+def test_reachable_reads_counts_refused_addresses_without_units(urls, units, expected):
+    from catchup.context.gather import reachable_reads
+
+    assert reachable_reads(urls, lambda _url: None, units) == expected
+
+
+@pytest.mark.parametrize("bad", [
+    "https://bad.example:abc/x", "https://bad.example:99999/x",
+], ids=["bad_port", "large_port"])
+def test_link_with_a_bad_port_is_skipped(environment, monkeypatch, public_dns, bad):
+    setup(environment, [(bad, "Bad"), ("https://docs.example/one", "One")])
+    stub_collection(monkeypatch)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").respond(404)
+        page = router.get("https://docs.example/one").respond(200, text=html("One", "Linked text " * 40))
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert page.called
+    assert (result["context_total"], result["context_done"]) == (2, 2)
+
+
+@pytest.mark.parametrize("address", ["/comments/feed", "ftp://s0.example:21/feed"],
+                         ids=["relative", "non_http"])
+def test_odd_comment_feed_address_is_skipped(environment, monkeypatch, public_dns, address):
+    monkeypatch.setattr("catchup.context.gather.CONTEXT_WORKERS", 1, raising=False)
+    seed(environment, count=2, sources=1)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        first, second = session.scalars(select(Item).order_by(Item.id)).all()
+        first.comment_count = 1
+        first.entry_author = "Writer"
+        first.comment_feed_url = address
+        second.entry_links = [{"url": "https://docs.example/one", "text": "One"}]
+        session.commit()
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://s0.example/robots.txt").respond(404)
+        router.get("https://docs.example/robots.txt").respond(404)
+        router.get("https://s0.example/0").respond(200, content=b"")
+        page = router.get("https://docs.example/one").respond(200, text=html("One", "Linked text " * 40))
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert page.called
+    assert (result["context_total"], result["context_done"]) == (3, 3)
+
+
+def test_post_page_with_a_bad_port_is_skipped(environment, monkeypatch, public_dns):
+    setup(environment, [], comments=1)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        item = session.scalar(select(Item))
+        item.link = "https://s0.example:70000/0"
+        item.entry_author = "Writer"
+        session.commit()
+    with respx.mock(assert_all_mocked=True, assert_all_called=False):
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert (result["context_total"], result["context_done"]) == (1, 1)
+
+
 def seed_linked_items(client, count, *, links=1):
     seed(client, count=count)
     with client.app.state.session_factory() as session:

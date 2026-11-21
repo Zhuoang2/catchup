@@ -10,6 +10,8 @@ from catchup.net.safe_fetch import BudgetExhausted, FetchError, safe_fetch
 def origin(url: str) -> str:
     parts = urlsplit(url)
     host = parts.hostname
+    if parts.scheme not in ("http", "https") or not host or parts.username or parts.password:
+        raise ValueError("invalid URL")
     if ":" in host:
         host = f"[{host}]"
     port = parts.port

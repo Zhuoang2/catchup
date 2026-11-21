@@ -11,6 +11,21 @@ from catchup.context.robots import RobotsCache
 from catchup.net.safe_fetch import BudgetExhausted
 
 
+@pytest.mark.parametrize("url", [
+    "/comments/feed",
+    "ftp://site.example:21/feed",
+    "https://site.example:abc/x",
+    "https://site.example:99999/x",
+    "https://user:secret@site.example/x",
+    "mailto:a@site.example",
+], ids=["relative", "non_http", "bad_port", "large_port", "user_info", "mailto"])
+def test_origin_refuses_addresses_that_safe_fetch_refuses(url):
+    from catchup.context.robots import origin
+
+    with pytest.raises(ValueError):
+        origin(url)
+
+
 def test_origin_ignores_case_and_default_port():
     from catchup.context.robots import origin
 

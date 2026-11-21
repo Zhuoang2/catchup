@@ -24,8 +24,12 @@ def reachable_reads(urls, verdict, units: int) -> int:
     charged = set()
     count = 0
     for url in urls:
+        try:
+            site = origin(url)
+        except ValueError:
+            count += 1
+            continue
         rule = verdict(url)
-        site = origin(url)
         if rule is False:
             cost = 0
         elif rule is True or site in charged:

@@ -348,7 +348,7 @@ Claude Code's review found two defects. Both were reproduced on `54ac5be`, and e
   A bad link or post page raises when the pass starts: the run fails with `run_failed`, every item stays pending with no context status, and the next run fails again. A bad comment feed is added to the remaining reads before the commit raises. The comment code catches that error and finishes its own item, but every later commit raises, so the run fails as soon as another item commits, and the next run no longer plans that item. On `main`, `safe_fetch` refuses such an address as `invalid_url`, and the page is skipped. This breaks the existing requirement: "A context fetch that fails, is refused, or exceeds the limit MUST be skipped without failing the source check or the run."
 - **A source deleted while `_show_held_items` runs fails the run.** The helper writes ORM attributes. When the source is deleted after the helper read its rows and before it commits, the UPDATE matches no row, and the run fails with `StaleDataError`. design.md D5 says: "A source deleted during its check has no rows, and the helper does nothing."
 
-- [ ] 8.1 Write these tests and watch them fail. Use the existing helpers (`setup`, `html`, `public_dns`, `seed`, `stub_collection`, `stub_outcomes`, `execute`).
+- [x] 8.1 Write these tests and watch them fail. Use the existing helpers (`setup`, `html`, `public_dns`, `seed`, `stub_collection`, `stub_outcomes`, `execute`).
 
   In `backend/tests/test_context_robots.py`:
   - **`test_origin_refuses_addresses_that_safe_fetch_refuses`**, parametrized over `/comments/feed`, `ftp://site.example:21/feed`, `https://site.example:abc/x`, `https://site.example:99999/x`, `https://user:secret@site.example/x`, and `mailto:a@site.example`. `origin(url)` raises `ValueError`. Import `origin` inside the test. The two port cases pass today.
@@ -384,7 +384,7 @@ Claude Code's review found two defects. Both were reproduced on `54ac5be`, and e
 
   Today, 12 of these cases fail, and the two port cases of the `origin` test pass.
 
-- [ ] 8.2 Fix both defects.
+- [x] 8.2 Fix both defects.
   - In `backend/src/catchup/context/robots.py`, `origin(url)` raises `ValueError` when the URL's scheme is not `http` or `https`, when it has no host, or when `parts.username or parts.password` is truthy: the same tests that `_check_address` uses. A bad port already raises `ValueError` from `parts.port`. `RobotsCache.allowed` only sees addresses that `safe_fetch` has already checked, so its behavior does not change.
   - In `backend/src/catchup/context/gather.py`, `reachable_reads` computes the origin first. When `origin` raises `ValueError`, the read counts, costs no unit, and does not call `verdict` or mark an origin as charged. `safe_fetch` refuses such an address before it takes a unit, and the read is finished as read, as today.
   - In `backend/src/catchup/digest/runner.py`, `_show_held_items` writes the check's status and the source's `last_check_status` with `update()` statements and `execution_options(synchronize_session=False)`, as the check-rewrite step does. A row that is gone is not an error.
@@ -397,4 +397,4 @@ Claude Code's review found two defects. Both were reproduced on `54ac5be`, and e
   - **O3:** in `reachable_reads`, skip an address that `origin` refuses without counting it. Run cases `h` and `i`.
   - **O4:** restore the ORM attribute writes in `_show_held_items`. Run the deletion test; it must fail. With the fix in place, the five held-item tests of 2.1 still pass.
 
-- [ ] 8.3 Run the commands of 7.1 again. Add a "Fix round 1" section to the test report, with the reds, the greens, the mutation results, and the commands' results. Add a Droid entry for this round to `docs/process/ai-usage-log.md`, after the Claude Code review entry for this change if there is one, or after Droid's first entry otherwise.
+- [x] 8.3 Run the commands of 7.1 again. Add a "Fix round 1" section to the test report, with the reds, the greens, the mutation results, and the commands' results. Add a Droid entry for this round to `docs/process/ai-usage-log.md`, after the Claude Code review entry for this change if there is one, or after Droid's first entry otherwise.

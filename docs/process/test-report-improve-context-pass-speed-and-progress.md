@@ -161,3 +161,123 @@ as instructed; Claude Code performs them at review. Stage durations from real
 user sources/model credentials remain for the user's next run after merge.
 
 No Docker command, port 8800 operation, push, merge, tag, or PR action was performed.
+
+## Fix round 1
+
+Baseline: `cd96580` (group 8 planned in `0483756`, wording checked in `cd96580`).
+Only group 8 was implemented. The earlier implementation and stop evidence above
+is historical and unchanged. This round adds six test functions, 14 parametrized
+cases, without changing existing tests, dependencies, or frontend code.
+
+### Reproduction, diagnosis, and fixes
+
+The first command below ran before any production edit, in `backend/`:
+
+```sh
+uv run --offline pytest tests/test_context_robots.py tests/test_context_gather.py tests/test_digest_runner.py -k "origin_refuses_addresses or reachable_reads_counts_refused or link_with_a_bad_port or odd_comment_feed_address or post_page_with_a_bad_port or source_deleted_while_held" -q --tb=short
+```
+
+Result: **12 failed, 2 passed, 166 deselected in 1.21 s**, exit 1.
+The two passing cases were the existing invalid-port guards in `origin`.
+
+| New test (`test_` prefix omitted) | Before fix | With fix |
+| --- | --- | --- |
+| origin_refuses_addresses_that_safe_fetch_refuses | 4 failed: relative/mailto TypeError, FTP KeyError, user-info accepted; 2 port cases passed. | All 6 passed. |
+| reachable_reads_counts_refused_addresses_without_units | Both h and i raised during origin parsing. | Both passed: 2 and 3 reads respectively. |
+| link_with_a_bad_port_is_skipped | Both runs failed rather than succeeded. | Both succeeded, docs requested, totals (2, 2). |
+| odd_comment_feed_address_is_skipped | Both runs failed on a later progress commit after adding the bad feed. | Both succeeded, later docs requested, totals (3, 3). |
+| post_page_with_a_bad_port_is_skipped | Run failed before fetching. | Succeeded with no requests, totals (1, 1). |
+| source_deleted_while_held_items_are_counted | Run failed with StaleDataError. | no_new_content. |
+
+Ranked hypotheses, stated before the fixes:
+
+1. Progress estimation assumes valid HTTP URLs. Matching fetch validation and
+   treating refused addresses as zero-cost reads should remove the address
+   failures.
+2. ORM attribute writes require rows deleted by another session to remain
+   present. Explicit updates should make missing rows a no-op.
+3. Request-budget handling causes these failures. Changing its accounting would
+   then be necessary; this was less likely because several failures occurred
+   before any request.
+
+The baseline traces, green regressions and isolated O1/O4 reversions confirmed
+1 and 2. The normal budget algorithm was not changed. Re-derived invariants:
+estimation must count an address rejected before budget consumption without
+querying robots or charging its origin; held-item display updates must tolerate
+missing rows while preserving eligibility, check status guards and new_count.
+`origin` now rejects non-HTTP, hostless and user-info addresses with ValueError,
+like the fetch guard. `reachable_reads` computes origin before verdict, counts
+ValueError refusals without cost, and continues. `_show_held_items` uses explicit
+check/source updates with session synchronization disabled, so missing rows
+match zero updates rather than raising at ORM flush.
+
+The same new-test command after the fixes returned **14 passed, 166 deselected
+in 0.98 s**, exit 0. The three affected files, via
+`uv run --offline pytest tests/test_context_gather.py tests/test_context_robots.py tests/test_digest_runner.py -q`,
+returned **180 passed in 10.84 s**. Task 8.2's full backend run returned
+**1082 passed in 27.94 s**.
+
+### Round mutations
+
+Each mutation ran alone, its output was inspected before the next mutation, and
+the file was edited back. After every reversal, `git diff -- <changed-file>`
+exactly matched the captured pre-mutation diff. There were no collection errors,
+unexpected survivors, or invalid attempts in this round.
+
+| Mutation | Named tests and real result |
+| --- | --- |
+| O1, remove new origin validation | origin test, reachable case i, both odd-comment-feed cases: **7 failed, 2 passed in 0.95 s**, exit 1. Relative/mailto TypeError, FTP KeyError, user-info accepted; both digest runs failed. Killed. |
+| O2, charge refused addresses 2 units | reachable h/i: **2 failed in 0.69 s**, exit 1; counts 1 vs 2 and 0 vs 3. Killed. |
+| O3, omit refused addresses from count | reachable h/i: **2 failed in 0.80 s**, exit 1; counts 1 vs 2 and 0 vs 3. Killed. |
+| O4, restore ORM attribute writes | deletion test: **1 failed in 0.65 s**, exit 1; failed rather than no_new_content, with StaleDataError. Killed. |
+
+With all fixes restored, the deletion test plus these five unchanged group-2
+guards returned **6 passed in 1.14 s**:
+
+- `test_feed_with_held_items_shows_new_items_when_checked`
+- `test_x_account_with_held_posts_shows_new_items_when_checked`
+- `test_waiting_podcast_episode_keeps_no_new_items_when_checked`
+- `test_source_without_pending_items_keeps_no_new_items`
+- `test_failed_check_with_held_items_stays_failed`
+
+### Task 7.1 commands repeated for task 8.3
+
+Backend commands ran in `backend/`. Frontend commands ran in `frontend/` after
+`export PATH="$HOME/.nvm/versions/node/v22.17.1/bin:$PATH"`.
+`node --version` returned `v22.17.1`; the required
+`npm ci --offline --no-audit --no-fund` installed 124 locked packages.
+The existing whatwg-encoding deprecation warning was non-fatal.
+
+| Command | Real result |
+| --- | --- |
+| `uv run --offline pytest` | **1082 passed in 32.27 s**, exit 0. |
+| Five-run loop below | All five passed, **254 tests per run**, exit 0. |
+| `npm test -- --run` | **314 tests passed in 14 files**, 6.52 s, exit 0. |
+| `npm run build` | TypeScript passed; Vite transformed 40 modules, built in 420 ms, exit 0. |
+| `DO_NOT_TRACK=1 openspec validate improve-context-pass-speed-and-progress --strict` | Change is valid, exit 0. |
+| `git diff --check` | Exit 0, no output; repeated after evidence and checkbox edits. |
+
+Exact repeated command:
+
+```sh
+for i in 1 2 3 4 5; do uv run --offline pytest tests/test_context_gather.py tests/test_host_spacing.py tests/test_context_robots.py tests/test_safe_fetch.py tests/test_digest_runner.py -q || break; done
+```
+
+All five summary lines:
+
+```text
+254 passed in 12.21s
+254 passed in 12.51s
+254 passed in 12.92s
+254 passed in 12.70s
+254 passed in 13.23s
+```
+
+Existing backend/frontend suites supplied regression coverage; this round wrote
+only the six group-8 tests listed above. No existing group-1–7 assertion or worker
+setting changed. No temporary helpers or diagnostic instrumentation were added.
+Proposal, design, spec deltas, decision log and requirements log were untouched;
+tasks.md has checkbox-only edits. Docker smoke, browser/live checks and benchmark
+were not run, as instructed, and remain for Claude Code review. The extension
+was out of scope and not run. No Docker, port 8800, container/volume operation,
+push, merge, tag or PR action occurred.

@@ -9,5 +9,8 @@ def test_readme_documents_public_context_limits_and_robots():
         "CATCHUP_AUTHOR_REPLIES` (default on)",
         "robots.txt",
         "public pages",
+        "up to 4 items at the same time",
+        "at least 1 second apart",
+        "can still read within",
     ):
         assert phrase in readme

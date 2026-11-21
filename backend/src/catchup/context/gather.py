@@ -1,6 +1,7 @@
 """Gather bounded, optional public context before selecting digest items."""
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 from urllib.parse import urlsplit
 
@@ -16,6 +17,7 @@ from catchup.net.safe_fetch import BudgetExhausted, FetchError, safe_fetch
 from catchup.sources.feeds import EntryLink
 
 logger = logging.getLogger(__name__)
+CONTEXT_WORKERS = 4
 
 
 def reachable_reads(urls, verdict, units: int) -> int:
@@ -146,15 +148,16 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
             logger.warning("Context fetch skipped (%s)", type(exc).__name__)
             return None
 
-    for item_id, site_url, links, comments, captured_replies in plan:
+    def gather_item(entry):
+        item_id, site_url, links, comments, captured_replies = entry
         if budget[0] <= 0 and not captured_replies:
             progress.drop(item_id)
-            continue
+            return
         with factory() as session:
             item = session.get(Item, item_id)
             if item is None:
                 progress.drop(item_id, deleted=True)
-                continue
+                return
             linked_length = 0
             position = 0
             stored_urls = set()
@@ -229,10 +232,19 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
                 if check_session.get(Item, item_id) is None:
                     session.rollback()
                     progress.drop(item_id, deleted=True)
-                    continue
+                    return
             session.flush()
             if item.contexts and item.summary is not None:
                 item.summary = None
                 item.summary_language = None
             item.context_status = "gathered" if item.contexts else "none"
             session.commit()
+
+    with ThreadPoolExecutor(max_workers=CONTEXT_WORKERS) as pool:
+        futures = [pool.submit(gather_item, entry) for entry in plan]
+        try:
+            for future in futures:
+                future.result()
+        except Exception:
+            pool.shutdown(wait=True, cancel_futures=True)
+            raise

@@ -247,7 +247,7 @@ The context pass still reads one item after another in this group.
 
 ## 5. Up to 4 items at the same time (D4, D6)
 
-- [ ] 5.1 Write these tests. Watch the four-items test and the README test fail. The other three pass today, and guard mutations of 5.2.
+- [x] 5.1 Write these tests. Watch the four-items test and the README test fail. The other three pass today, and guard mutations of 5.2.
 
   **In `backend/tests/test_context_gather.py`:**
   - **`test_four_items_are_read_at_the_same_time`** (the spec scenario "Items on different sites").
@@ -281,7 +281,7 @@ The context pass still reads one item after another in this group.
 
   **In `backend/tests/test_readme_context.py`:** add the three phrases of D6 to the tuple, and watch it fail.
 
-- [ ] 5.2 Implement the pool in `gather_context` with `CONTEXT_WORKERS = 4`, as D4 describes. Read `CONTEXT_WORKERS` from the module each time `gather_context` runs, not as a default argument, so that `monkeypatch` changes it. Add the README paragraph of D6 after "(including robots.txt)." in `README.md`.
+- [x] 5.2 Implement the pool in `gather_context` with `CONTEXT_WORKERS = 4`, as D4 describes. Read `CONTEXT_WORKERS` from the module each time `gather_context` runs, not as a default argument, so that `monkeypatch` changes it. Add the README paragraph of D6 after "(including robots.txt)." in `README.md`.
 
   Then run `test_context_gather.py` and `test_digest_runner.py`. When an existing test fails only because items now run at the same time, for example because it asserts which of two items got context near the limit:
   - set `CONTEXT_WORKERS` to 1 in that test with `monkeypatch`;

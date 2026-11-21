@@ -1,4 +1,7 @@
 import socket
+import re
+import threading
+import time
 from dataclasses import replace
 
 import httpx
@@ -36,6 +39,117 @@ def setup(client, links, *, comments=0, kind="feed", audio=False):
 
 def html(title, text):
     return f"<html><head><title>{title}</title></head><body><article><p>{text}</p></article></body></html>"
+
+
+def seed_linked_items(client, count, *, links=1):
+    seed(client, count=count)
+    with client.app.state.session_factory() as session:
+        for n, item in enumerate(session.scalars(select(Item).order_by(Item.id))):
+            item.entry_links = [
+                {"url": f"https://h{n}.example/{'p' if links == 1 else index}", "text": "Related"}
+                for index in range(links)
+            ]
+        session.commit()
+
+
+def test_four_items_are_read_at_the_same_time(environment, monkeypatch, public_dns):
+    seed_linked_items(environment, 8)
+    stub_collection(monkeypatch)
+    lock = threading.Lock()
+    in_flight = peak = 0
+
+    def page(_request):
+        nonlocal in_flight, peak
+        with lock:
+            in_flight += 1
+            peak = max(peak, in_flight)
+        time.sleep(0.2)
+        with lock:
+            in_flight -= 1
+        return httpx.Response(200, text=html("Page", "Linked text " * 40))
+
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get(re.compile(r"https://h\d\.example/robots\.txt")).respond(404)
+        router.get(re.compile(r"https://h\d\.example/p")).mock(side_effect=page)
+        result = execute(environment)
+    assert peak == 4
+    assert result["status"] == "succeeded"
+    assert (result["context_total"], result["context_done"]) == (8, 8)
+
+
+def test_two_items_on_one_site_share_robots_and_spacing(environment, monkeypatch, public_dns):
+    monkeypatch.setattr(
+        "catchup.digest.runner.HostSpacer", lambda: HostSpacer(min_interval=0.3, sleep=time.sleep),
+    )
+    seed(environment, count=2)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        for item, path in zip(session.scalars(select(Item).order_by(Item.id)), ("a", "b")):
+            item.entry_links = [{"url": f"https://site.example/{path}", "text": path}]
+        session.commit()
+    starts = []
+    lock = threading.Lock()
+
+    def robots_response(_request):
+        time.sleep(0.2)
+        return httpx.Response(404)
+
+    def page(_request):
+        with lock:
+            starts.append(time.monotonic())
+        return httpx.Response(200, text=html("Page", "Linked text " * 40))
+
+    with respx.mock(assert_all_mocked=True) as router:
+        robots = router.get("https://site.example/robots.txt").mock(side_effect=robots_response)
+        router.get(re.compile(r"https://site\.example/[ab]")).mock(side_effect=page)
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert robots.call_count == 1
+    assert len(starts) == 2
+    assert max(starts) - min(starts) >= 0.29
+
+
+def test_limit_holds_with_items_read_at_the_same_time(environment, monkeypatch, public_dns):
+    seed_linked_items(environment, 8, links=3)
+    stub_collection(monkeypatch)
+    environment.app.state.settings = replace(environment.app.state.settings, context_fetches_per_run=10)
+
+    def page(_request):
+        time.sleep(0.05)
+        return httpx.Response(200, text=html("Page", "Linked text " * 40))
+
+    with respx.mock(assert_all_mocked=True) as router:
+        routes = [
+            router.get(re.compile(r"https://h\d\.example/robots\.txt")).respond(404),
+            router.get(re.compile(r"https://h\d\.example/\d")).mock(side_effect=page),
+        ]
+        result = execute(environment)
+    assert sum(route.call_count for route in routes) <= 10
+    assert result["status"] == "succeeded"
+    assert result["context_total"] == result["context_done"]
+
+
+def test_unexpected_item_error_fails_the_run(environment, monkeypatch, public_dns):
+    from catchup.context import gather
+
+    seed_linked_items(environment, 4)
+    stub_collection(monkeypatch)
+    original = gather.related_links
+
+    def related(*args, **kwargs):
+        if len(args) >= 4 and args[3] == 1:
+            raise RuntimeError("Invented item failure")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(gather, "related_links", related)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get(re.compile(r"https://h\d\.example/robots\.txt")).respond(404)
+        router.get(re.compile(r"https://h\d\.example/p")).respond(
+            200, text=html("Page", "Linked text " * 40),
+        )
+        result = execute(environment)
+    assert result["status"] == "failed"
+    assert result["error_kind"] == "run_failed"
 
 
 @pytest.mark.parametrize("urls,verdicts,units,expected", [
@@ -613,6 +727,7 @@ def test_unreachable_robots_keeps_other_sites(environment, monkeypatch, public_d
 def test_budget_leaves_unreached_items_ungathered_and_retries_do_not_refetch(
     environment, monkeypatch, public_dns,
 ):
+    monkeypatch.setattr("catchup.context.gather.CONTEXT_WORKERS", 1)
     setup(environment, [("https://docs.example/one", "First")])
     with environment.app.state.session_factory() as session:
         first = session.scalar(select(Item))

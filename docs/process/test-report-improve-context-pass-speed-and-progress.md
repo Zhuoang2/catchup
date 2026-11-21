@@ -15,7 +15,7 @@ Docker and browser/benchmark review checks are reserved for Claude Code.
 | 3.1–3.2 | 4 failed: global host lock blocked other host, missing origin/verdict, robots requested twice. Same-host and budget guards passed as allowed. | Full backend: 1052 passed (33.31 s), including all three safety files and context gather. |
 | 4.1 | First run: 14 failed, 2 passed: 7 missing reachable_reads cases, old initial total 6, cap total 8, deleted-item total 2, four changed expectations. Commit-between-reads and the unchanged refused-page guard passed. | Resumed: approved new limit-cut test passed against existing 4.2 code (1 passed in 1.69 s); all 4.1 tests: 17 passed, 39 deselected. |
 | 4.2 | Implemented the sequential progress tracker; first run stopped at T4's verification gap. | Resumed: context gather 56 passed (4.44 s); full backend 1064 passed (26.26 s). T4 and T7 killed on retry. |
-| 5.1–5.2 | Not started after the stop condition. | Not run; no existing tests pinned to one worker in group 5.2. |
+| 5.1–5.2 | 2 failed, 3 passed (4.64 s): measured peak 1 instead of 4; README phrase missing; spacing, budget and unexpected-error guards passed. | Initial pool check: 1 expected order-dependent failure, 137 passed. After the allowed one-worker pin: 139 passed across context, runner and README files (10.50 s); full backend 1068 passed (27.71 s). |
 | 6.1–6.2 | Not started after the stop condition. | Frontend untouched. |
 | 7.1–7.3 | Final checks not reached. Evidence and this stop report were recorded without claiming completion. | See command status below. |
 
@@ -48,11 +48,11 @@ Exit 1 below means the named assertion killed the mutation, not a collection err
 | T5 | reachable_reads (all 7 cases ran) | Killed, 1 failed (d), 6 passed. |
 | T6 | reachable_reads (all 7 cases ran) | Killed, 1 failed (e), 6 passed. |
 | T7 | reads_of_a_deleted_item_leave_the_total | First attempt invalid (indentation error, exit 2), not a kill. Resumed with valid Python: killed, 1 failed (1.44 s, exit 1), total 2 rather than done 1. Restored with matching diff. |
-| W1 | four_items_are_read_at_the_same_time | Not run: group 5 not reached. |
-| W2 | four_items_are_read_at_the_same_time | Not run: group 5 not reached. |
-| W3 | unexpected_item_error_fails_the_run | Not run: group 5 not reached. |
-| R1 (pool) | two_items_on_one_site_share_robots_and_spacing | Not run: group 5 not reached. |
-| Doc | README context phrases | Not run: group 5 not reached. |
+| W1 | four_items_are_read_at_the_same_time | Killed, 1 failed (3.30 s): peak 1 instead of 4. |
+| W2 | four_items_are_read_at_the_same_time | Killed, 1 failed (1.69 s): peak 8 instead of 4. |
+| W3 | unexpected_item_error_fails_the_run | Killed, 1 failed (1.57 s): run succeeded after swallowing task exceptions. |
+| R1 (pool) | two_items_on_one_site_share_robots_and_spacing | Killed, 1 failed (2.38 s): robots.txt requested twice. |
+| Doc | readme_documents_public_context_limits_and_robots | Killed, 1 failed (0.02 s): concurrency phrase missing. |
 | F1 | shows linked-page progress after a source is deleted during the checks | Not run: group 6 not reached. |
 
 ### Stop condition and diagnosis
@@ -98,6 +98,17 @@ T7 was retried with a valid edit replacing the deleted-item drop calls with
 indented `pass` statements; its named test failed with total 2 and done 1.
 Both mutations were inspected individually and restored with matching diffs.
 Group 4 is complete; the historical stop record above is retained.
+
+### Existing tests pinned to one worker in group 5.2
+
+- `test_budget_leaves_unreached_items_ungathered_and_retries_do_not_refetch`:
+  the pool returned `["gathered", "none"]` rather than `["gathered", None]`.
+  The test requires item 2 not to start before the last budget unit is taken.
+  Its only change was `monkeypatch.setattr("catchup.context.gather.CONTEXT_WORKERS", 1)`.
+- `test_second_item_keeps_partial_context_in_successful_digest` passed unchanged
+  in group 5; it was not pinned preemptively.
+- The new deleted-item and next-item T4 tests already explicitly use one worker
+  as required by task 4.1, not as modifications of existing tests in group 5.2.
 
 ### Task 7.1 command status
 

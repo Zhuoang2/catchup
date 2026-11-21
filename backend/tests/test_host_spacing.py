@@ -1,4 +1,7 @@
 import socket
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 import pytest
@@ -6,6 +9,45 @@ import respx
 
 from catchup.net.host_spacing import HostSpacer
 from catchup.net.safe_fetch import safe_fetch
+
+
+def test_other_hosts_do_not_wait_while_one_host_sleeps():
+    entered, release = threading.Event(), threading.Event()
+
+    def blocking_sleep(_seconds):
+        entered.set()
+        assert release.wait(timeout=5)
+
+    spacer = HostSpacer(min_interval=1.0, sleep=blocking_sleep)
+    spacer.wait("https://a.example/1")
+    first = threading.Thread(target=spacer.wait, args=("https://a.example/2",))
+    other = threading.Thread(target=spacer.wait, args=("https://b.example/1",))
+    first.start()
+    try:
+        assert entered.wait(timeout=5)
+        other.start()
+        other.join(timeout=1)
+        assert not other.is_alive()
+        assert not release.is_set()
+    finally:
+        release.set()
+        first.join(timeout=5)
+        if other.ident is not None:
+            other.join(timeout=5)
+
+
+def test_same_host_waits_are_spaced_across_threads():
+    spacer = HostSpacer(min_interval=0.2, sleep=time.sleep)
+    barrier = threading.Barrier(3)
+
+    def wait(_index):
+        barrier.wait(timeout=5)
+        spacer.wait("https://h.example/x")
+        return time.monotonic()
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        times = sorted(pool.map(wait, range(3)))
+    assert all(later - earlier >= 0.19 for earlier, later in zip(times, times[1:]))
 
 
 @pytest.fixture

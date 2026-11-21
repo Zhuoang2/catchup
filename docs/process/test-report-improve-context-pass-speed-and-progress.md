@@ -12,6 +12,7 @@ Docker and browser/benchmark review checks are reserved for Claude Code.
 | --- | --- | --- |
 | 1.1–1.2 | 5 failed, 2 passed: missing `sources_total` column, three missing `stage_seconds` keys, live source count 3 instead of 2. Before-thread and X-count guards passed as planned. | Full backend: 1041 passed (32.44 s). |
 | 2.1–2.2 | 2 failed (feed and X both observed `no_new_items`); 3 guards passed. | Full backend: 1046 passed (35.71 s). |
+| 3.1–3.2 | 4 failed: global host lock blocked other host, missing origin/verdict, robots requested twice. Same-host and budget guards passed as allowed. | Full backend: 1052 passed (33.31 s), including all three safety files and context gather. |
 
 ### Named mutations
 
@@ -30,3 +31,8 @@ Exit 1 below means the named assertion killed the mutation, not a collection err
 | H2 | x_account_with_held_posts_shows_new_items_when_checked | Killed, 1 failed: no_new_items observed. |
 | H3 | waiting_podcast_episode_keeps_no_new_items_when_checked | Killed, 1 failed: waiting episode upgraded to new_items. |
 | H4 | failed_check_with_held_items_stays_failed | Killed, 1 failed: failed check upgraded to new_items. |
+| S1 | other_hosts_do_not_wait_while_one_host_sleeps | Killed, 1 failed: other-host thread still alive. |
+| S2 | same_host_waits_are_spaced_across_threads | Killed, 1 failed: interval below 0.19 s. |
+| R1 | robots_is_read_once_when_two_threads_ask_at_once | Killed, 1 failed: 2 robots requests. |
+| R2 | verdict_never_requests_and_reads_stored_rules | Killed, 1 failed: first verdict False rather than None after making a request. |
+| B1 | budget_units_are_taken_once_per_request_across_threads | Survived, 1 passed, as anticipated. The check/decrement critical section was inspected; race evidence is design probe P3, not a deterministic regression-test kill. |

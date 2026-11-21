@@ -13,11 +13,14 @@ class HostSpacer:
         self.clock = clock or monotonic
         self.sleep = sleep or _sleep
         self._lock = Lock()
+        self._hosts: dict[str, Lock] = {}
         self._last: dict[str, float] = {}
 
     def wait(self, url: str) -> None:
         host = (urlsplit(url).hostname or "").lower()
         with self._lock:
+            lock = self._hosts.setdefault(host, Lock())
+        with lock:
             now = self.clock()
             last = self._last.get(host)
             if last is not None:

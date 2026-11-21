@@ -116,7 +116,7 @@ Implementer notes:
 
 ## 3. Thread-safe host spacing, budget, and robots.txt (D3 `verdict` and `origin`, D4)
 
-- [ ] 3.1 Write these tests and watch each fail.
+- [x] 3.1 Write these tests and watch each fail.
 
   **In `backend/tests/test_host_spacing.py`:**
   - **`test_other_hosts_do_not_wait_while_one_host_sleeps`.**
@@ -160,7 +160,7 @@ Implementer notes:
 
     It may pass today. It documents the rule, and is the test for mutation B1.
 
-- [ ] 3.2 Implement:
+- [x] 3.2 Implement:
   - in `backend/src/catchup/net/host_spacing.py`: a lock per host;
   - in `backend/src/catchup/net/safe_fetch.py`: the locked unit take;
   - in `backend/src/catchup/context/robots.py`: the module-level `origin(url)`, a lock per origin in `allowed`, and `RobotsCache.verdict(url)`.

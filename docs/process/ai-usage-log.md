@@ -2539,7 +2539,7 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 
 ## 2026-11-19 — Shipping section in `AGENTS.md` (D-035) (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
 
-- **Prompts** (translated from Chinese): "Check all my current Claude Code conversations. Which steps do you think I should automate?" Later, after Claude proposed two skills whose shared steps live in the user's dotfiles and whose project-specific steps live in each project's `AGENTS.md`: "Do it here."
+- **Prompts** (translated from Chinese): "Check all my current Claude Code conversations. Which steps do you think I should automate?" Later, after Claude proposed two skills whose shared steps live in the user's dotfiles and whose project-specific steps live in each project's `AGENTS.md`: "Do it here." Merge approval, 2026-11-20: "Merge CS146S."
 - **Outcome:**
   - Sub-agents read the user's Claude Code transcripts from 2026-09-27 to 2026-11-17. For this project they counted the repeated go-aheads listed in D-035, and they extracted the commands Claude actually ran after plan approval and after merge approval.
   - Claude wrote the "Shipping" section of `AGENTS.md` from those commands and the existing D-016 and D-023 rules, and recorded D-035. The section names the board's project, field, and option IDs, which Claude checked with `gh project field-list`.
@@ -2550,7 +2550,7 @@ Real usage records for the technical spec, alpha reflection, and final report. E
     - it would have posted a comment on every issue that stays open, including #65, where the user had declined one;
     - fix rounds would have used `droid exec -w` while the review worktree held the branch, which fails.
     The section now enables auto-merge and posts those comments only when the user asks, and resumes fix rounds in the review worktree. The dry run also added the review housekeeping list and the board item-id lookup (`--limit 200`).
-  - The decision was first numbered D-034. The open branch for #62 (`merge-extension-page-extractors`) already uses D-034, so this one is D-035.
+  - The decision was first numbered D-034. The branch for #62 (`merge-extension-page-extractors`, merged in PR #95) already used D-034, so this one is D-035. Before the PR, Claude merged `main` into this branch; the decision log and this log kept both sides' entries in order.
 
 ## 2026-11-19 — `merge-extension-page-extractors` (#62): plan (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
 

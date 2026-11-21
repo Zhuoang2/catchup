@@ -2536,3 +2536,101 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - **Problems / adjustment:**
   - Claude's first browser attempts to replace the address clicked the field's label, and then used a select-all shortcut that the browser pane ignored, so the address was not replaced or was appended to. Claude reloaded the page and replaced the address by triple-clicking the input; only that run is reported.
   - A shell loop meant to start the two containers relied on word splitting, which zsh does not do; the commands were written out one by one.
+
+## 2026-11-19 — `merge-extension-page-extractors` (#62): plan (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
+
+- **Prompts** (translated from Chinese):
+  - After #73 merged, the user chose #62: "Yes, start writing the lean proposal for #62."
+  - Claude asked to save real pages before planning, because the main rule had to be checked on them. It listed each page's address, file name, and size. The user approved: "Yes, download them by this list."
+  - After reviewing the plan, the user approved it: "Yes, commit the plan, then start running Droid."
+- **Outcome:**
+  - **Terms first.** A sub-agent read the terms of the three sites, and Claude checked the quoted lines:
+    - simonwillison.net states no terms;
+    - Terry Tao's About page allows copying "reasonable portions";
+    - the WordPress.com terms were last updated on 2026-11-09;
+    - blog.python.org is under CC BY-NC-SA 3.0.
+
+    The 11 pages (1.27 MB) were then saved one every 4 seconds, with a generic user agent, outside the repository. They are deleted after the change merges.
+  - **Reproduced on `main` `0fcb3f0`.** All 11 real pages kept their main text. In-memory variants of simonwillison.net pages with short bodies did not:
+    - one saved only the "Sponsored by" banner;
+    - others saved the sidebar and its "Sponsor me" promo.
+
+    The real release note lost its GitHub link in both Readability modes. The cause is that Readability chooses the note body (its `blogmark-body` class adds weight) and does not merge the title row beside it. It is not caused by the strict mode that #62 had suspected.
+  - **Probes.**
+    - Readability's attempts with each flag set.
+    - Three `linkDensityModifier` values on 16 pages: 0.3 keeps short link posts and bare release notes, and adds no sponsor text.
+    - jsdom's computed style on live and cloned documents.
+    - A census in the built-in browser of what the stylesheets hide on four live pages: 24 ms for 2,702 elements.
+    - A candidate extractor compared with `main` on 27 pages.
+  - **Plan.**
+    - D1: one injected `extractPage()`;
+    - D2: a visible copy of the page;
+    - D3: Readability's strict first attempt with the modifier, then the page's main region;
+    - D4: one walk, with one rule for each field;
+    - D5: the title link, matched by equality with the title's forms;
+    - D6: one popup chain;
+    - D7: the README.
+
+    Four task groups, mutations E1–E16, U1, U2, and R1, and six invented fixtures committed with the plan. Group 4 tells Droid not to run Docker. D-034 and its rejected alternatives.
+  - **D-023 fresh-eyes check.** A sub-agent that saw only the plan and the code built a prototype of every group in a scratch worktree. It got 44 extractor tests, then 160 extension tests, and a passing build, and every named mutation was killed. Claude reproduced each finding before changing the plan:
+    - **should-fix:**
+      - "moving" the old cases would leave an empty test file, which fails vitest; the tasks now copy them;
+      - natural line wrapping of the README sentence would break the docs test; the tasks now give the exact lines;
+      - the header exclusion and the site-name cut of the title rule had no test; P17, E15, and E16 were added;
+      - the fixtures had to be committed before Droid's worktree is made;
+    - **minor:** a line range, wording, and six mutations without a test, which are recorded as survivors.
+- **Problems / adjustment:**
+  - **The terms sub-agent saved the three home pages** besides the terms pages. That was outside its instructions. Claude deleted the copies and told the user. Next time, the prompt names the only files it may write.
+  - **Claude's first title-link rule** ("text inside the title, at least half its length") matched the quote page loosely and would fail for short release names. It was replaced by equality with the title's forms before the plan was written.
+  - **Three of Claude's first invented fixtures did not reproduce the real mechanism:**
+    - the link post passed on `main`;
+    - the release row was merged;
+    - the date sat inside Readability's content.
+
+    They were rebuilt from the real pages' structure (link density, the `blogmark-body` class, a body `div` beside the header), and each was checked to fail on `main` before it went into the plan.
+  - **Two shell commands failed before the download:**
+    - zsh read `--proto =https` as an expansion;
+    - curl 8.2.1 does not accept `--rate 1/4s`.
+
+    They were corrected to `'=https'` and `15/m`.
+
+## 2026-11-20 — `merge-extension-page-extractors` (#62): implementation (Factory Droid, GPT-6.1 Sol)
+
+- **Session:** one Droid run, `3fd34d45-cda3-4863-ae16-c2cc04c0bb13` (231 turns, about 8.8 minutes). It finished all four groups without stopping; Droid then removed its worktree and kept the branch. The excerpts below were written by Droid; Claude Code added this line at review.
+- **Prompt excerpt:** "Implement OpenSpec change merge-extension-page-extractors using the openspec-apply-change skill. Work through openspec/changes/merge-extension-page-extractors/tasks.md in order and check off each task only after its verification passes. Work test-first with the tdd skill: in each group, write the tests first and watch them fail as tasks.md states, then change the code. Run every named mutation (E1-E16, U1, U2, R1) alone, restore the code after each, compare with git diff, and record the real results in the test report."
+- **Additional constraints followed:** Node 22.17.1; extension dependencies installed only with `npm ci --offline --no-audit --no-fund`; every OpenSpec CLI call prefixed with `DO_NOT_TRACK=1`; protected planning artifacts, fixtures, dependencies, and decision/requirements logs left unchanged. One commit per task group; no push, tag, PR, Docker build, or Docker smoke run.
+- **Outcome:** Activated `openspec-apply-change` and `tdd`. Two fresh, read-only Droid preflights checked code against the task groups without the design discussion and found no concrete false assumptions; group 1's reviewer highlighted preserving P13's fixture setup. A short jsdom/Readability probe checked live visibility and strict parsing behavior. Added `extractPage` and 46 direct/serialized extractor tests, migrated popup injection and its tests, removed the old extractors and tests, and made the two specified README changes with the revised contract test.
+- **Evidence:** All expected reds were observed before production edits: missing module, 9 changed/new popup failures with 80 other cases passing, and the README contract failure. Each of E1–E16, U1, U2, and R1 was applied alone and killed by every required named case; source and `git diff` matched exactly after each restoration. Final extension checks passed: 7 files / 162 tests, TypeScript and production build with artifact checks, and strict OpenSpec validation. Full case mappings and counts are in `docs/process/test-report-merge-extension-page-extractors.md`.
+- **Problems / adjustment:** The first `claude -p` preflight could not authenticate because its OAuth session had expired; read-only Droid workers replaced it. The initial mutation harness supplied partial-line patch context, which was rejected before tests or source changes; it was corrected to full-line hunks. Whitespace on copied test blank lines was removed after an initial diff check. No expected red/green result differed from the plan, and no plan or scope adjustment was made.
+- **Review still needed:** Claude Code's independent code/spec review, Docker build/smoke, real-page extractor comparison, and live visibility census were not performed here. Recorded survivors X3, X5, X8–X11 were not tested. No session identifier is included in this entry.
+
+## 2026-11-20 — `merge-extension-page-extractors` (#62): review (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
+
+- **Prompts** (translated from Chinese): after the review report, the user asked "What do you propose?". After Claude's proposal, the user replied: "Yes, do it as you suggest; commit and open a PR."
+- **Outcome:**
+  - **Droid run.** One run finished all four groups (session line in Droid's entry).
+  - **Claude's checks.**
+    - Extension 162 tests, the build, and strict validation passed.
+    - Claude built the branch image and ran `scripts/docker-smoke.sh`: 12 of 12.
+    - The branch's `extractPage` matched the planned candidate on all 27 pages: the 11 saved real pages, the variants, the invented cases, and the fixtures.
+    - On two live pages in the built-in browser, the extractor left out stylesheet-hidden text, such as share buttons, "Cancel reply", and the mobile date line at 1280 px. It left the pages unchanged, and took 2 ms and 23 ms.
+  - **`/code-review` (high)** reported 6 findings: one confirmed defect (an empty title made an image-only link the title link), one rejected, and four recorded.
+  - **Spec review.** An independent sub-agent re-ran all 19 named mutations (all killed). Claude reproduced every finding:
+    - two confirmed defects: the empty title, and a hidden link whose content is an element saved as an empty link;
+    - a spec sentence that claimed more than the code does: short pages are protected only from blocks that are an `aside` or are named by class or id. Claude probed five block shapes;
+    - "sidebars" in the title-link rule meaning only `aside`;
+    - a low-severity throw when the `body` is hidden;
+    - one test gap (M31), and several marginal or equivalent survivors.
+  - **Classification (D-023).**
+    - **Two small (a) items**, fixed in Claude's review commit at the user's choice, with no Droid fix round: 2 source lines and 17 test lines, each verified by a named mutation (K1–K3).
+    - **A wording decision**: the spec names the blocks it covers, and README keeps a narrower known limit (R2).
+    - **Recorded:** the hidden-`body` case and the marginal survivors.
+  - **Claude's review commit:**
+    - `page.ts` and `page.test.ts`;
+    - the README bullet and the docs test;
+    - the spec wording, and notes in the design and proposal;
+    - D-034 and the requirements row;
+    - the report's review section, Droid's session line, and this entry.
+- **Problems / adjustment:**
+  - **A JavaScript snippet for the browser check.** It first had to be exported from the TypeScript source with types stripped. Joining its lines into one would have broken automatic semicolon insertion, so it was pasted with its line breaks.
+  - **The browser pane's width.** When hidden, the pane first ran at width 0, so the page used its mobile layout. The desktop check was repeated at an emulated 1280 px width, and the emulation was reset afterwards.

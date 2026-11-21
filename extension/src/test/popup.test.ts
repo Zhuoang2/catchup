@@ -50,7 +50,7 @@ const captured = {
 }
 const genericResult = (page: unknown) => {
   chromeMock.scripting.executeScript.mockImplementation(async (details: { files?: string[]; func?: () => unknown }) =>
-    details.files ? [] : [{ result: details.func?.name === 'extractReadable' ? null : page }])
+    details.files ? [] : [{ result: page }])
 }
 const saves = () => fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/api/captures'))
 
@@ -405,7 +405,7 @@ it('injects the generic extractor and saves a checked page, then removes it', as
   })
   expect(chromeMock.scripting.executeScript.mock.calls.map(([details]) =>
     details.files ? 'readability.js' : details.func.name))
-    .toEqual(['readability.js', 'extractReadable', 'extractGeneric'])
+    .toEqual(['readability.js', 'extractPage'])
   expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:8000/api/captures',
     expect.objectContaining({
       method: 'POST', headers: expect.objectContaining({ Authorization: 'Bearer fake-browser-token' }),
@@ -612,7 +612,7 @@ it('still saves an X profile as a generic page when Add is chosen', async () => 
   })
   expect(chromeMock.scripting.executeScript.mock.calls.map(([details]) =>
     details.files ? 'readability.js' : details.func.name))
-    .toEqual(['readability.js', 'extractReadable', 'extractGeneric'])
+    .toEqual(['readability.js', 'extractPage'])
   expect(saves()).toHaveLength(1)
   expect((await axe(document.body, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([])
 })
@@ -686,7 +686,7 @@ it('uses generic page extraction for a help.x.com URL that looks like a post', a
   await screen.findByText('Saved. It will be in your next digest.')
   expect(chromeMock.scripting.executeScript.mock.calls.map(([details]) =>
     details.files ? 'readability.js' : details.func.name))
-    .toEqual(['readability.js', 'extractReadable', 'extractGeneric'])
+    .toEqual(['readability.js', 'extractPage'])
 })
 
 it.each([
@@ -829,19 +829,23 @@ it.each(['x.com', 'twitter.com'])('uses the X extractor for a %s post URL', asyn
   expect(JSON.parse(String((saves()[0][1] as RequestInit).body)).replies).toEqual(['Author reply'])
 })
 
-it('falls back to generic after the X extractor returns null', async () => {
+it('reads the page with readability.js and extractPage after the X extractor returns null', async () => {
   connect()
   chromeMock.tabs.query.mockResolvedValue([{ id: 10, url: 'https://x.com/alice/status/123', title: 'Alice on X' }])
-  chromeMock.scripting.executeScript.mockResolvedValueOnce([{ result: null }])
-    .mockResolvedValueOnce([{ result: captured }])
+  chromeMock.scripting.executeScript.mockImplementation(async (details: { files?: string[]; func?: () => unknown }) => {
+    if (details.func?.name === 'extractX') return [{ result: null }]
+    if (details.files) return []
+    if (details.func?.name === 'extractPage') return [{ result: captured }]
+  })
   fetchMock.mockImplementation(async (url: string) => url.endsWith('/captures')
     ? response(201, { id: 47, waiting: 4 })
     : response(200, { name: 'My browser', waiting: 3 }))
   initPopup()
   fireEvent.click(await screen.findByRole('button', { name: 'Add this page to my next digest' }))
   await screen.findByText('Saved. It will be in your next digest.')
-  expect(chromeMock.scripting.executeScript.mock.calls.map(([details]) => details.func.name))
-    .toEqual(['extractX', 'extractGeneric'])
+  expect(chromeMock.scripting.executeScript.mock.calls.map(([details]) =>
+    details.files ? 'readability.js' : details.func.name))
+    .toEqual(['extractX', 'readability.js', 'extractPage'])
   expect(saves()).toHaveLength(1)
 })
 
@@ -876,7 +880,43 @@ it('saves only reader-view post content on a page without an article element', a
     expect(body.links).toEqual([{ url: 'https://garden.example/soil-guide', text: 'the soil guide' }])
     expect(body.images).toEqual([{ url: 'https://garden.example/pot.png', alt: 'A garden pot' }])
     expect(chromeMock.scripting.executeScript.mock.calls.map(([details]) =>
-      details.files ? 'readability.js' : details.func.name)).toEqual(['readability.js', 'extractReadable'])
+      details.files ? 'readability.js' : details.func.name)).toEqual(['readability.js', 'extractPage'])
+    expect(tab.window.document.body.outerHTML).toBe(original)
+  } finally {
+    tab.window.close()
+  }
+})
+
+it('saves only a tiny note, not the sponsor banner, through the popup', async () => {
+  connect()
+  const tab = new JSDOM(
+    readFileSync(resolve('src/extract/fixtures/blog-tiny-note.html'), 'utf8'),
+    { url: 'https://garden.example/note', runScripts: 'outside-only' },
+  )
+  const original = tab.window.document.body.outerHTML
+  const library = readFileSync(resolve('node_modules/@mozilla/readability/Readability.js'), 'utf8')
+  chromeMock.scripting.executeScript.mockImplementation(async (details: {
+    files?: string[]; func?: () => unknown;
+  }) => {
+    if (details.files) {
+      expect(details.files).toEqual(['readability.js'])
+      tab.window.eval(library)
+      return []
+    }
+    return [{ result: tab.window.eval(`(${details.func!.toString()})()`) }]
+  })
+  fetchMock.mockImplementation(async (url: string) => url.endsWith('/captures')
+    ? response(201, { id: 48, waiting: 4 })
+    : response(200, { name: 'My browser', waiting: 3 }))
+  try {
+    initPopup()
+    fireEvent.click(await screen.findByRole('button', { name: 'Add this page to my next digest' }))
+    await screen.findByText('Saved. It will be in your next digest.')
+    const body = JSON.parse(String((saves()[0][1] as RequestInit).body))
+    expect(body.text).toBe('My tiny garden is ready. Start with seeds today.')
+    expect(body.links).toEqual([{ url: 'https://garden.example/seeds', text: 'Start with seeds' }])
+    expect(chromeMock.scripting.executeScript.mock.calls.map(([details]) =>
+      details.files ? 'readability.js' : details.func.name)).toEqual(['readability.js', 'extractPage'])
     expect(tab.window.document.body.outerHTML).toBe(original)
   } finally {
     tab.window.close()
@@ -884,11 +924,10 @@ it('saves only reader-view post content on a page without an article element', a
 })
 
 it.each(['https://garden.example/post', 'https://x.com/someone'])(
-  'falls back to generic after Readability returns null for %s', async url => {
+  'reads %s with readability.js and extractPage', async url => {
     connect()
     chromeMock.tabs.query.mockResolvedValue([{ id: 8, url, title: 'A page' }])
-    chromeMock.scripting.executeScript.mockImplementation(async (details: { files?: string[]; func?: () => unknown }) =>
-      details.files ? [] : [{ result: details.func?.name === 'extractReadable' ? null : captured }])
+    genericResult(captured)
     fetchMock.mockImplementation(async (path: string) => path.endsWith('/captures')
       ? response(201, { id: 49, waiting: 4 })
       : response(200, { name: 'My browser', waiting: 3 }))
@@ -897,11 +936,11 @@ it.each(['https://garden.example/post', 'https://x.com/someone'])(
     await screen.findByText('Saved. It will be in your next digest.')
     expect(chromeMock.scripting.executeScript.mock.calls.map(([details]) =>
       details.files ? 'readability.js' : details.func.name))
-      .toEqual(['readability.js', 'extractReadable', 'extractGeneric'])
+      .toEqual(['readability.js', 'extractPage'])
   },
 )
 
-it('falls back to generic when injecting readability.js rejects', async () => {
+it('still runs extractPage when injecting readability.js rejects', async () => {
   connect()
   chromeMock.scripting.executeScript.mockImplementation(async (details: { files?: string[]; func?: () => unknown }) => {
     if (details.files) throw new Error('Cannot inject library')
@@ -914,5 +953,6 @@ it('falls back to generic when injecting readability.js rejects', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Add this page to my next digest' }))
   await screen.findByText('Saved. It will be in your next digest.')
   expect(chromeMock.scripting.executeScript.mock.calls.map(([details]) =>
-    details.files ? 'readability.js' : details.func.name)).toEqual(['readability.js', 'extractGeneric'])
+    details.files ? 'readability.js' : details.func.name)).toEqual(['readability.js', 'extractPage'])
+  expect(saves()).toHaveLength(1)
 })

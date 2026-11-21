@@ -51,11 +51,59 @@ This supersedes the note in `docs/handoff.md` §9 that OpenSpec/RePPIT are not t
   - The Docker smoke script (`scripts/docker-smoke.sh`) and the live check are required for every change. Extra pins are optional.
 - Shared skills live in `.agents/skills/` (read by Droid; symlinked into `.claude/skills/` for Claude Code) and are pinned in `skills-lock.json`. Commit them, because a new worktree contains only committed files.
 
+## Shipping (D-035)
+
+Claude Code's personal skills `/reppit-apply` (plan approval → ready to merge) and `/ship` (merge approval → done) read this section. Each change stops for the user at two gates only: plan approval and merge approval. The review and fix-round rules above (D-016, D-023) still apply.
+
+- **Plan approval.** Mark the change's decision accepted (no quote in the decision log) and add the ai-usage-log plan entry with the user's words, translated from Chinese. Commit `openspec: plan <change> (#N)` on branch `<change>`, then `git switch -q main` in the main checkout so that `droid exec -w <change>` can check the branch out. Move the board item to In Progress, and write its item id in `work/agent-memory.md`.
+- **Droid.**
+  - First run: `droid exec --auto medium -w <change> -o json "<prompt>"` in the background, output in the session scratchpad. The prompt is in English and forbids Docker build, smoke and prune, port 8800, push, tags, PRs, and secrets.
+  - Fix rounds: commit everything in the review worktree, run the D-023 fresh-eyes check on the new task group, then resume the session there without `-w`: `droid exec --auto medium -s <session_id> --cwd <review worktree> -o json "<prompt>"`. The prompt says the earlier worktree was removed and repeats the rules above.
+  - The session id, turns and minutes come from the run's JSON output once it finishes.
+- **Review.**
+  - `/code-review high <start>..HEAD`, where `<start>` is the commit this Droid run started from: the plan commit for the first run, the round's plan commit for a fix round.
+  - The spec sub-agent with named mutations, `scripts/docker-smoke.sh`, and a live check on fresh volumes and ports other than 8800.
+  - Results go in `docs/process/test-report-<change>.md` ("Review by Claude Code"), `docs/process/ai-usage-log.md`, and `work/agent-memory.md`.
+  - The review worktree stays on the branch (fix rounds resume Droid in it); the spec sub-agent gets a detached worktree.
+- **Review housekeeping.**
+  - Add the Droid session line (session id, turns, minutes) to Droid's entry in the AI usage log.
+  - Run the extension checks as CI does (`npm test -- --run` and `npm run build` in `extension/`).
+  - Right after each live check, remove its containers and volumes by name, and stop the stub model and any Browser preview.
+  - Record in `work/agent-memory.md` every worktree (review, spec, main comparison) and image the review created, under their exact names.
+- **Fix rounds.**
+  - Confirmed (a) and (b) items inside the approved plan start a Droid round without asking, within D-023's limits. Ask the user before going past them.
+  - Test or doc fixes for (c) items, about 30 changed lines or fewer in total, go into Claude's review commit, before the merge-ready report.
+  - Larger (c) fixes, and any behaviour change made by Claude rather than Droid, however small, are decision points in the merge-ready report, with their size and a recommendation.
+- **Merge approval covers:**
+  1. the changes the user's reply decides on the report's decision points, with the checks re-run (Docker smoke too when code changed), committed on the branch;
+  2. the user's words in the ai-usage-log review entry;
+  3. the requirements-changes "archived on" note;
+  4. `openspec archive <change> --yes` on the branch, before the PR;
+  5. if `origin/main` moved, merging it into the branch in the review worktree (log-file conflicts keep both sides in date order; any other conflict stops), and re-running the checks;
+  6. `git push -u origin <change>`;
+  7. a PR to `main` with `Closes #N` for each finished issue and `Part of #N` for an issue that stays open;
+  8. a comment on an issue that stays open, only when the user asks for one;
+  9. auto-merge with a merge commit, only when the user's own words ask for it ("开自动合并"). Otherwise the user merges the PR.
+- **After the merge** (the user says it is merged, or `gh pr view <N> --json state` shows it):
+  1. move the board item to Done, or to Todo for an issue that stays open;
+  2. remove every worktree recorded for this change (review, spec, main comparison), and an empty leftover Droid folder under `~/.factory/worktrees/`;
+  3. `git pull --ff-only origin main` in the main checkout;
+  4. `git branch -d <change>` and `git push origin --delete <change>`;
+  5. remove the images recorded for this change, by their exact names (for example `docker rmi catchup:fix73-local catchup:main73-local`); never by pattern, never prune;
+  6. add the DONE entry to `work/agent-memory.md`;
+  7. list the next Todo items on the board.
+- **Board.**
+  - Project `PVT_kwHOBWHgjs4BlpIZ`, Status field `PVTSSF_lAHOBWHgjs4BlpIZzhkVK4o`, options Todo `f75ad846`, In Progress `47fc9ee4`, Done `98236657`.
+  - Item id of issue N (without `--limit 200` the list stops at 30 items): `gh project item-list 1 --owner Zhuoang2 --format json --limit 200 --jq '.items[] | select(.content.number==N) | .id'`.
+  - Set the status: `gh project item-edit --project-id PVT_kwHOBWHgjs4BlpIZ --id <item> --field-id PVTSSF_lAHOBWHgjs4BlpIZzhkVK4o --single-select-option-id <option>`.
+  - Next Todo items: `gh project item-list 1 --owner Zhuoang2 --format json --limit 200 --jq '.items[] | select(.status=="Todo") | "#\(.content.number) \(.content.title)"'`.
+- **Port 8800** (`catchup-e2e`, the user's own instance). Never rebuild it or touch its volume without asking. After a merge, say how many merges it is behind. Rebuild only when the user asks, backing up the volume first.
+
 ## Process evidence (course requirement)
 
 The course grades evidence of how requirements and context were communicated to people and AI tools. Keep these up to date as part of the work, not afterwards:
 
-- Backlog: GitHub issues in `Zhuoang2/catchup`, shown on the project board https://github.com/users/Zhuoang2/projects/1. Move the issue for the current change to In Progress, and close it when its change is archived.
+- Backlog: GitHub issues in `Zhuoang2/catchup`, shown on the project board https://github.com/users/Zhuoang2/projects/1. Move the issue for the current change to In Progress at plan approval. The PR's `Closes #N` closes it when the PR is merged; do not close it by hand when the change is archived.
 - `docs/process/decision-log.md` — design and technical decisions with alternatives and reasons.
 - `docs/process/requirements-changes.md` — requirement changes and why they happened.
 - `docs/process/ai-usage-log.md` — real AI tool usage: the actual prompt (verbatim or a faithful excerpt), the tool and model, the outcome, what failed, and how the prompt or instructions were adjusted.
@@ -74,5 +122,5 @@ Run backend commands from `backend/` and frontend commands from `frontend/`:
 - Backend dev server: `uv run uvicorn catchup.main:app --reload`.
 - Backend CLI alternative: `uv run catchup serve` (or `uv run catchup serve --help`).
 - Frontend dev server: `npm run dev` (proxies `/api` to port 8000).
-- Checks: `uv run pytest`, `npm test -- --run`, `npm run build`.
+- Checks: `uv run pytest` (backend); `npm test -- --run` and `npm run build` in both `frontend/` and `extension/` (Node.js 22.12 or newer, as `README.md` says); `docker build -t <image> .` then `scripts/docker-smoke.sh <image>`.
 - See `README.md` for environment setup; `CATCHUP_SECRET_KEY` is required before saving a model key.

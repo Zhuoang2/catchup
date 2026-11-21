@@ -570,3 +570,21 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
     - a hidden link with element children loses its address, and a page without a title gets no title link;
     - the short-page rule covers a longer block that is an `aside` or that the page marks as a sponsor block, banner, or sidebar by its class or id. README keeps a narrower known limit for sponsor blocks the page does not mark;
     - a page whose body is hidden is reported as unreadable.
+
+## D-035 Stop for the user only at plan approval and merge approval — accepted (2026-11-19)
+
+- **Decision.**
+  - After the user approves a plan, Claude Code runs Droid, reviews every run, and starts fix rounds for confirmed (a) and (b) items inside the approved plan and within D-023's limits, without asking each time. It still stops for anything that changes scope, spec, or design, for a Droid login failure, and when D-023's limits are reached.
+  - Claude's own fixes stay within D-023: test or doc fixes of about 30 lines in total go into its review commit before the merge-ready report. Larger ones, and any behaviour change Claude would make itself, however small, are decision points in that report.
+  - The merge-ready report lists, as numbered steps, exactly what merge approval will do: apply the decisions the reply settles, archive on the branch, push, and open a PR with `Closes #N` (`Part of #N` for an issue that stays open). Auto-merge, and a comment on an issue that stays open, happen only when the user's own words ask for them. After the merge, Claude confirms it with `gh pr view`, moves the board item, removes this change's worktrees, branches, and images by their exact names, and lists the next board items. Port 8800 is still rebuilt only when the user asks.
+  - The steps are written in the new "Shipping" section of `AGENTS.md`. The user's personal Claude Code skills `/reppit-apply` and `/ship` read it.
+- **Why.**
+  - A review of the user's Claude Code sessions from 2026-10-05 to 2026-11-17 found the same go-aheads in almost every change: "commit the plan, then start Droid" (17 times), "as you suggest, one more (small) round" (12), "approve auto-merge, and delete the remote branch after the merge" (8), "check whether it is merged, then wrap up" (7), and "is it merged yet?" (4, three of them on one day). The user almost never said no.
+  - Each one cost a round trip, and the cleanup after a merge had to be described again every time.
+- **Alternatives:**
+  - **Keep asking at every step.** Rejected: the answer was nearly always the same.
+  - **Merge without asking.** Rejected: the user approves each PR.
+  - **Put the steps only in the skills.** Rejected: the board IDs, the Docker rules, and port 8800 belong to this project, and Droid and other sessions read `AGENTS.md`.
+- **Consequences:**
+  - Fix rounds within D-023's limits no longer produce a question; the user sees them in the merge-ready report.
+  - The user still approves every plan and every merge, and decides every rebuild of port 8800.

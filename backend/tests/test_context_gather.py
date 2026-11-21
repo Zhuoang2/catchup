@@ -38,6 +38,137 @@ def html(title, text):
     return f"<html><head><title>{title}</title></head><body><article><p>{text}</p></article></body></html>"
 
 
+@pytest.mark.parametrize("urls,verdicts,units,expected", [
+    (["a1", "a2", "b1", "b2", "c1", "c2"], {}, 5, 3),
+    (["a1", "a2", "b1", "b2", "c1", "c2"], {}, 0, 0),
+    (["a1", "a2"], {"a1": True, "a2": True}, 1, 1),
+    (["a1", "a2", "a3"], {"a1": True, "a2": False, "a3": True}, 1, 2),
+    (["a1", "b1", "a2"], {}, 3, 1),
+    (["https://SITE.example/a", "https://site.example:443/b"], {}, 3, 2),
+    ([], {}, 4, 0),
+], ids=list("abcdefg"))
+def test_reachable_reads(urls, verdicts, units, expected):
+    from catchup.context.gather import reachable_reads
+
+    def url(value):
+        return value if value.startswith("https:") else f"https://{value[0]}.example/{value[1:]}"
+
+    rules = {url(key): value for key, value in verdicts.items()}
+    assert reachable_reads([url(value) for value in urls], rules.get, units) == expected
+
+
+def test_total_starts_at_what_the_limit_can_read(environment, monkeypatch, public_dns):
+    links = [f"https://{host}.example/{n}" for host in "abc" for n in (1, 2)]
+    setup(environment, [(url, url) for url in links])
+    stub_collection(monkeypatch)
+    environment.app.state.settings = replace(environment.app.state.settings, context_fetches_per_run=5)
+    visible = []
+
+    def first(_request):
+        with environment.app.state.session_factory() as session:
+            visible.append(session.scalar(select(DigestRun)).context_total)
+        return httpx.Response(200, text=html("Linked", "Linked text " * 40))
+
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        robots = [router.get(f"https://{host}.example/robots.txt").respond(404) for host in "abc"]
+        pages = [router.get(url).respond(200, text=html("Linked", "Linked text " * 40)) for url in links]
+        pages[0].mock(side_effect=first)
+        result = execute(environment)
+    assert visible == [3]
+    assert (result["context_total"], result["context_done"]) == (3, 3)
+    assert not robots[2].called
+    assert not any(page.called for page in pages[3:])
+
+
+def test_links_after_the_cap_leave_the_total(environment, monkeypatch, public_dns):
+    setup(environment, [(f"https://docs.example/{n}", str(n)) for n in range(8)])
+    stub_collection(monkeypatch)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").respond(404)
+        pages = [
+            router.get(f"https://docs.example/{n}").respond(
+                200, text=html(str(n), "Long linked text " * 300),
+            ) for n in range(8)
+        ]
+        result = execute(environment)
+    assert sum(page.call_count for page in pages) == 6
+    assert not pages[6].called and not pages[7].called
+    assert (result["context_total"], result["context_done"]) == (6, 6)
+
+
+def test_reads_of_a_deleted_item_leave_the_total(environment, monkeypatch, public_dns):
+    monkeypatch.setattr("catchup.context.gather.CONTEXT_WORKERS", 1, raising=False)
+    seed(environment, count=2, sources=2)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        items = session.scalars(select(Item).order_by(Item.id)).all()
+        for item, host in zip(items, ("one", "two")):
+            item.entry_links = [{"url": f"https://{host}.example/p", "text": host}]
+        deleted_source_id = items[1].source_id
+        session.commit()
+
+    def first(_request):
+        with environment.app.state.session_factory() as session:
+            session.delete(session.get(Source, deleted_source_id))
+            session.commit()
+        return httpx.Response(200, text=html("One", "Linked text " * 40))
+
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://one.example/robots.txt").respond(404)
+        router.get("https://one.example/p").mock(side_effect=first)
+        second_robots = router.get("https://two.example/robots.txt").respond(404)
+        second_page = router.get("https://two.example/p").respond(200)
+        result = execute(environment)
+    assert result["context_total"] == result["context_done"]
+    assert not second_robots.called and not second_page.called
+
+
+def test_read_cut_by_the_limit_leaves_the_total_after_the_next_item(environment, monkeypatch, public_dns):
+    monkeypatch.setattr("catchup.context.gather.CONTEXT_WORKERS", 1, raising=False)
+    seed(environment, count=2, sources=2)
+    stub_collection(monkeypatch)
+    environment.app.state.settings = replace(environment.app.state.settings, context_fetches_per_run=3)
+    with environment.app.state.session_factory() as session:
+        items = session.scalars(select(Item).order_by(Item.id)).all()
+        items[0].entry_links = [
+            {"url": "https://a.example/1", "text": "A"},
+            {"url": "https://b.example/1", "text": "B"},
+        ]
+        items[1].entry_links = [{"url": "https://c.example/1", "text": "C"}]
+        session.commit()
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://a.example/robots.txt").respond(404)
+        router.get("https://b.example/robots.txt").respond(404)
+        router.get("https://a.example/1").respond(200, text=html("A", "Linked text " * 40))
+        cut = router.get("https://b.example/1").respond(200)
+        skipped_robots = router.get("https://c.example/robots.txt").respond(404)
+        skipped_page = router.get("https://c.example/1").respond(200)
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert (result["context_total"], result["context_done"]) == (1, 1)
+    assert not cut.called and not skipped_robots.called and not skipped_page.called
+
+
+def test_total_is_committed_with_each_read(environment, monkeypatch, public_dns):
+    setup(environment, [("https://docs.example/one", "One"), ("https://docs.example/two", "Two")])
+    stub_collection(monkeypatch)
+    visible = []
+
+    def second(_request):
+        with environment.app.state.session_factory() as session:
+            run = session.scalar(select(DigestRun))
+            visible.append((run.context_done, run.context_total))
+        return httpx.Response(200, text=html("Two", "Linked text " * 40))
+
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://docs.example/robots.txt").respond(404)
+        router.get("https://docs.example/one").respond(200, text=html("One", "Linked text " * 40))
+        router.get("https://docs.example/two").mock(side_effect=second)
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert visible == [(1, 2)]
+
+
 def test_redirect_to_disallowed_page_is_not_requested(environment, monkeypatch, public_dns):
     setup(environment, [("https://short.example/x", "Short link")])
     stub_collection(monkeypatch)
@@ -112,7 +243,7 @@ def test_three_spellings_of_one_site_share_robots(environment, monkeypatch, publ
 
 
 @pytest.mark.parametrize("paths,rules,budget,counts", [
-    (["one", "private/x", "three"], "Disallow: /private", 2, (3, 2)),
+    (["one", "private/x", "three"], "Disallow: /private", 2, (2, 2)),
     (["one"], "Disallow: /one", 1, (1, 1)),
 ])
 def test_refused_links_count_as_read_once_budget_is_used(
@@ -140,7 +271,7 @@ def test_failed_request_on_last_budget_unit_counts_as_read(environment, monkeypa
         unreached = router.get("https://docs.example/two").mock(return_value=httpx.Response(200))
         result = execute(environment)
     assert result["status"] == "succeeded"
-    assert (result["context_total"], result["context_done"]) == (2, 1)
+    assert (result["context_total"], result["context_done"]) == (1, 1)
     assert not unreached.called
     with environment.app.state.session_factory() as session:
         assert session.scalar(select(Item)).context_status == "none"
@@ -803,7 +934,7 @@ def test_comment_budget_cutoff_keeps_link_without_requesting_post(
         post = router.get("https://s0.example/0").mock(return_value=httpx.Response(200))
         result = execute(environment)
     assert result["status"] == "succeeded" and post.call_count == 0
-    assert (result["context_total"], result["context_done"]) == (2, 1)
+    assert (result["context_total"], result["context_done"]) == (1, 1)
     with environment.app.state.session_factory() as session:
         item = session.scalar(select(Item))
         assert item.context_status == "gathered"
@@ -832,7 +963,7 @@ def test_comment_feed_budget_cutoff_keeps_link(
         result = execute(environment)
     assert result["status"] == "succeeded"
     assert post.call_count == 1 and feed.call_count == 0
-    assert (result["context_total"], result["context_done"]) == (3, 2)
+    assert (result["context_total"], result["context_done"]) == (2, 2)
     with environment.app.state.session_factory() as session:
         item = session.scalar(select(Item))
         assert item.context_status == "gathered"

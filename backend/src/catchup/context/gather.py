@@ -1,6 +1,7 @@
 """Gather bounded, optional public context before selecting digest items."""
 
 import logging
+from threading import Lock
 from urllib.parse import urlsplit
 
 from lxml import html
@@ -9,12 +10,93 @@ from trafilatura import extract
 
 from catchup.context.comments import author_replies
 from catchup.context.links import related_links
-from catchup.context.robots import RobotsCache
+from catchup.context.robots import RobotsCache, origin
 from catchup.models import DigestRun, Item, ItemContext, Source
 from catchup.net.safe_fetch import BudgetExhausted, FetchError, safe_fetch
 from catchup.sources.feeds import EntryLink
 
 logger = logging.getLogger(__name__)
+
+
+def reachable_reads(urls, verdict, units: int) -> int:
+    charged = set()
+    count = 0
+    for url in urls:
+        rule = verdict(url)
+        site = origin(url)
+        if rule is False:
+            cost = 0
+        elif rule is True or site in charged:
+            cost = 1
+        else:
+            cost = 2
+        if cost > units:
+            break
+        units -= cost
+        charged.add(site)
+        count += 1
+    return count
+
+
+class ContextProgress:
+    def __init__(self, factory, run_id, remaining, replies_left, robots, budget):
+        self.factory = factory
+        self.run_id = run_id
+        self.remaining = remaining
+        self.replies_left = set(replies_left)
+        self.robots = robots
+        self.budget = budget
+        self.in_progress = {}
+        self.done = 0
+        self.lock = Lock()
+        self._commit()
+
+    def _commit(self):
+        urls = [url for reads in self.remaining.values() for _, url in reads]
+        total = (
+            self.done + len(self.in_progress) + len(self.replies_left)
+            + reachable_reads(urls, self.robots.verdict, self.budget[0])
+        )
+        with self.factory() as session:
+            run = session.get(DigestRun, self.run_id)
+            run.context_done, run.context_total = self.done, total
+            session.commit()
+
+    def start(self, item_id):
+        with self.lock:
+            self.in_progress[item_id] = self.remaining[item_id].pop(0)
+
+    def finish(self, item_id):
+        with self.lock:
+            self.in_progress.pop(item_id)
+            self.done += 1
+            self._commit()
+
+    def drop_links(self, item_id):
+        with self.lock:
+            self.remaining[item_id] = [
+                read for read in self.remaining[item_id] if read[0] != "link"
+            ]
+            self._commit()
+
+    def drop(self, item_id, *, deleted=False):
+        with self.lock:
+            self.remaining[item_id] = []
+            self.in_progress.pop(item_id, None)
+            if deleted:
+                self.replies_left.discard(item_id)
+            self._commit()
+
+    def add(self, item_id, url):
+        with self.lock:
+            self.remaining[item_id].append(("feed", url))
+            self._commit()
+
+    def replies(self, item_id):
+        with self.lock:
+            self.replies_left.remove(item_id)
+            self.done += 1
+            self._commit()
 
 
 def gather_context(factory, run_id: int, settings, spacer) -> None:
@@ -28,6 +110,8 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
             .order_by(Item.id)
         ).all()
         plan = []
+        remaining = {}
+        replies_left = []
         for item, source in rows:
             if source.kind == "podcast" and item.transcript_status != "text":
                 continue
@@ -42,12 +126,13 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
                             and item.comment_count and item.comment_count > 0)
             captured_replies = item.captured_replies or [] if source.kind in ("capture", "x") else []
             plan.append((item.id, site_url, links, comments, captured_replies))
-        run = session.get(DigestRun, run_id)
-        run.context_total = sum(
-            len(links) + int(comments) + int(bool(replies))
-            for _, _, links, comments, replies in plan
-        )
-        session.commit()
+            remaining[item.id] = (
+                [("link", link.url) for link in links]
+                + ([("post", item.link)] if comments else [])
+            )
+            if captured_replies:
+                replies_left.append(item.id)
+    progress = ContextProgress(factory, run_id, remaining, replies_left, robots, budget)
 
     def fetch(url):
         try:
@@ -61,19 +146,14 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
             logger.warning("Context fetch skipped (%s)", type(exc).__name__)
             return None
 
-    def progress(*, done: int = 0, total: int = 0):
-        with factory() as session:
-            run = session.get(DigestRun, run_id)
-            run.context_done += done
-            run.context_total += total
-            session.commit()
-
     for item_id, site_url, links, comments, captured_replies in plan:
         if budget[0] <= 0 and not captured_replies:
+            progress.drop(item_id)
             continue
         with factory() as session:
             item = session.get(Item, item_id)
             if item is None:
+                progress.drop(item_id, deleted=True)
                 continue
             linked_length = 0
             position = 0
@@ -81,9 +161,11 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
             try:
                 for link in links:
                     if linked_length >= 16_000:
+                        progress.drop_links(item_id)
                         break
+                    progress.start(item_id)
                     response = fetch(link.url)
-                    progress(done=1)
+                    progress.finish(item_id)
                     if response is None:
                         continue
                     if not related_links(item.link, site_url, [EntryLink(response.url, link.text)], 1):
@@ -108,14 +190,16 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
                     except Exception as exc:
                         logger.warning("Context extraction skipped (%s)", type(exc).__name__)
                 if comments:
+                    progress.start(item_id)
                     page = fetch(item.link)
-                    progress(done=1)
+                    progress.finish(item_id)
                     if page is not None:
                         try:
                             def fetch_feed():
-                                progress(total=1)
+                                progress.add(item_id, item.comment_feed_url)
+                                progress.start(item_id)
                                 feed = fetch(item.comment_feed_url)
-                                progress(done=1)
+                                progress.finish(item_id)
                                 return feed.content if feed is not None else None
 
                             reply_texts = author_replies(
@@ -133,17 +217,18 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
                         except Exception as exc:
                             logger.warning("Comment extraction skipped (%s)", type(exc).__name__)
             except BudgetExhausted:
-                pass
+                progress.drop(item_id)
             if captured_replies:
                 session.add(ItemContext(
                     item_id=item.id, ref="A1", kind="author_replies", url=item.link,
                     title=f"Author replies ({len(captured_replies)})",
                     text="\n\n".join(captured_replies), position=position + 1,
                 ))
-                progress(done=1)
+                progress.replies(item_id)
             with factory() as check_session:
                 if check_session.get(Item, item_id) is None:
                     session.rollback()
+                    progress.drop(item_id, deleted=True)
                     continue
             session.flush()
             if item.contexts and item.summary is not None:

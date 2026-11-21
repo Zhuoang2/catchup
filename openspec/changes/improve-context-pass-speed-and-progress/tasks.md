@@ -178,7 +178,7 @@ Implementer notes:
 
 The context pass still reads one item after another in this group.
 
-- [ ] 4.1 Write these tests in `backend/tests/test_context_gather.py`, and watch them fail.
+- [x] 4.1 Write these tests in `backend/tests/test_context_gather.py`, and watch them fail.
 
   - **`test_reachable_reads` (parametrized).** Call `reachable_reads(urls, verdict, units)`. `verdict` is a dict lookup that returns `None` for a missing URL. A, B, and C are `https://a.example/`, `https://b.example/`, and `https://c.example/`.
 
@@ -234,7 +234,7 @@ The context pass still reads one item after another in this group.
 
     Run all four and watch them fail before 4.2.
 
-- [ ] 4.2 Implement `reachable_reads` and `ContextProgress` in `backend/src/catchup/context/gather.py`, as D3 describes, and use them in the existing one-item-at-a-time loop. They replace `progress()` and the `context_total` sum. Verify that the tests of 4.1, all of `test_context_gather.py`, and the full backend suite pass.
+- [x] 4.2 Implement `reachable_reads` and `ContextProgress` in `backend/src/catchup/context/gather.py`, as D3 describes, and use them in the existing one-item-at-a-time loop. They replace `progress()` and the `context_total` sum. Verify that the tests of 4.1, all of `test_context_gather.py`, and the full backend suite pass.
 
   **Mutations:**
   - **T1:** the initial total is the old sum of planned reads. Run the starts-at test.

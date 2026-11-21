@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head><title>Release: garden-tools 1.2</title><meta property="og:title" content="Release: garden-tools 1.2"></head>
+<body>
+<div id="smallhead"><h1><a href="https://garden.example/">Field Notes</a></h1> <a href="https://garden.example/newsletter">Newsletter</a></div>
+<div id="sponsored-banner" class="sponsor-scheme-sky"><div id="sponsored-banner-inner"><strong>Sponsored by:</strong> Example Seeds &mdash; Fresh seed packs delivered every month. <a href="https://ads.example/seeds">Read the offer</a> to see how it works.</div></div>
+<div id="wrapper"><div id="primary">
+<div class="entry entryPage">
+<div class="beat"><div class="beat-content">
+<div class="beat-row1"><a class="beat-label release" href="https://garden.example/elsewhere/release/">Release</a> <span class="beat-title"><a href="https://code.example/garden-tools/releases/1.2">garden-tools 1.2</a></span> <span class="beat-commit">&mdash; Small tools for tiny gardens</span></div>
+<div class="beat-note blogmark-body"><p>A bug fix release for <a href="https://code.example/garden-tools">garden-tools</a>, mainly to fix the watering calendar after the latest update of the <a href="https://weather.example/">weather service</a>.</p>
+<p>The service now returns rain totals in millimetres, which <a href="https://code.example/garden-tools/issues/42">broke the reminders</a> for gardeners who water by hand.</p>
+<p>Short version: in the old data the following query:</p>
+<pre><code>rain_total(week=46)
+</code></pre>
+<p>Returns this:</p>
+<pre><code>{"rain": 0.4}
+</code></pre>
+<p>But in the new data the same query returns this:</p>
+<pre><code>{"rain": 10.2}
+</code></pre>
+<p>According <a href="https://weather.example/notes/units">to the weather service</a>:</p>
+<blockquote>
+<p>That was a units fix. Per the documentation, totals are in millimetres. Hence the new behavior is correct and the old one was a bug.</p>
+</blockquote>
+<p>The workaround looks like this:</p>
+<pre><code>rain_total(week=46, unit="in")
+</code></pre></div>
+</div></div>
+<div class="entryFooter">Posted <a href="https://garden.example/2026/Nov/16/">16th November 2026</a></div>
+</div>
+<div class="recent-articles"><h2>Recent articles</h2><ul class="bullets"><li><a href="https://garden.example/2026/Nov/9/beans/">Growing beans on a balcony</a> - 9th November 2026</li><li><a href="https://garden.example/2026/Nov/3/soil/">Testing soil at home</a> - 3rd November 2026</li></ul></div>
+</div>
+<div id="secondary"><div class="metabox">
+<p class="this-is">This is a beat by the Field Notes team, posted on <a href="https://garden.example/2026/Nov/16/">16th November 2026</a>.</p>
+<a class="item-tag" href="https://garden.example/tags/tools/">tools <span>41</span></a> <a class="item-tag" href="https://garden.example/tags/water/">water <span>17</span></a>
+<section><h3>Monthly briefing</h3><p>Sponsor me for <strong>$10/month</strong> and get a curated email digest of the month's most useful garden tools.</p><p>Pay me to send you less!</p><a href="https://sponsors.example/field-notes">Sponsor &amp; subscribe</a></section>
+</div></div>
+</div>
+<div id="ft"><ul><li><a href="https://garden.example/about/">About</a></li><li><a href="https://garden.example/2025/">2025</a></li><li><a href="https://garden.example/2026/">2026</a></li></ul></div>
+</body>
+</html>

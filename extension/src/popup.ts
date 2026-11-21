@@ -1,6 +1,5 @@
 import { DEFAULT_SERVER, validServer } from './options'
-import { extractGeneric, type CapturedPage } from './extract/generic'
-import { extractReadable } from './extract/readable'
+import { extractPage, type CapturedPage } from './extract/page'
 import { extractX } from './extract/x'
 
 type Tab = { id?: number; url?: string; title?: string }
@@ -210,25 +209,18 @@ export async function initPopup(): Promise<void> {
     statusText.textContent = ''
     try {
       if (tab.id === undefined) throw new Error('unreadable')
-      let page: unknown
+      let page: unknown = null
       if (xPost) {
         const injections = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: extractX })
         if (!injections.length || !('result' in injections[0])) throw new Error('unreadable')
         page = injections[0].result
-      } else {
-        try {
-          await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['readability.js'] })
-          const injections = await chrome.scripting.executeScript({
-            target: { tabId: tab.id }, func: extractReadable,
-          })
-          page = injections[0]?.result ?? null
-        } catch {
-          page = null
-        }
       }
       if (page === null) {
+        try {
+          await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['readability.js'] })
+        } catch { /* The extractor can still read the main region without Readability. */ }
         const injections = await chrome.scripting.executeScript({
-          target: { tabId: tab.id }, func: extractGeneric,
+          target: { tabId: tab.id }, func: extractPage,
         })
         page = injections[0]?.result
       }

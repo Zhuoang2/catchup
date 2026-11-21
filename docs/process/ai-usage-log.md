@@ -2634,3 +2634,43 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - **Problems / adjustment:**
   - **A JavaScript snippet for the browser check.** It first had to be exported from the TypeScript source with types stripped. Joining its lines into one would have broken automatic semicolon insertion, so it was pasted with its line breaks.
   - **The browser pane's width.** When hidden, the pane first ran at width 0, so the page used its mobile layout. The desktop check was repeated at an emulated 1280 px width, and the emulation was reset afterwards.
+
+## 2026-11-20 — `improve-context-pass-speed-and-progress` (#64): plan (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
+
+- **Prompts** (translated from Chinese):
+  - After #62 merged, the user chose #64: "Yes, start writing the lean proposal for #64."
+  - After reviewing the plan, the user approved it: "Yes, commit the plan, then start running Droid."
+- **Outcome:**
+  - **Checked on `main` `64973c0`.** Claude traced the five problems in #64 and its comment of 2026-11-02 to lines in the code:
+    - the total sums every candidate link, post page, and captured reply;
+    - pages are read one item and one request at a time, and `HostSpacer` holds one lock for all hosts while it sleeps;
+    - a followed source is saved as "No new items" and rewritten only after the context pass;
+    - `sources_total` is counted at each request;
+    - no run records stage durations, and the app's INFO log lines reach no handler.
+  - **Probes** with the backend's locked environment:
+    - P1: trafilatura 2.3.0 and lxml 6.1.3 gave identical output on 200 invented pages, sequentially and with 4 and 16 threads;
+    - P2: respx 0.23.1 counted 40 requests from 4 threads, with a measured peak of 4 in flight;
+    - P3: an unlocked budget list overshot its limit in 163 of 200 trials.
+  - **Plan.**
+    - D1: a `stage_seconds` JSON column;
+    - D2: a stored `sources_total`, with migration `0008_run_progress`;
+    - D3: a total of the pages read plus those the remaining limit can still pay for, with robots.txt counted;
+    - D4: up to 4 items at once, each in its own thread and session, with locks per host, per origin, and for the budget;
+    - D5: "New items" for held items as soon as the check is saved;
+    - D6: the README.
+
+    Seven task groups, mutations D1, D2, N1, N2, M1, H1–H4, S1, S2, R1, R2, B1, T1–T7, W1–W3, Doc, and F1. Group 7 tells Droid not to run Docker. D-035 and its rejected alternatives.
+  - **D-023 fresh-eyes check.** A sub-agent that saw only the plan and the code reported 14 findings, with probes in a scratch copy (`monkeypatch` with `raising=False`, `shutdown(cancel_futures=True)`, reassigning a JSON column, the Alembic batch backfill, and a 4-worker prototype that peaked at 4 in 25 of 25 trials). Claude checked each one before changing the plan; 13 were confirmed and applied to `tasks.md`:
+    - four `test_db.py` checks pin the head revision `0007`, and the migration file list needs `0008`;
+    - two more existing tests pin the old total;
+    - the autouse fixture turns `HostSpacer`'s sleep into a no-op, so the spacing tests pass a real sleep;
+    - the held-item tests use `stub_outcomes`, because `stub_collection` does not set the source's status;
+    - the lock wording in the concurrency test was ambiguous;
+    - several planned red tests pass today and are now marked as guards;
+    - smaller items: imports inside tests, an `entered` event, the cases for T2, reading `CONTEXT_WORKERS` at run time, and the one-worker tests named.
+
+    The 14th (no planning entry in this log yet) was not a defect: this entry is written when the plan is committed.
+- **Problems / adjustment:**
+  - **Claude's first draft named the wrong test file** in the proposal's Impact (`test_digest_stages.py`). It was replaced by `test_db.py` and `test_readme_context.py`.
+  - **Two lines of the first design draft were unclear:** a question left in the Risks section, and the browser check's wording. They were rewritten before the fresh-eyes check.
+  - **Several tests that Claude first planned as red already pass on `main`.** Claude found some of them, and the fresh-eyes check found the rest. They stay in the plan as guards for the new code.

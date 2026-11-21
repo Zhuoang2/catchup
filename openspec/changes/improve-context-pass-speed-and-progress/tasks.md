@@ -32,7 +32,7 @@ Implementer notes:
 
 ## 1. Run record: stage durations and a fixed source count (D1, D2)
 
-- [ ] 1.1 Write these tests and watch them fail. The model and migration tests fail on the missing columns, the API tests on the missing `stage_seconds` key or on the live count.
+- [x] 1.1 Write these tests and watch them fail. The model and migration tests fail on the missing columns, the API tests on the missing `stage_seconds` key or on the live count.
 
   **In `backend/tests/test_db.py`,** follow `test_x_migration_upgrades_0006_and_preserves_other_sources_on_downgrade`:
   - **`test_run_progress_migration_fills_sources_total_and_downgrades`.**
@@ -69,7 +69,7 @@ Implementer notes:
 
   The existing `sources_total` assertions in `test_digest_runner.py` (lines 199, 305, 443, 465, 515, and 1151) must keep passing unchanged.
 
-- [ ] 1.2 Implement D1 and D2:
+- [x] 1.2 Implement D1 and D2:
   - `DigestRun.stage_seconds` and `DigestRun.sources_total` in `backend/src/catchup/models.py`;
   - migration `backend/src/catchup/migrations/versions/0008_run_progress.py`, with `revision = "0008_run_progress"` and `down_revision = "0007_x_accounts"`;
   - in `backend/src/catchup/digest/runner.py`: the `monotonic` import, the stage helper, and the two `sources_total` writes;

@@ -6,6 +6,7 @@ from urllib.parse import urlsplit
 from collections import Counter
 from contextlib import closing, nullcontext
 from datetime import timedelta
+from time import monotonic
 
 from cryptography.fernet import InvalidToken
 from fastapi import FastAPI
@@ -171,7 +172,10 @@ def start_run(app: FastAPI, *, background: bool = True) -> DigestRun:
             raise AppError("run_active", "A digest run is already active.", 409, active_run_id=current.id)
         if session.get(ModelConfig, 1) is None:
             raise AppError("model_not_configured", "Set up a model in Settings before generating.", 409)
-        run = DigestRun(status="queued", started_at=utc_now())
+        run = DigestRun(
+            status="queued", started_at=utc_now(),
+            sources_total=session.scalar(select(func.count(Source.id)).where(Source.kind != "capture")) or 0,
+        )
         session.add(run)
         session.commit()
         if background:
@@ -191,6 +195,14 @@ def _stage(factory, run_id: int, status: str, *, total: int | None = None) -> No
 def _write_usage(run: DigestRun, usage: tuple[int, int] | None) -> None:
     if usage is not None:
         run.prompt_tokens, run.completion_tokens = usage
+
+
+def _stage_seconds(factory, run_id: int, name: str, started: float) -> None:
+    seconds = round(monotonic() - started, 1)
+    with factory() as session:
+        run = session.get(DigestRun, run_id)
+        run.stage_seconds = {**(run.stage_seconds or {}), name: seconds}
+        session.commit()
 
 
 def _fail(factory, run_id: int, kind: str, message: str,
@@ -237,6 +249,9 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                 except (InvalidToken, AppError):
                     x_token_error = "Check the X token and instance secret"
             context_window = config.context_window
+            run = session.get(DigestRun, run_id)
+            run.sources_total = len(source_ids) + len(x_source_ids)
+            session.commit()
         if context_window is None:
             try:
                 with closing(app.state.model_client_factory(base_url, key, model_id)) as provider:
@@ -262,6 +277,7 @@ def run_digest(app: FastAPI, run_id: int) -> None:
             check_source(session, source, run_id, app.state.settings,
                          spacer=spacer, transcripts=transcripts)
 
+        started = monotonic()
         for source_id in source_ids:
             check_one_source(factory, run_id, source_id, check_feed)
         budget = XReadBudget(remaining=app.state.settings.x_reads_per_run)
@@ -293,10 +309,15 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                 )
             )
             session.commit()
+        _stage_seconds(factory, run_id, "checks", started)
+        started = monotonic()
         caption_pass(factory, transcripts)
+        _stage_seconds(factory, run_id, "captions", started)
         with factory() as session:
             cutoff = session.scalar(select(func.max(Item.id))) or 0
+        started = monotonic()
         gather_context(factory, run_id, app.state.settings, spacer)
+        _stage_seconds(factory, run_id, "context", started)
 
         with factory() as session:
             rows = session.execute(
@@ -385,8 +406,10 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                                if context_window else 60_000))
             with closing(app.state.model_client_factory(base_url, key, model_id)) as client:
                 try:
+                    started = monotonic()
                     summarize_items(client, inputs, language, call_budget, record,
                                     long_item_chars=app.state.settings.long_item_chars)
+                    _stage_seconds(factory, run_id, "summaries", started)
                     _stage(factory, run_id, "grouping")
                     with factory() as session:
                         group_inputs = [
@@ -395,8 +418,10 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                                 select(Item).where(Item.id.in_([entry.id for entry in inputs])).order_by(Item.id)
                             )
                         ]
+                    started = monotonic()
                     topics = group_items(client, group_inputs, language, app.state.settings.grouping_batch_chars,
                                          context_window)
+                    _stage_seconds(factory, run_id, "grouping", started)
                 finally:
                     usage = getattr(client, "usage_totals", lambda: None)()
 
@@ -524,7 +549,8 @@ def run_detail(session, run: DigestRun) -> dict:
         "digest_item_count": digest.item_count if digest is not None else None,
         "digest_update_count": update_count,
         "started_at": run.started_at, "finished_at": run.finished_at,
-        "sources_total": session.scalar(select(func.count(Source.id)).where(Source.kind != "capture")) or 0,
+        "sources_total": run.sources_total,
+        "stage_seconds": run.stage_seconds or {},
         "source_checks": [
             {"source_id": check.source_id, "source_title": title, "status": check.status,
              "possible_gap": check.possible_gap, "error": check.error,

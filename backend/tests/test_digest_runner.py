@@ -122,6 +122,112 @@ def execute(client):
     return client.get(f"/api/digest-runs/{run.id}").json()
 
 
+def test_stage_durations_are_saved_for_each_stage(environment, monkeypatch):
+    from catchup.digest import runner
+
+    seed(environment)
+    clock = [100.0]
+    monkeypatch.setattr(runner, "monotonic", lambda: clock[0], raising=False)
+
+    def checked():
+        clock[0] += 2.0
+
+    stub_collection(monkeypatch, on_check=checked)
+    for name, seconds in (
+        ("caption_pass", 0.5), ("gather_context", 7.0),
+        ("summarize_items", 3.0), ("group_items", 1.0),
+    ):
+        original = getattr(runner, name)
+
+        def timed(*args, _original=original, _seconds=seconds, **kwargs):
+            result = _original(*args, **kwargs)
+            clock[0] += _seconds
+            return result
+
+        monkeypatch.setattr(runner, name, timed)
+    result = execute(environment)
+    assert result["stage_seconds"] == {
+        "checks": 2.0, "captions": 0.5, "context": 7.0, "summaries": 3.0, "grouping": 1.0,
+    }
+
+
+def test_failed_run_keeps_durations_of_finished_stages(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    environment.app.state.model_client_factory = lambda *_: FakeModel([AuthFailed("bad key")])
+    result = execute(environment)
+    assert result["status"] == "failed"
+    assert set(result["stage_seconds"]) == {"checks", "captions", "context"}
+
+
+def test_run_with_nothing_to_summarize_records_three_stages(environment, monkeypatch):
+    seed(environment, count=0)
+    stub_collection(monkeypatch)
+    result = execute(environment)
+    assert result["status"] == "no_new_content"
+    assert set(result["stage_seconds"]) == {"checks", "captions", "context"}
+
+
+def test_sources_total_stays_fixed_when_a_source_is_added_during_the_run(environment, monkeypatch):
+    seed(environment, sources=2)
+    entered, release = threading.Event(), threading.Event()
+    finished = threading.Event()
+    from catchup.digest import runner
+    original = runner.run_digest
+
+    def blocked():
+        if not entered.is_set():
+            entered.set()
+            assert release.wait(timeout=5)
+
+    def signaled(app, run_id):
+        try:
+            original(app, run_id)
+        finally:
+            finished.set()
+
+    stub_collection(monkeypatch, on_check=blocked)
+    monkeypatch.setattr(runner, "run_digest", signaled)
+    response = environment.post("/api/digest-runs")
+    assert response.status_code == 202
+    run_id = response.json()["id"]
+    try:
+        assert entered.wait(timeout=5)
+        with environment.app.state.session_factory() as session:
+            session.add(Source(title="Added", site_url="https://added.example",
+                               feed_url="https://added.example/feed", input_url="https://added.example"))
+            session.commit()
+        assert environment.get("/api/digest-runs/active").json()["sources_total"] == 2
+    finally:
+        release.set()
+        assert finished.wait(timeout=5)
+    result = environment.get(f"/api/digest-runs/{run_id}").json()
+    assert result["sources_total"] == 2
+    assert len(result["source_checks"]) == 2
+
+
+def test_source_added_before_the_run_thread_starts_is_counted(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    run = start_run(environment.app, background=False)
+    with environment.app.state.session_factory() as session:
+        session.add(Source(title="Added", site_url="https://added.example",
+                           feed_url="https://added.example/feed", input_url="https://added.example"))
+        session.commit()
+    run_digest(environment.app, run.id)
+    result = environment.get(f"/api/digest-runs/{run.id}").json()
+    assert result["sources_total"] == 2
+    assert len(result["source_checks"]) == 2
+
+
+def test_sources_total_counts_x_accounts(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    seed_x_accounts(environment, ("a",))
+    result = execute(environment)
+    assert result["sources_total"] == 2
+
+
 def saved_capture(client, *, site_name="X · Name", image=False):
     token = client.post("/api/settings/extension-tokens", json={"name": "Chrome"}).json()["token"]
     response = client.post("/api/captures", json={

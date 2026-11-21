@@ -11,6 +11,7 @@ Docker and browser/benchmark review checks are reserved for Claude Code.
 | Tasks | Before implementation | After implementation |
 | --- | --- | --- |
 | 1.1–1.2 | 5 failed, 2 passed: missing `sources_total` column, three missing `stage_seconds` keys, live source count 3 instead of 2. Before-thread and X-count guards passed as planned. | Full backend: 1041 passed (32.44 s). |
+| 2.1–2.2 | 2 failed (feed and X both observed `no_new_items`); 3 guards passed. | Full backend: 1046 passed (35.71 s). |
 
 ### Named mutations
 
@@ -25,3 +26,7 @@ Exit 1 below means the named assertion killed the mutation, not a collection err
 | N1 | sources_total_stays_fixed_when_a_source_is_added_during_the_run | Killed, 1 failed: 3 instead of 2. |
 | N2 | source_added_before_the_run_thread_starts_is_counted | Killed, 1 failed: 1 instead of 2. |
 | M1 | run_progress_migration_fills_sources_total_and_downgrades | Killed, 1 failed: historical count 0 instead of 2. |
+| H1 | feed_with_held_items_shows_new_items_when_checked | Killed, 1 failed: no_new_items observed. |
+| H2 | x_account_with_held_posts_shows_new_items_when_checked | Killed, 1 failed: no_new_items observed. |
+| H3 | waiting_podcast_episode_keeps_no_new_items_when_checked | Killed, 1 failed: waiting episode upgraded to new_items. |
+| H4 | failed_check_with_held_items_stays_failed | Killed, 1 failed: failed check upgraded to new_items. |

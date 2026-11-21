@@ -89,7 +89,7 @@ Implementer notes:
 
 ## 2. Held items show "New items" when their source is checked (D5)
 
-- [ ] 2.1 Write these tests in `backend/tests/test_digest_runner.py`. Watch the first two fail with `no_new_items` seen during the run. The other three pass today, and guard H3 and H4.
+- [x] 2.1 Write these tests in `backend/tests/test_digest_runner.py`. Watch the first two fail with `no_new_items` seen during the run. The other three pass today, and guard H3 and H4.
 
   Each test wraps `catchup.digest.runner.caption_pass`, which runs right after the checks. Before calling the original, the wrapper records `(check.status, source.last_check_status)` for every `SourceCheck` of the run, joined with its source, in source-id order.
   `stub_collection` saves a check row but leaves `Source.last_check_status` unset. So the feed, podcast, and no-pending tests use `stub_outcomes(monkeypatch, {"Source 0": "no_new_items"})`, which sets both.
@@ -106,7 +106,7 @@ Implementer notes:
   - **`test_source_without_pending_items_keeps_no_new_items`.** `seed(environment, count=0)` and `stub_outcomes(monkeypatch, {"Source 0": "no_new_items"})`. The wrapper records `[("no_new_items", "no_new_items")]`.
   - **`test_failed_check_with_held_items_stays_failed`.** `seed(environment)` and `stub_outcomes(monkeypatch, {"Source 0": "failed"})`. The wrapper records `[("failed", "failed")]`.
 
-- [ ] 2.2 Implement `_show_held_items` in `backend/src/catchup/digest/runner.py`, and call it after each `check_one_source` call in both loops. Verify that the tests of 2.1 and the full backend suite pass.
+- [x] 2.2 Implement `_show_held_items` in `backend/src/catchup/digest/runner.py`, and call it after each `check_one_source` call in both loops. Verify that the tests of 2.1 and the full backend suite pass.
 
   **Mutations:**
   - **H1:** no call in the feed loop. Run the feed test.

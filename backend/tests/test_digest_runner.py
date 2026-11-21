@@ -228,6 +228,80 @@ def test_sources_total_counts_x_accounts(environment, monkeypatch):
     assert result["sources_total"] == 2
 
 
+@pytest.fixture
+def outcomes_before_captions(environment, monkeypatch):
+    from catchup.digest import runner
+
+    observed = []
+    original = runner.caption_pass
+
+    def observe(factory, context):
+        with factory() as session:
+            observed.extend(session.execute(
+                select(SourceCheck.status, Source.last_check_status)
+                .join(Source, SourceCheck.source_id == Source.id)
+                .where(SourceCheck.run_id == session.scalar(select(DigestRun.id).order_by(DigestRun.id.desc())))
+                .order_by(Source.id)
+            ).all())
+        return original(factory, context)
+
+    monkeypatch.setattr(runner, "caption_pass", observe)
+    return observed
+
+
+def test_feed_with_held_items_shows_new_items_when_checked(environment, monkeypatch, outcomes_before_captions):
+    seed(environment)
+    stub_outcomes(monkeypatch, {"Source 0": "no_new_items"})
+    result = execute(environment)
+    assert outcomes_before_captions == [("new_items", "new_items")]
+    assert result["source_checks"][0]["status"] == "new_items"
+
+
+def test_x_account_with_held_posts_shows_new_items_when_checked(environment, outcomes_before_captions):
+    seed(environment, sources=0)
+    seed_x_accounts(environment, ("a",))
+    with environment.app.state.session_factory() as session:
+        source = session.scalar(select(Source))
+        session.add(Item(source_id=source.id, identity_key="x:post:900",
+                         link="https://x.com/a/status/900", title="Held post",
+                         content_text="Held post", content_origin="feed", state="pending"))
+        session.commit()
+    assert environment.put("/api/settings/x", json={"token": "test-" + "x" * 40}).status_code == 200
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://api.x.com/2/users/100/tweets").respond(200, json={"meta": {"result_count": 0}})
+        execute(environment)
+    assert outcomes_before_captions == [("new_items", "new_items")]
+
+
+def test_waiting_podcast_episode_keeps_no_new_items_when_checked(
+    environment, monkeypatch, outcomes_before_captions,
+):
+    seed(environment)
+    with environment.app.state.session_factory() as session:
+        session.scalar(select(Source)).kind = "podcast"
+        item = session.scalar(select(Item))
+        item.transcript_status = "waiting"
+        item.discovered_at = datetime.now(timezone.utc)
+        session.commit()
+    stub_outcomes(monkeypatch, {"Source 0": "no_new_items"})
+    execute(environment)
+    assert outcomes_before_captions == [("no_new_items", "no_new_items")]
+
+
+def test_source_without_pending_items_keeps_no_new_items(environment, monkeypatch, outcomes_before_captions):
+    seed(environment, count=0)
+    stub_outcomes(monkeypatch, {"Source 0": "no_new_items"})
+    execute(environment)
+    assert outcomes_before_captions == [("no_new_items", "no_new_items")]
+
+
+def test_failed_check_with_held_items_stays_failed(environment, monkeypatch, outcomes_before_captions):
+    seed(environment)
+    stub_outcomes(monkeypatch, {"Source 0": "failed"})
+    execute(environment)
+    assert outcomes_before_captions == [("failed", "failed")]
+
+
 def saved_capture(client, *, site_name="X · Name", image=False):
     token = client.post("/api/settings/extension-tokens", json={"name": "Chrome"}).json()["token"]
     response = client.post("/api/captures", json={

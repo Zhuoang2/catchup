@@ -151,6 +151,27 @@ def check_one_source(factory, run_id: int, source_id: int, check) -> None:
             session.commit()
 
 
+def _show_held_items(factory, run_id: int, source_id: int, settings) -> None:
+    with factory() as session:
+        check = session.scalar(
+            select(SourceCheck).where(SourceCheck.run_id == run_id, SourceCheck.source_id == source_id)
+            .order_by(SourceCheck.id.desc()).limit(1)
+        )
+        if check is None or check.status != "no_new_items":
+            return
+        rows = session.execute(
+            select(Item, Source).join(Source, Item.source_id == Source.id)
+            .where(Item.source_id == source_id, Item.state == "pending")
+        ).all()
+        ready, updates, _, _ = select_pending(
+            rows, utc_now(), settings.transcript_wait_days, settings.caption_wait_hours,
+        )
+        if ready or updates:
+            check.status = "new_items"
+            session.get(Source, source_id).last_check_status = "new_items"
+            session.commit()
+
+
 def active_run(session) -> DigestRun | None:
     return session.scalar(select(DigestRun).where(DigestRun.status.in_(ACTIVE)).order_by(DigestRun.id).limit(1))
 
@@ -280,6 +301,7 @@ def run_digest(app: FastAPI, run_id: int) -> None:
         started = monotonic()
         for source_id in source_ids:
             check_one_source(factory, run_id, source_id, check_feed)
+            _show_held_items(factory, run_id, source_id, app.state.settings)
         budget = XReadBudget(remaining=app.state.settings.x_reads_per_run)
         with closing(XClient(x_token)) if x_token is not None else nullcontext(None) as x_client:
             def check_x(session, source) -> None:
@@ -298,6 +320,7 @@ def run_digest(app: FastAPI, run_id: int) -> None:
 
             for source_id in x_source_ids:
                 check_one_source(factory, run_id, source_id, check_x)
+                _show_held_items(factory, run_id, source_id, app.state.settings)
         with factory() as session:
             run = session.get(DigestRun, run_id)
             run.x_reads = budget.reads

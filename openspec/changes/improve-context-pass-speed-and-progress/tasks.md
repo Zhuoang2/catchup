@@ -218,6 +218,14 @@ The context pass still reads one item after another in this group.
     - The recorded value is `(1, 2)`.
 
     This passes today. It pins that both numbers are committed together, before the next request.
+  - **`test_read_cut_by_the_limit_leaves_the_total_after_the_next_item`.** Added by Claude Code after Droid's first run stopped at T4. In the four changed tests below, no progress commit follows the read that the limit cuts, so they cannot see that read staying in progress.
+    - Set `catchup.context.gather.CONTEXT_WORKERS` to 1 with `monkeypatch.setattr(…, raising=False)`.
+    - `seed(environment, count=2, sources=2)`, `stub_collection`, and `context_fetches_per_run=3`.
+    - Item 1 links to `https://a.example/1` and `https://b.example/1`. Item 2 links to `https://c.example/1`.
+    - robots.txt answers 404 on `a.example` and `b.example`. `https://a.example/1` answers `html("A", "Linked text " * 40)`.
+    - The result's status is `"succeeded"`, its `(context_total, context_done)` is `(1, 1)`, and neither `https://b.example/1` nor any `c.example` route was called.
+
+    It fails before 4.2. With 4.2's code it passes, and under T4 it fails with `(2, 1)`.
   - **Change exactly these existing expectations,** because they pin the old total. No other assertion changes:
     - in `test_refused_links_count_as_read_once_budget_is_used`, `(3, 2)` becomes `(2, 2)`, and `(1, 1)` stays;
     - in `test_failed_request_on_last_budget_unit_counts_as_read`, `(2, 1)` becomes `(1, 1)`;
@@ -232,7 +240,7 @@ The context pass still reads one item after another in this group.
   - **T1:** the initial total is the old sum of planned reads. Run the starts-at test.
   - **T2:** `reachable_reads` charges 1 unit for an origin not yet asked. Run cases a and e. Case f guards the origin normalization, not T2.
   - **T3:** the cap does not drop the remaining links. Run the cap test.
-  - **T4:** `BudgetExhausted` does not drop the item's reads. Run the four changed tests.
+  - **T4:** `BudgetExhausted` does not drop the item's reads. Run the four changed tests and `test_read_cut_by_the_limit_leaves_the_total_after_the_next_item`. The four changed tests pass under T4 (recorded); the new test must fail.
   - **T5:** a read that robots.txt is known to refuse costs 1 unit. Run case d.
   - **T6:** `reachable_reads` skips an unaffordable read, and goes on with the next. Run case e.
   - **T7:** a deleted item's reads are not dropped. Run the deleted-item test.

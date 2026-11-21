@@ -105,6 +105,7 @@ See `proposal.md`, "Why". Facts on main `64973c0` that the decisions below depen
   - when `verdict(url)` is `False`, robots.txt is known to refuse the URL: the read counts, and costs no unit;
   - when `verdict(url)` is `True`, or the origin was already charged in this walk: the read costs 1 unit;
   - otherwise it costs 2 units, for robots.txt and the page, and the origin is marked charged;
+  - an address that `safe_fetch` refuses before it takes a unit (not `http` or `https`, no host, a user name or password, or a bad port) counts, and costs no unit. `origin(url)` raises `ValueError` for it. Added in fix round 1, after the review found that such an address failed the run;
   - the walk stops at the first read whose cost exceeds the units left. When the limit runs out, the run stops making requests (`BudgetExhausted`), so later reads are not reached either.
 
   It returns the number of reads counted.
@@ -147,7 +148,7 @@ See `proposal.md`, "Why". Facts on main `64973c0` that the decisions below depen
 
 - **A helper.** `_show_held_items(factory, run_id, source_id, settings)` in `runner.py` runs after each `check_one_source` call, in both the feed loop and the X loop.
 - **What it does.** In one session, it reads that source's latest `SourceCheck` for this run. When the status is `no_new_items`, it loads the source's pending items with their source, and calls `select_pending(rows, utc_now(), settings.transcript_wait_days, settings.caption_wait_hours)`. If that returns any summary or creator update, the helper sets the check's status and the source's `last_check_status` to `new_items`, and commits. `new_count` is left alone. The check-rewrite step after the context pass stays the final word, and sets both.
-- **Missing rows.** A source deleted during its check has no rows, and the helper does nothing.
+- **Missing rows.** A source deleted during its check has no rows, and the helper does nothing. The helper writes with `update()` statements, as the check-rewrite step does, so a source deleted after it read its rows is not an error either (fix round 1).
 - **YouTube.** New videos are `to_fetch` until the caption pass, so `select_pending` does not count them yet. Such a source keeps its check's own outcome until the rewrite step, as today.
 - **Alternative: change `check_source` and `check_x_account`.** Rejected: both would need `select_pending` from `runner.py`, which imports them. That is a cycle, and the rule would live in two places.
 

@@ -105,6 +105,9 @@ Group 4 is complete; the historical stop record above is retained.
 
 - `test_budget_leaves_unreached_items_ungathered_and_retries_do_not_refetch`:
   the pool returned `["gathered", "none"]` rather than `["gathered", None]`.
+  At review, the spec sub-agent ran it 10 times without the pin: 5 runs failed that way,
+  and 5 failed with `(1, 0, 1)` instead of `(1, 1, 0)`, because item 2 took the page unit
+  and item 1 got none. Either way the pin is needed.
   The test requires item 2 not to start before the last budget unit is taken.
   Its only change was `monkeypatch.setattr("catchup.context.gather.CONTEXT_WORKERS", 1)`.
 - `test_second_item_keeps_partial_context_in_successful_digest` passed unchanged
@@ -281,3 +284,56 @@ tasks.md has checkbox-only edits. Docker smoke, browser/live checks and benchmar
 were not run, as instructed, and remain for Claude Code review. The extension
 was out of scope and not run. No Docker, port 8800, container/volume operation,
 push, merge, tag or PR action occurred.
+
+## Review by Claude Code
+
+Reviewed in worktree `review64` on the branch. Droid's runs started at `985d4ed` (groups 1–7) and `cd96580` (fix round 1).
+
+### Checks on `fc86f12`
+
+| Check | Result |
+| --- | --- |
+| Backend `uv run --offline pytest` | 1082 passed |
+| Five concurrency files, five runs in a row | 254 passed each time |
+| Frontend `npm test -- --run`, `npm run build` | 314 passed; build passed |
+| Extension `npm test -- --run`, `npm run build` | 168 passed; build passed |
+| `DO_NOT_TRACK=1 openspec validate improve-context-pass-speed-and-progress --strict` | valid |
+| `git diff --check 985d4ed HEAD` | clean |
+| `scripts/docker-smoke.sh catchup:fix64-local` (built from `54ac5be`, then from `fc86f12`) | 12 of 12 both times |
+
+### Benchmark (offline, main `c67703a` against the branch at `54ac5be`)
+
+Same invented workload through each tree's `gather_context`: 50 pending items, 178 related links on 85 hosts, a per-run limit of 60, and a latency of 0.3–2.0 s per host. A local threaded server answered, and DNS and the public-address check were patched in the benchmark script only (not committed).
+
+| | main | branch |
+| --- | --- | --- |
+| Context pass | 75.6 s | 19.2 s |
+| End of the pass, read / total | 32 / 178 | 31 / 31 |
+| Total during the pass | 178 throughout | 32–33 |
+| Requests (robots.txt + pages) | 60 (28 + 32) | 60 (29 + 31) |
+| Requests in flight at most | 1 | 4 |
+| Shortest gap between two requests to one host | 1.0 s | 1.003 s |
+| Items gathered / marked `none` | 9 / 0 | 10 / 1 |
+
+The one `none` item on the branch is a boundary item that started while the limit was nearly used up, as design.md Risks accepts.
+
+### Browser check
+
+A scratch container from `catchup:fix64-local` ran on its own volume and port 8864. After startup, Claude wrote an active run into its database: status `collecting`, `sources_total` 3, two source checks, and linked pages 7 of 20. The run bar in the browser pane read "Linked pages read: 7 of 20". The container and volume were removed afterwards.
+
+### Findings
+
+- **`/code-review` (high) on `985d4ed..54ac5be`:** one finding, confirmed (a). `reachable_reads` called `origin()` on every unstarted read. `origin()` raised on an address that `safe_fetch` refuses before it takes a unit (bad port, no host, non-HTTP with a port), so one such link, post page, or comment feed address failed the run. Claude reproduced it end to end on the branch (4 of 4 failed) and on `main` (4 of 4 succeeded). Fixed in fix round 1.
+- **Spec sub-agent** (independent, detached worktree; it re-ran every named mutation, and all matched this report, with B1 surviving as planned):
+  1. The same `origin()` defect, with one more case: a post page with a bad port. Confirmed; fixed in fix round 1.
+  2. A source deleted after `_show_held_items` read its rows and before it committed failed the run with `StaleDataError`. Confirmed (a) by a probe that deletes the source on the first `select_pending` call; fixed in fix round 1.
+  3. While several reads are in progress, each one counts as read in progress while its units are still in the budget, so the total can briefly exceed what the run can still read (for example "3 of 6" when at most 4 pages could be read). The pass still ends with read equal to total. Confirmed; D-036 accepts that the total moves while several reads are in progress, but the spec's "MUST" and design.md's "Exactness" line say more. Left to the user's decision.
+  4. The pinned test's failure was described in one form only. Confirmed (c); corrected above.
+  5. No test that cannot fail was found.
+- **Fix round 1 (group 8):** planned by Claude Code with the tests tried in a scratch copy (12 failed on `54ac5be`). A fresh sub-agent that saw only the code and group 8 confirmed every red, green, and mutation, and found four wording errors, which `cd96580` fixed. Droid then implemented it in `fc86f12`. Claude re-ran O1–O4 in an export of the branch: O1 failed 7 tests, O2 and O3 failed cases h and i, and O4 failed the deletion test. The restored files matched the branch.
+- **`/code-review` (high) on `cd96580..fc86f12`:** one nit, recorded and not fixed. An address on an X host is also refused before a unit is taken, but `origin()` accepts it, so it costs 2 units in the total until the next commit corrects it. Body links to X hosts are already dropped by `related_links`, so only a feed post page or comment feed on X is affected, and the pass still ends with read equal to total.
+
+### Not fixed
+
+- B1 survives as planned. The budget lock's race window is too small to kill by a test; probe P3 and review cover it.
+- The X-host nit above.

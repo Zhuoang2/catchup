@@ -2717,7 +2717,9 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 
 ## 2026-11-20 — `improve-context-pass-speed-and-progress` (#64): review (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
 
-- **Prompts:** no new user prompt. The plan approval ("Yes, commit the plan, then start running Droid", translated from Chinese) covered the Droid runs, the review, and the fix round.
+- **Prompts** (translated from Chinese):
+  - The plan approval ("Yes, commit the plan, then start running Droid") covered the Droid runs, the review, and the fix round.
+  - Claude's merge-ready report asked: "Handle item 1 as recommended, then approve the merge and finish by the list above?" The user replied: "OK." Item 1 was the wording fix for the total while several items are read at the same time.
 - **Outcome:**
   - **Before Droid.** `main` had moved to `c67703a`: PR #96 took D-035. Claude merged `main` into the branch and renumbered this change's decision to D-036.
   - **Droid's stop at T4.** Claude checked Droid's first hypothesis in a scratch copy: a new test passed on Droid's code and failed with `(2, 1)` under T4. Claude added it to task 4.1 (`ae04f15`), and resumed the session.

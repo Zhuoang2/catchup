@@ -111,9 +111,9 @@ See `proposal.md`, "Why". Facts on main `64973c0` that the decisions below depen
   It returns the number of reads counted.
 - **The initial total.** `ContextProgress` computes it on the runner thread, and commits it before the first read. It replaces `run.context_total = sum(...)` (`gather.py:46-49`).
 - **`RobotsCache.verdict(url)`** returns `None` while the URL's origin has no stored rule. Otherwise it returns the stored bool, or `can_fetch("CatchUp", url)`. It never makes a request. The origin key moves into a module-level `origin(url)` function in `robots.py`. `allowed` and `verdict` both use it, and the walk uses it for "charged".
-- **Exactness.** The total is exact while every robots.txt allows the pages and no page redirects. Otherwise, the next operation corrects it:
+- **Exactness.** With one item at a time, the total is exact while every robots.txt allows the pages and no page redirects. Otherwise, the next operation corrects it:
   - a redirect hop and a robots.txt redirect each cost an extra unit;
-  - a read in progress whose robots.txt is not read yet is counted as already paid.
+  - with several items at a time, a read in progress is counted while its units are still in the limit, so the walk can count them a second time until that read takes them.
 
   It is never below `done`. When the pass ends, nothing remains, so `total == done`.
 - **Alternatives:**

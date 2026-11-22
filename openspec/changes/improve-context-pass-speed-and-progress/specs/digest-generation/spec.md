@@ -5,7 +5,7 @@ While a run is active, the system SHALL report its stage (collecting, summarizin
 
 While the context pass runs, the system SHALL also report how many linked pages are read, out of a total:
 - A page counts as read when its request finishes, with or without usable text, or when robots.txt refuses it. A post page and a comment feed read for author replies count as pages, and so do an item's saved replies, which need no request.
-- The total MUST be the pages read so far plus the pages the run can still read within the remaining per-run limit. It counts one robots.txt request for each site that the run has not asked yet, and no request for a page that a robots.txt already read refuses.
+- The total MUST be the pages read so far plus the pages the run can still read within the remaining per-run limit. It counts one robots.txt request for each site that the run has not asked yet, and no request for a page that a robots.txt already read refuses. While pages for several items are read at the same time, a page being read is counted before its request takes a unit from the limit, so the total can briefly be higher than this; it is corrected as each read finishes.
 - A page that the run will not read MUST leave the total. This applies when the per-run limit is used up, when the item's linked text has reached its cap, and when the item is deleted.
 - The linked-page progress MUST be shown from the start of the context pass. When the pass ends, the number read MUST equal the total.
 

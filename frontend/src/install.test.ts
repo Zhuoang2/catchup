@@ -2,7 +2,27 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { inflateSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
+
+const smallIconPattern = [
+  '................',
+  '................',
+  '..############..',
+  '..############..',
+  '..############..',
+  '..############..',
+  '..###......###..',
+  '..############..',
+  '..############..',
+  '..###......###..',
+  '..############..',
+  '..############..',
+  '..############..',
+  '..############..',
+  '................',
+  '................',
+]
 
 const icons = [
   { src: '/icon-192.png', sizes: '192x192', purpose: 'any', size: 192 },
@@ -16,6 +36,111 @@ function sizeAt(bytes: Uint8Array, offset: number): number {
 }
 
 describe('install assets', () => {
+  it('draws the tab icon on the 16 px grid', () => {
+    const document = new DOMParser().parseFromString(readFileSync('public/icon.svg', 'utf8'), 'image/svg+xml')
+    const rectangles: { left: number; top: number; right: number; bottom: number; color: string | null }[] = []
+    for (const shape of document.querySelectorAll('rect, path')) {
+      if (shape.localName === 'rect') {
+        const left = Number(shape.getAttribute('x') ?? 0)
+        const top = Number(shape.getAttribute('y') ?? 0)
+        rectangles.push({
+          left, top,
+          right: left + Number(shape.getAttribute('width')),
+          bottom: top + Number(shape.getAttribute('height')),
+          color: shape.getAttribute('fill'),
+        })
+      } else {
+        const path = shape.getAttribute('d') ?? ''
+        const segment = /M\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*h\s*(-?\d+(?:\.\d+)?)/g
+        expect(path.replace(segment, '').trim(), 'SVG path must contain only M x y h length segments').toBe('')
+        const width = Number(shape.getAttribute('stroke-width'))
+        for (const match of path.matchAll(segment)) {
+          const [, x, y, length] = match.map(Number)
+          rectangles.push({
+            left: x, right: x + length, top: y - width / 2, bottom: y + width / 2,
+            color: shape.getAttribute('stroke'),
+          })
+        }
+      }
+    }
+    for (const { left, top, right, bottom } of rectangles) {
+      for (const edge of [left, top, right, bottom]) {
+        expect(edge % 64, `SVG edge ${edge} must align to the 16 px grid`).toBe(0)
+      }
+    }
+    const picture = smallIconPattern.map((row, y) => [...row].map((_, x) => {
+      const centerX = (x + 0.5) * 64
+      const centerY = (y + 0.5) * 64
+      let color: string | null = null
+      for (const rectangle of rectangles) {
+        if (rectangle.left <= centerX && centerX < rectangle.right
+          && rectangle.top <= centerY && centerY < rectangle.bottom) color = rectangle.color
+      }
+      return color === '#f4f0e6' ? '.' : color === '#151412' ? '#' : '?'
+    }).join(''))
+    expect(picture).toEqual(smallIconPattern)
+  })
+
+  it('keeps every app icon sharp at 16 px', () => {
+    for (const file of ['icon-192.png', 'icon-512.png', 'icon-1024.png']) {
+      const bytes = readFileSync(`public/${file}`)
+      expect([...bytes.subarray(0, 8)], `${file}: PNG signature`).toEqual([137, 80, 78, 71, 13, 10, 26, 10])
+      const chunks: Uint8Array[] = []
+      let width = 0
+      let height = 0
+      for (let offset = 8; offset < bytes.length;) {
+        const length = sizeAt(bytes, offset)
+        expect(offset + length + 12, `${file}: complete PNG chunk`).toBeLessThanOrEqual(bytes.length)
+        const type = new TextDecoder().decode(bytes.subarray(offset + 4, offset + 8))
+        const data = bytes.subarray(offset + 8, offset + 8 + length)
+        if (type === 'IHDR') {
+          expect(data.length, `${file}: IHDR length`).toBe(13)
+          width = sizeAt(data, 0)
+          height = sizeAt(data, 4)
+          expect([...data.subarray(8)], `${file}: requires 8-bit RGB, standard compression/filtering, no interlace`)
+            .toEqual([8, 2, 0, 0, 0])
+        } else if (type === 'IDAT') chunks.push(data)
+        offset += length + 12
+      }
+      expect(width, `${file}: positive image width`).toBeGreaterThan(0)
+      expect(height, `${file}: square image`).toBe(width)
+      expect(width % 16, `${file}: whole 16 px blocks`).toBe(0)
+      expect(chunks.length, `${file}: IDAT data`).toBeGreaterThan(0)
+      const compressed = new Uint8Array(chunks.reduce((length, chunk) => length + chunk.length, 0))
+      let offset = 0
+      for (const chunk of chunks) {
+        compressed.set(chunk, offset)
+        offset += chunk.length
+      }
+      const pixels = inflateSync(compressed)
+      const stride = width * 3 + 1
+      expect(pixels.length, `${file}: complete RGB rows`).toBe(height * stride)
+      for (let y = 0; y < height; y++) {
+        expect(pixels[y * stride], `${file}: row ${y} requires PNG filter type 0`).toBe(0)
+      }
+      const wrongPixels: { file: string; block: number[]; pixel: number[]; color: number[] }[] = []
+      const blockSize = width / 16
+      for (let blockY = 0; blockY < 16; blockY++) {
+        for (let blockX = 0; blockX < 16; blockX++) {
+          const color = smallIconPattern[blockY][blockX] === '.' ? [244, 240, 230] : [21, 20, 18]
+          for (let y = blockY * blockSize; y < (blockY + 1) * blockSize; y++) {
+            for (let x = blockX * blockSize; x < (blockX + 1) * blockSize; x++) {
+              const start = y * stride + 1 + x * 3
+              if ((pixels[start] !== color[0] || pixels[start + 1] !== color[1] || pixels[start + 2] !== color[2])
+                && wrongPixels.length < 8) {
+                wrongPixels.push({
+                  file, block: [blockX, blockY], pixel: [x, y],
+                  color: [...pixels.subarray(start, start + 3)],
+                })
+              }
+            }
+          }
+        }
+      }
+      expect(wrongPixels, `${file}: pixels must match the fixed 16 px pattern`).toEqual([])
+    }
+  })
+
   it('declares real SVG and PNG icons for the browser tab', () => {
     const html = new DOMParser().parseFromString(readFileSync('index.html', 'utf8'), 'text/html')
     const links = [...html.querySelectorAll('link[rel="icon"]')]

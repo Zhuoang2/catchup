@@ -24,7 +24,7 @@ Implementer notes:
 
 ## 1. The mark on a 16 × 16 grid (D2)
 
-- [ ] 1.1 Write two failing tests in `frontend/src/install.test.ts`, inside `describe('install assets')`:
+- [x] 1.1 Write two failing tests in `frontend/src/install.test.ts`, inside `describe('install assets')`:
   - `draws the tab icon on the 16 px grid`.
     - Parse `public/icon.svg` with `DOMParser` (`image/svg+xml`).
     - Turn each `rect` into a rectangle (`x` and `y` default to 0) with its `fill`.
@@ -36,7 +36,7 @@ Implementer notes:
     - Split the image into a 16 × 16 grid of square blocks (12 × 12 pixels at 192 px). Check that every pixel of a block is `#f4f0e6` where the pattern has `.`, and `#151412` where it has `#`. Compare in plain loops and call `expect` once per image, for example on a list of the first wrong pixels (file, block, pixel, color) that must equal `[]`. One `expect` per pixel takes about 5 s for the three images and hits Vitest's 5 s default timeout.
 
   Verify: both tests fail on the current icons. `draws the tab icon on the 16 px grid` fails on the grid check, because the square starts at 164. `keeps every app icon sharp at 16 px` fails at block (2, 2) of `icon-192.png`. The existing tests in `install.test.ts` still pass.
-- [ ] 1.2 Implement D2:
+- [x] 1.2 Implement D2:
   - in `frontend/scripts/make-icons.py`, change `pixel()` to the grid rule in D2 (`0.125` for the square, `0.21` kept for the maskable icon, `unit = (right - left) / 12`), and change the SVG text to the one in D2, character for character;
   - run `python3 scripts/make-icons.py` in `frontend/` to regenerate `public/icon.svg`, `icon-192.png`, `icon-512.png`, `icon-1024.png`, and `icon-maskable-512.png`;
   - in `frontend/public/offline.html:7`, replace the `href` of the icon `<link>` with `data:image/svg+xml,` followed by the new `public/icon.svg` text, trimmed and percent-encoded as `encodeURIComponent` does. Change nothing else in that file.

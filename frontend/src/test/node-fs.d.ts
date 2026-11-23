@@ -12,3 +12,4 @@ declare module 'node:child_process' {
 declare module 'node:vm' {
   export function runInNewContext(code: string, context: object): unknown
 }
+declare module 'node:zlib' { export function inflateSync(data: Uint8Array): Uint8Array }

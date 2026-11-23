@@ -9,7 +9,7 @@ function respond(data: unknown, status = 200) {
   return { ok: status < 400, status, json: async () => data }
 }
 
-type ModelBody = { base_url: string; model_id: string; api_key: string }
+type ModelBody = { base_url: string; model_id: string; api_key: string; provider: string }
 
 function mockModelProvider({
   saved = { base_url: 'https://api.deepseek.com', model_id: 'saved-model',
@@ -17,7 +17,7 @@ function mockModelProvider({
   test = () => respond({ ok: true, models: ['live-a', 'live-b'] }),
   put,
 }: {
-  saved?: { base_url: string; model_id: string; key_set: boolean; api_key_last4: string | null }
+  saved?: { base_url: string; model_id: string; key_set: boolean; api_key_last4: string | null; provider?: string }
   test?: () => ReturnType<typeof respond> | Promise<ReturnType<typeof respond>>
   put?: (body: ModelBody) => ReturnType<typeof respond> | Promise<ReturnType<typeof respond>>
 } = {}) {
@@ -72,6 +72,106 @@ afterEach(() => {
 })
 
 describe('model settings', () => {
+  it('shows the saved provider as the first field of the Model provider group', async () => {
+    mockModelProvider({ saved: { provider: 'anthropic', base_url: 'https://api.anthropic.com',
+      model_id: 'claude-opus-5-5', key_set: true, api_key_last4: '1234' } })
+    render(<Settings/>)
+    const provider = await screen.findByLabelText('Provider')
+    expect(provider).toHaveValue('anthropic')
+    expect(within(provider).getByRole('option', { name: 'Anthropic', selected: true })).toBeInTheDocument()
+    expect(modelSection()).toContainElement(provider)
+    expect(modelSection().querySelector('input, select')).toBe(provider)
+    expect(provider.compareDocumentPosition(screen.getByLabelText('Base URL'))
+      & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('fills in the Anthropic address and empties the model list when Anthropic is chosen', async () => {
+    mockModelProvider()
+    render(<Settings/>)
+    fireEvent.change(await screen.findByLabelText('Provider'), { target: { value: 'anthropic' } })
+    expect(screen.getByLabelText('Base URL')).toHaveValue('https://api.anthropic.com')
+    const model = screen.getByLabelText('Model')
+    expect(within(model).getAllByRole('option').map(option => option.textContent))
+      .toEqual(['Test the connection to list models'])
+    expect(model).toHaveValue('')
+    expect(model).toBeDisabled()
+    expect(screen.queryByText(/Saved key ending in/)).toBeNull()
+    expect(screen.getByLabelText('API key')).toHaveAccessibleDescription('Enter an API key for this provider.')
+  })
+
+  it('restores the saved configuration when the saved provider is chosen again', async () => {
+    mockModelProvider({
+      saved: { base_url: 'https://custom.example', model_id: 'saved-model', key_set: true, api_key_last4: '1234' },
+      test: () => respond({ ok: true, models: ['saved-model', 'another-model'] }),
+    })
+    render(<Settings/>)
+    const provider = await screen.findByLabelText('Provider')
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    await screen.findByText('Connection succeeded. Saved model saved-model.')
+    fireEvent.change(provider, { target: { value: 'anthropic' } })
+    fireEvent.change(provider, { target: { value: 'openai_compatible' } })
+    expect(screen.getByLabelText('Base URL')).toHaveValue('https://custom.example')
+    expect(screen.getByLabelText('Model')).toHaveValue('saved-model')
+    expect(within(screen.getByLabelText('Model')).getAllByRole('option').map(option => option.textContent))
+      .toEqual(['saved-model', 'another-model'])
+    expect(screen.getByText(/Saved key ending in/)).toHaveTextContent('Saved key ending in 1234')
+  })
+
+  it('tests and saves a new provider with its key', async () => {
+    mockModelProvider({
+      test: () => respond({ ok: true, models: ['claude-opus-5-5', 'claude-sonnet-5-5'] }),
+      put: body => respond({ provider: body.provider, base_url: body.base_url, model_id: body.model_id,
+        key_set: true, api_key_last4: '7d2e' }),
+    })
+    render(<Settings/>)
+    fireEvent.change(await screen.findByLabelText('Provider'), { target: { value: 'anthropic' } })
+    fireEvent.change(screen.getByLabelText('API key'), { target: { value: 'key-7d2e' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    await waitFor(() => expect(modelPuts()).toEqual([{
+      base_url: 'https://api.anthropic.com', model_id: 'claude-opus-5-5',
+      api_key: 'key-7d2e', provider: 'anthropic',
+    }]))
+    const testCall = fetchMock.mock.calls.find(([url]) => url === '/api/settings/model/test')!
+    expect(JSON.parse(testCall[1].body as string)).toEqual({
+      base_url: 'https://api.anthropic.com', api_key: 'key-7d2e', provider: 'anthropic',
+    })
+    await waitFor(() => expect(within(modelSection()).getByRole('status').textContent).toBe(
+      'Connection succeeded. Saved key ending in 7d2e with model claude-opus-5-5. Choose another model to change it.'))
+    expect(screen.getByLabelText('API key')).toHaveValue('')
+    expect(document.getElementById('key-saved')).toHaveTextContent('Saved key ending in 7d2e')
+  })
+
+  it('names the Anthropic address in the invalid-URL message', async () => {
+    mockModelProvider({
+      saved: { provider: 'anthropic', base_url: 'https://api.anthropic.com',
+        model_id: 'claude-opus-5-5', key_set: true, api_key_last4: '1234' },
+      put: () => respond({ error: { code: 'invalid_model_config', message: 'Invalid configuration.' } }, 422),
+    })
+    render(<Settings/>)
+    expect(await screen.findByLabelText('Provider')).toHaveValue('anthropic')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBe('Enter a valid provider URL, such as https://api.anthropic.com.')
+    expect(screen.getByLabelText('Base URL')).toHaveAttribute('aria-describedby', alert.id)
+  })
+
+  it('sends the provider with Save', async () => {
+    mockModelProvider({ saved: { provider: 'anthropic', base_url: 'https://api.anthropic.com',
+      model_id: 'claude-opus-5-5', key_set: true, api_key_last4: '1234' } })
+    render(<Settings/>)
+    expect(await screen.findByLabelText('Provider')).toHaveValue('anthropic')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(modelPuts()).toEqual([{
+      provider: 'anthropic', base_url: 'https://api.anthropic.com', model_id: 'claude-opus-5-5', api_key: '',
+    }]))
+  })
+
+  it('has no accessibility violations with Anthropic chosen', async () => {
+    const { container } = render(<Settings/>)
+    fireEvent.change(await screen.findByLabelText('Provider'), { target: { value: 'anthropic' } })
+    await expectAccessible(container)
+  })
+
   it('describes the extension as optional for a first-run model', async () => {
     const original = fetchMock.getMockImplementation()!
     fetchMock.mockImplementation(async (url: string) => url === '/api/settings/model'
@@ -613,6 +713,7 @@ describe('saving after a model test', () => {
     fireEvent.change(key, { target: { value: 'secret-3f9a' } })
     fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
     await waitFor(() => expect(modelPuts()).toEqual([{
+      provider: 'openai_compatible',
       base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: 'secret-3f9a',
     }]))
     expect(await within(modelSection()).findByRole('status')).toHaveTextContent(
@@ -631,6 +732,7 @@ describe('saving after a model test', () => {
     fireEvent.change(await screen.findByLabelText('API key'), { target: { value: 'new-key-9999' } })
     fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
     await waitFor(() => expect(modelPuts()).toEqual([{
+      provider: 'openai_compatible',
       base_url: 'https://api.deepseek.com', model_id: 'saved-model', api_key: 'new-key-9999',
     }]))
     await waitFor(() => expect(within(modelSection()).getByRole('status').textContent)
@@ -644,6 +746,7 @@ describe('saving after a model test', () => {
     await screen.findByLabelText('API key')
     fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
     await waitFor(() => expect(modelPuts()).toEqual([{
+      provider: 'openai_compatible',
       base_url: 'https://api.deepseek.com', model_id: 'saved-model', api_key: '',
     }]))
     await waitFor(() => expect(within(modelSection()).getByRole('status').textContent)
@@ -695,6 +798,7 @@ describe('saving after a model test', () => {
     fireEvent.change(screen.getByLabelText('Base URL'), { target: { value: 'https://later.example' } })
     await act(async () => { finishTest(respond({ ok: true, models: ['live-a', 'live-b'] })) })
     await waitFor(() => expect(modelPuts()).toEqual([{
+      provider: 'openai_compatible',
       base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: 'tested-key-1111',
     }]))
     expect(key).toHaveValue('typed-later')
@@ -747,6 +851,7 @@ describe('saving model choices', () => {
       fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'live-b' } })
     })
     expect(modelPuts()).toEqual([{
+      provider: 'openai_compatible',
       base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: '',
     }])
     expect(screen.getByLabelText('Model')).toHaveValue('live-b')
@@ -760,6 +865,7 @@ describe('saving model choices', () => {
       fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'live-b' } })
     })
     expect(modelPuts()).toEqual([{
+      provider: 'openai_compatible',
       base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: '',
     }])
     expect(screen.getByLabelText('Model')).toHaveValue('live-b')
@@ -781,6 +887,7 @@ describe('saving model choices', () => {
       fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'live-b' } })
     })
     expect(modelPuts()).toEqual([{
+      provider: 'openai_compatible',
       base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: 'secret-3f9a',
     }])
     expect(screen.getByLabelText('Model')).toHaveValue('live-b')
@@ -791,8 +898,8 @@ describe('saving model choices', () => {
     await testAndSave()
     fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'live-b' } })
     await waitFor(() => expect(modelPuts()).toEqual([
-      { base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: '' },
-      { base_url: 'https://api.deepseek.com', model_id: 'live-b', api_key: '' },
+      { base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: '', provider: 'openai_compatible' },
+      { base_url: 'https://api.deepseek.com', model_id: 'live-b', api_key: '', provider: 'openai_compatible' },
     ]))
     await waitFor(() => expect(within(modelSection()).getByRole('status').textContent)
       .toBe('Saved model live-b.'))
@@ -806,7 +913,7 @@ describe('saving model choices', () => {
     await waitFor(() => expect(screen.getByLabelText('API key')).toHaveValue(''))
     fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'live-b' } })
     await waitFor(() => expect(modelPuts()[1]).toEqual(
-      { base_url: 'https://api.deepseek.com', model_id: 'live-b', api_key: '' }))
+      { base_url: 'https://api.deepseek.com', model_id: 'live-b', api_key: '', provider: 'openai_compatible' }))
   })
 
   it('saves quick successive model choices in order', async () => {
@@ -831,9 +938,9 @@ describe('saving model choices', () => {
         key_set: true, api_key_last4: '1234' }))
     })
     await waitFor(() => expect(modelPuts()).toEqual([
-      { base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: '' },
-      { base_url: 'https://api.deepseek.com', model_id: 'live-b', api_key: '' },
-      { base_url: 'https://api.deepseek.com', model_id: 'live-c', api_key: '' },
+      { base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: '', provider: 'openai_compatible' },
+      { base_url: 'https://api.deepseek.com', model_id: 'live-b', api_key: '', provider: 'openai_compatible' },
+      { base_url: 'https://api.deepseek.com', model_id: 'live-c', api_key: '', provider: 'openai_compatible' },
     ]))
     await waitFor(() => expect(within(modelSection()).getByRole('status').textContent)
       .toBe('Saved model live-c.'))
@@ -858,9 +965,9 @@ describe('saving model choices', () => {
     await waitFor(() => expect(within(modelSection()).getByRole('status').textContent)
       .toBe('Saved model live-c.'))
     expect(modelPuts()).toEqual([
-      { base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: '' },
-      { base_url: 'https://api.deepseek.com', model_id: 'live-b', api_key: '' },
-      { base_url: 'https://api.deepseek.com', model_id: 'live-c', api_key: '' },
+      { base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: '', provider: 'openai_compatible' },
+      { base_url: 'https://api.deepseek.com', model_id: 'live-b', api_key: '', provider: 'openai_compatible' },
+      { base_url: 'https://api.deepseek.com', model_id: 'live-c', api_key: '', provider: 'openai_compatible' },
     ])
     expect(within(modelSection()).queryByRole('alert')).toBeNull()
   })

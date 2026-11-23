@@ -232,7 +232,7 @@ Implementer notes:
 
 ## 3. Settings page (D14)
 
-- [ ] 3.1 In `frontend/src/pages/Settings.test.tsx`, write these tests and watch them fail. They fail because there is no Provider select, and because the bodies have no `provider`.
+- [x] 3.1 In `frontend/src/pages/Settings.test.tsx`, write these tests and watch them fail. They fail because there is no Provider select, and because the bodies have no `provider`.
   - **Test types.** Add `provider` to `ModelBody`, and an optional `provider` to `mockModelProvider`'s `saved` type.
   - **Existing tests.** The only allowed edit to them is adding `provider: 'openai_compatible'` to every expected PUT body (`modelPuts()` comparisons) and every expected test-request body. Mocked GET answers may stay without `provider`: the page treats a missing provider as OpenAI-compatible.
   - **`shows the saved provider as the first field of the Model provider group`.** A saved `provider: 'anthropic'` with `https://api.anthropic.com` gives a Provider select reading "Anthropic". It comes before Base URL in document order, inside `modelSection()`.
@@ -245,8 +245,8 @@ Implementer notes:
   - **`names the Anthropic address in the invalid-URL message`.** With Anthropic and a model selected, Save is refused with `invalid_model_config`. The Base URL field's message reads "Enter a valid provider URL, such as https://api.anthropic.com.".
   - **`sends the provider with Save`.**
   - **`has no accessibility violations with Anthropic chosen`.** Run `expectAccessible` on the rendered page.
-- [ ] 3.2 Implement design D14 in `frontend/src/pages/Settings.tsx`. In `frontend/`, run `npm test -- --run` and `npm run build`, and watch them pass.
-- [ ] 3.3 Run these mutations one at a time, each against `Settings.test.tsx`, and record which tests fail:
+- [x] 3.2 Implement design D14 in `frontend/src/pages/Settings.tsx`. In `frontend/`, run `npm test -- --run` and `npm run build`, and watch them pass.
+- [x] 3.3 Run these mutations one at a time, each against `Settings.test.tsx`, and record which tests fail:
 
   | Mutation | Change | Expected failing test |
   | --- | --- | --- |

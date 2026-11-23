@@ -5,8 +5,9 @@ import { Icon } from '../components/Icon'
 import { useDocumentTitle } from '../components/useDocumentTitle'
 import { Alert, Button, PageHead, Switch } from '../components/ui'
 
-type ModelSettings = { base_url: string; model_id: string; key_set: boolean; api_key_last4: string | null }
-type ModelSave = { base_url: string; model_id: string; api_key: string }
+type Provider = 'openai_compatible' | 'anthropic'
+type ModelSettings = { provider?: Provider; base_url: string; model_id: string; key_set: boolean; api_key_last4: string | null }
+type ModelSave = { provider: Provider; base_url: string; model_id: string; api_key: string }
 type Preferences = { digest_language: string; youtube_captions: boolean; youtube_skip_shorts: boolean;
   show_images: boolean }
 type TestResult = { ok: true; models: string[] }
@@ -14,6 +15,10 @@ type Browser = { id: number; name: string; created_at: string; last_used_at: str
 type ConnectedBrowser = Omit<Browser, 'last_used_at'> & { token: string }
 type XSettings = { token_set: boolean; token_last4: string | null }
 const languageOptions = ['en', 'zh-Hans', 'original']
+const providerUrls = {
+  openai_compatible: 'https://api.deepseek.com',
+  anthropic: 'https://api.anthropic.com',
+}
 
 function errorMessage(error: unknown): string {
   if (error instanceof ApiError) {
@@ -41,7 +46,8 @@ function SettingsSection({ number, title, children, headingRef }: {
 
 export default function Settings() {
   useDocumentTitle('Settings')
-  const [baseUrl, setBaseUrl] = useState('https://api.deepseek.com')
+  const [provider, setProvider] = useState<Provider>('openai_compatible')
+  const [baseUrl, setBaseUrl] = useState(providerUrls.openai_compatible)
   const [key, setKey] = useState('')
   const [last4, setLast4] = useState<string | null>(null)
   const [model, setModel] = useState('')
@@ -59,6 +65,9 @@ export default function Settings() {
   const [modelStatus, setModelStatus] = useState('')
   const [modelError, setModelError] = useState('')
   const [savedBaseUrl, setSavedBaseUrl] = useState<string | null>(null)
+  const [savedProvider, setSavedProvider] = useState<Provider>('openai_compatible')
+  const [savedModel, setSavedModel] = useState('')
+  const [savedModels, setSavedModels] = useState<string[]>([])
   const modelSaveQueue = useRef(Promise.resolve())
   const [loading, setLoading] = useState(true)
   const [browserName, setBrowserName] = useState('Chrome')
@@ -95,9 +104,13 @@ export default function Settings() {
       request<Preferences>('/settings/preferences'),
     ]).then(([settings, preferences]) => {
       if (!mounted) return
+      setProvider(settings.provider ?? 'openai_compatible')
+      setSavedProvider(settings.provider ?? 'openai_compatible')
       setBaseUrl(settings.base_url)
       setModel(settings.model_id)
       setModels(settings.model_id ? [settings.model_id] : [])
+      setSavedModel(settings.model_id)
+      setSavedModels(settings.model_id ? [settings.model_id] : [])
       setLast4(settings.key_set ? settings.api_key_last4 : null)
       setSavedBaseUrl(settings.key_set ? settings.base_url : null)
       const selected = preferences.digest_language
@@ -225,7 +238,7 @@ export default function Settings() {
             : !inModelGroup && err.code === 'invalid_language' && language === 'other' ? 'other' : null
       : null
     const text = !inModelGroup && err instanceof ApiError && err.code === 'invalid_model_config'
-      ? model ? 'Enter a valid provider URL, such as https://api.deepseek.com.'
+      ? model ? `Enter a valid provider URL, such as ${providerUrls[provider]}.`
         : 'Test the connection, then choose a model.'
       : errorMessage(err)
     if (inModelGroup && !field) setModelError(errorMessage(err))
@@ -236,7 +249,9 @@ export default function Settings() {
     return field
   }
 
-  function queueModelSave(values: ModelSave, success: (saved: ModelSettings) => string, failure: string) {
+  function queueModelSave(
+    values: ModelSave, success: (saved: ModelSettings) => string, failure: string, listedModels = models,
+  ) {
     const saveModel = async () => {
       setModelStatus(''); setModelError('')
       try {
@@ -246,6 +261,9 @@ export default function Settings() {
         })
         setLast4(saved.api_key_last4)
         setSavedBaseUrl(saved.base_url)
+        setSavedProvider(saved.provider ?? values.provider)
+        setSavedModel(saved.model_id)
+        setSavedModels(listedModels)
         setKey(current => current === values.api_key ? '' : current)
         setModelStatus(success(saved))
       } catch (err) { setModelError(failure + errorMessage(err)) }
@@ -260,10 +278,11 @@ export default function Settings() {
     setModelStatus(''); setModelError('')
     const testedBaseUrl = baseUrl
     const testedKey = key
+    const testedProvider = provider
     try {
       const result = await request<TestResult>('/settings/model/test', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ base_url: testedBaseUrl, api_key: testedKey || undefined }),
+        body: JSON.stringify({ base_url: testedBaseUrl, api_key: testedKey || undefined, provider: testedProvider }),
       })
       setModels(result.models)
       const replaced = !result.models.includes(model)
@@ -273,22 +292,32 @@ export default function Settings() {
         setModelStatus('Connection succeeded, but the provider listed no models. Nothing was saved.')
         return
       }
-      await queueModelSave({ base_url: testedBaseUrl, model_id: chosen, api_key: testedKey },
+      await queueModelSave({ base_url: testedBaseUrl, model_id: chosen, api_key: testedKey, provider: testedProvider },
         saved => (testedKey
           ? `Connection succeeded. Saved key ending in ${saved.api_key_last4} with model ${chosen}.`
           : `Connection succeeded. Saved model ${chosen}.`) +
           (replaced && result.models.length > 1 ? ' Choose another model to change it.' : ''),
-        'Connection succeeded, but nothing was saved. ')
+        'Connection succeeded, but nothing was saved. ', result.models)
     } catch (err) { showError(err, true) }
   }
 
   function chooseModel(choice: string) {
     setMessage(''); setSaveError('')
     setModel(choice)
-    if (!key && baseUrl.trim() === savedBaseUrl) {
-      void queueModelSave({ base_url: savedBaseUrl, model_id: choice, api_key: '' },
+    if (!key && baseUrl.trim() === savedBaseUrl && provider === savedProvider) {
+      void queueModelSave({ base_url: savedBaseUrl, model_id: choice, api_key: '', provider },
         () => `Saved model ${choice}.`, 'The model was not saved. ')
     }
+  }
+
+  function chooseProvider(choice: Provider) {
+    setProvider(choice)
+    setBaseUrl(choice === savedProvider ? savedBaseUrl ?? providerUrls[choice] : providerUrls[choice])
+    setModel(choice === savedProvider ? savedModel : '')
+    setModels(choice === savedProvider ? savedModels : [])
+    setKey('')
+    setError(''); setErrorField(null); setMessage(''); setSaveError('')
+    setModelStatus(''); setModelError('')
   }
 
   async function save(event: FormEvent<HTMLFormElement>) {
@@ -300,9 +329,12 @@ export default function Settings() {
     try {
       const saved = await request<ModelSettings>('/settings/model', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ base_url: baseUrl, model_id: model, api_key: key }),
+        body: JSON.stringify({ base_url: baseUrl, model_id: model, api_key: key, provider }),
       })
       setSavedBaseUrl(saved.base_url)
+      setSavedProvider(saved.provider ?? provider)
+      setSavedModel(saved.model_id)
+      setSavedModels(models)
       setLast4(saved.api_key_last4)
       setKey('')
       modelSaved = true
@@ -327,7 +359,8 @@ export default function Settings() {
     }
   }
 
-  const keyDescription = [last4 ? 'key-saved' : null, 'key-hint',
+  const visibleLast4 = provider === savedProvider ? last4 : null
+  const keyDescription = [visibleLast4 ? 'key-saved' : null, 'key-hint',
     error && errorField === 'key' ? 'key-error' : null].filter(Boolean).join(' ')
 
   return <section className="page page-settings">
@@ -338,18 +371,26 @@ export default function Settings() {
     {loading ? <p>Loading settings…</p> : <form className="settings-form" onSubmit={event => void save(event)}>
       <SettingsSection number={1} title="Model provider">
         <p className="note"><Icon name="info"/>Content will be sent to your configured model provider.</p>
+        <div className="field"><label className="field-label" htmlFor="provider">Provider</label>
+          <select className="input select" id="provider" value={provider}
+            onChange={event => chooseProvider(event.target.value as Provider)}>
+            <option value="openai_compatible">OpenAI-compatible</option>
+            <option value="anthropic">Anthropic</option>
+          </select></div>
         <div className="field"><label className="field-label" htmlFor="base">Base URL</label>
           <input className="input" id="base" value={baseUrl} onChange={event => setBaseUrl(event.target.value)}
             aria-invalid={errorField === 'base' || undefined}
             aria-describedby={errorField === 'base' ? 'base-error' : undefined} required/></div>
         <div className="field"><label className="field-label" htmlFor="key">API key</label>
-          {last4 && <p className="key-saved" id="key-saved"><Icon name="check"/>
-            Saved key ending in <code>{last4}</code></p>}
+          {visibleLast4 && <p className="key-saved" id="key-saved"><Icon name="check"/>
+            Saved key ending in <code>{visibleLast4}</code></p>}
           <input className="input" id="key" type="password" value={key}
-            placeholder={last4 ? 'Paste a new key to replace it' : 'Paste your API key'}
+            placeholder={visibleLast4 ? 'Paste a new key to replace it' : 'Paste your API key'}
             onChange={event => setKey(event.target.value)} autoComplete="new-password"
             aria-invalid={errorField === 'key' || undefined} aria-describedby={keyDescription}/>
-          <p className="field-hint" id="key-hint">{last4
+          <p className="field-hint" id="key-hint">{provider !== savedProvider
+            ? 'Enter an API key for this provider.'
+            : visibleLast4
             ? 'Leave empty to keep the saved key. Testing a new key saves it.'
             : 'Stored encrypted on this computer. It is never shown again.'}</p>
         </div>

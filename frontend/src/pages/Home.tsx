@@ -68,7 +68,7 @@ function RunStateContent({ run, compact, firstRun, loadingNewDigest, configurati
   if (active(run)) {
     const checking = run.status === 'collecting' || run.status === 'queued'
     const reading = run.status === 'collecting'
-      && run.source_checks.length === run.sources_total && (run.context_total ?? 0) > 0
+      && (run.context_total ?? 0) > 0
     const progress = reading ? run.context_done ?? 0 : checking ? run.source_checks.length : run.items_done
     const total = reading ? run.context_total ?? 0 : checking ? run.sources_total : run.items_total
     const content = <>

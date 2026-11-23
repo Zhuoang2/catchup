@@ -169,6 +169,8 @@ class DigestRun(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     status: Mapped[str] = mapped_column(String(32))
+    stage_seconds: Mapped[dict | None] = mapped_column(JSON)
+    sources_total: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     items_total: Mapped[int] = mapped_column(Integer, default=0)
     items_done: Mapped[int] = mapped_column(Integer, default=0)
     context_total: Mapped[int] = mapped_column(Integer, default=0, server_default="0")

@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from importlib.metadata import PackageNotFoundError, version
 from math import ceil
+from threading import Lock
 from time import monotonic, sleep
 from typing import Callable
 from urllib.parse import urljoin, urlsplit
@@ -23,6 +24,7 @@ MAX_BYTES = 5 * 1024 * 1024
 MAX_REDIRECTS = 5
 FETCH_DEADLINE_SECONDS = 30
 RATE_LIMIT_PREFIX = "The source is rate limiting requests."
+_budget_lock = Lock()
 
 
 class FetchError(Exception):
@@ -168,9 +170,10 @@ def safe_fetch(url: str, *, same_origin: str | None = None, budget: list[int] | 
                     if not permitted:
                         raise FetchError("robots_disallowed", "robots.txt does not allow this page.")
                 if budget is not None:
-                    if budget[0] <= 0:
-                        raise BudgetExhausted()
-                    budget[0] -= 1
+                    with _budget_lock:
+                        if budget[0] <= 0:
+                            raise BudgetExhausted()
+                        budget[0] -= 1
                 if spacer is not None:
                     spacer.wait(current)
                 left = remaining()

@@ -588,3 +588,32 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
 - **Consequences:**
   - Fix rounds within D-023's limits no longer produce a question; the user sees them in the merge-ready report.
   - The user still approves every plan and every merge, and decides every rebuild of port 8800.
+
+## D-036 Read linked pages for up to 4 items at once, and count only what the run can still read — accepted (2026-11-20)
+
+- **Decision.**
+  - **Stage durations.** Each run stores how many seconds its source checks, caption pass, context pass, summaries, and grouping took, saved as each stage ends. The run API returns them. The screen does not show them.
+  - **Sources total.** A run stores the number of sources it will check when it starts. The run bar shows the linked-page line from the start of the context pass, even when a source was deleted during the checks.
+  - **Linked-page total.** The total is the pages read so far, plus those the run can still read within the remaining per-run limit. It counts one robots.txt request for each site not asked yet, and nothing for a page a known robots.txt refuses. Pages the limit, the 16,000-character cap, or a deleted item rules out leave the total, so the pass ends with the number read equal to the total.
+  - **Several items at once.** The context pass gathers context for up to 4 items at the same time, each in its own thread and session, with the items started in plan order. Within an item, the order and the caps are unchanged. Host spacing keeps a lock per host. The budget unit is taken under a lock. robots.txt is read under a lock per origin.
+  - **Held items.** When a source's check finds no new entries, but the source has pending items that are ready for the run, the check shows "New items" as soon as it is saved.
+
+  Planned as the lean OpenSpec change `improve-context-pass-speed-and-progress` (issue #64). It was first numbered D-035, which the Shipping section took in PR #96.
+- **Why.**
+  - A run over 50 items took about 4 min 20 s. The bar read "Linked pages read: 6 of 178", and the run read 39 pages (#64).
+  - The total counted every candidate link. robots.txt requests take units from the same limit of 60, and links that the limit or the cap stops were never counted as read.
+  - Pages were read one at a time, and `HostSpacer` held one lock for every host while it slept.
+  - `sources_total` was counted live, so a source added during a run hid the linked-page line (comment of 2026-11-02 on #64).
+- **Alternatives:**
+  - **Log stage durations.** Rejected: the app's own INFO log lines reach no handler, and a stored run can be compared later.
+  - **Total as `done + min(units left, reads left)`.** Rejected: robots.txt requests use about a third of the limit, so that total would fall from 60 to 39 during a run like the one in #64.
+  - **Count robots.txt requests as linked pages, or show them on a second line.** Rejected: robots.txt is not a linked page, and users do not need a second number.
+  - **Read one item's links in parallel, or use one flat queue of URLs.** Rejected: the 16,000-character cap and the body order need the earlier pages' text, and parallel reads would spend units on pages the cap drops.
+  - **Async I/O.** Rejected: the connect-time address check is built on httpx's sync backend.
+  - **Write to the database only on the runner thread.** Rejected: progress must be committed before the next request, and SQLite in WAL mode already serves several writer threads.
+  - **A setting for the number of items or the depth.** Deferred to #54.
+- **Consequences:**
+  - Up to 3 items that start while the limit is nearly used up can end as `none` instead of staying unread. This matters only when the run then fails before its save, because a successful run delivers every pending item.
+  - When the limit runs out, which items got context depends on how fast pages answer.
+  - Two requests to one host can be open at the same time when the first takes longer than 1 second. Requests still start at least 1 second apart.
+  - The total can move by a few pages after a redirect, or while several reads are in progress. It equals the number read when the pass ends.

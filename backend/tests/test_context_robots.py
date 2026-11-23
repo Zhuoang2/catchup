@@ -1,4 +1,7 @@
 import socket
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 import pytest
@@ -6,6 +9,69 @@ import respx
 
 from catchup.context.robots import RobotsCache
 from catchup.net.safe_fetch import BudgetExhausted
+
+
+@pytest.mark.parametrize("url", [
+    "/comments/feed",
+    "ftp://site.example:21/feed",
+    "https://site.example:abc/x",
+    "https://site.example:99999/x",
+    "https://user:secret@site.example/x",
+    "mailto:a@site.example",
+], ids=["relative", "non_http", "bad_port", "large_port", "user_info", "mailto"])
+def test_origin_refuses_addresses_that_safe_fetch_refuses(url):
+    from catchup.context.robots import origin
+
+    with pytest.raises(ValueError):
+        origin(url)
+
+
+def test_origin_ignores_case_and_default_port():
+    from catchup.context.robots import origin
+
+    assert origin("https://SITE.example:443/a") == origin("https://site.example/b") == "https://site.example"
+    assert origin("http://site.example:8080/x") == "http://site.example:8080"
+    assert origin("https://[2001:db8::1]/x") == "https://[2001:db8::1]"
+
+
+def test_verdict_never_requests_and_reads_stored_rules(public_dns):
+    robots = RobotsCache(budget=[10])
+    with respx.mock(assert_all_mocked=True) as router:
+        route = router.get("https://site.example/robots.txt").respond(
+            200, text="User-agent: *\nDisallow: /private\n",
+        )
+        router.get("https://unavailable.example/robots.txt").respond(503)
+        router.get("https://missing.example/robots.txt").respond(404)
+        assert robots.verdict("https://site.example/private/x") is None
+        assert len(router.calls) == 0
+        assert robots.allowed("https://site.example/ok") is True
+        assert robots.verdict("https://site.example/private/x") is False
+        assert robots.verdict("https://site.example/ok") is True
+        assert route.call_count == 1
+        assert robots.allowed("https://unavailable.example/p") is False
+        assert robots.verdict("https://unavailable.example/p") is False
+        assert robots.allowed("https://missing.example/p") is True
+        assert robots.verdict("https://missing.example/p") is True
+
+
+def test_robots_is_read_once_when_two_threads_ask_at_once(public_dns):
+    robots = RobotsCache(budget=[10])
+    barrier = threading.Barrier(2)
+
+    def response(_request):
+        time.sleep(0.2)
+        return httpx.Response(404)
+
+    def allowed(url):
+        barrier.wait(timeout=5)
+        return robots.allowed(url)
+
+    with respx.mock(assert_all_mocked=True) as router:
+        route = router.get("https://site.example/robots.txt").mock(side_effect=response)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(allowed, ("https://site.example/a", "https://SITE.example/b")))
+    assert results == [True, True]
+    assert route.call_count == 1
 
 
 @pytest.fixture

@@ -122,6 +122,207 @@ def execute(client):
     return client.get(f"/api/digest-runs/{run.id}").json()
 
 
+def test_stage_durations_are_saved_for_each_stage(environment, monkeypatch):
+    from catchup.digest import runner
+
+    seed(environment)
+    clock = [100.0]
+    monkeypatch.setattr(runner, "monotonic", lambda: clock[0], raising=False)
+
+    def checked():
+        clock[0] += 2.0
+
+    stub_collection(monkeypatch, on_check=checked)
+    for name, seconds in (
+        ("caption_pass", 0.5), ("gather_context", 7.0),
+        ("summarize_items", 3.0), ("group_items", 1.0),
+    ):
+        original = getattr(runner, name)
+
+        def timed(*args, _original=original, _seconds=seconds, **kwargs):
+            result = _original(*args, **kwargs)
+            clock[0] += _seconds
+            return result
+
+        monkeypatch.setattr(runner, name, timed)
+    result = execute(environment)
+    assert result["stage_seconds"] == {
+        "checks": 2.0, "captions": 0.5, "context": 7.0, "summaries": 3.0, "grouping": 1.0,
+    }
+
+
+def test_failed_run_keeps_durations_of_finished_stages(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    environment.app.state.model_client_factory = lambda *_: FakeModel([AuthFailed("bad key")])
+    result = execute(environment)
+    assert result["status"] == "failed"
+    assert set(result["stage_seconds"]) == {"checks", "captions", "context"}
+
+
+def test_run_with_nothing_to_summarize_records_three_stages(environment, monkeypatch):
+    seed(environment, count=0)
+    stub_collection(monkeypatch)
+    result = execute(environment)
+    assert result["status"] == "no_new_content"
+    assert set(result["stage_seconds"]) == {"checks", "captions", "context"}
+
+
+def test_sources_total_stays_fixed_when_a_source_is_added_during_the_run(environment, monkeypatch):
+    seed(environment, sources=2)
+    entered, release = threading.Event(), threading.Event()
+    finished = threading.Event()
+    from catchup.digest import runner
+    original = runner.run_digest
+
+    def blocked():
+        if not entered.is_set():
+            entered.set()
+            assert release.wait(timeout=5)
+
+    def signaled(app, run_id):
+        try:
+            original(app, run_id)
+        finally:
+            finished.set()
+
+    stub_collection(monkeypatch, on_check=blocked)
+    monkeypatch.setattr(runner, "run_digest", signaled)
+    response = environment.post("/api/digest-runs")
+    assert response.status_code == 202
+    run_id = response.json()["id"]
+    try:
+        assert entered.wait(timeout=5)
+        with environment.app.state.session_factory() as session:
+            session.add(Source(title="Added", site_url="https://added.example",
+                               feed_url="https://added.example/feed", input_url="https://added.example"))
+            session.commit()
+        assert environment.get("/api/digest-runs/active").json()["sources_total"] == 2
+    finally:
+        release.set()
+        assert finished.wait(timeout=5)
+    result = environment.get(f"/api/digest-runs/{run_id}").json()
+    assert result["sources_total"] == 2
+    assert len(result["source_checks"]) == 2
+
+
+def test_source_added_before_the_run_thread_starts_is_counted(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    run = start_run(environment.app, background=False)
+    with environment.app.state.session_factory() as session:
+        session.add(Source(title="Added", site_url="https://added.example",
+                           feed_url="https://added.example/feed", input_url="https://added.example"))
+        session.commit()
+    run_digest(environment.app, run.id)
+    result = environment.get(f"/api/digest-runs/{run.id}").json()
+    assert result["sources_total"] == 2
+    assert len(result["source_checks"]) == 2
+
+
+def test_sources_total_counts_x_accounts(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    seed_x_accounts(environment, ("a",))
+    result = execute(environment)
+    assert result["sources_total"] == 2
+
+
+@pytest.fixture
+def outcomes_before_captions(environment, monkeypatch):
+    from catchup.digest import runner
+
+    observed = []
+    original = runner.caption_pass
+
+    def observe(factory, context):
+        with factory() as session:
+            observed.extend(session.execute(
+                select(SourceCheck.status, Source.last_check_status)
+                .join(Source, SourceCheck.source_id == Source.id)
+                .where(SourceCheck.run_id == session.scalar(select(DigestRun.id).order_by(DigestRun.id.desc())))
+                .order_by(Source.id)
+            ).all())
+        return original(factory, context)
+
+    monkeypatch.setattr(runner, "caption_pass", observe)
+    return observed
+
+
+def test_feed_with_held_items_shows_new_items_when_checked(environment, monkeypatch, outcomes_before_captions):
+    seed(environment)
+    stub_outcomes(monkeypatch, {"Source 0": "no_new_items"})
+    result = execute(environment)
+    assert outcomes_before_captions == [("new_items", "new_items")]
+    assert result["source_checks"][0]["status"] == "new_items"
+
+
+def test_x_account_with_held_posts_shows_new_items_when_checked(environment, outcomes_before_captions):
+    seed(environment, sources=0)
+    seed_x_accounts(environment, ("a",))
+    with environment.app.state.session_factory() as session:
+        source = session.scalar(select(Source))
+        session.add(Item(source_id=source.id, identity_key="x:post:900",
+                         link="https://x.com/a/status/900", title="Held post",
+                         content_text="Held post", content_origin="feed", state="pending"))
+        session.commit()
+    assert environment.put("/api/settings/x", json={"token": "test-" + "x" * 40}).status_code == 200
+    with respx.mock(assert_all_mocked=True) as router:
+        router.get("https://api.x.com/2/users/100/tweets").respond(200, json={"meta": {"result_count": 0}})
+        execute(environment)
+    assert outcomes_before_captions == [("new_items", "new_items")]
+
+
+def test_waiting_podcast_episode_keeps_no_new_items_when_checked(
+    environment, monkeypatch, outcomes_before_captions,
+):
+    seed(environment)
+    with environment.app.state.session_factory() as session:
+        session.scalar(select(Source)).kind = "podcast"
+        item = session.scalar(select(Item))
+        item.transcript_status = "waiting"
+        item.discovered_at = datetime.now(timezone.utc)
+        session.commit()
+    stub_outcomes(monkeypatch, {"Source 0": "no_new_items"})
+    execute(environment)
+    assert outcomes_before_captions == [("no_new_items", "no_new_items")]
+
+
+def test_source_without_pending_items_keeps_no_new_items(environment, monkeypatch, outcomes_before_captions):
+    seed(environment, count=0)
+    stub_outcomes(monkeypatch, {"Source 0": "no_new_items"})
+    execute(environment)
+    assert outcomes_before_captions == [("no_new_items", "no_new_items")]
+
+
+def test_failed_check_with_held_items_stays_failed(environment, monkeypatch, outcomes_before_captions):
+    seed(environment)
+    stub_outcomes(monkeypatch, {"Source 0": "failed"})
+    execute(environment)
+    assert outcomes_before_captions == [("failed", "failed")]
+
+
+def test_source_deleted_while_held_items_are_counted(environment, monkeypatch):
+    from catchup.digest import runner
+
+    seed(environment)
+    stub_outcomes(monkeypatch, {"Source 0": "no_new_items"})
+    original = runner.select_pending
+    deleted = False
+
+    def delete_source(*args, **kwargs):
+        nonlocal deleted
+        if not deleted:
+            deleted = True
+            with environment.app.state.session_factory() as session:
+                session.delete(session.scalar(select(Source)))
+                session.commit()
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(runner, "select_pending", delete_source)
+    assert execute(environment)["status"] == "no_new_content"
+
+
 def saved_capture(client, *, site_name="X · Name", image=False):
     token = client.post("/api/settings/extension-tokens", json={"name": "Chrome"}).json()["token"]
     response = client.post("/api/captures", json={

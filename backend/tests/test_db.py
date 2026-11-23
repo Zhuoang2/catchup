@@ -15,6 +15,49 @@ from catchup.main import create_app
 import catchup.models  # noqa: F401 - register tables on Base
 
 
+def test_run_progress_migration_fills_sources_total_and_downgrades(tmp_path) -> None:
+    engine = make_engine(tmp_path)
+    config = Config()
+    config.set_main_option("script_location", str(Path(catchup.__file__).resolve().parent / "migrations"))
+    config.attributes["connection"] = engine
+    try:
+        command.upgrade(config, "0007_x_accounts")
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO sources (id, title, site_url, feed_url, input_url, created_at) VALUES "
+                "(1, 'One', 'https://one.example', 'https://one.example/feed', "
+                "'https://one.example/feed', '2026-11-01'), "
+                "(2, 'Two', 'https://two.example', 'https://two.example/feed', "
+                "'https://two.example/feed', '2026-11-01')"
+            ))
+            connection.execute(text(
+                "INSERT INTO digest_runs (id, status, items_total, items_done, started_at) VALUES "
+                "(1, 'succeeded', 0, 0, '2026-11-01'), (2, 'no_new_content', 0, 0, '2026-11-01')"
+            ))
+            connection.execute(text(
+                "INSERT INTO source_checks (run_id, source_id, status, possible_gap, "
+                "entries_seen, new_count, checked_at) VALUES "
+                "(1, 1, 'no_new_items', 0, 0, 0, '2026-11-01'), "
+                "(1, 2, 'no_new_items', 0, 0, 0, '2026-11-01')"
+            ))
+        command.upgrade(config, "head")
+        with engine.connect() as connection:
+            assert connection.execute(text(
+                "SELECT id, sources_total, stage_seconds FROM digest_runs ORDER BY id"
+            )).all() == [(1, 2, None), (2, 0, None)]
+        command.downgrade(config, "0007_x_accounts")
+        assert {"sources_total", "stage_seconds"}.isdisjoint(
+            {column["name"] for column in inspect(engine).get_columns("digest_runs")}
+        )
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT id FROM digest_runs ORDER BY id")).scalars().all() == [1, 2]
+            assert connection.execute(text("SELECT run_id, source_id FROM source_checks ORDER BY id")).all() == [
+                (1, 1), (1, 2),
+            ]
+    finally:
+        engine.dispose()
+
+
 def test_startup_migrates_database_and_enables_wal(test_settings: Settings) -> None:
     with TestClient(create_app(test_settings)) as client:
         engine = client.app.state.engine
@@ -51,6 +94,7 @@ def test_migrations_live_inside_package() -> None:
     assert (migrations / "versions" / "0005_item_images.py").is_file()
     assert (migrations / "versions" / "0006_captures.py").is_file()
     assert (migrations / "versions" / "0007_x_accounts.py").is_file()
+    assert (migrations / "versions" / "0008_run_progress.py").is_file()
 
 
 def test_existing_database_at_old_revision_is_unchanged(tmp_path) -> None:
@@ -68,7 +112,7 @@ def test_existing_database_at_old_revision_is_unchanged(tmp_path) -> None:
             ).scalars().all()
         migrate(engine)
         with engine.connect() as connection:
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0007_x_accounts"
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0008_run_progress"
             assert connection.execute(text("SELECT digest_language FROM app_settings WHERE id=1")).scalar_one() == "zh-Hans"
             assert connection.execute(
                 text("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -237,7 +281,7 @@ def test_image_migration_from_0004_preserves_rows_and_downgrades(tmp_path) -> No
             ))
         command.upgrade(config, "head")
         with engine.connect() as connection:
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0007_x_accounts"
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0008_run_progress"
             assert connection.execute(text(
                 "SELECT image_candidates, summary_images FROM items WHERE id=1"
             )).one() == (None, None)
@@ -277,7 +321,7 @@ def test_capture_migration_preserves_rows_and_removes_capture_sources_on_downgra
             ))
         command.upgrade(config, "head")
         with engine.connect() as connection:
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0007_x_accounts"
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0008_run_progress"
             assert connection.execute(text("SELECT title, site_name, captured_replies FROM items WHERE id=1")).one() == (
                 "Post", None, None,
             )
@@ -418,7 +462,7 @@ def test_migrate_copy_of_0006_database(tmp_path) -> None:
     try:
         migrate(copied)
         with copied.connect() as connection:
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0007_x_accounts"
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0008_run_progress"
         assert {"x_accounts", "x_credentials"} <= set(inspect(copied).get_table_names())
     finally:
         copied.dispose()

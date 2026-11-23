@@ -1,5 +1,7 @@
 import socket
 import ssl
+import re
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from threading import Thread
 from types import SimpleNamespace
@@ -15,6 +17,30 @@ from catchup.net.safe_fetch import BudgetExhausted, FetchError, MAX_BYTES, parse
 
 PUBLIC = "https://public.example/feed"
 REAL_CONNECT = socket.socket.connect
+
+
+def test_budget_units_are_taken_once_per_request_across_threads(monkeypatch):
+    monkeypatch.setattr(socket, "getaddrinfo", lambda _host, port, **_kwargs: [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", port)),
+    ])
+    budget = [5]
+
+    def requests(index):
+        succeeded = 0
+        for n in range(3):
+            try:
+                safe_fetch(f"https://h{index}.example/{n}", budget=budget)
+                succeeded += 1
+            except BudgetExhausted:
+                pass
+        return succeeded
+
+    with respx.mock(assert_all_mocked=True) as router:
+        route = router.get(re.compile(r"https://h\d\.example/\d")).respond(200)
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            assert sum(pool.map(requests, range(4))) == 5
+        assert route.call_count == 5
+    assert budget == [0]
 
 
 def _dns_answers(addresses, port):

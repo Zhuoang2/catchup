@@ -2649,3 +2649,88 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - **Problems / adjustment:**
   - **A JavaScript snippet for the browser check.** It first had to be exported from the TypeScript source with types stripped. Joining its lines into one would have broken automatic semicolon insertion, so it was pasted with its line breaks.
   - **The browser pane's width.** When hidden, the pane first ran at width 0, so the page used its mobile layout. The desktop check was repeated at an emulated 1280 px width, and the emulation was reset afterwards.
+
+## 2026-11-20 — `improve-context-pass-speed-and-progress` (#64): plan (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
+
+- **Prompts** (translated from Chinese):
+  - After #62 merged, the user chose #64: "Yes, start writing the lean proposal for #64."
+  - After reviewing the plan, the user approved it: "Yes, commit the plan, then start running Droid."
+- **Outcome:**
+  - **Checked on `main` `64973c0`.** Claude traced the five problems in #64 and its comment of 2026-11-02 to lines in the code:
+    - the total sums every candidate link, post page, and captured reply;
+    - pages are read one item and one request at a time, and `HostSpacer` holds one lock for all hosts while it sleeps;
+    - a followed source is saved as "No new items" and rewritten only after the context pass;
+    - `sources_total` is counted at each request;
+    - no run records stage durations, and the app's INFO log lines reach no handler.
+  - **Probes** with the backend's locked environment:
+    - P1: trafilatura 2.3.0 and lxml 6.1.3 gave identical output on 200 invented pages, sequentially and with 4 and 16 threads;
+    - P2: respx 0.23.1 counted 40 requests from 4 threads, with a measured peak of 4 in flight;
+    - P3: an unlocked budget list overshot its limit in 163 of 200 trials.
+  - **Plan.**
+    - D1: a `stage_seconds` JSON column;
+    - D2: a stored `sources_total`, with migration `0008_run_progress`;
+    - D3: a total of the pages read plus those the remaining limit can still pay for, with robots.txt counted;
+    - D4: up to 4 items at once, each in its own thread and session, with locks per host, per origin, and for the budget;
+    - D5: "New items" for held items as soon as the check is saved;
+    - D6: the README.
+
+    Seven task groups, mutations D1, D2, N1, N2, M1, H1–H4, S1, S2, R1, R2, B1, T1–T7, W1–W3, Doc, and F1. Group 7 tells Droid not to run Docker. D-036 and its rejected alternatives.
+  - **D-023 fresh-eyes check.** A sub-agent that saw only the plan and the code reported 14 findings, with probes in a scratch copy (`monkeypatch` with `raising=False`, `shutdown(cancel_futures=True)`, reassigning a JSON column, the Alembic batch backfill, and a 4-worker prototype that peaked at 4 in 25 of 25 trials). Claude checked each one before changing the plan; 13 were confirmed and applied to `tasks.md`:
+    - four `test_db.py` checks pin the head revision `0007`, and the migration file list needs `0008`;
+    - two more existing tests pin the old total;
+    - the autouse fixture turns `HostSpacer`'s sleep into a no-op, so the spacing tests pass a real sleep;
+    - the held-item tests use `stub_outcomes`, because `stub_collection` does not set the source's status;
+    - the lock wording in the concurrency test was ambiguous;
+    - several planned red tests pass today and are now marked as guards;
+    - smaller items: imports inside tests, an `entered` event, the cases for T2, reading `CONTEXT_WORKERS` at run time, and the one-worker tests named.
+
+    The 14th (no planning entry in this log yet) was not a defect: this entry is written when the plan is committed.
+- **Problems / adjustment:**
+  - **Claude's first draft named the wrong test file** in the proposal's Impact (`test_digest_stages.py`). It was replaced by `test_db.py` and `test_readme_context.py`.
+  - **Two lines of the first design draft were unclear:** a question left in the Risks section, and the browser check's wording. They were rewritten before the fresh-eyes check.
+  - **Several tests that Claude first planned as red already pass on `main`.** Claude found some of them, and the fresh-eyes check found the rest. They stay in the plan as guards for the new code.
+  - **The decision was first numbered D-035.** PR #96 (the Shipping section) took D-035 on `main` after the plan was written, so Claude merged `main` into the branch and renumbered this change's decision to D-036 before Droid started.
+
+## 2026-11-20 — `improve-context-pass-speed-and-progress` (#64): implementation, stop and resume (Factory Droid, GPT-6.1 Sol)
+
+- **Session:** one Droid session, `cab4e6dd-1712-426e-b00a-5e6b25fb87cf`, in two parts: 206 turns (about 8.6 minutes) until the stop at T4, then 342 turns (about 7.4 minutes) after it was resumed with `-s`. Claude Code added this line at review.
+- **Prompt as run (faithful excerpt):** "Implement OpenSpec change improve-context-pass-speed-and-progress (issue #64) using the openspec-apply-change skill. Do all task groups 1-7 in openspec/changes/improve-context-pass-speed-and-progress/tasks.md, in order. Before starting, read AGENTS.md, then the change's proposal.md, design.md, specs/digest-generation/spec.md, specs/content-collection/spec.md, and the whole of tasks.md, including its implementer notes. Work test-first with the tdd skill: in each group, write the tests first and watch them fail, or pass, exactly as tasks.md states, then change the code. Check off a task only after its verification passes. Run every named mutation ... alone, restore the code after each by editing the file back, confirm the restore with git diff, and record the real results in the test report that task 7.2 names." The prompt required offline backend tests and frontend dependencies, Node 22.17.1, no package changes, no protected plan/spec/log edits, separate group commits, no destructive Git commands or hook bypass, and no Docker, port 8800, publishing, or secret handling. "If an expected red or green result does not hold, or a task is blocked, or the plan looks wrong, stop and report with the diagnosing-bugs skill's ranked hypotheses instead of improvising."
+- **First part:** Read all required context and activated openspec-apply-change and tdd. Completed and committed groups 1–3 separately: `7060a4c` (stage timing/counts), `8aa1c41` (held items), `ef3af2b` (thread-safe requests). Group 4's tests observed their specified red/green outcomes; its initial implementation passed 55 context tests and 1063 backend tests. It was left uncommitted when T4 survived unexpectedly.
+- **Initial failure:** T4's four named tests (five parametrized cases) all passed after removing the exhaustion drop. The mutation batch mistakenly continued through T5–T7 before results were inspected; T7's edit caused an indentation error and was not a valid kill. All edits were restored, with each file's diff matching its pre-mutation baseline.
+- **Diagnosis / amendment:** Activated diagnosing-bugs and stopped implementation. Ranked hypotheses: (1) persisted-total assertions cannot see an uncommitted in-progress entry, (2) exhausted-budget calculation masks remaining queued reads, (3) the edit missed its handler. Inspection supported 1 and 2 and ruled out 3. Claude Code agreed with the first hypothesis and committed `ae04f15`, adding the next-item progress-commit test to tasks.md. That test confirmed the stale in-progress entry: it passes with the drop and fails with `(2, 1)` under T4.
+- **Resumed prompt (faithful excerpt):** "Continue OpenSpec change improve-context-pass-speed-and-progress (issue #64) in this worktree, from where you stopped at group 4. Your uncommitted group-4 work is still here. Claude Code reviewed your stop report, agreed with your first hypothesis, and committed ae04f15, which changes only openspec/changes/improve-context-pass-speed-and-progress/tasks.md ... Write the new test ... Finish 4.2 ... Re-run T4 with the new test. Retry T7 with a mutation that is valid Python ... Commit group 4, then do groups 5, 6, and 7 in order, test-first with the tdd skill, using the openspec-apply-change skill, exactly as tasks.md states ... write one Droid entry ... that covers both parts of this session ... Inspect each mutation's result before running the next." The same offline, no-package-change, Node, Docker/live-instance, protected-file and Git restrictions remained in force.
+- **Resumed implementation:** Added the approved test and completed group 4 (`0581da4`), the four-item context pool and README (`b061e03`), and the run bar condition (`99b187a`). Group 5's two expected red tests failed (peak 1 and missing README phrase); its three guards passed before implementation. The existing budget-order test then observed `["gathered", "none"]` rather than `["gathered", None]`; only its worker count was pinned to one, as allowed by 5.2. The other named order-dependent example passed unchanged, including all final repetitions. The replacement frontend test failed on the old source-count condition, then passed with unchanged status text and accessibility.
+- **Final mutations:** Every named mutation was run in isolation and restored by editing, with git diff compared after every restore. D1, D2, N1, N2, M1, H1–H4, S1, S2, R1, R2, T1–T7, W1–W3, pooled R1, Doc and F1 were killed by assertions on valid attempts. T4's original four tests still passed while its approved new test failed; T7's valid retry failed with total 2 versus done 1. B1 survived as expected and is recorded as lock review plus design probe P3 evidence, not a deterministic test kill. Resumed mutation results were inspected before the next mutation.
+- **Final verification:** Backend `uv run --offline pytest`: 1068 passed in 29.75 s. The five-file concurrency set passed five consecutive times, 240 tests each (12.08, 11.86, 12.13, 12.09 and 12.42 s). Node 22.17.1 and offline npm ci used unchanged package manifests: frontend 314 tests passed in 14 files; TypeScript/Vite production build passed. Strict OpenSpec validation and git diff --check passed.
+- **Evidence / limits:** `docs/process/test-report-improve-context-pass-speed-and-progress.md` preserves the stop and records every actual red/green and mutation result, the worker pin, and final command output summaries. Group 7 completes the evidence and task checkboxes in its own commit. No packages were added/upgraded, no protected planning artifacts changed, and no Docker, port 8800, live-instance, push, merge, tag or PR action was taken. Docker smoke, the benchmark and the browser check remain for Claude Code's review.
+
+## 2026-11-20 — `improve-context-pass-speed-and-progress` (#64): fix round 1 (Factory Droid, GPT-6.1 Sol)
+
+- **Session:** the same session, `cab4e6dd-1712-426e-b00a-5e6b25fb87cf`, resumed a second time in Claude Code's review worktree: 449 turns, about 7.0 minutes. Claude Code added this line at review, and set the model in the heading from the session's first entry.
+- **Prompt as run (faithful excerpt):** Implement only group 8, Fix round 1, per plan commits `0483756` and `cd96580`, in the review worktree because the old worktree was removed. Write the 8.1 tests first and observe 12 failures and two passing port cases; implement 8.2; verify its named tests, three affected files and full backend. Run O1–O4 individually, inspect each result before the next, edit back without restore commands, and confirm each reversal with git diff. Repeat every task-7.1 command, append Fix round 1 evidence, add a separate Droid log entry, check tasks only after verification and commit group 8. The prompt retained offline testing/dependencies, Node 22.17.1, protected planning files, no Docker/port 8800/publishing/secrets, and immediate diagnosis/stop on unexpected outcomes.
+- **Tool / process:** Factory Droid with openspec-apply-change, tdd and diagnosing-bugs. Used the approved origin/reachable-read and digest execution seams. Re-derived the changed units from zero-cost refused reads and deletion-safe display updates. No Claude review entry for this change existed in this log, so this separate round entry follows the original Droid entry, which is preserved.
+- **Reproduction / ranked hypotheses:** The 14 new cases returned exactly 12 failed and 2 passed before production changes. Ranked causes were (1) URL validity assumptions in progress estimation, predicting fetch-compatible validation plus zero-cost refusal counting would fix address cases; (2) ORM row-count enforcement after deletion, predicting explicit updates would tolerate missing rows; (3) request-budget accounting, less likely because failures preceded requests. Traces and the green checks confirmed 1 and 2; O1/O4 reintroduced the respective failures. Normal read-budget behavior, eligibility and new_count were preserved.
+- **Outcome:** Added only six test functions (14 cases); origin validation, zero-cost refused-read accounting before verdict, and explicit non-synchronizing check/source updates fixed both behavior defects. New cases: 14 passed. Three affected test files: 180 passed. Full backend before mutations: 1082 passed. After reversing O4, the deletion test and all five unchanged group-2 held-item guards passed. No existing test was edited.
+- **Mutations / retries:** O1 killed (7 failed, 2 passed); O2 and O3 each killed (2 failed); O4 killed (1 failed, StaleDataError). Each mutation was applied alone, inspected before the next, edited back, and its git diff compared exactly with the pre-mutation diff. No unexpected red/green, invalid mutation attempt or implementation retry occurred.
+- **Final verification:** Task 7.1 repeated: backend 1082 passed in 32.27 s; five consecutive concurrency sets each passed 254 tests (12.21, 12.51, 12.92, 12.70, 13.23 s). Offline npm ci installed 124 locked packages under Node 22.17.1; frontend 314 passed in 14 files; TypeScript/Vite build passed (40 modules). Strict OpenSpec validation and whitespace checks passed. Existing npm deprecation warning was non-fatal. Full commands, red/green evidence and O1–O4 results are in the report's Fix round 1 section.
+- **Limits:** Group 8 only, one group commit, checkbox-only task edits. No dependency/manifest/lock change, protected planning/log edit, temporary helper, Docker, port 8800, container/volume action, push, merge, tag or PR. Extension, Docker smoke, live/browser and benchmark checks were not run; review remains with Claude Code.
+
+## 2026-11-20 — `improve-context-pass-speed-and-progress` (#64): review (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
+
+- **Prompts** (translated from Chinese):
+  - The plan approval ("Yes, commit the plan, then start running Droid") covered the Droid runs, the review, and the fix round.
+  - Claude's merge-ready report asked: "Handle item 1 as recommended, then approve the merge and finish by the list above?" The user replied: "OK." Item 1 was the wording fix for the total while several items are read at the same time.
+- **Outcome:**
+  - **Before Droid.** `main` had moved to `c67703a`: PR #96 took D-035. Claude merged `main` into the branch and renumbered this change's decision to D-036.
+  - **Droid's stop at T4.** Claude checked Droid's first hypothesis in a scratch copy: a new test passed on Droid's code and failed with `(2, 1)` under T4. Claude added it to task 4.1 (`ae04f15`), and resumed the session.
+  - **Checks.** Backend 1082, frontend 314, and extension 168 tests passed, with both builds and strict validation. `scripts/docker-smoke.sh` passed 12 of 12, on the image built after Droid's run and again after the fix round.
+  - **Benchmark.** An offline benchmark ran the same invented workload (50 items, 178 links, limit 60, 0.3–2.0 s latency) through `main` and the branch. The context pass went from 75.6 s to 19.2 s, the bar ended at 31 of 31 instead of 32 of 178, and at most 4 requests were in flight, with requests to one host at least 1 s apart.
+  - **Browser check.** On a scratch container on port 8864, with an injected active run, the run bar read "Linked pages read: 7 of 20" while one of three sources was still unchecked.
+  - **Review findings.**
+    - `/code-review` (high) found one defect: a malformed address failed the run.
+    - The independent spec sub-agent re-ran every named mutation, and the results matched the report. It confirmed that defect and found a second one: a source deleted during `_show_held_items` failed the run. It also found the total's overshoot while several reads are in progress, which is left to the user, and a wording gap in the report. Claude reproduced each finding before planning changes.
+  - **Fix round 1.** Claude wrote group 8 and tried its tests and fixes in a scratch copy. A fresh sub-agent confirmed it and found four wording errors, which were fixed before Droid ran. Claude then re-ran O1–O4 on Droid's commit. A second `/code-review` found one nit (X hosts), which is recorded.
+- **Problems / adjustment:**
+  - **Claude's own T4 verification in the plan could not fail.** In the four tests it named, no progress commit followed the cut read. Next time, a mutation's named test is run against a prototype before the plan is committed.
+  - **The plan did not say what `reachable_reads` does with an address that `safe_fetch` refuses.** Claude found it while Droid was still running, by reading the code. The fix-round tests came from that probe.
+  - **A zsh variable with several test ids ran no tests,** because zsh does not split words. The O1 run was repeated with an array.

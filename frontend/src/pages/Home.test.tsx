@@ -278,9 +278,9 @@ it('shows linked-page progress after every source is checked without changing st
   await expectAccessible(container)
 })
 
-it('keeps source progress during the source checks despite planned linked pages', async () => {
+it('shows linked-page progress after a source is deleted during the checks', async () => {
   const { container } = mockPage({ run: { ...run, context_total: 20, context_done: 7 } })
-  expect(await screen.findByRole('progressbar', { name: 'Sources checked: 2 of 3' }))
+  expect(await screen.findByRole('progressbar', { name: 'Linked pages read: 7 of 20' }))
     .toBeInTheDocument()
   expect(screen.getByRole('status')).toHaveTextContent('Checking sources, 2 of 3')
   await expectAccessible(container)

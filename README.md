@@ -585,6 +585,10 @@ When a site's robots.txt cannot be read because of a server error or a network f
 `CATCHUP_LINKS_PER_ITEM` (default 8) limits linked pages per item.
 `CATCHUP_CONTEXT_FETCHES_PER_RUN` (default 60) limits requests per run
 (including robots.txt).
+CatchUp reads linked pages for up to 4 items at the same time, and keeps
+requests to one host at least 1 second apart. While it reads them, the run
+shows how many pages it has read, out of the pages it can still read within
+that limit.
 Set `CATCHUP_AUTHOR_REPLIES` (default on) to `0`, `false`, or `no` to turn off
 author-reply fetching. Pages that cannot be read are skipped without failing
 the digest.

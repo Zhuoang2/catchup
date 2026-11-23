@@ -126,7 +126,7 @@ Implementer notes:
 
 ## 2. Provider setting, runs, and README (D1, D11–D13)
 
-- [ ] 2.1 Write these tests and watch them fail. Fixtures that need a database or the API fail on the missing column, field, or module.
+- [x] 2.1 Write these tests and watch them fail. Fixtures that need a database or the API fail on the missing column, field, or module.
 
   **In `backend/tests/test_db.py`.** First make the only allowed edits to existing tests there:
   - change `"0008_run_progress"` to `"0009_model_provider"` in the four head-revision assertions (lines 115, 284, 324, and 465);
@@ -196,14 +196,14 @@ Implementer notes:
   - "at least 16,000 output tokens";
   - "fallback model";
   - "Changing the provider or its URL requires entering the API key again".
-- [ ] 2.2 Implement the provider setting:
+- [x] 2.2 Implement the provider setting:
   - **Data.** `models.py` gets `ModelConfig.provider`. Add `migrations/versions/0009_model_provider.py`, whose docstring notes that a downgrade turns Anthropic configurations into OpenAI-compatible ones.
   - **Factory.** Add `llm/providers.py`.
   - **API.** In `api/settings.py`, read and write `provider`, extend the key rule and the context-window clearing to the provider, and use the factory with the provider.
   - **Wiring.** `main.py` uses `make_model_client`. `digest/runner.py` reads `config.provider` with the rest of the configuration and passes it to both factory calls.
 
   Run every test file of 2.1 except `tests/test_readme_providers.py`, which can pass only after task 2.3 writes the README. Then run the full suite without it, `uv run --offline pytest --ignore=tests/test_readme_providers.py`, and watch them pass.
-- [ ] 2.3 Update `README.md`:
+- [x] 2.3 Update `README.md`:
   - **Intro.** The intro at `:3-4` names both providers.
   - **Key rule.** The key rule at `:101-102` reads "Changing the provider or its URL requires entering the API key again; CatchUp will not send a stored key to a new provider or address."
   - **New section.** Add a "Supported model providers" section before "Supported sources". It covers:
@@ -218,7 +218,7 @@ Implementer notes:
     - that collected content is sent to the chosen provider.
 
   Then `uv run --offline pytest tests/test_readme_providers.py tests/test_readme_context.py tests/test_install_docs.py` passes, and so does the full `uv run --offline pytest`.
-- [ ] 2.4 Run these mutations one at a time, and record which tests fail:
+- [x] 2.4 Run these mutations one at a time, and record which tests fail:
 
   | Mutation | Change | Expected failing tests |
   | --- | --- | --- |

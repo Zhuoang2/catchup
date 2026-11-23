@@ -88,7 +88,7 @@ def test_live_failure_recovers_end_to_end(environment, monkeypatch):
             return httpx2.Response(200, html=HTML_PAGE)
         return completion(CUT_OFF)
 
-    environment.app.state.model_client_factory = lambda base, key, model: ModelClient(
+    environment.app.state.model_client_factory = lambda base, key, model, provider: ModelClient(
         base, key, model, http_client=httpx2.Client(transport=httpx2.MockTransport(handle)), sleep=sleeps.append,
     )
     result = execute(environment)
@@ -156,7 +156,7 @@ def test_run_where_every_model_call_fails_with_a_status_error_keeps_items_pendin
             return httpx2.Response(200, json={"object": "list", "data": []})
         return httpx2.Response(status, json={"error": {"message": "unavailable"}})
 
-    environment.app.state.model_client_factory = lambda base, key, model: ModelClient(
+    environment.app.state.model_client_factory = lambda base, key, model, provider: ModelClient(
         base, key, model, http_client=httpx2.Client(transport=httpx2.MockTransport(handle)), sleep=lambda _: None,
     )
     result = execute(environment)

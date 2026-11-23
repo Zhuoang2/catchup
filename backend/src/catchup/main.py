@@ -23,7 +23,7 @@ from catchup.config import Settings, validate_user_agent_contact
 from catchup.db import make_engine, migrate
 from catchup.digest.runner import recover_runs
 from catchup.errors import register_error_handlers
-from catchup.llm.client import ModelClient
+from catchup.llm.providers import make_model_client
 from catchup.models import ExtensionToken, utc_now
 from catchup.net.feed_cache import FeedCache
 from catchup.sources.x_accounts import XPreviewCache
@@ -110,7 +110,7 @@ def create_app(settings: Settings | None = None, dist_dir: Path | None = None) -
     app.state.settings = instance_settings
     app.state.feed_cache = FeedCache()
     app.state.x_preview_cache = XPreviewCache()
-    app.state.model_client_factory = ModelClient
+    app.state.model_client_factory = make_model_client
     register_error_handlers(app)
     app.include_router(settings_router)
     app.include_router(sources_router)

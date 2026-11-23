@@ -257,7 +257,7 @@ Implementer notes:
 
 ## 4. Checks and report
 
-- [ ] 4.1 Run these checks and keep their output for the final report:
+- [x] 4.1 Run these checks and keep their output for the final report:
   - in `backend/`: `uv run --offline pytest`;
   - in `frontend/`: `npm test -- --run` and `npm run build`;
   - in `extension/`: `npm ci --offline --no-audit --no-fund`, then `npm test -- --run` and `npm run build`. The extension is unchanged; this matches CI;
@@ -265,12 +265,12 @@ Implementer notes:
   - `git diff --check`.
 
   All pass.
-- [ ] 4.2 Write `docs/process/test-report-add-anthropic-provider.md`. It holds:
+- [x] 4.2 Write `docs/process/test-report-add-anthropic-provider.md`. It holds:
   - the commands of 4.1, with their counts;
   - both probes of 1.1, including the SDK version and the exception class;
   - every mutation, with the tests that failed;
   - any deviation from this plan.
-- [ ] 4.3 Add one Droid entry for this run to `docs/process/ai-usage-log.md`, in the format of the Droid entry for `improve-context-pass-speed-and-progress`. It holds:
+- [x] 4.3 Add one Droid entry for this run to `docs/process/ai-usage-log.md`, in the format of the Droid entry for `improve-context-pass-speed-and-progress`. It holds:
   - the prompt (an excerpt);
   - the tool and model;
   - the outcome;

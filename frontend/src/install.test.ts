@@ -38,6 +38,16 @@ function sizeAt(bytes: Uint8Array, offset: number): number {
 describe('install assets', () => {
   it('draws the tab icon on the 16 px grid', () => {
     const document = new DOMParser().parseFromString(readFileSync('public/icon.svg', 'utf8'), 'image/svg+xml')
+    const allowed: Record<string, string[]> = {
+      svg: ['xmlns', 'viewBox'],
+      rect: ['x', 'y', 'width', 'height', 'fill'],
+      path: ['d', 'stroke', 'stroke-width'],
+    }
+    const unexpected = [...document.querySelectorAll('*')].flatMap(element => element.localName in allowed
+      ? [...element.attributes].filter(attribute => !allowed[element.localName].includes(attribute.name))
+        .map(attribute => `${element.localName}[${attribute.name}]`)
+      : [element.localName])
+    expect(unexpected, 'SVG may use only rect and path with the attributes this test models').toEqual([])
     const rectangles: { left: number; top: number; right: number; bottom: number; color: string | null }[] = []
     for (const shape of document.querySelectorAll('rect, path')) {
       if (shape.localName === 'rect') {

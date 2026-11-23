@@ -144,3 +144,42 @@ Repository root, `git diff --check`: **exit 0, no output**. The staged group-1 d
 - Docker build and `scripts/docker-smoke.sh`: **not performed**, explicitly forbidden for this Droid run.
 - Live check on a spare port and fresh volume: **not performed**. Review should fetch `/icon.svg`, `/icon-192.png`, and `/offline.html` from the built container; render SVG at 16 px and 32 px in headless Chrome and check two colors and the design pattern; and verify the built extension's copied PNG is the new file.
 - No Docker command, container/volume operation, port 8800 use, browser/live check, push, merge, tag, or PR action was taken. No claim is made about the browser toolbar's scaling filter, installed-app refresh timing, or real-tab rendering.
+
+## Review by Claude Code
+
+Reviewed in worktree `review43` on the branch. Droid's run started at the plan commit `fae68c8` and ended at `f4b7f16`.
+
+### Checks on `f4b7f16`
+
+| Check | Result |
+| --- | --- |
+| Backend `uv run --offline pytest` | 1082 passed |
+| Frontend `npm test -- --run`, `npm run build` | 316 passed; build passed |
+| Extension `npm test -- --run`, `npm run build` | 168 passed; build passed; `dist/icon-192.png` is byte-identical to the new `frontend/public/icon-192.png` |
+| `DO_NOT_TRACK=1 openspec validate improve-small-icon-legibility --strict` | valid |
+| `git diff --check fae68c8 HEAD` | clean |
+| `scripts/docker-smoke.sh catchup:fix43-local` | 12 of 12 |
+
+### Live check
+
+A scratch container from `catchup:fix43-local` ran on its own volume and port 8843.
+
+- `/icon.svg`, the four PNG icons, and `/offline.html` as served were byte-identical to the files in `frontend/public/`. The page still declares the SVG and the 192 px PNG.
+- Claude rendered the served `/icon.svg` with headless Chrome 157 (a temporary profile) at 16 px and 32 px, at device scale 1 and 2, and decoded the screenshots. Each had exactly the two mark colors, and the 16 px render matched the pattern in design "Testing" pixel for pixel. `main`'s icon rendered the same way at 16 px had 12 colors.
+- The container and its volume were removed afterwards.
+
+### Findings
+
+- **`/code-review` (high) on `fae68c8..f4b7f16`:** one nit. In the maskable icon, both bar ends are measured from the left edge, and its unit (24.83 px at 512 px) is not whole, so the bars sit 1 px left of center (74 px of mark on the left, 75 px on the right). Before this change they were symmetric. Not fixed: it is a 1 px difference inside a masked, scaled app icon, and changing it would be a behavior change by Claude (see the merge report).
+- **Spec sub-agent** (independent, detached worktree; it decoded the generated files with Python's standard library, re-ran G1–G6, and reproduced the red results): no behavior defect. Three notes:
+  - **F1, test gap, fixed in Claude's review commit.** `draws the tab icon on the 16 px grid` read only `rect` and `path` geometry, so an SVG with `stroke-linecap="square"` (bars on half pixels), an extra `line` in a third color, or a `transform` on the square still passed. The test now first requires that the SVG has only `svg`, `rect`, and `path`, with only the attributes it models. Proof in a `git archive` export of the branch, editing `public/icon.svg` and running only that test:
+
+    | Mutation | Without the new assertion | With it |
+    | --- | --- | --- |
+    | E1 `stroke-linecap="square"` on the path | passed | failed |
+    | E2 an extra `<line stroke="#888888">` | passed | failed |
+    | E3 `transform="translate(10 10)"` on the square | passed | failed |
+
+    On the real icon, `install.test.ts` has 7 passed, and `npm run build` passes.
+  - **F2, not fixed.** No test pins the maskable icon's box (`0.21`); tasks.md puts it out of scope.
+  - **F3, not fixed.** The comment at `make-icons.py:19` says the maskable mark stays within the 80% safe zone, but its corners are about 41% of the size from the center. design.md lists this as a non-goal; it predates this change.

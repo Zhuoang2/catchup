@@ -27,7 +27,7 @@ from catchup.models import (
 from catchup.net.host_spacing import HostSpacer
 from catchup.net.rate_limit import is_rate_limited
 from catchup.transcripts.context import TranscriptContext
-from catchup.sources.feeds import is_short
+from catchup.sources.feeds import is_short, stored_image_candidates
 from catchup.sources.x_api import XClient
 from catchup.sources.x_check import XReadBudget, check_x_account
 from catchup.transcripts.youtube import fetch_captions
@@ -363,7 +363,7 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                                  {"ref": part.ref, "kind": part.kind, "title": part.title,
                                   "host": urlsplit(part.url).hostname or "", "text": part.text}
                                  for part in sorted(item.contexts, key=lambda row: row.position)
-                             ], item.image_candidates or [], name)
+                             ], stored_image_candidates(item.image_candidates), name)
                 for item, name in ready
             ]
             names = {item.id: name for item, name in ready}

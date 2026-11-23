@@ -8,6 +8,7 @@ from catchup.db import get_session
 from catchup.errors import AppError
 from catchup.models import Digest, DigestItem, DigestRun, DigestTopic
 from catchup.net.public_hosts import is_public_url
+from catchup.sources.feeds import is_formula_image
 
 router = APIRouter(prefix="/api/digests")
 
@@ -77,6 +78,7 @@ def _serialize_digest(digest: Digest, session: Session) -> dict:
                 image for image in (item.images or [])
                 if isinstance(image, dict) and isinstance(image.get("url"), str)
                 and is_public_url(image["url"])
+                and not is_formula_image(image["url"])
             ],
         })
     creator_groups: dict[tuple[str, str | None], list[dict]] = {}

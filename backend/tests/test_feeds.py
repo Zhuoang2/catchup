@@ -49,6 +49,25 @@ def test_filter_image_urls_drops_formula_images():
     assert [image.url for image in images] == ["https://cdn.example/chart.png"]
 
 
+def test_stored_image_candidates_apply_the_rules_again():
+    from catchup.sources.feeds import stored_image_candidates
+
+    stored = [
+        {"url": "https://s0.wp.com/latex.php?latex=%7BT%7D", "alt": "{T}", "caption": "",
+         "width": None, "height": None, "origin": "html"},
+        {"url": "https://cdn.example/icon.png", "alt": "", "caption": "",
+         "width": 16, "height": 16, "origin": "html"},
+        "not a dict", {"alt": "no url"}, {"url": 7},
+        {"url": "https://cdn.example/chart.png", "alt": "Chart", "caption": "Sales",
+         "width": None, "height": None, "origin": "media"},
+    ]
+    assert stored_image_candidates(stored) == [
+        {"url": "https://cdn.example/chart.png", "alt": "Chart", "caption": "Sales",
+         "width": None, "height": None, "origin": "media"},
+    ]
+    assert stored_image_candidates(None) == []
+
+
 def malformed_entry_feed() -> bytes:
     """Entry 1 has a bad image, a bad media image and a bad link; entry 2 is ordinary."""
     body = ("<p>Release notes for the garden planner.</p>"

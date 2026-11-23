@@ -90,6 +90,39 @@ def test_saved_digest_never_returns_local_images(test_settings):
             assert session.scalar(select(DigestItem)).images == images
 
 
+def test_saved_digest_never_returns_formula_images(test_settings):
+    with TestClient(create_app(test_settings)) as client:
+        images = [
+            {"url": "https://s0.wp.com/latex.php?latex=%7BT%7D", "alt": "{T}"},
+            {"url": "https://cdn.example/chart.png", "alt": "Chart"},
+        ]
+        with client.app.state.session_factory() as session:
+            run = DigestRun(status="succeeded")
+            session.add(run)
+            session.flush()
+            digest = Digest(run_id=run.id, model_id="test", item_count=1, source_count=1)
+            session.add(digest)
+            session.flush()
+            digest_id = digest.id
+            topic = DigestTopic(digest_id=digest_id, position=0, title="Pictures", overview="Saved")
+            session.add(topic)
+            session.flush()
+            session.add(DigestItem(
+                digest_id=digest_id, topic_id=topic.id, position=0, title="Chart",
+                link="https://example.test/chart", source_name="Pictures",
+                summary="A chart", summary_unavailable=False, images=images,
+            ))
+            session.commit()
+        for path in (f"/api/digests/{digest_id}", "/api/digests/latest"):
+            response = client.get(path)
+            assert response.status_code == 200
+            assert response.json()["topics"][0]["items"][0]["images"] == [
+                {"url": "https://cdn.example/chart.png", "alt": "Chart"},
+            ]
+        with client.app.state.session_factory() as session:
+            assert session.scalar(select(DigestItem)).images == images
+
+
 def test_latest_digest_is_null_without_history(test_settings):
     with TestClient(create_app(test_settings)) as client:
         response = client.get("/api/digests/latest")

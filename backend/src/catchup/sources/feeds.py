@@ -2,7 +2,7 @@
 
 import hashlib
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from urllib.parse import urlsplit
@@ -149,6 +149,19 @@ def filter_image_urls(
         if len(result) == 8:
             break
     return tuple(result)
+
+
+def stored_image_candidates(stored: object) -> list[dict]:
+    candidates = [
+        EntryImage(
+            image["url"], image.get("alt", ""), image.get("caption", ""),
+            _dimension(image.get("width")), _dimension(image.get("height")),
+            image.get("origin", "html"),
+        )
+        for image in (stored or [])
+        if isinstance(image, dict) and isinstance(image.get("url"), str)
+    ]
+    return [asdict(image) for image in filter_image_urls(candidates)]
 
 
 def ordered_candidates(candidates: tuple[TranscriptCandidate, ...],

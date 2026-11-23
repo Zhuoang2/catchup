@@ -24,7 +24,7 @@ All expected reds were inspected before production edits. There were no unexpect
 | 3.1, backend | `uv run --offline pytest tests/test_digest_stages.py -k image -q --tb=short` | 2 failed, 6 passed, 45 deselected: new rules and changed example failed; all other selected image tests passed. |
 | 4.1, frontend | `npx vitest run src/components/DigestArticle.test.tsx src/pages/DigestView.test.tsx src/pages/Home.test.tsx --reporter=dot` | 8 failed, 125 passed in 3 files: four new tests plus the changed component assertion, digest layout assertion, and shown-image preference cases on saved/latest views. |
 
-The obsolete-role search used the required ripgrep equivalent of the plan's grep command, from the repository root: `rg -n "getByRole\('img'|findByRole\('img'" frontend/src`. It printed nothing and exited 1, as expected.
+The obsolete-role search used a ripgrep equivalent of the plan's grep command, from the repository root: `rg -n "getByRole\('img'|findByRole\('img'" frontend/src`. It printed nothing and exited 1, as expected.
 
 Green checks after implementation:
 
@@ -179,3 +179,56 @@ All commands below exited 0 after all mutation restores. Every backend pytest ru
 These are existing suites with this round's three added backend cases and one frontend regression; extension tests are unchanged. The full suites recheck the original regressions after the mutation restores.
 
 No real feed, page, image, or model was fetched. No Docker command, smoke/build, live/browser check, port 8800, container/volume action, push, merge, tag, PR, or archive was performed. Docker and live checks remain for Claude Code's review; D5's real-model choice check remains the user's post-merge check. No temporary helper or debug instrumentation was created. This round's AI usage entry omits the session line for Claude Code to add at review.
+
+## Review by Claude Code
+
+Reviewed in worktree `review65` on the branch. Droid's runs started at the plan commit `1bc7959` (groups 1–5) and at `7757205` (fix round 1, with wording fixes in `80494ac`).
+
+### Checks
+
+| Check | Result |
+| --- | --- |
+| Backend `uv run --offline pytest` | 1112 passed on `ce72409`; 1115 on Claude's review commit, after fix round 1 |
+| Frontend `npm test -- --run`, `npm run build` | 318 passed on `ce72409`, 319 on Claude's review commit; build passed |
+| Extension `npm test -- --run`, `npm run build` | 168 passed; build passed |
+| `DO_NOT_TRACK=1 openspec validate improve-digest-image-captions --strict` | valid |
+| `git diff --check` | clean |
+| `scripts/docker-smoke.sh catchup:fix65-local` (built from `ce72409`, then from `8580455`) | 12 of 12 both times |
+
+### Feed comparison (design D5 step 1)
+
+Claude read each feed once, on 2026-11-22, and kept it in memory only. The same bytes went through `parse_feed` of `main` (`795c5e7`) and of the branch:
+
+| Feed | Entries | Candidates on `main` | Of them formulas | Candidates on the branch | Of them formulas | Real images dropped |
+| --- | --- | --- | --- | --- | --- | --- |
+| Terence Tao (`terrytao.wordpress.com/feed/`) | 10 | 11 | 10 | 1 | 0 | none |
+| Simon Willison (`simonwillison.net/atom/everything/`) | 30 | 19 | 0 | 19 | 0 | none |
+
+### Browser check (design D5 step 2)
+
+A scratch container from `catchup:fix65-local` (built from `ce72409`) ran on its own volume and port 8865, with a local OpenAI-compatible stub model on the host that chose image `I1` with a fixed caption whenever a summary call offered images. Both feeds above were added and one run succeeded with 9 items; the stub was asked 9 summaries, 2 of them with images, and no formula image appeared in the digest.
+
+- **1280 px:** each image is a `<figure>` with `<img alt="">` and `<figcaption lang="en">`, the caption directly under the image and as wide as it. Images load lazily once scrolled into view.
+- **Accessibility:** the image is presentational and the caption text appears once in the accessibility tree.
+- **375 px:** no horizontal scroll (scroll width 375); the caption wraps under the 343 px image.
+- **Failed image:** pointing the second image at a missing address removed its figure and caption, and left no empty `.item-images` block.
+- **Images turned off** (`show_images` false): no figure, image, or caption; all 9 summaries shown.
+
+The container, its volume, and the stub were removed afterwards.
+
+### Findings
+
+- **`/code-review` (high) on `1bc7959..ce72409` and on fix round 1:** no findings.
+- **Spec sub-agent** (independent, detached worktree; it re-ran all 23 named mutations, and each failed its named test):
+  - **Fixed in fix round 1 (Droid):**
+    - the reading view threw on a saved image whose `alt` was missing or not a string, so the whole page failed to render;
+    - `latex.codecogs.com.` with a trailing dot stayed a formula candidate;
+    - no test covered the size rule for `media:thumbnail`.
+
+    A fresh sub-agent checked the new task group before Droid ran: every red and green result and M1–M3 held, and two wording fixes went into `80494ac`.
+  - **Covered by the browser check:** the caption's CSS has no unit test; the check above shows it under the image and no wider than the column.
+  - **Decision for the user:** the fallback texts, "Image from <source>" (English) and a candidate's own alt (the page's language), are marked with the digest's language, as task 4.2 planned. It happens only when the model writes no text for an image.
+  - **Fixed in Claude's review commit:** this report said Droid used the "required" ripgrep equivalent of the plan's grep command; the plan requires no ripgrep.
+  - **Recorded, not fixed:**
+    - "Formula from another renderer" and "Address that only mentions LaTeX" are tested at `is_formula_image` only, and the X-post filter only through the shared `filter_image_urls`; mutation C6 shows the callers are covered;
+    - addresses such as `/latex.php/`, `/latex.php;x`, and `/latex%2Ephp` are kept, as the spec's "last part of the path" rule says.

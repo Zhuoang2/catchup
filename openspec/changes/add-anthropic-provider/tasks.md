@@ -36,7 +36,7 @@ Implementer notes:
 
 ## 1. Anthropic client (D2–D10)
 
-- [ ] 1.1 Probe, then write the tests and watch them fail.
+- [x] 1.1 Probe, then write the tests and watch them fail.
 
   **Probes (record both results in the test report, task 4.2):**
   - `uv run --offline python -c "import anthropic; print(anthropic.__version__)"` in `backend/` prints `1.13.0`. If the import fails or prints another version, stop and report: the dependency was not added as planned.
@@ -105,11 +105,11 @@ Implementer notes:
   - **`test_usage_of_the_wrong_shape_is_not_counted`,** parametrized over `(input_tokens, output_tokens, expected)`: `("seven", 3, (0, 3))`, `(7, "three", (7, 0))`, and `("seven", "three", (0, 0))`. Use words, not digits: the SDK turns `"7"` into 7 (always for `output_tokens`, and for `input_tokens` whenever `message_start`'s usage is otherwise valid). When both counts are words, `usage_totals()` is `(0, 0)`, not `None`, because usage was reported.
 
   They fail at collection, because `catchup.llm.anthropic_client` does not exist.
-- [ ] 1.2 Write `backend/src/catchup/llm/anthropic_client.py` as design D3–D10 describe: `AnthropicModelClient`, `FALLBACK_MODELS`, and `DEFAULT_MODEL = "claude-opus-5-5"`. Create the SDK client with `base_url`, `api_key`, `max_retries=0`, and `http_client`. Use the SDK's typed errors, their `.type`, and, for the spend limit, `.body["error"]["details"]["error_code"]`; never their message text. Catch `AssertionError` only around `get_final_message()`. In `list_models()`, read each page as raw JSON with `self._client.models.with_raw_response.list(timeout=15.0)` and `.json()`, then with `after_id=<last_id>` while `has_more` is true, inside the same retry and error mapping as `chat_json()`. A page that is not JSON (`ValueError`) or not a model list is retried, then raises `ProviderError`. Do not use the typed `client.models.list()`: its `ModelInfo` turns `"12"` into 12 and `true` into 1, and a 200 HTML page raises `AttributeError`. Then run, and watch pass:
+- [x] 1.2 Write `backend/src/catchup/llm/anthropic_client.py` as design D3–D10 describe: `AnthropicModelClient`, `FALLBACK_MODELS`, and `DEFAULT_MODEL = "claude-opus-5-5"`. Create the SDK client with `base_url`, `api_key`, `max_retries=0`, and `http_client`. Use the SDK's typed errors, their `.type`, and, for the spend limit, `.body["error"]["details"]["error_code"]`; never their message text. Catch `AssertionError` only around `get_final_message()`. In `list_models()`, read each page as raw JSON with `self._client.models.with_raw_response.list(timeout=15.0)` and `.json()`, then with `after_id=<last_id>` while `has_more` is true, inside the same retry and error mapping as `chat_json()`. A page that is not JSON (`ValueError`) or not a model list is retried, then raises `ProviderError`. Do not use the typed `client.models.list()`: its `ModelInfo` turns `"12"` into 12 and `true` into 1, and a 200 HTML page raises `AttributeError`. Then run, and watch pass:
   - `uv run --offline pytest tests/test_anthropic_client.py`;
   - `uv run --offline pytest tests/test_llm_client.py`, unchanged;
   - the full `uv run --offline pytest`.
-- [ ] 1.3 Run these mutations one at a time, each against `tests/test_anthropic_client.py`, and record which tests fail:
+- [x] 1.3 Run these mutations one at a time, each against `tests/test_anthropic_client.py`, and record which tests fail:
 
   | Mutation | Change | Expected failing test |
   | --- | --- | --- |

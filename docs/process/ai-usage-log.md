@@ -2734,3 +2734,21 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - **Claude's own T4 verification in the plan could not fail.** In the four tests it named, no progress commit followed the cut read. Next time, a mutation's named test is run against a prototype before the plan is committed.
   - **The plan did not say what `reachable_reads` does with an address that `safe_fetch` refuses.** Claude found it while Droid was still running, by reading the code. The fix-round tests came from that probe.
   - **A zsh variable with several test ids ran no tests,** because zsh does not split words. The O1 run was repeated with an array.
+
+## 2026-11-22 — `improve-small-icon-legibility` (#43, part 2): plan (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
+
+- **Prompts** (translated from Chinese):
+  - After #64 merged, the user chose four issues to plan at the same time: "Start #43, #12, #40, and #65 in parallel."
+  - After reviewing the four plans, the user decided: "#43: option A; #12: everything as recommended, network approved; #40: Proposal 1; #65: everything as recommended."
+- **Outcome:**
+  - **Checked on `main` `795c5e7`.** A planning sub-agent traced the blur: the bars of `icon.svg` are 38/1024 high, about 0.6 px at 16 px, and the square's edges fall on half pixels (2.56 px and 13.44 px). The extension's build copies `icon-192.png`, so its toolbar icon uses the same drawing.
+  - **Three options were rendered** with the local headless Chrome 157 at 16 px and 32 px, on 1x and 2x screens, on light and dark tabs. Today's icon has 12 colors at 16 px; option A has 2.
+  - **Browser choice of icons.** Chromium's `favicon_handler.cc` gives an SVG without `sizes` the same desktop score as an ideal size, and downloads the next candidate only if it scores higher, so the 32 px PNG proposed in #43 would never be used. Claude read the scoring code itself.
+  - **Plan.** Option A of D1: every icon file drawn from one rule on a 16 × 16 grid by `make-icons.py`, the offline page's inline copy updated, two new tests in `install.test.ts`, and mutations G1–G6. Group 2 tells Droid not to run Docker. D-039.
+  - **D-023 fresh-eyes check.** A sub-agent that saw only `tasks.md` and the code prototyped both tests and every mutation in a scratch worktree. Claude checked each finding before changing the plan; four were confirmed and applied:
+    - the frontend has no `@types/node`, so `node:zlib` needs one line in `src/test/node-fs.d.ts`, or `npm run build` fails;
+    - G5 named a variable the new code need not keep, so the mutation stopped the generator and was never applied;
+    - one `expect` per pixel took about 5 s, Vitest's default timeout, so the tests compare in loops;
+    - the PNG reader also requires interlace method 0.
+- **Problems / adjustment:**
+  - **The first draft said the extension's toolbar icon would become sharp.** That holds only for averaging over 16 × 16 blocks: Chrome 157 drawing the new 192 px PNG in `<img width=16>` still gave 7 colors. The design, the spec delta, the proposal, and D-039 now say it was not checked.

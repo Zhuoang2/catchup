@@ -227,7 +227,7 @@ The container, its volume, and the stub were removed afterwards.
 
     A fresh sub-agent checked the new task group before Droid ran: every red and green result and M1–M3 held, and two wording fixes went into `80494ac`.
   - **Covered by the browser check:** the caption's CSS has no unit test; the check above shows it under the image and no wider than the column.
-  - **Decision for the user:** the fallback texts, "Image from <source>" (English) and a candidate's own alt (the page's language), are marked with the digest's language, as task 4.2 planned. It happens only when the model writes no text for an image.
+  - **Decision for the user:** the fallback texts, "Image from <source>" (English) and a candidate's own alt (the page's language), are marked with the digest's language, as task 4.2 planned. It happens only when the model writes no text for an image. The user accepted it as a known limit (2026-11-22).
   - **Fixed in Claude's review commit:** this report said Droid used the "required" ripgrep equivalent of the plan's grep command; the plan requires no ripgrep.
   - **Recorded, not fixed:**
     - "Formula from another renderer" and "Address that only mentions LaTeX" are tested at `is_formula_image` only, and the X-post filter only through the shared `filter_image_urls`; mutation C6 shows the callers are covered;

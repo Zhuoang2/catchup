@@ -2816,7 +2816,9 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 
 ## 2026-11-22 — `improve-digest-image-captions` (#65): review (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
 
-- **Prompts** (translated from Chinese): the plan approval ("#65: everything as recommended") covered Droid's runs, this review, and the fix round.
+- **Prompts** (translated from Chinese):
+  - The plan approval ("#65: everything as recommended") covered Droid's runs, this review, and the fix round.
+  - Claude's merge-ready report asked whether to accept decision 1 as recommended and approve the merge, together with two items for #12 and #40: "Handle all three as recommended?" The user replied: "OK." Decision 1 was the fallback captions' language, accepted as a known limit.
 - **Outcome:**
   - **Checks:** backend 1112, then 1115 after the fix round; frontend 318, then 319; extension 168; both builds; strict validation; `git diff --check`; `scripts/docker-smoke.sh` 12 of 12 on images built before and after the fix round.
   - **Feed comparison (D5 step 1):** Terence Tao's feed had 10 formula candidates among 11 on `main` and none on the branch, with its one real image kept; Simon Willison's 19 candidates were the same on both.

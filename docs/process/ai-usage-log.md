@@ -2734,3 +2734,19 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - **Claude's own T4 verification in the plan could not fail.** In the four tests it named, no progress commit followed the cut read. Next time, a mutation's named test is run against a prototype before the plan is committed.
   - **The plan did not say what `reachable_reads` does with an address that `safe_fetch` refuses.** Claude found it while Droid was still running, by reading the code. The fix-round tests came from that probe.
   - **A zsh variable with several test ids ran no tests,** because zsh does not split words. The O1 run was repeated with an array.
+
+## 2026-11-22 — `improve-digest-image-captions` (#65): plan (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
+
+- **Prompts** (translated from Chinese):
+  - After #64 merged, the user chose four issues to plan at the same time: "Start #43, #12, #40, and #65 in parallel."
+  - After reviewing the four plans, the user decided: "#43: option A; #12: everything as recommended, network approved; #40: Proposal 1; #65: everything as recommended."
+- **Outcome:**
+  - **Checked on `main` `795c5e7`.** The summary's image text is only the `alt` attribute. Terence Tao's feed (read on 2026-11-22) shows formulas as `s0.wp.com/latex.php?latex=…` with `class="latex"`, the LaTeX source as `alt`, and no size. The extension and X report no image sizes, and `_dimension` reads only integers. Stored candidates and reused summaries would bypass a collection-time rule, so the plan filters again before the summary call and when a saved digest is read.
+  - **Probes:** feedparser 6.0.14 keeps `width`, `height`, `class`, and `style` and drops `srcset`; `dom-accessibility-api` 0.5.16 and 0.6.3 do not name a `<figure>` from its `<figcaption>`, and give `<img alt="">` the role `presentation`; axe 4.14 reports no violation for an empty `alt` with a caption.
+  - **Plan.** D1–D8: usually one image, at most 3; a stated width or height under 100 px is dropped; the stored `alt` is shown as a caption, old digests included; `<figure>` with `<img alt="">` and `<figcaption lang>`; three formula address rules. Four code groups and a checks group, with mutations C1–C6, S1–S4, R1, R2, H1, P1–P5, and U1–U5; the last group tells Droid not to run Docker. D-040. The user chose the recommendation for D1–D5. The #94 proposal had said the rest of #65 waits for #14; the user chose to do it now.
+  - **D-023 fresh-eyes check.** A sub-agent that saw only `tasks.md` and the code prototyped all four code groups in a scratch worktree (1,112 backend and 318 frontend tests passed) and ran all 23 named mutations; each failed its named test. Claude checked each finding before changing the plan; five were confirmed and applied:
+    - the images-off test passed on today's code, so it now first shows that a caption appears;
+    - the runner test's "no `latex.php` in the message" could never fail, because the message lists no addresses, so it now checks the formula's `alt` and names the candidate exactly;
+    - the imports that existing test files need, the directory the `grep` check runs from, and the test names for U1–U5.
+- **Problems / adjustment:**
+  - **Two of Claude's planned red results did not hold** (the images-off test and the address check). The prototype run caught both before Droid.

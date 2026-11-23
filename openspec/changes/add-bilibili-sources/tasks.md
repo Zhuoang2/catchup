@@ -102,7 +102,7 @@ Implementer notes:
 
 ## 2. Reading an uploader from RSSHub (D5)
 
-- [ ] 2.1 Write the fixture and these tests, and watch them fail at import: `catchup.sources.bilibili` does not exist.
+- [x] 2.1 Write the fixture and these tests, and watch them fail at import: `catchup.sources.bilibili` does not exist.
 
   **The fixture `backend/tests/fixtures/rsshub-uploader.json`** is a JSON Feed with:
   - `version` `https://jsonfeed.org/version/1.1`, `title` `Sample Uploader 的 bilibili 空间`, and `home_page_url` `https://space.bilibili.com/2267573`.
@@ -173,14 +173,14 @@ Implementer notes:
     - `prefix`: `rsshub_url="http://rsshub.test:1200/hub"` requests `http://rsshub.test:1200/hub/bilibili/user/video/2267573?format=json`.
     - `http-error`: an answer of 503 raises `FetchError` with code `rsshub_failed`, `status_code` 503, and the message "RSSHub could not read this uploader (HTTP 503).".
     - `redirect-to-bilibili`: a 302 to `https://www.bilibili.com/` raises code `blocked_address`.
-- [ ] 2.2 Make them pass:
+- [x] 2.2 Make them pass:
   - write `backend/src/catchup/sources/bilibili.py` with `uploader_mid`, `fetch_uploader`, `parse_uploader_feed` and the message constants, as D5 says;
   - add `FeedEntry.transcript_text` and `Feed.source_kind` to `sources/feeds.py`, with defaults, and have `Feed.kind` return `source_kind` when it is set.
 
   Read subtitles with `convert_transcript(<decoded bytes>, "text/srt")`, never with the `data:` URL's own type. Then run, and watch pass:
   - `uv run --offline pytest tests/test_bilibili.py tests/test_feeds.py tests/test_feed_transcripts.py`;
   - the full `uv run --offline pytest`.
-- [ ] 2.3 Run these mutations one at a time:
+- [x] 2.3 Run these mutations one at a time:
 
   | Mutation | Change | Expected failing test |
   | --- | --- | --- |

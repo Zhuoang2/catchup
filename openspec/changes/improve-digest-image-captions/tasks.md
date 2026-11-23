@@ -59,12 +59,12 @@ Implementer notes:
 
 ## 3. The prompt prefers one self-explaining image (digest-generation; design D1, "Prompt text")
 
-- [ ] 3.1 Write a failing test in `backend/tests/test_digest_stages.py`, `test_image_rules_ask_for_self_explaining_images_with_captions`. For both `summary_messages("Post", "Text", "en", images=image)` and `long_transcript_messages("Talk", "Transcript", "en", images=image)`, with `image = [{"origin": "html", "alt": "Chart", "caption": ""}]`, assert that the system message contains each of: `usually only one`, `a reader who has not read the item can understand it from the image and its caption`, `Choose a second or third image only when each shows something different`, `rendered formulas`, `write in alt a caption of up to 120 characters`, `saying what the image shows and why it matters`, and `{"ref": "I1", "alt": "What the image shows and why it matters"}`.
+- [x] 3.1 Write a failing test in `backend/tests/test_digest_stages.py`, `test_image_rules_ask_for_self_explaining_images_with_captions`. For both `summary_messages("Post", "Text", "en", images=image)` and `long_transcript_messages("Talk", "Transcript", "en", images=image)`, with `image = [{"origin": "html", "alt": "Chart", "caption": ""}]`, assert that the system message contains each of: `usually only one`, `a reader who has not read the item can understand it from the image and its caption`, `Choose a second or third image only when each shows something different`, `rendered formulas`, `write in alt a caption of up to 120 characters`, `saying what the image shows and why it matters`, and `{"ref": "I1", "alt": "What the image shows and why it matters"}`.
 
   In the same file, change only one line of `test_image_prompts_request_summary_language_alt_and_share_neutral_example`: the asserted example becomes `'{"ref": "I1", "alt": "What the image shows and why it matters"}'`.
 
   Verify: the new test and the changed test fail on the current code. The other image prompt tests still pass.
-- [ ] 3.2 In `backend/src/catchup/llm/prompts.py`, set `IMAGE_RULES` to the exact text in design "Prompt text", and change the image part of both example outputs (`prompts.py:86`, `:103`) to `"alt": "What the image shows and why it matters"`.
+- [x] 3.2 In `backend/src/catchup/llm/prompts.py`, set `IMAGE_RULES` to the exact text in design "Prompt text", and change the image part of both example outputs (`prompts.py:86`, `:103`) to `"alt": "What the image shows and why it matters"`.
 
   Verify:
   - the tests from 3.1 pass, and `uv run --offline pytest` passes in `backend/`, including `test_no_context_system_prompt_matches_original_main_bytes`, `test_no_image_long_transcript_prompt_matches_original_main_bytes`, and the `"at most 3"` assertions in `test_digest_stages.py` and `test_long_summaries.py`, all unchanged;

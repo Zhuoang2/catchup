@@ -371,7 +371,7 @@ Implementer notes:
 
 ## 7. Final checks and the report
 
-- [ ] 7.1 Run, and record the output and counts:
+- [x] 7.1 Run, and record the output and counts:
   - `uv run --offline pytest` in `backend/`;
   - `npm test -- --run` and `npm run build` in `frontend/`;
   - `npm test -- --run` and `npm run build` in `extension/`;
@@ -379,9 +379,9 @@ Implementer notes:
   - `git diff --check` against the plan commit.
 
   All must pass. Do not run Docker.
-- [ ] 7.2 Write `docs/process/test-report-add-bilibili-sources.md`. Record:
+- [x] 7.2 Write `docs/process/test-report-add-bilibili-sources.md`. Record:
   - each group's red and green results;
   - every mutation with its result;
   - the commands of 7.1 with their counts;
   - that Claude Code runs Docker smoke and the live check with a local RSSHub at review.
-- [ ] 7.3 Add a Droid entry to `docs/process/ai-usage-log.md`: the prompt (a faithful excerpt), the tool and model, the outcome, what failed, and how it was resolved. Leave the session line for Claude Code to fill in.
+- [x] 7.3 Add a Droid entry to `docs/process/ai-usage-log.md`: the prompt (a faithful excerpt), the tool and model, the outcome, what failed, and how it was resolved. Leave the session line for Claude Code to fill in.

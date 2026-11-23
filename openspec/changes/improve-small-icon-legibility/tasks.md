@@ -49,7 +49,7 @@ Implementer notes:
 
 ## 2. Checks and report
 
-- [ ] 2.1 Run the full checks:
+- [x] 2.1 Run the full checks:
   - `uv run --offline pytest` in `backend/` (record the count);
   - `npm test -- --run` and `npm run build` in `frontend/` and in `extension/`, with Node 22.17.1 (record the counts);
   - `DO_NOT_TRACK=1 openspec validate improve-small-icon-legibility --strict`;

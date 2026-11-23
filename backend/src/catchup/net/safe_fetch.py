@@ -19,6 +19,7 @@ import httpx
 from catchup.config import validate_user_agent_contact
 from catchup.net.public_hosts import is_public_address
 from catchup.net.x_hosts import is_x_host
+from catchup.net.bilibili_hosts import is_bilibili_host
 
 MAX_BYTES = 5 * 1024 * 1024
 MAX_REDIRECTS = 5
@@ -79,7 +80,13 @@ class FetchResponse:
     status_code: int
 
 
-def _check_address(url: str) -> None:
+def _origin(url: str) -> tuple[str, str | None, int]:
+    parts = urlsplit(url)
+    scheme = parts.scheme.lower()
+    return scheme, (parts.hostname or "").lower(), parts.port or (443 if scheme == "https" else 80)
+
+
+def _check_address(url: str, private_origin: str | None = None) -> None:
     try:
         parts = urlsplit(url)
         port = parts.port or (443 if parts.scheme == "https" else 80)
@@ -90,17 +97,22 @@ def _check_address(url: str) -> None:
 
     if is_x_host(parts.hostname):
         raise FetchError("blocked_address", "X pages are read only through the X API.")
+    if is_bilibili_host(parts.hostname):
+        raise FetchError("blocked_address", "Bilibili pages are never requested; uploaders are read through RSSHub.")
 
-    _public_answers(parts.hostname, port)
+    if private_origin is None or _origin(url) != _origin(private_origin):
+        _public_answers(parts.hostname, port)
 
 
-def _public_answers(host: str, port: int) -> list[tuple]:
+def _public_answers(host: str, port: int, *, private: bool = False) -> list[tuple]:
     try:
         answers = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
     except (OSError, UnicodeError) as exc:
         raise FetchError("fetch_failed", "The source host could not be resolved.") from exc
     if not answers:
         raise FetchError("fetch_failed", "The source host could not be resolved.")
+    if private:
+        return answers
     for answer in answers:
         try:
             address = ipaddress.ip_address(answer[4][0])
@@ -112,9 +124,12 @@ def _public_answers(host: str, port: int) -> list[tuple]:
 
 
 class _PublicOnlyBackend(httpcore.SyncBackend):
+    def __init__(self, private: tuple[str, int] | None = None):
+        self.private = private
+
     def connect_tcp(self, host: str, port: int, timeout: float | None = None,
                     local_address: str | None = None, socket_options=None):
-        answers = _public_answers(host, port)
+        answers = _public_answers(host, port, private=(host.lower(), port) == self.private)
         last_error = None
         for answer in answers:
             try:
@@ -125,13 +140,13 @@ class _PublicOnlyBackend(httpcore.SyncBackend):
         raise last_error
 
 
-def _client() -> httpx.Client:
+def _client(private: tuple[str, int] | None = None) -> httpx.Client:
     transport = httpx.HTTPTransport(trust_env=False)
     # Private httpx/httpcore wiring: fail closed if an upgrade moves it, instead of connecting unchecked.
     pool = getattr(transport, "_pool", None)
     if not isinstance(getattr(pool, "_network_backend", None), httpcore.SyncBackend):
         raise RuntimeError("Cannot install the connect-time address check; refusing to fetch.")
-    pool._network_backend = _PublicOnlyBackend()
+    pool._network_backend = _PublicOnlyBackend(private)
     return httpx.Client(
         transport=transport, follow_redirects=False, trust_env=False, headers={"User-Agent": user_agent()},
     )
@@ -139,7 +154,8 @@ def _client() -> httpx.Client:
 
 def safe_fetch(url: str, *, same_origin: str | None = None, budget: list[int] | None = None,
                spacer=None, max_bytes: int | None = None,
-               allow: Callable[[str], bool] | None = None) -> FetchResponse:
+               allow: Callable[[str], bool] | None = None,
+               private_origin: str | None = None) -> FetchResponse:
     current = url
     limit = MAX_BYTES if max_bytes is None else max_bytes
     limit_label = f"{limit // (1024 * 1024)} MB" if limit % (1024 * 1024) == 0 else f"{limit} bytes"
@@ -151,7 +167,8 @@ def safe_fetch(url: str, *, same_origin: str | None = None, budget: list[int] | 
             raise FetchError("fetch_failed", "The source fetch timed out.", status_code)
         return seconds
 
-    with _client() as client:
+    private = _origin(private_origin)[1:] if private_origin is not None else None
+    with _client(private=private) as client:
         retried = False
         for hop in range(MAX_REDIRECTS + 1):
             while True:
@@ -162,7 +179,7 @@ def safe_fetch(url: str, *, same_origin: str | None = None, budget: list[int] | 
                     raise FetchError("invalid_url", "Enter a valid public HTTP or HTTPS URL.") from exc
                 if same_origin is not None and f"{parts.scheme}://{parts.netloc}" != same_origin:
                     raise FetchError("fetch_failed", "Feed probing must stay on the same origin.")
-                _check_address(current)
+                _check_address(current, private_origin=private_origin if hop == 0 else None)
                 if allow is not None:
                     started = monotonic()
                     permitted = allow(current)

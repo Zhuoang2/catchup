@@ -37,7 +37,7 @@ Implementer notes:
 
 ## 1. The Bilibili host rule, the RSSHub address, and its private-address exception (D2–D4)
 
-- [ ] 1.1 Write these tests and watch them fail. The `safe_fetch` tests fail on the missing `private_origin` argument or on the missing host rule, and `test_lookalike_hosts_are_not_bilibili` on the missing module `catchup.net.bilibili_hosts`; import `is_bilibili_host` inside that test, so the rest of `test_safe_fetch.py` still collects. The link test fails on the kept links, and the config tests on the missing `rsshub_url` field.
+- [x] 1.1 Write these tests and watch them fail. The `safe_fetch` tests fail on the missing `private_origin` argument or on the missing host rule, and `test_lookalike_hosts_are_not_bilibili` on the missing module `catchup.net.bilibili_hosts`; import `is_bilibili_host` inside that test, so the rest of `test_safe_fetch.py` still collects. The link test fails on the kept links, and the config tests on the missing `rsshub_url` field.
 
   **In `backend/tests/test_safe_fetch.py`** (new tests only):
   - **`test_bilibili_hosts_are_refused_before_dns`,** parametrized over:
@@ -80,7 +80,7 @@ Implementer notes:
     - `"http://rsshub:1200/"` → `"http://rsshub:1200"`;
     - `"https://rss.example/hub/"` → `"https://rss.example/hub"`.
   - **`test_rsshub_address_rejects_invalid_values`,** parametrized over `ftp://rsshub:1200`, `rsshub:1200`, `http://`, `http://user:pw@rsshub:1200`, `http://rsshub:1200/?key=1` and `http://rsshub:1200/#top`. `Settings.from_env()` raises `ValueError` whose message contains `CATCHUP_RSSHUB_URL`.
-- [ ] 1.2 Make them pass:
+- [x] 1.2 Make them pass:
   - add `backend/src/catchup/net/bilibili_hosts.py` with `is_bilibili_host`, as D2 says;
   - use it in `_check_address` (`net/safe_fetch.py`), before DNS and after the X rule, and in `related_links` (`context/links.py`);
   - add `private_origin` to `safe_fetch`, `_check_address` and `_client`/`_PublicOnlyBackend`, as D4 says;
@@ -89,7 +89,7 @@ Implementer notes:
   Then run, and watch pass:
   - `uv run --offline pytest tests/test_safe_fetch.py tests/test_context_links.py tests/test_config.py`;
   - the full `uv run --offline pytest`.
-- [ ] 1.3 Run these mutations one at a time:
+- [x] 1.3 Run these mutations one at a time:
 
   | Mutation | Change | Expected failing test |
   | --- | --- | --- |

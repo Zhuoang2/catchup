@@ -4,6 +4,7 @@ import os
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,23 @@ def validate_user_agent_contact(contact: str | None) -> str | None:
     return contact
 
 
+def validate_rsshub_url(value: str | None) -> str | None:
+    if not value:
+        return None
+    try:
+        parts = urlsplit(value)
+        if (parts.scheme not in ("http", "https") or not parts.hostname
+                or parts.username is not None or parts.password is not None
+                or "?" in value or "#" in value):
+            raise ValueError("invalid URL")
+        parts.port
+    except ValueError as exc:
+        raise ValueError(
+            "CATCHUP_RSSHUB_URL must be an HTTP or HTTPS address without a user name, query, or fragment."
+        ) from exc
+    return value.rstrip("/")
+
+
 @dataclass(frozen=True)
 class Settings:
     data_dir: Path
@@ -61,6 +79,7 @@ class Settings:
     context_fetches_per_run: int = 60
     author_replies: bool = True
     x_reads_per_run: int = 200
+    rsshub_url: str | None = None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -81,6 +100,7 @@ class Settings:
             context_fetches_per_run=positive_env("CATCHUP_CONTEXT_FETCHES_PER_RUN", 60),
             author_replies=os.getenv("CATCHUP_AUTHOR_REPLIES", "true").lower() not in ("0", "false", "no"),
             x_reads_per_run=nonnegative_env("CATCHUP_X_READS_PER_RUN", 200),
+            rsshub_url=validate_rsshub_url(os.getenv("CATCHUP_RSSHUB_URL")),
             long_item_chars=positive_env("CATCHUP_LONG_ITEM_CHARS", 20_000),
             single_call_chars=positive_env("CATCHUP_SINGLE_CALL_CHARS"),
             allowed_hosts=tuple(

@@ -74,3 +74,25 @@ def test_x_read_limit_rejects_invalid_values(monkeypatch, value):
     monkeypatch.setenv("CATCHUP_X_READS_PER_RUN", value)
     with pytest.raises(ValueError, match="CATCHUP_X_READS_PER_RUN"):
         Settings.from_env()
+
+
+@pytest.mark.parametrize("value,expected", [
+    (None, None), ("", None), ("http://rsshub:1200", "http://rsshub:1200"),
+    ("http://rsshub:1200/", "http://rsshub:1200"),
+    ("https://rss.example/hub/", "https://rss.example/hub"),
+])
+def test_rsshub_address_is_normalized(monkeypatch, value, expected):
+    monkeypatch.delenv("CATCHUP_RSSHUB_URL", raising=False)
+    if value is not None:
+        monkeypatch.setenv("CATCHUP_RSSHUB_URL", value)
+    assert Settings.from_env().rsshub_url == expected
+
+
+@pytest.mark.parametrize("value", [
+    "ftp://rsshub:1200", "rsshub:1200", "http://", "http://user:pw@rsshub:1200",
+    "http://rsshub:1200/?key=1", "http://rsshub:1200/#top",
+])
+def test_rsshub_address_rejects_invalid_values(monkeypatch, value):
+    monkeypatch.setenv("CATCHUP_RSSHUB_URL", value)
+    with pytest.raises(ValueError, match="CATCHUP_RSSHUB_URL"):
+        Settings.from_env()

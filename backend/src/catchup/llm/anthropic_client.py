@@ -71,7 +71,7 @@ class AnthropicModelClient:
                     if exc.status_code == 429:
                         raise RateLimited("The provider is rate limiting requests.") from exc
                     raise ProviderError("The model provider returned an error.") from exc
-            except (anthropic.APIConnectionError, anthropic.APITimeoutError) as exc:
+            except (anthropic.APIConnectionError, anthropic.APITimeoutError, httpx2.TransportError) as exc:
                 raise ConnectionFailed(f"Could not connect to the model provider at {self.base_url}.") from exc
             except ValueError as exc:
                 if attempt == 2:
@@ -140,14 +140,16 @@ class AnthropicModelClient:
                     raise ValueError("answer is not a message stream") from exc
             usage = getattr(result, "usage", None)
             if hasattr(usage, "input_tokens") or hasattr(usage, "output_tokens"):
-                counts = [getattr(usage, field, None) for field in (
+                iterations = getattr(usage, "iterations", None)
+                entries = iterations if isinstance(iterations, list) and iterations else [usage]
+                counts = [getattr(entry, field, None) for entry in entries for field in (
                     "input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens",
                 )]
-                output = getattr(usage, "output_tokens", None)
+                output = [getattr(entry, "output_tokens", None) for entry in entries]
                 with self._usage_lock:
                     self._usage_reported = True
                     self._prompt_tokens += sum(value for value in counts if type(value) is int)
-                    self._completion_tokens += output if type(output) is int else 0
+                    self._completion_tokens += sum(value for value in output if type(value) is int)
             if result.stop_reason == "refusal":
                 raise InvalidAnswer("The model provider returned an empty or invalid answer.")
             content = "".join(block.text for block in result.content if block.type == "text").strip()

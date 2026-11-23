@@ -15,7 +15,7 @@ BASE = "https://anthropic.example"
 
 
 def stream_body(text, *, stop_reason="end_turn", input_tokens=10, output_tokens=5,
-                cache_creation=0, cache_read=0):
+                cache_creation=0, cache_read=0, iterations=None):
     events = [
         {"type": "message_start", "message": {
             "id": "test-message", "type": "message", "role": "assistant",
@@ -40,9 +40,20 @@ def stream_body(text, *, stop_reason="end_turn", input_tokens=10, output_tokens=
          "usage": {"output_tokens": output_tokens}},
         {"type": "message_stop"},
     ])
+    if iterations is not None:
+        events[-2]["usage"]["iterations"] = iterations
     return httpx2.Response(200, headers={"content-type": "text/event-stream"}, content="".join(
         f"event: {event['type']}\ndata: {json.dumps(event)}\n\n" for event in events
     ))
+
+
+class BrokenStream(httpx2.SyncByteStream):
+    def __init__(self, exc):
+        self.exc = exc
+
+    def __iter__(self):
+        yield stream_body("{}").content.split(b"\n\n", 1)[0] + b"\n\n"
+        raise self.exc
 
 
 def error_event(type):
@@ -312,3 +323,29 @@ def test_usage_of_the_wrong_shape_is_not_counted(provider, input_tokens, output_
     client, _, _ = provider([stream_body("{}", input_tokens=input_tokens, output_tokens=output_tokens)])
     assert client.chat_json([], 200) == {}
     assert client.usage_totals() == expected
+
+
+@pytest.mark.parametrize("exc", [
+    httpx2.ReadTimeout("test timeout"), httpx2.RemoteProtocolError("test drop"),
+], ids=["read-timeout", "dropped"])
+def test_stream_cut_by_the_network_names_the_base_url(provider, exc):
+    client, requests, sleeps = provider([
+        httpx2.Response(200, headers={"content-type": "text/event-stream"}, stream=BrokenStream(exc)),
+    ])
+    with pytest.raises(ConnectionFailed, match=BASE):
+        client.chat_json([], 200)
+    assert len(requests) == 1
+    assert sleeps == []
+
+
+def test_fallback_usage_counts_every_attempt(provider):
+    client, _, _ = provider([
+        stream_body('{"summary": "ok"}', input_tokens=12, output_tokens=5, iterations=[
+            {"type": "message", "model": "claude-opus-5-5", "input_tokens": 10, "output_tokens": 7,
+             "cache_creation_input_tokens": 1, "cache_read_input_tokens": 2},
+            {"type": "fallback_message", "model": "claude-opus-5", "input_tokens": 12, "output_tokens": 5,
+             "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0},
+        ]),
+    ], model="claude-opus-5-5")
+    assert client.chat_json([], 200) == {"summary": "ok"}
+    assert client.usage_totals() == (25, 12)

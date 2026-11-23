@@ -47,6 +47,7 @@ function SettingsSection({ number, title, children, headingRef }: {
 export default function Settings() {
   useDocumentTitle('Settings')
   const [provider, setProvider] = useState<Provider>('openai_compatible')
+  const selectedProvider = useRef(provider)
   const [baseUrl, setBaseUrl] = useState(providerUrls.openai_compatible)
   const [key, setKey] = useState('')
   const [last4, setLast4] = useState<string | null>(null)
@@ -105,6 +106,7 @@ export default function Settings() {
     ]).then(([settings, preferences]) => {
       if (!mounted) return
       setProvider(settings.provider ?? 'openai_compatible')
+      selectedProvider.current = settings.provider ?? 'openai_compatible'
       setSavedProvider(settings.provider ?? 'openai_compatible')
       setBaseUrl(settings.base_url)
       setModel(settings.model_id)
@@ -284,10 +286,12 @@ export default function Settings() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ base_url: testedBaseUrl, api_key: testedKey || undefined, provider: testedProvider }),
       })
-      setModels(result.models)
       const replaced = !result.models.includes(model)
       const chosen = replaced ? result.models[0] : model
-      setModel(chosen ?? '')
+      if (selectedProvider.current === testedProvider) {
+        setModels(result.models)
+        setModel(chosen ?? '')
+      }
       if (!chosen) {
         setModelStatus('Connection succeeded, but the provider listed no models. Nothing was saved.')
         return
@@ -312,6 +316,7 @@ export default function Settings() {
 
   function chooseProvider(choice: Provider) {
     setProvider(choice)
+    selectedProvider.current = choice
     setBaseUrl(choice === savedProvider ? savedBaseUrl ?? providerUrls[choice] : providerUrls[choice])
     setModel(choice === savedProvider ? savedModel : '')
     setModels(choice === savedProvider ? savedModels : [])

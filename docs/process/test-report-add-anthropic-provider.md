@@ -224,3 +224,154 @@ corrections above are retained as process evidence. The locked Anthropic
 SDK and all package manifests/lockfiles stayed unchanged. No protected
 proposal, design, spec, decision-log or requirements-change file was edited.
 Session metrics are left to Claude Code.
+
+## Fix round 1
+
+Factory Droid, GPT-6.1 Sol, 2026-11-22. Started at `01645df` in Claude
+Code's review worktree, after the group-5 plan in `2207837` and its
+fresh-eyes corrections in `01645df`. Only group 5 was implemented.
+
+### Reproduction and diagnosis (5.1)
+
+Added the tests at the agreed adapter/MockTransport and rendered Settings
+seams. Existing tests were unchanged, except extending `stream_body` with
+the optional `iterations` keyword and corresponding event usage field.
+`BrokenStream` yields only the first `message_start` event, then raises
+the supplied read-timeout or dropped-connection exception.
+
+In `backend/`:
+
+```sh
+uv run --offline pytest tests/test_anthropic_client.py -k 'stream_cut_by_the_network_names_the_base_url or fallback_usage_counts_every_attempt' -q --tb=short
+```
+
+Observed **3 failed, 48 deselected** in 3.97s, exit 1, exactly as planned:
+
+- `test_stream_cut_by_the_network_names_the_base_url[read-timeout]`:
+  raw `httpx2.ReadTimeout`, rather than `ConnectionFailed`.
+- `test_stream_cut_by_the_network_names_the_base_url[dropped]`:
+  raw `httpx2.RemoteProtocolError`, rather than `ConnectionFailed`.
+- `test_fallback_usage_counts_every_attempt`: `(12, 5)` instead of
+  `(25, 12)`, omitting the declined attempt and its cache usage.
+
+In `frontend/`, with Node 22.17.1:
+
+```sh
+DEBUG_PRINT_LIMIT=0 npm test -- --run src/pages/Settings.test.tsx -t "restores the saved model after switching providers without a test|lists the tested models of a saved Anthropic provider|keeps the tested models out of the other provider" --reporter=verbose
+```
+
+Observed **1 failed, 2 passed, 62 skipped** in 2.49s, exit 1:
+
+- `restores the saved model after switching providers without a test`:
+  passed on the original code, as required.
+- `lists the tested models of a saved Anthropic provider`: passed on the
+  original code, as required.
+- `keeps the tested models out of the other provider's list`: failed,
+  listing the two Claude models under OpenAI-compatible instead of
+  `['saved-model']`.
+
+Ranked hypotheses after reproduction:
+
+1. Missing raw transport-error mapping, top-level-only token accounting,
+   and an unguarded late test response explain the three symptoms. The
+   prescribed mapping, iteration aggregation and live-provider guard
+   should fix each independently.
+2. SDK conversion/merging might lose data, but the raw exceptions and
+   top-level `(12, 5)` total point instead to missing adapter handling.
+3. Incorrect fixtures or duplicate rendering might explain the Settings
+   failure, but the exact wrong options and the two passing controls
+   support the late-response explanation instead.
+
+The green checks and isolated mutations below confirmed hypothesis 1.
+The reduced tests themselves exercised the locked SDK's exception and
+iteration-object behavior; no additional library assumption was needed.
+
+### Fixes and green checks (5.2)
+
+Re-derived the changed units from their invariants: connection failures
+cross the adapter as `ConnectionFailed` without retry; usage counts every
+reported billed attempt once; visible models belong to the currently
+selected provider, while a successful test still saves what it tested.
+
+- `_call` now maps `httpx2.TransportError` with the SDK connection errors.
+- `chat_json` uses a non-empty iterations list when present, otherwise
+  top-level usage. It reads SDK object fields with `getattr`, retains
+  integer-only input/cache/output counting, and adds totals under one lock.
+- Settings keeps the live provider in a ref, initializes it from saved
+  settings and updates it on selection. Both visible-model setters are
+  guarded; chosen/replaced computation, the no-model status and saving
+  the tested configuration remain unchanged.
+
+Commands and observed green results, all exit 0:
+
+| Directory | Command | Result |
+| --- | --- | --- |
+| `backend/` | `uv run --offline pytest tests/test_anthropic_client.py tests/test_anthropic_runs.py tests/test_model_providers.py` | **58 passed, 2 warnings in 4.99s** |
+| `backend/` | `uv run --offline pytest` | **1150 passed, 2 warnings in 48.54s** |
+| `frontend/` | `npm test -- --run` | **324 passed in 14 files**, 8.97s |
+| `frontend/` | `npm run build` | TypeScript and Vite passed, **40 modules**, 399ms |
+
+There are three added backend cases (two parametrized stream cuts and
+one usage case) and three added Settings cases. The other regression
+tests pre-existed this round. The pending-response test verifies both the
+automatic Anthropic save and the later OpenAI-compatible Save body.
+Its mock accepts the latter body only to expose the held model value;
+the real API would refuse a provider change without a new key.
+
+### Mutations (5.3)
+
+Saved the complete uncommitted `git diff --binary --no-ext-diff` after
+5.1/5.2, before mutation N1. Applied each mutation alone, inspected its
+result before proceeding, restored by editing, and compared the complete
+Git diff with that saved baseline after every restore: **all six matched
+exactly**. The temporary baseline file was removed afterward.
+
+N1 and N2 used `uv run --offline pytest` with the named test node, `-q
+--tb=short`. N3–N6 used `DEBUG_PRINT_LIMIT=0 npm test -- --run
+src/pages/Settings.test.tsx -t "<named test(s)>" --reporter=dot`, with Node
+22.17.1. All mutant commands exited 1 for the expected assertion/exception,
+not a syntax or collection failure.
+
+| Mutation | Change | Actual failing test(s) | Result |
+| --- | --- | --- | --- |
+| N1 | Remove `httpx2.TransportError` from mapping | Both `test_stream_cut_by_the_network_names_the_base_url` cases (`read-timeout`, `dropped`), raw exceptions escape | **2 failed**, 1.16s |
+| N2 | Ignore iterations, always use top-level usage | `test_fallback_usage_counts_every_attempt`, `(12, 5)` instead of `(25, 12)` | **1 failed**, 1.16s |
+| N3 | Remove the selected-provider guard | `keeps the tested models out of the other provider's list`, Claude options replace the saved model | **1 failed, 64 skipped**, 759ms |
+| N4 | Remove page-load `setSavedModels` | `restores the saved model after switching providers without a test` and `keeps the tested models out of the other provider's list`, no model option after switching back | **2 failed, 63 skipped**, 682ms |
+| N5 | Remove page-load selected-provider ref assignment | `lists the tested models of a saved Anthropic provider`, only Opus remains instead of both tested options | **1 failed, 64 skipped**, 672ms |
+| N6 | Move `setModel(chosen ?? '')` outside the guard | `keeps the tested models out of the other provider's list`, second PUT sends `claude-opus-5-5` instead of `saved-model` | **1 failed, 64 skipped**, 711ms |
+
+No mutation survived. N6 confirms that checking only the displayed select
+value would miss the stale held-model defect.
+
+### Final checks (5.4, repeat of 4.1)
+
+All commands exited 0 after the final restore. Both npm installations used
+`npm ci --offline --no-audit --no-fund`: frontend added **124** locked
+packages before 5.1, extension added **120** during 5.4, both in 2s.
+Node printed `v22.17.1`; all npm commands used
+`export PATH="$HOME/.nvm/versions/node/v22.17.1/bin:$PATH"`.
+
+| Directory | Command | Actual output / result |
+| --- | --- | --- |
+| `backend/` | `uv run --offline pytest` | **1150 passed, 2 warnings in 36.02s** |
+| `frontend/` | `npm test -- --run` | **14 files passed; 324 tests passed**, 6.85s |
+| `frontend/` | `npm run build` | `tsc --noEmit && vite build`, **40 modules**, built in **412ms** |
+| `extension/` | `npm ci --offline --no-audit --no-fund` | **added 120 packages in 2s** |
+| `extension/` | `npm test -- --run` | **7 files passed; 168 tests passed**, 1.92s |
+| `extension/` | `npm run build` | `tsc --noEmit && vite build && node scripts/check-build.mjs`, **10 modules**, built in **302ms** |
+| root | `DO_NOT_TRACK=1 openspec validate add-anthropic-provider --strict` | `Change 'add-anthropic-provider' is valid` |
+| root | `git diff --check` | No output, exit 0 |
+
+Frontend bundle: `index-PvC2UCdr.js` **319.26 kB**, gzip **97.84 kB**;
+CSS remains **20.50 kB**, gzip **5.24 kB**. The unchanged extension build
+also passed its packaged-output checker.
+
+The two Pydantic warnings are the existing deliberately malformed usage
+fixtures. The existing npm `whatwg-encoding` deprecation warning is
+non-fatal. No unexpected red/green result or plan deviation occurred.
+No package/lockfile, protected planning artifact, group-1–4 task content,
+OpenAI client, prompt, summary/group module or extension source was changed.
+No real model call, Docker/container/volume action, port 8800 access,
+push, merge, tag or PR occurred. Docker smoke/live review remains with
+Claude Code. Session metrics are left to Claude Code.

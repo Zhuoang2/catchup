@@ -328,7 +328,9 @@ export default function Home() {
         <p className="rail-meta">{plural(sources.filter(s => s.kind === 'podcast').length, 'podcast')} ·{' '}
           {sources.filter(s => s.kind === 'youtube').length} YouTube ·{' '}
           {plural(sources.filter(s => s.kind === 'feed').length, 'website')} ·{' '}
-          {plural(sources.filter(s => s.kind === 'x').length, 'X account')}</p>
+          {plural(sources.filter(s => s.kind === 'x').length, 'X account')}
+          {sources.some(s => s.kind === 'bilibili') && <>{' · '}
+            {plural(sources.filter(s => s.kind === 'bilibili').length, 'Bilibili uploader')}</>}</p>
         <p><Link to="/sources">Manage sources</Link></p>
       </section>}
     </>}

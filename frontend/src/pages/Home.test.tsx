@@ -104,6 +104,17 @@ it('counts X accounts in the source rail', async () => {
   expect(container.querySelector('.rail-meta')).toHaveTextContent('1 X account')
 })
 
+it('counts Bilibili uploaders only when there are some', async () => {
+  const withUploader = mockPage({ sources: [...sources, { kind: 'x' }, { kind: 'bilibili' }] })
+  await screen.findByRole('heading', { name: 'Your sources' })
+  expect(withUploader.container.querySelector('.rail-meta')?.textContent)
+    .toBe('1 podcast · 1 YouTube · 1 website · 1 X account · 1 Bilibili uploader')
+  withUploader.unmount()
+  const withoutUploader = mockPage({ sources: [...sources, { kind: 'x' }] })
+  await screen.findByRole('heading', { name: 'Your sources' })
+  expect(withoutUploader.container.querySelector('.rail')).not.toHaveTextContent('Bilibili')
+})
+
 it('keeps saved pages out of visible source counts but allows capture-only runs', async () => {
   const { container } = mockPage({ sources: [sources[0], captures] })
   expect(await screen.findByText('Check your 1 source and summarize everything new since your last digest.'))

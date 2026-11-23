@@ -40,10 +40,10 @@ export function Chip({ children, tone = 'neutral', title }: {
   return <span className={`chip chip-${tone}`} title={title}>{children}</span>
 }
 
-export type SourceKind = 'feed' | 'podcast' | 'youtube' | 'capture' | 'x'
+export type SourceKind = 'feed' | 'podcast' | 'youtube' | 'capture' | 'x' | 'bilibili'
 export const kindNames: Record<SourceKind, string> = {
   feed: 'Website feed', podcast: 'Podcast', youtube: 'YouTube channel', capture: 'Saved from browser',
-  x: 'X account',
+  x: 'X account', bilibili: 'Bilibili uploader',
 }
 export function KindBadge({ kind }: { kind: SourceKind }) {
   return <span className={`badge badge-kind kind-${kind}`}><Icon name={kind} className="icon icon-sm"/>{kindNames[kind]}</span>
@@ -54,11 +54,12 @@ export function KindIcon({ kind }: { kind: SourceKind | null | undefined }) {
     : null
 }
 
-export type Reason = 'captions_off' | 'no_captions' | 'blocked' | 'captions_failed' | 'no_transcript'
+export type Reason = 'captions_off' | 'no_captions' | 'blocked' | 'captions_failed' | 'no_transcript' | 'no_subtitles'
 export const reasons: Record<Reason, string> = {
   captions_off: 'Caption fetching is off', no_captions: 'This video has no captions',
   blocked: 'Blocked by YouTube', captions_failed: 'Captions could not be fetched',
   no_transcript: 'No transcript within 7 days',
+  no_subtitles: 'No subtitles from RSSHub',
 }
 export function ReasonLabel({ reason, waitDays = 7 }: { reason: Reason; waitDays?: number }) {
   return <span className={`reason reason-${reason}`}>

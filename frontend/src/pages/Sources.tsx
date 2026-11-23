@@ -65,6 +65,7 @@ function SourcePreview({ preview, onConfirm, onCancel, headingRef }: {
   preview: Preview; onConfirm: () => void; onCancel: () => void; headingRef: Ref<HTMLHeadingElement>
 }) {
   const method = preview.kind === 'podcast' ? 'Transcripts published by the show'
+    : preview.kind === 'bilibili' ? 'Subtitles read through your RSSHub; videos without subtitles are listed without summaries'
     : preview.kind === 'x' ? 'Posts read through the X API with your token'
     : preview.kind === 'youtube' ? preview.captions_enabled
       ? 'Captions fetched from YouTube on this computer'
@@ -75,12 +76,15 @@ function SourcePreview({ preview, onConfirm, onCancel, headingRef }: {
       <KindBadge kind={preview.kind}/></div>
     <dl className="preview-urls">{preview.kind === 'x'
       ? <><dt>Account</dt><dd>@{preview.username}</dd></>
-      : <><dt>Feed</dt><dd><a href={preview.feed_url}>{preview.feed_url}</a></dd></>}
+      : preview.kind !== 'bilibili' && <><dt>Feed</dt><dd><a href={preview.feed_url}>{preview.feed_url}</a></dd></>}
       <dt>Site</dt><dd><a href={preview.site_url}>{preview.site_url}</a></dd></dl>
     <p className="preview-method"><Icon name={preview.kind === 'youtube' && !preview.captions_enabled ? 'info' : 'check'}/>
       <span>{method}{preview.kind === 'youtube' && !preview.captions_enabled && <>
         {' '}<Link to="/settings">Change in Settings</Link></>}</span>
     </p>
+    {preview.kind === 'bilibili' && <p className="notice"><Icon name="info"/>
+      Bilibili's user agreement does not allow automated access; your RSSHub makes those requests.
+    </p>}
     {preview.follows_site_feed_notice && <p className="notice"><Icon name="info"/>
       {preview.kind === 'podcast'
         ? 'CatchUp will follow the whole show, not only this episode.'
@@ -320,8 +324,8 @@ export default function Sources() {
           <span className="source-icon"><Icon name={source.kind}/></span>
           <div className="source-main"><p className="source-title">{source.title} <KindBadge kind={source.kind}/></p>
             {source.kind === 'capture' ? <p>{pluralPages(source.waiting_count ?? 0)}</p>
-              : <p className="source-feed" title={source.kind === 'x' ? source.site_url : source.feed_url}>
-                {source.kind === 'x' ? source.site_url : source.feed_url}</p>}</div>
+              : <p className="source-feed" title={source.kind === 'x' || source.kind === 'bilibili' ? source.site_url : source.feed_url}>
+                {source.kind === 'x' || source.kind === 'bilibili' ? source.site_url : source.feed_url}</p>}</div>
           {source.kind !== 'capture' && <SourceStatus source={source}/>}
           <Button variant="ghost" size="sm" className="btn-danger" type="button"
             ref={node => { if (node) deleteRefs.current.set(source.id, node)
@@ -334,6 +338,7 @@ export default function Sources() {
         <ul className="rail-list"><li>Blogs and news sites with a feed</li>
           <li>Podcasts — summarized from published transcripts</li>
           <li>YouTube channels — captions are opt-in in Settings</li>
+          <li>Bilibili uploaders — through an RSSHub you run</li>
           <li>Bluesky and Mastodon profiles</li></ul>
         <p className="rail-meta">Apple Podcasts links work too; CatchUp finds the show’s feed.</p>
       </section>

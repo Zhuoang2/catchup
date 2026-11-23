@@ -269,6 +269,7 @@ export async function initPopup(): Promise<void> {
       for (const entry of preview.entries.slice(0, 5)) entries.append(element('li', entry.title))
       const kindLabels: Record<string, string> = {
         feed: 'Website feed', podcast: 'Podcast', youtube: 'YouTube channel', x: 'X account',
+        bilibili: 'Bilibili uploader',
       }
       const xDisplay = preview.kind === 'x' && !!preview.username
       const heading = element('h2', preview.title)
@@ -277,7 +278,7 @@ export async function initPopup(): Promise<void> {
         heading,
         element('p', kindLabels[preview.kind] ?? preview.kind),
         ...(xDisplay ? [element('p', `@${preview.username}`), element('p', preview.site_url)]
-          : [element('p', preview.feed_url)]),
+          : [element('p', preview.kind === 'bilibili' ? preview.site_url : preview.feed_url)]),
         ...(preview.follows_site_feed_notice
           ? [element('p', preview.kind === 'podcast'
             ? 'CatchUp will follow the whole show, not only this episode.'

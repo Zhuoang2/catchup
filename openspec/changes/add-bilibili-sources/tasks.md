@@ -285,7 +285,7 @@ Implementer notes:
 
 ## 5. The Sources page, Home, and the extension popup (D8)
 
-- [ ] 5.1 Write these tests and watch them fail. The kind, the reason and the text are missing, and the rows show `feed_url`.
+- [x] 5.1 Write these tests and watch them fail. The kind, the reason and the text are missing, and the rows show `feed_url`.
 
   **In `frontend/src/components/ui.test.tsx`:**
   - **`names the Bilibili kind and the no-subtitles reason`.** It renders `<KindBadge kind="bilibili"/>` and `<ReasonLabel reason="no_subtitles"/>`, and finds "Bilibili uploader" and "No subtitles from RSSHub". It passes `expectAccessible`.
@@ -309,7 +309,7 @@ Implementer notes:
 
   **In `extension/src/test/popup.test.ts`:**
   - **`labels a bilibili preview as Bilibili uploader and shows its space address`.** On a tab at `https://space.bilibili.com/2267573`, with the Bilibili preview above, "Follow this site" shows "Bilibili uploader" and `https://space.bilibili.com/2267573`, and not `bilibili:uploader:2267573`. Confirm sends `{feed_url: 'bilibili:uploader:2267573'}`. It passes axe, as the neighboring tests do.
-- [ ] 5.2 Make them pass, as D8 says. The files are:
+- [x] 5.2 Make them pass, as D8 says. The files are:
   - `frontend/src/components/ui.tsx`;
   - `frontend/src/components/Icon.tsx`: a generic screen with a play mark, not Bilibili's logo;
   - `frontend/src/pages/Sources.tsx`;
@@ -319,7 +319,7 @@ Implementer notes:
   Then run, and watch pass:
   - `npm test -- --run` and `npm run build` in `frontend/`;
   - `npm test -- --run` and `npm run build` in `extension/`.
-- [ ] 5.3 Run these mutations one at a time:
+- [x] 5.3 Run these mutations one at a time:
 
   | Mutation | Change | Expected failing test |
   | --- | --- | --- |

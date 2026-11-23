@@ -113,3 +113,32 @@ Implementer notes:
   Add your entry to `docs/process/ai-usage-log.md` after the latest entry, with a faithful prompt excerpt. Leave out the session id; Claude Code adds it at review.
 
   Verify: every command that ran passes, and the report has the actual numbers.
+
+## 6. Fix round 1 (review findings)
+
+Claude Code's review of `1bc7959..ce72409` confirmed two behavior defects and one spec scenario without a test:
+- the reading view throws on a saved image whose `alt` is missing or not a string, so the whole digest fails to render (`DigestArticle.tsx:41` calls `image.alt.trim()`; before this change the same data rendered);
+- a formula address on `latex.codecogs.com.` (with the trailing dot that DNS accepts) stays a candidate;
+- no test covers the size rule for `media:thumbnail`, which content-collection's "Small stated size" names.
+
+- [ ] 6.1 Write these tests:
+  - in `backend/tests/test_feeds.py`, add two rows to the parametrize table of `test_is_formula_image`: `("https://latex.codecogs.com./png.image?a%2Bb", True)` and `("https://LATEX.CODECOGS.COM./svg.latex?x", True)`. Both fail on the current code, because the host check keeps the trailing dot.
+  - in `backend/tests/test_discovery.py`, `test_small_media_thumbnails_are_not_candidates`, following `test_formula_and_small_images_are_not_candidates`: parse `image_feed("<p>Text</p>", media="<media:thumbnail url='https://cdn.example/small.jpg' width='64' height='64'/><media:thumbnail url='https://cdn.example/large.jpg' width='480' height='360'/>")`. The entry's image addresses are exactly `["https://cdn.example/large.jpg"]`. This test passes on the current code, because the rule is implemented but untested; mutation M3 in 6.3 shows that it can fail.
+  - in `frontend/src/components/DigestArticle.test.tsx`, `does not fail on a saved image without alt text`, following `does not show an image without text`: the item's images are `[{ url: 'https://cdn.example/a.png' }, { url: 'https://cdn.example/b.png', alt: null }, { url: 'https://cdn.example/c.png', alt: 'Chart' }]`, cast with `as unknown as { url: string; alt: string }[]`, because a saved digest comes from the server unchecked. The digest renders; exactly one `.item-images figure` is shown, its `img` has `src` `https://cdn.example/c.png`, and `screen.getByText('Chart', { selector: 'figcaption' })` exists. It fails on the current code with a `TypeError` from `trim`.
+
+  Verify: the two new formula rows and the frontend test fail on the current code as stated, and the thumbnail test passes. Change no existing test.
+- [ ] 6.2 Fix both defects:
+  - in `backend/src/catchup/sources/feeds.py`, `is_formula_image` compares the host without a trailing dot: `(parts.hostname or "").lower().rstrip(".") == "latex.codecogs.com"`;
+  - in `frontend/src/components/DigestArticle.tsx`, `ItemImages` shows only images whose `alt` is a string with text after trimming: `typeof image.alt === 'string' && image.alt.trim()`. Change nothing else in the component.
+
+  Then run the tests of 6.1, all of `backend/tests/test_feeds.py` and `backend/tests/test_discovery.py`, and `npx vitest run src/components/DigestArticle.test.tsx` in `frontend/`, and watch them pass.
+- [ ] 6.3 Run these mutations one at a time, inspect each result before the next, restore the code after each by editing the file back, and confirm the restore with `git diff`:
+
+  | Mutation | Change | Expected failing test |
+  | --- | --- | --- |
+  | M1 | `.rstrip(".")` removed from `is_formula_image` | the two new rows of `test_is_formula_image` |
+  | M2 | the `typeof image.alt === 'string'` check removed from `ItemImages` | `does not fail on a saved image without alt text` |
+  | M3 | in `_entry_images` (`feeds.py`), the `media_thumbnail` candidate's `width` and `height` set to `None` | `test_small_media_thumbnails_are_not_candidates` |
+- [ ] 6.4 Run the commands of task 5.1 again, with the same rules: no `docker build`, `scripts/docker-smoke.sh`, or any Docker command, and do not touch port 8800. Add a "Fix round 1" section to `docs/process/test-report-improve-digest-image-captions.md` with the red and green results of 6.1 and 6.2, M1–M3, and the commands' counts. Add one Droid entry for this round to `docs/process/ai-usage-log.md`, after the latest entry, with a faithful prompt excerpt; leave out the session line, which Claude Code adds at review.
+
+  Verify: every command passes, and the report has the actual numbers.

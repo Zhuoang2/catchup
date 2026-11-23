@@ -158,6 +158,16 @@ def test_formula_and_small_images_are_not_candidates():
     ]
 
 
+def test_small_media_thumbnails_are_not_candidates():
+    raw = image_feed(
+        "<p>Text</p>",
+        media="<media:thumbnail url='https://cdn.example/small.jpg' width='64' height='64'/>"
+              "<media:thumbnail url='https://cdn.example/large.jpg' width='480' height='360'/>",
+    )
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert [image.url for image in entry.images] == ["https://cdn.example/large.jpg"]
+
+
 def test_entry_images_on_local_addresses_are_dropped():
     raw = image_feed(
         "<img src='http://192.168.1.1/cam.jpg'>"

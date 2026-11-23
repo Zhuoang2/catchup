@@ -113,3 +113,69 @@ All exited 0, after all mutations were restored. npm commands below used the Nod
 - **Design D5 step 3, real-model image choices:** the user's check after merge and their requested rebuild, using their own model. Offline prompt assertions do not prove real-model selection quality.
 
 Implementation commits: group 1 `55834c4`, group 2 `babe238`, group 3 `c5807bb`, group 4 `6abefd2`. Group 5 commits this evidence and the final task checkbox separately. No push, merge, tag, PR, or archive was performed.
+
+## Fix round 1
+
+2026-11-22, Factory Droid, GPT-6.1 Sol. Implemented only task group 6 from `7757205`, with wording fixes in `80494ac`, in Claude Code's review worktree. Groups 1–5 and their evidence are preserved. Used `openspec-apply-change`, `tdd` and `diagnosing-bugs`.
+
+### Reproduction and diagnosis (6.1)
+
+Added exactly the two dotted-host rows to `test_is_formula_image`, the `test_small_media_thumbnails_are_not_candidates` guard, and `does not fail on a saved image without alt text`. No other existing test changed.
+
+| Directory | Command before production edits | Actual result |
+| --- | --- | --- |
+| `backend/` | `uv run --offline pytest tests/test_feeds.py::test_is_formula_image tests/test_discovery.py::test_small_media_thumbnails_are_not_candidates -q --tb=short` | **2 failed, 14 passed in 1.53s**. Only the new lowercase/uppercase dotted codecogs rows failed (`False` instead of `True`). The thumbnail guard passed on the existing code. |
+| `frontend/` | `DEBUG_PRINT_LIMIT=0 npx vitest run src/components/DigestArticle.test.tsx -t "does not fail on a saved image without alt text"` | **1 failed, 13 skipped**. `TypeError: Cannot read properties of undefined (reading 'trim')` at the image filter. |
+
+Ranked hypotheses, stated before the fixes:
+
+1. The literal hostname comparison retains the DNS trailing dot. Stripping it should fix both new formula rows while preserving the existing address table.
+2. `ItemImages` trusts a compile-time string type for unchecked saved JSON. Checking the runtime type should skip the missing/null text and render only the valid chart.
+3. An upstream parsing/rendering defect is less likely; if present, those two local fixes alone would not make the exact regressions pass.
+
+The supplied fixtures already isolate the reported failures at the approved seams, so no additional instrumentation or throwaway probe was needed. The green regressions and M1/M2 confirmed hypotheses 1 and 2; hypothesis 3 was not supported. The invariant is that formula-host comparison ignores the trailing dot and that only nonempty string captions are eligible to render.
+
+### Fixes and green checks (6.2)
+
+Only two production lines changed: `is_formula_image` strips trailing dots after lowercasing the hostname; `ItemImages` checks `typeof image.alt === 'string'` before trimming. No other component logic, parsing rules, stored data, or API shape changed. Thumbnail dimensions already worked and were not changed.
+
+| Directory | Command | Actual result |
+| --- | --- | --- |
+| `backend/` | `uv run --offline pytest tests/test_feeds.py::test_is_formula_image tests/test_discovery.py::test_small_media_thumbnails_are_not_candidates -q --tb=short` | **16 passed in 1.68s** |
+| `frontend/` | `npx vitest run src/components/DigestArticle.test.tsx -t "does not fail on a saved image without alt text"` | **1 passed, 13 skipped** |
+| `backend/` | `uv run --offline pytest tests/test_feeds.py tests/test_discovery.py -q` | **121 passed in 2.09s** |
+| `frontend/` | `npx vitest run src/components/DigestArticle.test.tsx` | **14 passed in 1 file** |
+
+The saved-image fixture includes missing `alt`, `alt: null`, and `alt: 'Chart'`; the green test confirms exactly one figure, the chart URL, and its visible caption.
+
+### Named mutations (6.3)
+
+Each mutation ran alone and its result was inspected before the next. Before each mutation, the complete uncommitted `git diff` was saved in memory. Each mutation was restored by editing the file back, and the complete subsequent `git diff` matched its saved baseline exactly. All three restore comparisons passed; no mutation remains.
+
+| ID | Mutation and command | Actual result |
+| --- | --- | --- |
+| M1 | Remove `.rstrip(".")`; in `backend/`: `uv run --offline pytest tests/test_feeds.py::test_is_formula_image -q --tb=short` | **Killed: 2 failed, 13 passed in 0.05s**. Only the two new dotted-host rows failed. |
+| M2 | Remove the runtime string check; in `frontend/`: `DEBUG_PRINT_LIMIT=0 npx vitest run src/components/DigestArticle.test.tsx -t "does not fail on a saved image without alt text"` | **Killed: 1 failed, 13 skipped**. The same `undefined.trim()` TypeError returned. |
+| M3 | Set only `media_thumbnail` width/height to `None`; in `backend/`: `uv run --offline pytest tests/test_discovery.py::test_small_media_thumbnails_are_not_candidates -q --tb=short` | **Killed: 1 failed in 1.50s**. The small thumbnail was retained before the large one. |
+
+M1 is killed by the added formula rows, M2 by the new saved-image regression, and M3 proves the already-green thumbnail guard can fail on its spec rule. No survivors, invalid attempts, unexpected red/green outcomes, or implementation retries occurred.
+
+### Final checks (6.4, repeating task 5.1)
+
+All commands below exited 0 after all mutation restores. Every backend pytest run used `uv run --offline` in `backend/`. Each npm/npx invocation used `export PATH="$HOME/.nvm/versions/node/v22.17.1/bin:$PATH"` in the corresponding directory; `node --version` returned `v22.17.1`.
+
+`npm ci --offline --no-audit --no-fund` succeeded in both directories (124 frontend packages, 120 extension packages), with the existing non-fatal `whatwg-encoding@3.1.1` deprecation warning. No dependency manifests, lockfiles, or package versions changed.
+
+| Directory | Command | Actual output / result |
+| --- | --- | --- |
+| `backend/` | `uv run --offline pytest` | **1115 passed in 33.59s** |
+| `frontend/` | `npm test -- --run` | **Test Files 14 passed (14); Tests 319 passed (319)**, duration 8.01s |
+| `frontend/` | `npm run build` | **Passed:** `tsc --noEmit && vite build`; Vite 8.3.5, **40 modules**, built in 583ms |
+| `extension/` | `npm test -- --run` | **Test Files 7 passed (7); Tests 168 passed (168)**, duration 4.26s |
+| `extension/` | `npm run build` | **Passed:** `tsc --noEmit && vite build && node scripts/check-build.mjs`; Vite 8.3.5, **10 modules**, built in 442ms |
+| Root | `DO_NOT_TRACK=1 openspec validate improve-digest-image-captions --strict` | **`Change 'improve-digest-image-captions' is valid`** |
+| Root | `git diff --check` | **Passed, no output** |
+
+These are existing suites with this round's three added backend cases and one frontend regression; extension tests are unchanged. The full suites recheck the original regressions after the mutation restores.
+
+No real feed, page, image, or model was fetched. No Docker command, smoke/build, live/browser check, port 8800, container/volume action, push, merge, tag, PR, or archive was performed. Docker and live checks remain for Claude Code's review; D5's real-model choice check remains the user's post-merge check. No temporary helper or debug instrumentation was created. This round's AI usage entry omits the session line for Claude Code to add at review.

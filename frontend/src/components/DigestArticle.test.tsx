@@ -181,6 +181,21 @@ it('does not show an image without text', () => {
   expect(hidden.container.querySelector('.item-images')).toBeNull()
 })
 
+it('does not fail on a saved image without alt text', () => {
+  const images = [
+    { url: 'https://cdn.example/a.png' },
+    { url: 'https://cdn.example/b.png', alt: null },
+    { url: 'https://cdn.example/c.png', alt: 'Chart' },
+  ] as unknown as { url: string; alt: string }[]
+  const withImages = { ...digest, topics: [{ ...digest.topics[0], items: [{
+    ...digest.topics[0].items[0], images,
+  }] }] }
+  const { container } = render(<MemoryRouter><DigestArticle digest={withImages}/></MemoryRouter>)
+  expect(container.querySelectorAll('.item-images figure')).toHaveLength(1)
+  expect(container.querySelector('.item-images img')).toHaveAttribute('src', 'https://cdn.example/c.png')
+  expect(screen.getByText('Chart', { selector: 'figcaption' })).toBeInTheDocument()
+})
+
 it('hides a failed image together with its caption', () => {
   const withImages = { ...digest, topics: [{ ...digest.topics[0], items: [{
     ...digest.topics[0].items[0], images: [

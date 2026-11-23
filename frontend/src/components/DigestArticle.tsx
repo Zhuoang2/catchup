@@ -38,7 +38,7 @@ function SourceTime({ value }: { value: string | null }) {
 function ItemImages({ images, lang }: { images: { url: string; alt: string }[]; lang?: string }) {
   const [failed, setFailed] = useState<Set<number>>(() => new Set())
   const visible = images.map((image, index) => ({ image, index }))
-    .filter(({ image, index }) => image.alt.trim() && !failed.has(index))
+    .filter(({ image, index }) => typeof image.alt === 'string' && image.alt.trim() && !failed.has(index))
   if (!visible.length) return null
   return <div className="item-images">
     {visible.map(({ image, index }) => <figure key={`${image.url}-${index}`}>

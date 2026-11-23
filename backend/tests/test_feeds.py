@@ -17,6 +17,8 @@ GARDEN_FEED = "https://garden.example/feed"
     ("https://blog.example/latex.php?latex=x", True),
     ("https://latex.codecogs.com/png.image?a%2Bb", True),
     ("https://LATEX.CODECOGS.COM/svg.latex?x", True),
+    ("https://latex.codecogs.com./png.image?a%2Bb", True),
+    ("https://LATEX.CODECOGS.COM./svg.latex?x", True),
     ("https://blog.example/wp-content/ql-cache/quicklatex.com-0a1b2c_l3.png", True),
     ("https://cdn.example/latex-guide.png", False),
     ("https://cdn.example/latex.php/chart.png", False),

@@ -120,7 +120,7 @@ def is_formula_image(url: str) -> bool:
         return False
     filename = parts.path.rsplit("/", 1)[-1].lower()
     return (filename == "latex.php"
-            or (parts.hostname or "").lower() == "latex.codecogs.com"
+            or (parts.hostname or "").lower().rstrip(".") == "latex.codecogs.com"
             or filename.startswith("quicklatex.com-"))
 
 

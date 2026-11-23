@@ -2,10 +2,51 @@
 
 import html
 
+import pytest
+
 from catchup.net.safe_fetch import FetchResponse
 from catchup.sources.feeds import EntryImage, filter_image_urls, parse_feed
 
 GARDEN_FEED = "https://garden.example/feed"
+
+
+@pytest.mark.parametrize("url,expected", [
+    ("https://s0.wp.com/latex.php?latex=%7BT%7D&bg=ffffff&fg=000000&s=0&c=20201002", True),
+    ("https://S0.WP.COM/LATEX.PHP?latex=x", True),
+    ("https://i0.wp.com/s0.wp.com/latex.php?latex=a%2Bb", True),
+    ("https://blog.example/latex.php?latex=x", True),
+    ("https://latex.codecogs.com/png.image?a%2Bb", True),
+    ("https://LATEX.CODECOGS.COM/svg.latex?x", True),
+    ("https://blog.example/wp-content/ql-cache/quicklatex.com-0a1b2c_l3.png", True),
+    ("https://cdn.example/latex-guide.png", False),
+    ("https://cdn.example/latex.php/chart.png", False),
+    ("https://blog.example/latex.php.png", False),
+    ("https://www.codecogs.com/images/logo.png", False),
+    ("https://cdn.example/quicklatex.png", False),
+    ("http://[x", False),
+])
+def test_is_formula_image(url, expected):
+    from catchup.sources.feeds import is_formula_image
+
+    assert is_formula_image(url) is expected
+
+
+@pytest.mark.parametrize("width,height,kept", [
+    (80, 600, False), (600, 40, False), (99, None, False), (None, 64, False),
+    (1, 1, False), (0, 0, False),
+    (100, 100, True), (600, None, True), (None, None, True), (825, 1023, True),
+])
+def test_filter_image_urls_drops_small_stated_sizes(width, height, kept):
+    images = filter_image_urls([EntryImage("https://cdn.example/a.png", width=width, height=height)])
+    assert len(images) == (1 if kept else 0)
+
+
+def test_filter_image_urls_drops_formula_images():
+    images = filter_image_urls([
+        EntryImage("https://s0.wp.com/latex.php?latex=x", alt="{x}"),
+        EntryImage("https://cdn.example/chart.png", alt="Chart"),
+    ])
+    assert [image.url for image in images] == ["https://cdn.example/chart.png"]
 
 
 def malformed_entry_feed() -> bytes:

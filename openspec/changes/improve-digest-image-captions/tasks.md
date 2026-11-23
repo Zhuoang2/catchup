@@ -22,7 +22,7 @@ Implementer notes:
 
 ## 1. Formula and small images are not kept as candidates (content-collection; design D2, D6)
 
-- [ ] 1.1 Write failing tests in `backend/tests/test_feeds.py`:
+- [x] 1.1 Write failing tests in `backend/tests/test_feeds.py`:
   - `test_is_formula_image`, parametrized over `(url, expected)`, calling `is_formula_image` from `catchup.sources.feeds`:
     - `True`: `https://s0.wp.com/latex.php?latex=%7BT%7D&bg=ffffff&fg=000000&s=0&c=20201002`, `https://S0.WP.COM/LATEX.PHP?latex=x`, `https://i0.wp.com/s0.wp.com/latex.php?latex=a%2Bb`, `https://blog.example/latex.php?latex=x`, `https://latex.codecogs.com/png.image?a%2Bb`, `https://LATEX.CODECOGS.COM/svg.latex?x`, `https://blog.example/wp-content/ql-cache/quicklatex.com-0a1b2c_l3.png`;
     - `False`: `https://cdn.example/latex-guide.png`, `https://cdn.example/latex.php/chart.png`, `https://blog.example/latex.php.png`, `https://www.codecogs.com/images/logo.png`, `https://cdn.example/quicklatex.png`, `http://[x`.
@@ -34,12 +34,12 @@ Implementer notes:
   Import `is_formula_image` inside `test_is_formula_image`, not at the top of the file, so that the file's other tests still run before it exists.
 
   Verify: `test_is_formula_image` fails with an import error; the dropped rows `(80, 600)`, `(600, 40)`, `(99, None)`, and `(None, 64)` fail; `(1, 1)`, `(0, 0)`, and the kept rows pass, because the current 1×1 rule already drops the first two; `test_filter_image_urls_drops_formula_images` fails.
-- [ ] 1.2 Write failing tests through the callers:
+- [x] 1.2 Write failing tests through the callers:
   - in `backend/tests/test_discovery.py`, `test_formula_and_small_images_are_not_candidates`: an `image_feed` body with `<img src='https://s0.wp.com/latex.php?latex=%7BT%7D&bg=ffffff&fg=000000&s=0&c=20201002' alt='{T}' class='latex'>`, `<img src='https://s0.wp.com/latex.php?latex=%7BL%5Ep%7D&bg=ffffff' alt='{L^p}' class='latex'>`, `<img src='/icon.png' width='80' height='600'>`, `<img src='/rule.png' width='600' height='40'>`, `<img src='/wide.png' width='80px'>`, and `<img src='https://blog.example/wp-content/uploads/diagram.png' width='825' height='1023' alt='Diagram'>`, and `media="<media:content url='https://cdn.example/m.jpg' medium='image' width='64' height='64'/>"`. Parse it with `parse_feed(FetchResponse(...))`, and assert that the entry's image URLs are exactly `["https://site.example/wide.png", "https://blog.example/wp-content/uploads/diagram.png"]`;
   - in `backend/tests/test_extension_api.py`, `test_capture_drops_formula_images`: `save_page(client, connected, images=[{"url": "https://s0.wp.com/latex.php?latex=x", "alt": "x"}, {"url": "https://example.com/photo.png", "alt": "Photo"}])`, and assert that the stored `image_candidates` URLs are exactly `["https://example.com/photo.png"]`.
 
   Verify: both tests fail on the current code.
-- [ ] 1.3 In `backend/src/catchup/sources/feeds.py`, add `is_formula_image(url: str) -> bool` as in design D6, using `split_url`. In `filter_image_urls`, leave out an image when `is_formula_image(url)` is true, and replace the 1×1 condition (`feeds.py:130-131`) with the D2 rule `any(size is not None and size < 100 for size in (image.width, image.height))`. Update the docstring of `filter_image_urls` to name the new rules. Keep the other rules and the order.
+- [x] 1.3 In `backend/src/catchup/sources/feeds.py`, add `is_formula_image(url: str) -> bool` as in design D6, using `split_url`. In `filter_image_urls`, leave out an image when `is_formula_image(url)` is true, and replace the 1×1 condition (`feeds.py:130-131`) with the D2 rule `any(size is not None and size < 100 for size in (image.width, image.height))`. Update the docstring of `filter_image_urls` to name the new rules. Keep the other rules and the order.
 
   Verify:
   - the tests from 1.1 and 1.2 pass, and `uv run --offline pytest` passes in `backend/`, including `test_image_filters_duplicates_pixels_and_caps_at_eight` unchanged;

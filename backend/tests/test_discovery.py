@@ -142,6 +142,22 @@ def test_entry_html_keeps_images_in_order_with_figure_caption():
     ]
 
 
+def test_formula_and_small_images_are_not_candidates():
+    raw = image_feed(
+        "<img src='https://s0.wp.com/latex.php?latex=%7BT%7D&bg=ffffff&fg=000000&s=0&c=20201002' alt='{T}' class='latex'>"
+        "<img src='https://s0.wp.com/latex.php?latex=%7BL%5Ep%7D&bg=ffffff' alt='{L^p}' class='latex'>"
+        "<img src='/icon.png' width='80' height='600'>"
+        "<img src='/rule.png' width='600' height='40'>"
+        "<img src='/wide.png' width='80px'>"
+        "<img src='https://blog.example/wp-content/uploads/diagram.png' width='825' height='1023' alt='Diagram'>",
+        media="<media:content url='https://cdn.example/m.jpg' medium='image' width='64' height='64'/>",
+    )
+    entry = parse_feed(FetchResponse("https://site.example/feed", raw, "", 200)).entries[0]
+    assert [image.url for image in entry.images] == [
+        "https://site.example/wide.png", "https://blog.example/wp-content/uploads/diagram.png",
+    ]
+
+
 def test_entry_images_on_local_addresses_are_dropped():
     raw = image_feed(
         "<img src='http://192.168.1.1/cam.jpg'>"

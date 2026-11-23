@@ -2765,7 +2765,9 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 
 ## 2026-11-22 — `improve-small-icon-legibility` (#43, part 2): review (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
 
-- **Prompts** (translated from Chinese): the plan approval ("#43: option A; ...") covered Droid's run and this review.
+- **Prompts** (translated from Chinese):
+  - The plan approval ("#43: option A; ...") covered Droid's run and this review.
+  - Claude's merge-ready report asked: "Leave decision 1 unfixed as recommended, then approve #43's merge and finish by the list above?" The user replied: "OK, #43: not fixing, as recommended; merge approved." Decision 1 was the maskable icon's bars, 1 px off center.
 - **Outcome:**
   - **Checks** on `f4b7f16`: backend 1082, frontend 316, extension 168, both builds, strict validation, `git diff --check`, and `scripts/docker-smoke.sh` 12 of 12 on `catchup:fix43-local`.
   - **Live check** on port 8843 with a fresh volume: the served icons and offline page matched the repository, and headless Chrome 157 drew the served `/icon.svg` with exactly two colors at 16 px and 32 px, on 1x and 2x, matching the planned pattern (`main`'s icon: 12 colors at 16 px).

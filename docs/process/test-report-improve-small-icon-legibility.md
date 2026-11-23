@@ -170,7 +170,7 @@ A scratch container from `catchup:fix43-local` ran on its own volume and port 88
 
 ### Findings
 
-- **`/code-review` (high) on `fae68c8..f4b7f16`:** one nit. In the maskable icon, both bar ends are measured from the left edge, and its unit (24.83 px at 512 px) is not whole, so the bars sit 1 px left of center (74 px of mark on the left, 75 px on the right). Before this change they were symmetric. Not fixed: it is a 1 px difference inside a masked, scaled app icon, and changing it would be a behavior change by Claude (see the merge report).
+- **`/code-review` (high) on `fae68c8..f4b7f16`:** one nit. In the maskable icon, both bar ends are measured from the left edge, and its unit (24.83 px at 512 px) is not whole, so the bars sit 1 px left of center (74 px of mark on the left, 75 px on the right). Before this change they were symmetric. Not fixed: it is a 1 px difference inside a masked, scaled app icon, and changing it would be a behavior change by Claude. The user chose not to fix it (2026-11-22).
 - **Spec sub-agent** (independent, detached worktree; it decoded the generated files with Python's standard library, re-ran G1–G6, and reproduced the red results): no behavior defect. Three notes:
   - **F1, test gap, fixed in Claude's review commit.** `draws the tab icon on the 16 px grid` read only `rect` and `path` geometry, so an SVG with `stroke-linecap="square"` (bars on half pixels), an extra `line` in a third color, or a `transform` on the square still passed. The test now first requires that the SVG has only `svg`, `rect`, and `path`, with only the attributes it models. Proof in a `git archive` export of the branch, editing `public/icon.svg` and running only that test:
 

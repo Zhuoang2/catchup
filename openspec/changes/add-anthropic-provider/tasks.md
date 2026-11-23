@@ -202,7 +202,7 @@ Implementer notes:
   - **API.** In `api/settings.py`, read and write `provider`, extend the key rule and the context-window clearing to the provider, and use the factory with the provider.
   - **Wiring.** `main.py` uses `make_model_client`. `digest/runner.py` reads `config.provider` with the rest of the configuration and passes it to both factory calls.
 
-  Run every test file of 2.1, then the full `uv run --offline pytest`, and watch them pass.
+  Run every test file of 2.1 except `tests/test_readme_providers.py`, which can pass only after task 2.3 writes the README. Then run the full suite without it, `uv run --offline pytest --ignore=tests/test_readme_providers.py`, and watch them pass.
 - [ ] 2.3 Update `README.md`:
   - **Intro.** The intro at `:3-4` names both providers.
   - **Key rule.** The key rule at `:101-102` reads "Changing the provider or its URL requires entering the API key again; CatchUp will not send a stored key to a new provider or address."
@@ -217,7 +217,7 @@ Implementer notes:
       - that the SDK also reads `ANTHROPIC_CUSTOM_HEADERS` from the server's environment;
     - that collected content is sent to the chosen provider.
 
-  Then `uv run --offline pytest tests/test_readme_providers.py tests/test_readme_context.py tests/test_install_docs.py` passes.
+  Then `uv run --offline pytest tests/test_readme_providers.py tests/test_readme_context.py tests/test_install_docs.py` passes, and so does the full `uv run --offline pytest`.
 - [ ] 2.4 Run these mutations one at a time, and record which tests fail:
 
   | Mutation | Change | Expected failing tests |

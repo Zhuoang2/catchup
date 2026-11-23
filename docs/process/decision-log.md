@@ -617,3 +617,31 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - When the limit runs out, which items got context depends on how fast pages answer.
   - Two requests to one host can be open at the same time when the first takes longer than 1 second. Requests still start at least 1 second apart.
   - The total can move by a few pages after a redirect, or while several reads are in progress. It equals the number read when the pass ends.
+
+## D-038 Follow Bilibili uploaders through an RSSHub the user runs, and never request Bilibili from CatchUp — accepted (2026-11-22)
+
+- **Decision.**
+  - **A new source kind, "Bilibili uploader".** A pasted `space.bilibili.com/<mid>` address, or the configured RSSHub's `/bilibili/user/video/<mid>` address, is recognized before discovery. It is read through RSSHub's JSON Feed and saved as `bilibili:uploader:<mid>`.
+  - **The RSSHub address is the environment setting `CATCHUP_RSSHUB_URL`.** Its origin is the only one whose requests may reach a private or loopback address, and only on the first hop of an uploader request.
+  - **CatchUp never requests `bilibili.com`, `b23.tv`, `hdslb.com` or `bilivideo.com`,** with subdomains, for any source, before DNS.
+  - **Videos are summarized only from the subtitles RSSHub attaches** as `data:` URLs, which are decoded locally. Without subtitles, a video waits the caption wait (24 hours), and then goes to Creator updates as "no subtitles from RSSHub". Bilibili videos get no linked pages and no image candidates.
+  - **An optional `compose.rsshub.yaml`** runs `diygod/rsshub:latest` next to CatchUp. `compose.yaml` does not change.
+
+  Planned as the OpenSpec change `add-bilibili-sources` (issue #40). The user chose Proposal 1 on 2026-11-22.
+- **Why.**
+  - Bilibili publishes no feeds and no API for following other people's uploads. The Open Platform covers only accounts linked to the developer (developer service agreement, sections 一.1 and 四.2, updated 2025-05-28).
+  - D-013 allows video summaries only from transcripts or subtitles. Subtitles come back only to a logged-in session, according to yt-dlp's and RSSHub's code.
+  - Bilibili's user agreement (updated 2025-04-30, effective 2025-05-07) forbids getting the platform's content or data "by any means (including … any automated program, script or software) and for any reason" without Bilibili's prior written permission (section 5.6(3), translated from Chinese). Section 1.2 limits the services to non-commercial use. It has no personal or research exception, and says nothing about keeping derived summaries or deleting data after use.
+  - In January 2026 a law firm acting for Bilibili made the main public documentation of these web APIs shut down. The letter named the APIs' access-control and security-authentication mechanisms.
+  - Through RSSHub, CatchUp's code and network traffic contain no Bilibili signing, cookies or anti-bot steps, and RSSHub's maintainers keep up with Bilibili's changes.
+- **Alternatives:**
+  - **A native kind that calls Bilibili's web API (Proposal 2).** Rejected: CatchUp would make the requests that section 5.6(3) forbids, the public repository would carry WBI signing and visitor-cookie code, and subtitles would need the user's session cookie stored in CatchUp, against `docs/handoff.md` §4.
+  - **Close #40 with a README note about RSSHub.** Not chosen by the user.
+  - **A Settings field for the RSSHub address.** Rejected: any user of the web interface could then point CatchUp at a private address.
+  - **Summaries from video descriptions.** Rejected by D-013.
+  - **Speech-to-text of the audio.** Not committed by D-013, and it would mean downloading audio.
+- **Consequences:**
+  - The terms risk stays with the user's RSSHub, which makes the automated requests. The README and the Sources preview say so.
+  - Subtitles need the user's own logged-in Bilibili cookie in RSSHub's settings (`.env.rsshub`), which CatchUp never sees. Without it, every video goes to Creator updates.
+  - A website feed whose entries link to Bilibili pages no longer reads those pages.
+  - No migration: `sources.kind` is free text.

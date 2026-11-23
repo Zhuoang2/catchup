@@ -2734,3 +2734,24 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - **Claude's own T4 verification in the plan could not fail.** In the four tests it named, no progress commit followed the cut read. Next time, a mutation's named test is run against a prototype before the plan is committed.
   - **The plan did not say what `reachable_reads` does with an address that `safe_fetch` refuses.** Claude found it while Droid was still running, by reading the code. The fix-round tests came from that probe.
   - **A zsh variable with several test ids ran no tests,** because zsh does not split words. The O1 run was repeated with an array.
+
+## 2026-11-22 — `add-bilibili-sources` (#40): research, proposals, and plan (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
+
+- **Prompts** (translated from Chinese):
+  - After #64 merged, the user chose four issues to plan at the same time: "Start #43, #12, #40, and #65 in parallel."
+  - After the research and two proposals, the user chose: "#40: Proposal 1".
+  - After the plan, Claude asked whether to handle the three open items (this plan among them) as recommended; the user replied: "OK." That approved the plan with U1–U7 as recommended.
+- **Outcome:**
+  - **Research on `main` `795c5e7`.** How YouTube channels and podcasts are checked and summarized, every list of source kinds and Creator-updates reasons, discovery and preview, and the specs. Externally: how open-source tools list an uploader's videos and read subtitles (yt-dlp's Bilibili extractor and RSSHub's Bilibili routes, read on GitHub), risk control (WBI signing, `-352`, `-412`), and subtitles, which come back only to a logged-in session. No request was made to Bilibili.
+  - **Terms**, read before any proposal, as the user's rules require: Bilibili's user agreement (updated 2025-04-30, effective 2025-05-07), the Open Platform developer agreement (updated 2025-05-28), RSSHub's licence, and the public RSSHub instances, each for local storage, derived results, deletion after stopping, and personal or research exceptions. Section 5.6(3) of the user agreement forbids getting the platform's content by any automated program without prior written permission, "for any reason" (translated from Chinese), with no personal or research exception. Claude checked that clause and the dates on the page itself. The research also records the January 2026 lawyer's letter that closed the main public documentation of Bilibili's web APIs.
+  - **Two proposals:** Proposal 1, a user-run RSSHub that CatchUp reads, so CatchUp never contacts Bilibili; Proposal 2, a native source kind that calls Bilibili's web API. Claude recommended Proposal 1, and the user chose it. Claude confirmed in RSSHub's source that subtitles arrive as `data:` SRT attachments, and only in JSON Feed output.
+  - **Plan.** Seven task groups with 16 named mutations: the `safe_fetch` exception for exactly the configured RSSHub origin and the Bilibili host rule, reading an uploader from RSSHub's JSON Feed, preview and confirm, subtitles and the new Creator-updates reason, the kind in the frontend and the extension, the optional `compose.rsshub.yaml`, and checks. No migration, no new dependency, and no change to `Settings.tsx` or `api/settings.py`. D-038.
+  - **D-023 fresh-eyes check.** A sub-agent that saw only `tasks.md` and the code prototyped groups 1–6 in a scratch worktree (1,166 backend, 319 frontend, and 169 extension tests passed). Claude checked the key findings before changing the plan; all 14 were applied, among them:
+    - respx's default `assert_all_called=True` would fail every test with a route that must stay uncalled;
+    - the redirect test needs the `resolve` fixture to know `10.0.0.5`, or it fails with `fetch_failed`;
+    - mutation P2 could not be caught by a Bilibili address alone, so the test adds a non-Bilibili attachment address;
+    - the README instructions differ for the published image, whose `.env` has no `COMPOSE_FILE` line, and for a source build;
+    - several red results named the wrong reason, and two helpers needed to be importable by later tasks.
+- **Problems / adjustment:**
+  - **Fetching tools were limited.** WebFetch was not available to the research sub-agent, so it read the terms pages in the built-in browser and GitHub sources with `gh api`.
+  - **The planned P2 test could not fail.** Group 1 refuses Bilibili hosts before any request, so a Bilibili attachment's route stays uncalled with or without the mutation; the fresh-eyes prototype showed it.

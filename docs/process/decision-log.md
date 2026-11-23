@@ -618,6 +618,27 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Two requests to one host can be open at the same time when the first takes longer than 1 second. Requests still start at least 1 second apart.
   - The total can move by a few pages after a redirect, or while several reads are in progress. It equals the number read when the pass ends.
 
+## D-039 Draw the CatchUp mark on a 16 × 16 grid so the tab icon stays sharp — accepted (2026-11-22)
+
+- **Decision (option A; B and C were the alternatives).**
+  - **A. One mark on a 16 × 16 grid.** At 16 px the dark square runs from 2 px to 14 px, and the two bars are rows 6 and 9, from 5 px to 11 px across. The SVG and the 192, 512, and 1024 px PNGs follow the same grid, and the maskable icon keeps its box. `make-icons.py` stays the only source. The offline page's inline copy is updated.
+  - No new icon files or declarations. Chrome keeps taking the SVG for the tab, and the extension's build copies the new 192 px PNG.
+
+  Planned as the lean OpenSpec change `improve-small-icon-legibility` (issue #43, part 2).
+- **Why.**
+  - The bars are 38/1024 high, about 0.6 px at 16 px, and the square's edges fall between pixels. Rendered at 16 px in headless Chrome 157, the icon mixes 12 colors, and the bars show as gray lines (#43, found in the review of #37).
+  - Drawn on the grid, the 16 px render has exactly the two mark colors. 192 px is 12 × 16 px, so the extension's toolbar icon file averages cleanly to 16 px; whether the toolbar's own scaling keeps it sharp was not checked.
+- **Alternatives:**
+  - **B. Redraw only the tab SVG.** Possible: the app icons stay unchanged, but the extension's toolbar icon stays blurred, and the tab icon and the app icon differ slightly.
+  - **C. A bolder small mark** (2 px bars at 16 px, 1 px margin). Possible: easiest to read, but heavier than the C7 prototype's thin rules, with a thin light edge on dark tabs.
+  - **Add a 32 px PNG with `sizes="32x32"` next to the SVG.** Rejected: Chromium scores an icon without `sizes` as high as an ideal size, sorts candidates stably, and stops once nothing scores higher (`components/favicon/core/favicon_handler.cc`), so the tab would keep the SVG.
+  - **Replace the SVG with 16 px and 32 px PNGs or a `favicon.ico`.** Rejected: more files, and no gain over a grid-drawn SVG.
+  - **Rename the icon so stored tab icons refresh at once.** Rejected: Chrome refreshes a page's stored icon on any reload (`components/favicon/content/content_favicon_driver.cc`).
+- **Consequences:**
+  - Under A, the installed app and the Safari touch icon get slightly thicker bars and a larger square once the browser updates them.
+  - Chrome may show the old tab icon until CatchUp is reloaded once.
+  - The maskable icon's corners stay slightly outside the 40% safe circle, as before.
+
 ## D-040 Show each digest image's text as a visible caption, and keep formula and small images out of the candidates — accepted (2026-11-22)
 
 - **Decision.**

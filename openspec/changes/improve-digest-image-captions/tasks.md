@@ -72,7 +72,7 @@ Implementer notes:
 
 ## 4. Visible captions in the reading view (user-interface; design D3, D4)
 
-- [ ] 4.1 Write failing tests in `frontend/src/components/DigestArticle.test.tsx`:
+- [x] 4.1 Write failing tests in `frontend/src/components/DigestArticle.test.tsx`:
   - `shows each image's text once, as its figure's caption`. Render a digest with `language: 'zh-Hans'` whose item has `images: [{ url: 'https://cdn.example/chart.png', alt: 'Sales doubled after the redesign' }]`. Assert that:
     - the `.item-images figure` holds an `img` with `src` `https://cdn.example/chart.png` and an empty `alt` attribute (`toHaveAttribute('alt', '')`), followed by a `figcaption`;
     - `screen.getByText('Sales doubled after the redesign', { selector: 'figcaption' })` exists and has the `lang` attribute that `digestLang('zh-Hans')` gives;
@@ -88,7 +88,7 @@ Implementer notes:
   - in `frontend/src/pages/Home.test.tsx`, `expect(screen.getByRole('img', { name: 'Growth chart' })).toBeInTheDocument()` becomes `expect(screen.getByText('Growth chart', { selector: 'figcaption' })).toBeInTheDocument()`.
 
   Verify: the four new tests fail on the current code, and so do the changed assertions. `grep -rn "getByRole('img'\|findByRole('img'" frontend/src`, run from the repository root, prints nothing and exits 1.
-- [ ] 4.2 In `frontend/src/components/DigestArticle.tsx`, change `ItemImages` as in design D4: it receives the digest's `lang`, shows only images whose `alt` has text after trimming, renders each as `<figure>` with `<img alt="" …>` (keeping `loading="lazy"`, `decoding="async"`, `referrerPolicy="no-referrer"`, and `onError`) and `<figcaption lang={lang || undefined}>{image.alt}</figcaption>`, hides a failed figure with its caption, and renders nothing when no image is left. `DigestArticle` passes `lang={lang}`. In `frontend/src/styles/components.css`, next to `.item-images` (`components.css:122-124`), style the caption as secondary text like `.also-read` (`color: var(--muted)`, a smaller size, a small top margin, `overflow-wrap: anywhere`), so a long caption wraps inside the column.
+- [x] 4.2 In `frontend/src/components/DigestArticle.tsx`, change `ItemImages` as in design D4: it receives the digest's `lang`, shows only images whose `alt` has text after trimming, renders each as `<figure>` with `<img alt="" …>` (keeping `loading="lazy"`, `decoding="async"`, `referrerPolicy="no-referrer"`, and `onError`) and `<figcaption lang={lang || undefined}>{image.alt}</figcaption>`, hides a failed figure with its caption, and renders nothing when no image is left. `DigestArticle` passes `lang={lang}`. In `frontend/src/styles/components.css`, next to `.item-images` (`components.css:122-124`), style the caption as secondary text like `.also-read` (`color: var(--muted)`, a smaller size, a small top margin, `overflow-wrap: anywhere`), so a long caption wraps inside the column.
 
   Verify:
   - `npx vitest run src/components/DigestArticle.test.tsx src/pages/DigestView.test.tsx src/pages/Home.test.tsx` passes in `frontend/`;

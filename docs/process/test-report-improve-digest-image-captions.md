@@ -232,3 +232,7 @@ The container, its volume, and the stub were removed afterwards.
   - **Recorded, not fixed:**
     - "Formula from another renderer" and "Address that only mentions LaTeX" are tested at `is_formula_image` only, and the X-post filter only through the shared `filter_image_urls`; mutation C6 shows the callers are covered;
     - addresses such as `/latex.php/`, `/latex.php;x`, and `/latex%2Ephp` are kept, as the spec's "last part of the path" rule says.
+
+### At shipping
+
+After `main` (`5fe8b88`, with #43) was merged into the branch and the change was archived: backend 1115, frontend 321 (319 plus #43's two icon tests), extension 168, both builds, `DO_NOT_TRACK=1 openspec validate --all --strict` 10 of 10, and `scripts/docker-smoke.sh` 12 of 12 on an image rebuilt from the archive commit. One full backend run at that point reported 1 failure among 1,115 tests while two other agents were running full suites on the same machine; the run's output kept only its summary line, so the test was not identified. It did not happen again in 14 further full runs. This change adds no timing-dependent code.

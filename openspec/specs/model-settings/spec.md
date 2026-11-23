@@ -1,7 +1,7 @@
 # model-settings Specification
 
 ## Purpose
-Lets the instance owner connect CatchUp to an OpenAI-compatible model provider of their choice, verify the connection, and choose a model, while keeping the API key protected.
+Lets the instance owner connect CatchUp to a model provider of their choice, either an OpenAI-compatible API or Anthropic's API, verify the connection, and choose a model, while keeping the API key protected.
 
 ## Requirements
 

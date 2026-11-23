@@ -2734,3 +2734,24 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - **Claude's own T4 verification in the plan could not fail.** In the four tests it named, no progress commit followed the cut read. Next time, a mutation's named test is run against a prototype before the plan is committed.
   - **The plan did not say what `reachable_reads` does with an address that `safe_fetch` refuses.** Claude found it while Droid was still running, by reading the code. The fix-round tests came from that probe.
   - **A zsh variable with several test ids ran no tests,** because zsh does not split words. The O1 run was repeated with an array.
+
+## 2026-11-22 — `add-anthropic-provider` (#12): plan (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
+
+- **Prompts** (translated from Chinese):
+  - After #64 merged, the user chose four issues to plan at the same time: "Start #43, #12, #40, and #65 in parallel."
+  - After reviewing the four plans, the user decided: "#43: option A; #12: everything as recommended, network approved; #40: Proposal 1; #65: everything as recommended."
+- **Outcome:**
+  - **Checked on `main` `795c5e7`.** Summaries and grouping call only `chat_json()`; the runner and the settings test also call `list_models()`, `usage_totals()`, and `close()`; errors cross the boundary as the `ModelError` subclasses of `llm/client.py`.
+  - **Anthropic facts** come from Claude Code's `claude-api` reference (bundled with Claude Code 2.1.330, model table cached 2026-11-03) and from the source of `anthropic` 1.13.0 in the local uv cache, read without installing it. Claude checked the model IDs and prices, the default model, the fallback model list, the rule against OpenAI-compatible shims, and the SDK version that first sends API version `2026-10-21` (2.0.0) against the reference.
+  - **Plan.** A separate `AnthropicModelClient` behind the existing interface, a provider column (migration `0009_model_provider`), a Provider select in Settings, and README provider docs, in four task groups with mutations A1–A10, P1–P6, and F1–F4. The implementer notes tell Droid not to run Docker. D-037. The user chose the recommendation for U1–U6.
+  - **Dependency.** With the user's approval for the network, Claude added `anthropic>=1.13,<2` to `backend/pyproject.toml` and locked it at 1.13.0 (`anthropic-1.13.0-py3-none-any.whl`, 1,958,595 bytes, and `docstring_parser-0.18.0-py3-none-any.whl`, 22,484 bytes, per PyPI's metadata on 2026-11-22), committed with the plan, because Droid works offline.
+  - **D-023 fresh-eyes check.** A sub-agent that saw only `tasks.md` and the code prototyped the adapter against `httpx2.MockTransport` with the cached SDK and ran every named mutation. Claude reproduced the key SDK behavior before changing the plan, and applied these:
+    - SDK 1.13.0's typed `ModelInfo` turns `"12"` into 12 and `true` into 1, and a 200 HTML page raises `AttributeError`, so `list_models()` reads each page as raw JSON through `with_raw_response` (Claude's choice; the spec is unchanged);
+    - usage counts in the tests use words, because the SDK also converts digit strings;
+    - four `test_db.py` checks pin the head revision `0008`, and one settings test compares the whole answer, so the plan now allows those edits;
+    - the exhaustion tests count calls, so A3 is caught;
+    - exact request bodies for the provider tests, `"index": 0` on stream events, a new `httpx2.Client` inside the test factory (the SDK's `close()` closes it), the expected usage `(40, 20)`, README checks that ignore line wrapping, error tests for `list_models()`, `max_retries=0`, and the spend-limit `error_code`.
+- **Problems / adjustment:**
+  - **The first plan read the model list through the typed SDK call**, which could not meet the spec's "Invalid value" scenario. The fresh-eyes probe found it; reading raw JSON also keeps a wrong base URL from turning the Settings test into a server error.
+  - **The plan forbade changing existing tests that the new migration and field must change.** The allowed edits are now listed.
+  - **`uv run --no-project --with anthropic==1.13.0` did not work offline,** because the uv cache has the wheel but not PyPI's index. The sub-agent used the unpacked cache instead.

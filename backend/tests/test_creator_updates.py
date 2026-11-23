@@ -244,3 +244,43 @@ def test_zh_digest_snapshots_topic_and_creator_kinds(ready):
             session.delete(source)
         session.commit()
     assert client.get(f"/api/digests/{digest_id}").json() == data
+
+
+def add_bilibili_item(client, title, *, hours_ago):
+    with client.app.state.session_factory() as session:
+        source = session.scalar(select(Source).where(Source.feed_url == "bilibili:uploader:2267573"))
+        if source is None:
+            source = Source(
+                title="Sample Uploader", kind="bilibili", site_url="https://space.bilibili.com/2267573",
+                feed_url="bilibili:uploader:2267573", input_url="bilibili:uploader:2267573",
+            )
+            session.add(source)
+            session.flush()
+        session.add(Item(
+            source_id=source.id, identity_key=f"bilibili:video:{title}",
+            link=f"https://www.bilibili.com/video/{title}", title=title,
+            discovered_at=NOW - timedelta(hours=hours_ago), state="pending",
+            transcript_status="subtitle_wait", content_text="Description must not reach the model",
+            content_origin="feed",
+        ))
+        session.commit()
+
+
+def test_subtitle_wait_ends_in_creator_updates(ready):
+    client, fake = ready
+    add_bilibili_item(client, "BV1expired", hours_ago=25)
+    add_bilibili_item(client, "BV1waiting", hours_ago=23)
+    result = execute(client)
+    assert (result["status"], result["waiting_count"]) == ("succeeded", 1)
+    digest = client.get(f"/api/digests/{result['digest_id']}").json()
+    assert digest["topics"] == []
+    assert digest["creator_updates"] == [{
+        "source_name": "Sample Uploader", "source_kind": "bilibili", "items": [{
+            "title": "BV1expired", "link": "https://www.bilibili.com/video/BV1expired",
+            "published_at": None, "reason": "no_subtitles", "source_kind": "bilibili",
+        }],
+    }]
+    assert fake.calls == []
+    again = execute(client)
+    assert (again["status"], again["waiting_count"]) == ("no_new_content", 1)
+    assert fake.calls == []

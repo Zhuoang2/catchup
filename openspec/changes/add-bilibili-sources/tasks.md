@@ -238,7 +238,7 @@ Implementer notes:
 
 ## 4. Checks, the subtitle wait, and Creator updates (D7)
 
-- [ ] 4.1 Write these tests and watch them fail. `check_source` fetches `bilibili:uploader:…` through `safe_fetch` and fails as an invalid URL. `subtitle_wait` never expires.
+- [x] 4.1 Write these tests and watch them fail. `check_source` fetches `bilibili:uploader:…` through `safe_fetch` and fails as an invalid URL. `subtitle_wait` never expires.
 
   **In a new file `backend/tests/test_bilibili_collection.py`,** with the DNS stub and `serve_uploader` of task 3.1:
   - **The setup.** An `environment` from `test_digest_runner`, `seed(environment, count=0, sources=0)`, and `environment.app.state.settings = replace(environment.app.state.settings, rsshub_url="http://rsshub.test:1200")`. A Bilibili source is added directly: `kind="bilibili"`, `feed_url="bilibili:uploader:2267573"`, `site_url="https://space.bilibili.com/2267573"`.
@@ -269,14 +269,14 @@ Implementer notes:
     - Two pending `bilibili` items in `subtitle_wait` are discovered 25 hours and 23 hours before `NOW`.
     - The run lists the first under its uploader in Creator updates with the reason `no_subtitles`, and its `waiting_count` is 1.
     - No model call includes either item.
-- [ ] 4.2 Make them pass:
+- [x] 4.2 Make them pass:
   - the `bilibili` branch of `check_source` (`collection.py`), with new entries recorded as in D6, and waiting items resolved again;
   - `subtitle_wait` and `no_subtitles` in `select_pending` and `CREATOR_REASONS` (`digest/runner.py`).
 
   Then run, and watch pass:
   - `uv run --offline pytest tests/test_bilibili_collection.py tests/test_creator_updates.py tests/test_collection.py tests/test_podcast_collection.py tests/test_caption_pass.py tests/test_digest_runner.py`;
   - the full `uv run --offline pytest`.
-- [ ] 4.3 Run these mutations one at a time:
+- [x] 4.3 Run these mutations one at a time:
 
   | Mutation | Change | Expected failing test |
   | --- | --- | --- |

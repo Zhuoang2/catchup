@@ -95,7 +95,7 @@ The client turns SDK errors into the existing error kinds. The 3 attempts and th
 | other 429 | `RateLimited` after the last attempt | yes |
 | 500, 502, 503, 504, 529, or a stream `error` event of type `overloaded_error` or `api_error` | `ProviderError` after the last attempt | yes |
 | any other status (400, 403, 404, 413, …), or a stream `error` event of another type | `ProviderError` | no |
-| `APIConnectionError`, `APITimeoutError` | `ConnectionFailed`, naming the base URL | no |
+| `APIConnectionError`, `APITimeoutError`, or an `httpx2.TransportError` raised while a stream is read (the SDK wraps only errors while sending) | `ConnectionFailed`, naming the base URL | no |
 | 200 with no stream events, no text, or text that is not a JSON object | `InvalidAnswer` after the last attempt | yes |
 | `stop_reason == "refusal"` | `InvalidAnswer` at once | no |
 
@@ -110,6 +110,7 @@ The client turns SDK errors into the existing error kinds. The 3 attempts and th
 
 - **Input tokens** are `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`. The cache fields are 0 or missing without caching.
 - **Output tokens** are `output_tokens` of the final message.
+- **Attempts** (decided by the user on 2026-11-22, after review). When `usage.iterations` lists the attempts of a server-side fallback, input and output tokens are summed over every attempt, declined ones included, because each attempt is billed; top-level `usage` covers only the attempt that produced the message. Without `iterations`, the top-level `usage` is used as above.
 - Like the OpenAI client, the client counts only integer values, under a lock, and `usage_totals()` returns `None` until a call reports usage.
 
 ### D10. Model list (decision U4)

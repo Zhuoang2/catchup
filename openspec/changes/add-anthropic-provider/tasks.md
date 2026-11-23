@@ -277,3 +277,40 @@ Implementer notes:
   - what failed and how it was handled.
 
   Leave the session line (session id, turns, minutes) to Claude Code.
+
+## 5. Fix round 1 (review findings)
+
+Claude Code's review of `410df93..b63cc84` confirmed these, and the user decided the second on 2026-11-22 (design D9 now says so):
+- **A stream cut by the network fails the whole run.** With SDK 1.13.0, an `httpx2.ReadTimeout` or `httpx2.RemoteProtocolError` raised while the stream is read is not an SDK error, so `_call` lets it through. The run then ends `run_failed`, instead of marking that one item's summary unavailable (design D7: connection errors are `ConnectionFailed`).
+- **A server-side fallback undercounts usage.** Top-level `usage` covers only the attempt that produced the message; `usage.iterations` lists every attempt, and a declined attempt is billed too.
+- **A test that finishes after the user switched providers shows its models under the other provider.** `testConnection()` sets the visible model list and model without checking that the tested provider is still selected.
+- **No test covers "Back to the saved provider" without a test in between.** Removing the page-load `setSavedModels(...)` leaves every test green.
+
+- [ ] 5.1 Write these tests and watch them fail as stated:
+  - in `backend/tests/test_anthropic_client.py`:
+    - give `stream_body` one more keyword, `iterations=None`; when it is given, the `message_delta` event's `usage` also holds `"iterations": iterations`. Existing calls do not change.
+    - add a class `BrokenStream(httpx2.SyncByteStream)` whose `__iter__` yields the `message_start` event of `stream_body("{}")` (the response content up to and including the first blank line) and then raises the exception it was given.
+    - **`test_stream_cut_by_the_network_names_the_base_url`,** parametrized over `httpx2.ReadTimeout("test timeout")` and `httpx2.RemoteProtocolError("test drop")` (ids `read-timeout`, `dropped`). The only answer is `httpx2.Response(200, headers={"content-type": "text/event-stream"}, stream=BrokenStream(exc))`. `chat_json([], 200)` raises `ConnectionFailed` whose message contains `BASE`, after 1 request, with no sleeps. It fails on the current code, because the raw `httpx2` exception comes out.
+    - **`test_fallback_usage_counts_every_attempt`.** Model `claude-opus-5-5`. The answer is `stream_body('{"summary": "ok"}', input_tokens=12, output_tokens=5, iterations=[{"type": "message", "input_tokens": 10, "output_tokens": 7, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0}, {"type": "fallback_message", "input_tokens": 12, "output_tokens": 5, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0}])`. After `chat_json`, `usage_totals()` is `(22, 12)`. It fails on the current code with `(12, 5)`.
+  - in `frontend/src/pages/Settings.test.tsx`, inside the same `describe` as `tests and saves a new provider with its key`:
+    - **`restores the saved model after switching providers without a test`.** `mockModelProvider()`; render; choose "Anthropic" in the Provider select, then "OpenAI-compatible" again. Base URL is `https://api.deepseek.com`, the Model select's value is `saved-model` and its only option is `saved-model`, and `document.getElementById('key-saved')` has text "Saved key ending in 1234". It passes on the current code; mutation N4 in 5.3 shows that it can fail.
+    - **`keeps the tested models out of the other provider's list`.** Following the pending-promise pattern at `Settings.test.tsx:791`: `mockModelProvider({ test: () => pending, put: body => respond({ provider: body.provider, base_url: body.base_url, model_id: body.model_id, key_set: true, api_key_last4: '7d2e' }) })`; render; choose "Anthropic", type `key-7d2e` into API key, and click Test connection. Before the test answers, choose "OpenAI-compatible". Then resolve it with `respond({ ok: true, models: ['claude-opus-5-5', 'claude-sonnet-5-5'] })`. The tested configuration is still saved: `await waitFor(() => expect(modelPuts()).toEqual([{ base_url: 'https://api.anthropic.com', model_id: 'claude-opus-5-5', api_key: 'key-7d2e', provider: 'anthropic' }]))`. The Provider select's value is `openai_compatible`, Base URL is `https://api.deepseek.com`, and no option of the Model select is `claude-opus-5-5` or `claude-sonnet-5-5`. It fails on the current code, because the Claude models are listed.
+
+  Change no existing test, other than the new `iterations` keyword of `stream_body`.
+- [ ] 5.2 Fix them:
+  - in `backend/src/catchup/llm/anthropic_client.py`, `_call` also turns `httpx2.TransportError` into `ConnectionFailed`: `except (anthropic.APIConnectionError, anthropic.APITimeoutError, httpx2.TransportError) as exc:`;
+  - in `chat_json`, when `getattr(usage, "iterations", None)` is a non-empty list, sum input tokens (`input_tokens + cache_creation_input_tokens + cache_read_input_tokens`) and `output_tokens` over its entries, counting only integer values; otherwise count the top-level `usage` as now. Usage is still reported once per answer, under the lock;
+  - in `frontend/src/pages/Settings.tsx`, keep the selected provider in a ref (`const selectedProvider = useRef(provider)`, set wherever `setProvider` is called). In `testConnection()`, after the test answers, set the visible model list and model only when `selectedProvider.current === testedProvider`; the save of the tested configuration (`queueModelSave`) stays as it is.
+
+  Then run `uv run --offline pytest tests/test_anthropic_client.py tests/test_anthropic_runs.py tests/test_model_providers.py`, the full `uv run --offline pytest`, and in `frontend/` `npm test -- --run` and `npm run build`, and watch them pass.
+- [ ] 5.3 Run these mutations one at a time, inspect each result before the next, restore the code after each by editing the file back, and confirm the restore by comparing `git diff` with the diff you saved before the mutation (5.1 and 5.2 are not committed yet):
+
+  | Mutation | Change | Expected failing test |
+  | --- | --- | --- |
+  | N1 | `httpx2.TransportError` removed from that `except` | both cases of `test_stream_cut_by_the_network_names_the_base_url` |
+  | N2 | `iterations` ignored, top-level `usage` always used | `test_fallback_usage_counts_every_attempt` |
+  | N3 | the `selectedProvider.current === testedProvider` check removed | `keeps the tested models out of the other provider's list` |
+  | N4 | the page-load `setSavedModels(settings.model_id ? [settings.model_id] : [])` removed | `restores the saved model after switching providers without a test` |
+- [ ] 5.4 Run the commands of task 4.1 again (no `docker build`, `scripts/docker-smoke.sh`, or any Docker command, and do not touch port 8800). Add a "Fix round 1" section to `docs/process/test-report-add-anthropic-provider.md` with the red and green results of 5.1 and 5.2, N1–N4, and the commands' counts. Add one Droid entry for this round to `docs/process/ai-usage-log.md`, after the latest entry, with a verbatim prompt excerpt in quotation marks and the tool and model as the earlier Droid entries name them; leave out the session line, which Claude Code adds at review.
+
+  Verify: every command passes, and the report has the actual numbers.

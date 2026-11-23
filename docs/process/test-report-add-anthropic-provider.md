@@ -375,3 +375,47 @@ OpenAI client, prompt, summary/group module or extension source was changed.
 No real model call, Docker/container/volume action, port 8800 access,
 push, merge, tag or PR occurred. Docker smoke/live review remains with
 Claude Code. Session metrics are left to Claude Code.
+
+## Review by Claude Code
+
+Reviewed in worktree `review12` on the branch. Droid's runs started at `410df93` (groups 1–4, after an earlier run stopped on the README test order) and at `2207837` (fix round 1, with fixes from a fresh-eyes check in `01645df`).
+
+### Checks
+
+| Check | Result |
+| --- | --- |
+| Backend `uv run --offline pytest` | 1147 passed on `b63cc84`; 1150 after fix round 1 |
+| Frontend `npm test -- --run`, `npm run build` | 321 passed on `b63cc84`, 324 after fix round 1; build passed |
+| Extension `npm test -- --run`, `npm run build` | 168 passed; build passed |
+| `DO_NOT_TRACK=1 openspec validate add-anthropic-provider --strict` | valid |
+| `git diff --check` | clean |
+| `scripts/docker-smoke.sh catchup:fix12-local` (built from `b63cc84`, then from `7184480`) | 12 of 12 both times |
+
+### Live check
+
+A scratch container from `catchup:fix12-local` (built from `7184480`) ran on its own volume and port 8812. A local stub of the Anthropic Messages API on the host answered the model list in two pages (one retired model among them) and every Messages request with a streamed JSON answer, and recorded each request's path, headers, and body fields; it never saw a real key.
+
+- **Connection test:** a wrong key gave `auth_failed` ("The provider rejected the API key."); the stub key listed `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`, read over two pages with `after_id`, with the retired model left out and Opus first.
+- **Run:** with Simon Willison's feed added and `claude-opus-5-5` saved, one run summarized 5 of 5 items and grouped them (6 Messages requests).
+  - Every request body held only `fallbacks`, `max_tokens`, `messages`, `model`, `stream`, and `system`: no `temperature`, `top_p`, `top_k`, `thinking`, or `output_config`.
+  - `max_tokens` was 16,000 for summaries and grouping.
+  - Every request went to `/v1/messages?beta=true` with `anthropic-beta: server-side-fallback-2026-07-01` and `fallbacks: "default"`, and sent the saved key; requests named API version `2023-06-01`.
+  - The digest recorded 60 input and 30 output tokens, 10 and 5 for each call.
+- **Settings page:** with Anthropic saved, choosing OpenAI-compatible showed `https://api.deepseek.com`, an empty model list ("Test the connection to list models"), no saved-key line, and the hint "Enter an API key for this provider."; choosing Anthropic again restored the address, the model, and "Saved key ending in only". At 375 px the page did not scroll sideways, and the Provider select is named by its label.
+
+The container, its volume, and the stub were removed afterwards.
+
+### Findings
+
+- **`/code-review` (high) on `410df93..b63cc84`:**
+  - **Confirmed (a), fixed in fix round 1:** a stream cut by the network (`httpx2.ReadTimeout`, `RemoteProtocolError`) came out raw from the SDK and failed the whole run instead of one item; reproduced with a `MockTransport` stream that breaks after `message_start`.
+  - **Rejected:** an output floor above an older model's output cap. In the `claude-api` reference, every model that is not retired allows at least 64,000 output tokens.
+- **`/code-review` on fix round 1:** no findings.
+- **Spec sub-agent** (independent, detached worktree; it re-ran all 21 named mutations, and each failed its named test):
+  - **Fixed in fix round 1:** the stream defect above; a server-side fallback counted only the attempt that produced the message (the user decided to count every attempt in `usage.iterations`, and D9 says so); a connection test that finished after a provider switch listed its models under the other provider; no test covered switching back to the saved provider without a test.
+  - **Recorded, not fixed:**
+    - the guard that keeps a model choice from saving while another provider is selected cannot be reached in the page (the model list is empty until a test succeeds), so it has no test; `save()` setting the saved provider has no test of its own;
+    - behaviors the plan did not list, kept because they are sensible: the typed key is cleared on a provider switch, so a key typed for one provider is never sent to another; the test endpoint defaults to the chosen provider's address when nothing is saved; a blank key falls back to the saved one; the runner stores a context window only if the provider is unchanged; the model list stops on a repeated `last_id`;
+    - the test handler repeats its last answer for an extra request, but every test asserts its request count;
+    - "A declined grouping call", "Base URL stays editable for both providers", and "the next run asks Anthropic's model list" are covered only by combining unit tests.
+  - **Fixed in Claude's review commit:** the Droid entry's model name and prompt excerpt in the AI usage log.

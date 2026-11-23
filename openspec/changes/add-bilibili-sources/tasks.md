@@ -328,7 +328,7 @@ Implementer notes:
 
 ## 6. The Compose override, `.env.example`, and the README (D9)
 
-- [ ] 6.1 Write these tests and watch them fail: `compose.rsshub.yaml`, the `.env.example` line and the README section are missing. (The `.gitignore` and `.dockerignore` checks already pass.)
+- [x] 6.1 Write these tests and watch them fail: `compose.rsshub.yaml`, the `.env.example` line and the README section are missing. (The `.gitignore` and `.dockerignore` checks already pass.)
 
   **In a new file `backend/tests/test_rsshub_docs.py`.** Use the `read_file`, `readme_section` and `collapse_whitespace` helpers of `tests/test_install_docs.py`, imported from it.
   - **`test_rsshub_override_is_exact_and_optional`.**
@@ -352,7 +352,7 @@ Implementer notes:
     - `No subtitles from RSSHub`.
 
     Every line of the section's `sh` code blocks that contains `docker compose up -d` also contains `--wait` (`test_every_docker_compose_start_waits_for_health` reads only `## Run with Docker`, so it does not check this section). The README's `Supported sources` section mentions `Bilibili uploaders`.
-- [ ] 6.2 Make them pass:
+- [x] 6.2 Make them pass:
   - write `compose.rsshub.yaml`;
   - add the line to `.env.example`;
   - add the README section after `## X accounts`, with what the `bilibili-uploaders` spec's "State Bilibili's terms" requirement lists, and the line in `## Supported sources`.
@@ -363,7 +363,7 @@ Implementer notes:
   - `uv run --offline pytest tests/test_rsshub_docs.py tests/test_install_docs.py tests/test_readme_context.py`;
   - the full `uv run --offline pytest`;
   - `npm test -- --run` in `extension/` (`src/test/docs.test.ts` reads `README.md`).
-- [ ] 6.3 Run this mutation:
+- [x] 6.3 Run this mutation:
 
   | Mutation | Change | Expected failing test |
   | --- | --- | --- |

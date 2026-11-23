@@ -2,7 +2,7 @@
 
 import re
 from datetime import timedelta
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from contextlib import closing
 
 from fastapi import APIRouter, Depends, Request
@@ -21,6 +21,9 @@ from catchup.net.rate_limit import is_rate_limited
 from catchup.net.safe_fetch import FetchError, safe_fetch
 from catchup.sources.discovery import FEED_UNAVAILABLE_MESSAGE, discover, http_error_status
 from catchup.sources.feeds import FeedParseError, is_short, parse_feed
+from catchup.sources.bilibili import (
+    FAILED_MESSAGE, NOT_UPLOADER_MESSAGE, fetch_uploader, parse_uploader_feed, uploader_mid,
+)
 from catchup.sources.x_accounts import post_item, x_username
 from catchup.sources.x_api import XApiError, XClient
 
@@ -162,8 +165,35 @@ def _x_confirm(feed_url: str, request: Request, session: Session) -> dict:
         }
 
 
+def _bilibili_preview(mid: str, request: Request, session: Session) -> dict:
+    try:
+        response = fetch_uploader(mid, request.app.state.settings)
+        feed = parse_uploader_feed(response, mid)
+    except FetchError as exc:
+        raise _fetch_error(exc) from exc
+    except FeedParseError as exc:
+        raise AppError("rsshub_failed", FAILED_MESSAGE, 422) from exc
+    duplicate = _existing(feed.feed_url, session)
+    if duplicate:
+        raise _duplicate(duplicate, 422)
+    request.app.state.feed_cache.put(replace(response, url=feed.feed_url))
+    recent = sorted(
+        feed.entries, key=lambda entry: entry.published_at.timestamp() if entry.published_at else float("-inf"),
+        reverse=True,
+    )
+    return {
+        "feed_url": feed.feed_url, "site_url": feed.site_url, "title": feed.title,
+        "follows_site_feed_notice": False, "kind": "bilibili", "captions_enabled": False,
+        "entries": [{"title": entry.title, "link": entry.link, "published_at": entry.published_at}
+                    for entry in recent[:5]],
+    }
+
+
 @router.post("/preview")
 def preview(data: PreviewInput, request: Request, session: Session = Depends(get_session)) -> dict:
+    mid = uploader_mid(data.url.strip(), request.app.state.settings.rsshub_url)
+    if mid is not None:
+        return _bilibili_preview(mid, request, session)
     username = x_username(data.url.strip())
     if username is not None:
         return _x_preview(request, session, username=username)
@@ -198,12 +228,21 @@ def preview(data: PreviewInput, request: Request, session: Session = Depends(get
 def confirm(data: ConfirmInput, request: Request, session: Session = Depends(get_session)) -> dict:
     if data.feed_url.strip().startswith("x:user:"):
         return _x_confirm(data.feed_url.strip(), request, session)
+    feed_url = data.feed_url.strip()
+    bilibili = feed_url.startswith("bilibili:")
+    if bilibili and not re.fullmatch(r"bilibili:uploader:[0-9]{1,20}", feed_url):
+        raise AppError("not_a_bilibili_uploader", NOT_UPLOADER_MESSAGE, 422)
     try:
-        feed_url = data.feed_url.strip()
         response = request.app.state.feed_cache.pop(feed_url)
-        feed = parse_feed(response if response is not None else safe_fetch(
-            feed_url, max_bytes=request.app.state.settings.max_feed_bytes,
-        ))
+        if bilibili:
+            mid = feed_url.removeprefix("bilibili:uploader:")
+            feed = parse_uploader_feed(
+                response if response is not None else fetch_uploader(mid, request.app.state.settings), mid,
+            )
+        else:
+            feed = parse_feed(response if response is not None else safe_fetch(
+                feed_url, max_bytes=request.app.state.settings.max_feed_bytes,
+            ))
     except FetchError as exc:
         if exc.code == "fetch_failed" and (status := http_error_status(exc)) is not None:
             raise _fetch_error(FetchError(
@@ -211,6 +250,8 @@ def confirm(data: ConfirmInput, request: Request, session: Session = Depends(get
             )) from exc
         raise _fetch_error(exc) from exc
     except FeedParseError as exc:
+        if bilibili:
+            raise AppError("rsshub_failed", FAILED_MESSAGE, 422) from exc
         raise AppError("not_a_feed", str(exc), 422) from exc
     duplicate = _existing(feed.feed_url, session)
     if duplicate:
@@ -243,11 +284,15 @@ def confirm(data: ConfirmInput, request: Request, session: Session = Depends(get
         transcript_status = ("to_fetch" if feed.kind == "youtube" or
                              (feed.kind == "podcast" and entry.has_audio) else
                              "text" if feed.kind == "podcast" else None)
+        if feed.kind == "bilibili":
+            transcript_status = "found" if entry.transcript_text else "subtitle_wait"
         text, origin = (
             article_text(entry, fallback_links, settings.short_text_chars, spacer=spacer)
             if state == "pending" and transcript_status in (None, "text")
             else (entry.content_text, "feed")
         )
+        if feed.kind == "bilibili" and entry.transcript_text:
+            text, origin = entry.transcript_text, "transcript"
         session.add(Item(
             source_id=source.id, identity_key=entry.identity_key, link=entry.link,
             title=entry.title, published_at=entry.published_at, discovered_at=now,

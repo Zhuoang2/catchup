@@ -192,7 +192,7 @@ Implementer notes:
 
 ## 3. Preview and follow an uploader (D6)
 
-- [ ] 3.1 Write these tests and watch them fail. Today a pasted Bilibili or RSSHub-route address goes to discovery, which refuses it with `blocked_address` (the Bilibili host rule of group 1, or the private-address rule for `rsshub.test`), and confirming `bilibili:uploader:…` fetches it with `safe_fetch`, which refuses it as `invalid_url`.
+- [x] 3.1 Write these tests and watch them fail. Today a pasted Bilibili or RSSHub-route address goes to discovery, which refuses it with `blocked_address` (the Bilibili host rule of group 1, or the private-address rule for `rsshub.test`), and confirming `bilibili:uploader:…` fetches it with `safe_fetch`, which refuses it as `invalid_url`.
 
   **In a new file `backend/tests/test_bilibili_sources_api.py`:**
   - **The setup.**
@@ -222,7 +222,7 @@ Implementer notes:
     - confirming `bilibili:uploader:2267573` again answers 409.
   - **`test_confirm_refuses_a_malformed_bilibili_address`.** `{"feed_url": "bilibili:uploader:abc"}` answers 422 with code `not_a_bilibili_uploader`.
   - **`test_bilibili_entries_never_request_their_video_page`.** In a feed whose items have no subtitles, descriptions shorter than `short_text_chars`, and a `date_published` within the first-add window before `NOW` (so they are saved as `pending`; `article_text` is only called for pending items), confirming requests nothing but RSSHub. The Bilibili route has `call_count == 0`, and `catchup.api.sources.article_text`, replaced with a function that raises `AssertionError`, is never called.
-- [ ] 3.2 Make them pass in `backend/src/catchup/api/sources.py`, as D6 says:
+- [x] 3.2 Make them pass in `backend/src/catchup/api/sources.py`, as D6 says:
   - recognize uploaders before `x_username`;
   - `_bilibili_preview`, with the response cached under `bilibili:uploader:<mid>`;
   - the confirm branch, sharing the existing confirm loop, with the transcript rule for `bilibili` entries.
@@ -230,7 +230,7 @@ Implementer notes:
   Then run, and watch pass:
   - `uv run --offline pytest tests/test_bilibili_sources_api.py tests/test_sources_api.py tests/test_x_sources_api.py`;
   - the full `uv run --offline pytest`.
-- [ ] 3.3 Run this mutation:
+- [x] 3.3 Run this mutation:
 
   | Mutation | Change | Expected failing test |
   | --- | --- | --- |

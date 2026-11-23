@@ -110,7 +110,7 @@ The client turns SDK errors into the existing error kinds. The 3 attempts and th
 
 - **Input tokens** are `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`. The cache fields are 0 or missing without caching.
 - **Output tokens** are `output_tokens` of the final message.
-- **Attempts** (decided by the user on 2026-11-22, after review). When `usage.iterations` lists the attempts of a server-side fallback, input and output tokens are summed over every attempt, declined ones included, because each attempt is billed; top-level `usage` covers only the attempt that produced the message. Without `iterations`, the top-level `usage` is used as above.
+- **Attempts** (decided by the user on 2026-11-22, after review). When `usage.iterations` lists the attempts of a server-side fallback, input and output tokens are summed over every attempt, declined ones included: top-level `usage` covers only the attempt that produced the message, `usage.iterations` reports every attempt, and an attempt declined mid-stream is billed at normal rates (how earlier declines are billed is on Anthropic's refusals page). Without `iterations`, the top-level `usage` is used as above.
 - Like the OpenAI client, the client counts only integer values, under a lock, and `usage_totals()` returns `None` until a call reports usage.
 
 ### D10. Model list (decision U4)

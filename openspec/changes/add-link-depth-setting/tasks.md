@@ -21,7 +21,7 @@ Implementer notes:
 
 ## 1. The levels (content-collection; design D1, D2)
 
-- [ ] 1.1 Write failing tests:
+- [x] 1.1 Write failing tests:
   - in `backend/tests/test_context_depth.py` (new), importing `LINK_DEPTHS`, `ContextLimits`, `context_limits`, and `link_depth_pages` from `catchup.context.depth`, and building settings with `dataclasses.replace(test_settings, ...)` from the `test_settings` fixture:
     - `test_link_depths`: `LINK_DEPTHS == ("off", "shallow", "normal")`;
     - `test_context_limits`, parametrized over `(level, links_per_item, context_fetches_per_run, author_replies, expected)`, with ids:
@@ -37,7 +37,7 @@ Implementer notes:
   - in `backend/tests/test_context_links.py`, `test_limit_zero_keeps_no_links`: with two links that the rules keep (`https://docs.example/a` and `https://docs.example/b`), `related_links(ITEM, SITE, links, 0) == []` and `related_links(ITEM, SITE, links, -1) == []`.
 
   Verify: `uv run --offline pytest tests/test_context_depth.py` fails with `ModuleNotFoundError: No module named 'catchup.context.depth'`; run `tests/test_context_links.py` on its own, because a collection error stops the whole run: `test_limit_zero_keeps_no_links` fails, because a limit of 0 returns the first link today (design "Context", probe).
-- [ ] 1.2 Add `backend/src/catchup/context/depth.py` as in design D1: `LINK_DEPTHS`, `SHALLOW_LINKS = 3`, the frozen dataclass `ContextLimits(links_per_item, fetches_per_run, author_replies)`, `context_limits(level, settings)` following the D1 table, with any other level treated as `normal`, and `link_depth_pages(settings)`. In `related_links` (`backend/src/catchup/context/links.py`), return `[]` at the start when `limit <= 0`.
+- [x] 1.2 Add `backend/src/catchup/context/depth.py` as in design D1: `LINK_DEPTHS`, `SHALLOW_LINKS = 3`, the frozen dataclass `ContextLimits(links_per_item, fetches_per_run, author_replies)`, `context_limits(level, settings)` following the D1 table, with any other level treated as `normal`, and `link_depth_pages(settings)`. In `related_links` (`backend/src/catchup/context/links.py`), return `[]` at the start when `limit <= 0`.
 
   Verify: the tests from 1.1 pass, and `uv run --offline pytest` passes in `backend/`. Mutations L1–L5 and L7 (design "Testing") each fail the depth or links tests named there. Restore the code after each.
 

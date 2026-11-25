@@ -385,3 +385,69 @@ Implementer notes:
   - the commands of 7.1 with their counts;
   - that Claude Code runs Docker smoke and the live check with a local RSSHub at review.
 - [x] 7.3 Add a Droid entry to `docs/process/ai-usage-log.md`: the prompt (a faithful excerpt), the tool and model, the outcome, what failed, and how it was resolved. Leave the session line for Claude Code to fill in.
+
+## 8. Fix round 1 (review findings)
+
+Claude Code's review of `ec98682..2e42f2d` confirmed these. The user also decided, on 2026-11-24, four points that change only the spec delta and design.md, already committed with this group: the not-configured message applies to uploader addresses only, a rate-limit answer is reported as rate limiting, the connect-time exception's scope is described as it is, and Bilibili images in other sources stay out of this change.
+- **A followed uploader is not reported as a duplicate while RSSHub fails.** `_bilibili_preview` and `confirm` ask RSSHub before checking for a duplicate, although the uploader id is known locally (bilibili-uploaders: "An uploader that is already followed MUST be reported as a duplicate, whichever form of its address was pasted").
+- **The README does not say that the RSSHub image is a third-party download** (local-deployment: "SHALL name the RSSHub image it uses and that it is a third-party download").
+- **The README does not warn that an older published image lacks this change.** Until `latest` includes it, an older CatchUp would request a pasted Bilibili address itself, so "CatchUp never contacts Bilibili" would not hold.
+- **No test covers the uploader request's size limit and spacing** (bilibili-uploaders: "The request MUST carry CatchUp's User-Agent, use the feed size limit, and follow the run's per-host spacing").
+
+- [ ] 8.1 Write these tests:
+  - in `backend/tests/test_bilibili_sources_api.py`, **`test_duplicate_is_reported_without_asking_rsshub`**:
+    ```python
+    def test_duplicate_is_reported_without_asking_rsshub(client):
+        with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+            route, blocked = serve_uploader(router, uploader_body())
+            assert client.post("/api/sources", json={"feed_url": STABLE}).status_code == 201
+            route.respond(503, content=b"Busy")
+            again = client.post("/api/sources/preview", json={"url": "https://m.bilibili.com/space/2267573"})
+            assert again.status_code == 422 and again.json()["error"]["code"] == "duplicate"
+            assert client.post("/api/sources", json={"feed_url": STABLE}).status_code == 409
+            assert route.call_count == 1 and blocked.call_count == 0
+    ```
+    It fails on the current code: the preview answers `rsshub_failed`.
+  - in `backend/tests/test_bilibili.py`, **`test_fetch_uploader_uses_feed_limit_and_spacing`**:
+    ```python
+    def test_fetch_uploader_uses_feed_limit_and_spacing(monkeypatch, test_settings):
+        monkeypatch.setattr(socket, "getaddrinfo", lambda host, port, **kwargs: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.7", port)),
+        ])
+        waited = []
+
+        class Spacer:
+            def wait(self, url):
+                waited.append(url)
+
+        settings = replace(test_settings, rsshub_url=RSSHUB, max_feed_bytes=6 * 1024 * 1024)
+        body = b" " * (5 * 1024 * 1024 + 1)
+        with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+            router.get(ROUTE).respond(200, content=body)
+            blocked = router.get(BILIBILI).mock(side_effect=AssertionError("Bilibili must never be requested"))
+            assert fetch_uploader(MID, settings, spacer=Spacer()).content == body
+            assert waited == [ROUTE]
+            assert blocked.call_count == 0
+    ```
+    It passes on the current code; mutations M2 and M3 in 8.3 show that it can fail.
+  - in `backend/tests/test_rsshub_docs.py`, add `"third-party download"` and `"Bilibili uploaders need a CatchUp version that includes them"` to the phrase list of `test_readme_explains_bilibili_uploaders`, after `"No subtitles from RSSHub"`. It fails on the current README.
+
+  Verify: the duplicate test and the docs test fail on the current code as stated, and the limit test passes. Change no existing test, other than the two phrases.
+- [ ] 8.2 Fix them:
+  - in `backend/src/catchup/api/sources.py`, `_bilibili_preview` first checks `_existing(f"bilibili:uploader:{mid}", session)` and raises `_duplicate(duplicate, 422)` before it calls `fetch_uploader`; the later duplicate check after parsing is removed. In `confirm`, right after the `bilibili:uploader:<digits>` format check, `if bilibili and (duplicate := _existing(feed_url, session)): raise _duplicate(duplicate, 409)`, before the feed cache or RSSHub is used.
+  - in `README.md`, in the `### Optional RSSHub beside CatchUp` part of `## Bilibili uploaders`:
+    - after the paragraph that ends "installation directory, not `backend/`.", add a paragraph: "Bilibili uploaders need a CatchUp version that includes them. Until the `latest` image does, use the `edge` image or a source build: an older CatchUp would request the pasted Bilibili address itself."
+    - replace the paragraph that starts "The optional override sets `CATCHUP_RSSHUB_URL=http://rsshub:1200`" with: "The optional override sets `CATCHUP_RSSHUB_URL=http://rsshub:1200` for CatchUp and runs `diygod/rsshub:latest` without publishing an RSSHub port. That image is a third-party download from Docker Hub; CatchUp does not build or publish it. As of 2026-11-22, it is about 130–133 MB compressed (amd64/arm64). If uploader lists fail and need RSSHub's browser fallback, change its `image` in `compose.rsshub.yaml` to `diygod/rsshub:chromium-bundled`, about 391–507 MB compressed depending on architecture, then run the appropriate start command above again. The browser fallback may be slow; a later manual digest run can use RSSHub's cached result." Keep the README's line wrapping style (about 78 columns).
+
+  Then run the tests of 8.1, `uv run --offline pytest tests/test_bilibili.py tests/test_bilibili_sources_api.py tests/test_sources_api.py tests/test_x_sources_api.py tests/test_rsshub_docs.py tests/test_install_docs.py tests/test_readme_context.py`, the full `uv run --offline pytest`, and `npm test -- --run` in `extension/` (`src/test/docs.test.ts` reads `README.md`), and watch them pass.
+- [ ] 8.3 Run these mutations one at a time, inspect each result before the next, restore the code after each by editing the file back, and confirm the restore by comparing `git diff` with the diff you saved before the mutation (8.1 and 8.2 are not committed yet):
+
+  | Mutation | Change | Expected failing test |
+  | --- | --- | --- |
+  | M1 | the early duplicate check in `_bilibili_preview` removed (the check after parsing restored) | `test_duplicate_is_reported_without_asking_rsshub` |
+  | M2 | `max_bytes=settings.max_feed_bytes` removed from `fetch_uploader` | `test_fetch_uploader_uses_feed_limit_and_spacing` |
+  | M3 | `spacer=spacer` removed from `fetch_uploader` | `test_fetch_uploader_uses_feed_limit_and_spacing` |
+  | M4 | the sentence "That image is a third-party download from Docker Hub; CatchUp does not build or publish it." removed from the README | `test_readme_explains_bilibili_uploaders` |
+- [ ] 8.4 Run the commands of task 7.1 again (no `docker build`, `scripts/docker-smoke.sh`, or any Docker command, and do not touch port 8800). Add a "Fix round 1" section to `docs/process/test-report-add-bilibili-sources.md` with the red and green results of 8.1 and 8.2, M1–M4, and the commands' counts. Add one Droid entry for this round to `docs/process/ai-usage-log.md`, after the latest entry, with a verbatim prompt excerpt in quotation marks and the tool and model as the earlier Droid entries name them; leave out the session line, which Claude Code adds at review.
+
+  Verify: every command passes, and the report has the actual numbers.

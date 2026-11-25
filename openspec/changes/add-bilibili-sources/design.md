@@ -73,7 +73,7 @@ The terms risk remains with the user's RSSHub (D-038). The README states it, and
 
 - **The parameter.** `safe_fetch` gets `private_origin: str | None = None`. Origins are compared after normalizing: lower-case scheme and host, and an explicit default port (80 for HTTP, 443 for HTTPS).
 - **The rule.** Only on the first hop, and only when the URL's origin equals `private_origin`, `_check_address` skips `_public_answers`. The Bilibili and X host rules still apply.
-- **At connect time.** `_client(private=(host, port))` builds `_PublicOnlyBackend` with that one host and port. For exactly that pair, its `connect_tcp` still resolves the host and connects to each answer's address in order, as it does for public hosts, but skips the public-address test. Resolution errors keep their current message. It does so only while the first hop is in flight, because a redirect hop is checked before any connection (`safe_fetch.py:165`).
+- **At connect time.** `_client(private=(host, port))` builds `_PublicOnlyBackend` with that one host and port. For exactly that pair, its `connect_tcp` still resolves the host and connects to each answer's address in order, as it does for public hosts, but skips the public-address test. Resolution errors keep their current message. The backend applies this to every connection of that one fetch; a redirect hop is refused before any connection when the configured host resolves to a private address at the redirect check (`safe_fetch.py:182`), so only a DNS answer that changes between that check and the connection could reach a private address on a redirect. The user accepted this at review (2026-11-24): it needs control of the DNS of the RSSHub host the operator configured.
 - **Who passes it.** Only `sources/bilibili.py` passes `private_origin`. Discovery, collection, context, transcripts and captions never do.
 
 ### D5. Reading an uploader
@@ -199,6 +199,8 @@ New module `backend/src/catchup/sources/bilibili.py`:
   - Alternative: the cover image as a candidate.
 
 ## Risks / Trade-offs
+
+- **[Bilibili images in other sources]** → A website feed or a page saved from the browser may offer an image on a Bilibili host (`hdslb.com`) as a candidate; the backend never requests it, and the reader's browser loads a chosen one directly, as for any image. The user chose at review (2026-11-24) to leave this out of this change.
 
 - **[The terms risk moves to the user's RSSHub; it does not go away]** → The README and the preview say so. D-038 records it. CatchUp's own traffic never reaches Bilibili, and tests pin that.
 - **[RSSHub's browser fallback can be slower than `safe_fetch`'s 30 s deadline]** → The check fails with a timeout. The next run usually gets RSSHub's cached answer. The README suggests the `chromium-bundled` image only when lists fail.

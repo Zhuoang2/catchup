@@ -43,7 +43,7 @@ For an uploader, the system SHALL request `<address>/bilibili/user/video/<mid>?f
 
 The configured address's origin (scheme, host, and port) is the only origin allowed to resolve to a private or loopback address, and only for these uploader requests. A redirect from it MUST be checked like any other address, so a redirect to a private or loopback address is refused, including one back to the same origin. The same host on another port, and any other private or loopback address, MUST still be refused.
 
-When no address is set, a pasted Bilibili address MUST be refused with "Following Bilibili uploaders needs an RSSHub address (CATCHUP_RSSHUB_URL). See the README.", and a check of a saved Bilibili source MUST fail with the same message.
+When no address is set, a pasted Bilibili uploader address MUST be refused with "Following Bilibili uploaders needs an RSSHub address (CATCHUP_RSSHUB_URL). See the README.", and a check of a saved Bilibili source MUST fail with the same message. Other Bilibili addresses are still reported as not a Bilibili uploader.
 
 #### Scenario: RSSHub next to CatchUp in Docker
 - **WHEN** `CATCHUP_RSSHUB_URL` is `http://rsshub:1200`, and `rsshub` resolves to a private Docker network address
@@ -75,7 +75,7 @@ The preview of an uploader SHALL show:
 
 Confirming SHALL save the source with the stable address `bilibili:uploader:<mid>`, so a new RSSHub address keeps the source. An uploader that is already followed MUST be reported as a duplicate, whichever form of its address was pasted. The first-add rules for website feeds apply: only videos published within the first-add window are new, at most the first-add maximum.
 
-When RSSHub answers with an HTTP error, or with something that is not a JSON Feed, the preview MUST report "RSSHub could not read this uploader.", with the HTTP status when there is one, and save nothing.
+When RSSHub answers with an HTTP error, or with something that is not a JSON Feed, the preview MUST report "RSSHub could not read this uploader.", with the HTTP status when there is one, and save nothing. A rate-limit answer (HTTP 429, or 503 with Retry-After) is reported as rate limiting instead, as for other sources, and also saves nothing.
 
 #### Scenario: Preview an uploader
 - **WHEN** the user pastes `https://space.bilibili.com/2267573`, and RSSHub answers with the feed `Sample Uploader 的 bilibili 空间` and 30 videos

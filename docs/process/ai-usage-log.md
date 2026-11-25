@@ -2944,3 +2944,18 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - **Problems / adjustment:**
   - **The machine restarted during the review.** The scratchpad, with Droid's prompt files and logs, was cleared and the review worktrees were lost; everything was committed, so the worktrees were recreated from the branch. Session data had already been recorded.
   - **Droid put its implementation entry at the top of this log.** Claude moved it into date order, and the fix round's task said where its own entry goes.
+
+## 2026-11-25 — `add-link-depth-setting` (#54): plan (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
+
+- **Prompts** (translated from Chinese):
+  - After #40 merged, the user chose three issues to plan at the same time: "Start #4, #54, and #32 in parallel."
+  - After reviewing the three plans, the user decided: "Approve all three plans as recommended; conflicts approved in advance." The advance approval covers merge conflicts between #4 and #54 in which each side only adds its own lines: Claude keeps both sides, renumbers the second migration to `0011`, and re-runs the checks; any other conflict still stops for the user.
+- **Outcome:**
+  - **Checked on `main` `145811f`.** The links per item, the per-run limit, and author replies come only from environment settings. One budget list covers every context fetch and robots.txt; an item that meets an empty budget keeps `context_status` NULL, so a later run gathers it. A probe showed that `related_links` with a limit of 0 returns one link.
+  - **Plan.** A Linked pages choice (Off, Shallow, Normal) stored in `app_settings.link_depth` (migration `0010_link_depth`) and read once when a run starts. A new `context/depth.py` maps it to links per item, the per-run budget, and author replies; Off reuses the spent-budget path; the preferences API reports the server's numbers for the Settings labels. Five task groups with mutations L1–L7, G1, R1–R3, A1–A2, M1, and U1–U4; the implementer notes tell Droid not to run Docker. D-042. The user chose the recommendation for U1–U3: no Deep level in this change (#54 stays open, and the PR will say "Part of #54"), the environment settings set Normal, and Off makes no context request.
+  - **D-023 fresh-eyes check.** A sub-agent that saw only the change folder and the code prototyped all groups (1,299 backend and 340 frontend tests passed) and ran every named mutation. Claude checked each of its ten findings against the code and applied all ten:
+    - two more existing Settings tests answer the preferences request without the new fields, which the page reads directly, so the plan now lists four mock answers to change;
+    - a run with no saved Digest settings had no test (mutation R3 survived the suite), so a test now covers it;
+    - respx's `assert_all_called=False`, the README paragraph as one unwrapped line for the phrase test, running the links test on its own past a collection error, setting the item's `entry_author` through a session, a second render only after unmounting the first, and line references.
+- **Problems / adjustment:**
+  - **The plan's list of existing tests to change missed two mock answers**, so Droid would have had to stop. The prototype also showed that "No level saved" was covered only for upgraded rows.

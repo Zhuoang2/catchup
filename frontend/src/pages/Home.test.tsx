@@ -1057,6 +1057,7 @@ it('shows no primary action after a no-new-content run, with rate limit and held
 
 it.each([
   ['auth_failed', 'Check settings'], ['run_failed', 'Try again'],
+  ['reasoning_rejected', 'Check settings'],
 ])('offers the right primary action for %s with reused summary copy', async (error_kind, primary) => {
   const { container } = mockPage({ run: {
     ...run, status: 'failed', error_kind, items_total: 12, items_done: 3,

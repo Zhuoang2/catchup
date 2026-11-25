@@ -88,8 +88,9 @@ def test_live_failure_recovers_end_to_end(environment, monkeypatch):
             return httpx2.Response(200, html=HTML_PAGE)
         return completion(CUT_OFF)
 
-    environment.app.state.model_client_factory = lambda base, key, model, provider: ModelClient(
-        base, key, model, http_client=httpx2.Client(transport=httpx2.MockTransport(handle)), sleep=sleeps.append,
+    environment.app.state.model_client_factory = lambda base, key, model, provider, reasoning: ModelClient(
+        base, key, model, reasoning=reasoning,
+        http_client=httpx2.Client(transport=httpx2.MockTransport(handle)), sleep=sleeps.append,
     )
     result = execute(environment)
     assert result["status"] == "succeeded"
@@ -97,6 +98,78 @@ def test_live_failure_recovers_end_to_end(environment, monkeypatch):
     assert sorted(sleeps) == [0.25, 0.25, 0.25, 0.5, 0.5]
     assert saved_digest(environment) == [(("Other", ""), [
         ("Item 0", "Zero", False), ("Item 1", None, True),
+    ])]
+
+
+def install_reasoning_run(client, monkeypatch, reasoning, *, refuse=False, refuse_first=False):
+    seed(client, count=2)
+    stub_collection(monkeypatch)
+    with client.app.state.session_factory() as session:
+        session.get(ModelConfig, 1).reasoning = reasoning
+        session.commit()
+    bodies, sleeps = [], []
+    lock = threading.Lock()
+
+    def handle(request):
+        assert request.url.host == "model.example"
+        if request.method == "GET" and request.url.path == "/models":
+            return httpx2.Response(200, json={"object": "list", "data": []})
+        assert request.method == "POST" and request.url.path == "/chat/completions"
+        body = json.loads(request.content)
+        with lock:
+            bodies.append(body)
+        messages = body["messages"]
+        grouping = "item_refs" in messages[0]["content"]
+        if refuse or refuse_first and not grouping and "Title: Item 0" in messages[1]["content"]:
+            return httpx2.Response(400, json={"error": {"message": "unsupported"}})
+        if grouping:
+            return completion('{"topics": [{"title": "Technology", "overview": "News", "item_refs": ["i1", "i2"]}]}')
+        return completion('{"summary": "English summary"}')
+
+    client.app.state.model_client_factory = lambda base, key, model, provider, choice: ModelClient(
+        base, key, model, reasoning=choice,
+        http_client=httpx2.Client(transport=httpx2.MockTransport(handle)), sleep=sleeps.append,
+    )
+    return bodies, sleeps
+
+
+@pytest.mark.parametrize("reasoning,expected", [("low", "low"), ("off", "none"), ("default", None)])
+def test_run_sends_reasoning_effort_on_every_chat_call(environment, monkeypatch, reasoning, expected):
+    bodies, _ = install_reasoning_run(environment, monkeypatch, reasoning)
+    assert execute(environment)["status"] == "succeeded"
+    assert len(bodies) == 3
+    assert sum("item_refs" in body["messages"][0]["content"] for body in bodies) == 1
+    for body in bodies:
+        if expected is None:
+            assert "reasoning_effort" not in body
+        else:
+            assert body["reasoning_effort"] == expected
+        assert "thinking" not in body
+
+
+def test_refused_reasoning_fails_the_run_and_keeps_items_pending(environment, monkeypatch):
+    bodies, sleeps = install_reasoning_run(environment, monkeypatch, "low", refuse=True)
+    result = execute(environment)
+    assert not any("item_refs" in body["messages"][0]["content"] for body in bodies)
+    assert bodies
+    for title in ("Item 0", "Item 1"):
+        assert sum(f"Title: {title}" in body["messages"][1]["content"] for body in bodies) <= 1
+    assert sleeps == []
+    assert (result["status"], result["error_kind"]) == ("failed", "reasoning_rejected")
+    assert result["error_message"] == (
+        "The model provider rejected a request with the Reasoning setting. "
+        "Choose Provider default in Settings, then generate again."
+    )
+    assert all_rows(environment, Digest) == []
+    assert all_rows(environment, DigestItem) == []
+    assert [row.state for row in all_rows(environment, Item)] == ["pending", "pending"]
+
+
+def test_refusal_with_provider_default_keeps_the_digest(environment, monkeypatch):
+    install_reasoning_run(environment, monkeypatch, "default", refuse_first=True)
+    assert execute(environment)["status"] == "succeeded"
+    assert saved_digest(environment) == [(("Technology", "News"), [
+        ("Item 0", None, True), ("Item 1", "English summary", False),
     ])]
 
 
@@ -156,8 +229,9 @@ def test_run_where_every_model_call_fails_with_a_status_error_keeps_items_pendin
             return httpx2.Response(200, json={"object": "list", "data": []})
         return httpx2.Response(status, json={"error": {"message": "unavailable"}})
 
-    environment.app.state.model_client_factory = lambda base, key, model, provider: ModelClient(
-        base, key, model, http_client=httpx2.Client(transport=httpx2.MockTransport(handle)), sleep=lambda _: None,
+    environment.app.state.model_client_factory = lambda base, key, model, provider, reasoning: ModelClient(
+        base, key, model, reasoning=reasoning,
+        http_client=httpx2.Client(transport=httpx2.MockTransport(handle)), sleep=lambda _: None,
     )
     result = execute(environment)
     assert (result["status"], result["error_kind"]) == ("failed", "provider_error")

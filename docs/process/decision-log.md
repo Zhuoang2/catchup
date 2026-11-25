@@ -722,6 +722,28 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Sizes written with units or in `style`, and pages saved from the browser, which send no sizes, get only the address rules.
   - A summary reused from an earlier run keeps its earlier choice; its formula images are hidden when the digest is served.
 
+## D-041 Let the user lower or turn off the model's reasoning, per provider — accepted (2026-11-25)
+
+- **Decision** (the user chose option A for U1–U3 of the design at plan approval).
+  - **Setting.** The saved model configuration gets a Reasoning choice, stored in a new `model_config.reasoning` column (migration `0011_model_reasoning`, planned as `0010_model_reasoning` and renumbered at the merge because #54's `0010_link_depth` merged first): Provider default (every existing configuration), Low, or Off. Off is offered for OpenAI-compatible providers only. Changing the provider resets it to Provider default.
+  - **Requests.** Provider default sends nothing, as today. For OpenAI-compatible providers, Low sends `reasoning_effort: "low"` and Off sends `reasoning_effort: "none"`; for Anthropic, Low sends `output_config.effort: "low"`, also with the fallback models. No call sends `thinking`, and the output limits do not change.
+  - **Refusals.** When Reasoning is not Provider default and the provider answers HTTP 400 or 422, the run fails at once with a message that says to choose Provider default, and the main screen offers Check settings.
+  - **Settings** gets a Reasoning select after Model, saved like a model choice.
+
+  Planned as the lean OpenSpec change `add-reasoning-setting` (issue #4).
+- **Why.** DeepSeek thinks at effort "high" by default, and `claude-opus-5-5` always thinks. CatchUp raised its output limits so that this works (design D3 of `add-core-digest-flow`, D-037), but the user cannot lower the cost and waiting time it adds to short summaries (#4).
+- **Alternatives:**
+  - **Also Medium and High.** Offered to the user (design U1). Medium is the default of DeepSeek (where it means High) and of `claude-opus-5-5`, and High can use up the Anthropic output limit before an answer.
+  - **Off for Anthropic.** Rejected: `thinking: {"type": "disabled"}` returns HTTP 400 on `claude-opus-5-5` and the Fable models, and `claude-sonnet-5-5` needs another value.
+  - **DeepSeek's `thinking` object.** Rejected: `reasoning_effort: "none"` already turns thinking off on DeepSeek, and `thinking` is a field other OpenAI-compatible servers do not know.
+  - **Offer only the levels each model supports, from Anthropic's model list.** Rejected: OpenAI-compatible servers report no such data, and the page keeps only the saved model's id.
+  - **Repeat a refused call without the setting.** Offered to the user (design U2): exact, but one more call per refusal and a second retry path.
+  - **Store the choice with the Digest preferences, or in an environment variable.** Rejected: it depends on the provider, and the issue asks for a setting next to the model.
+- **Consequences:**
+  - Some models refuse a choice, for example Gemini 3 and 4 refuse Off, and Anthropic's Sonnet 4.5 and Haiku 4.5 refuse any effort. The run then fails with the Reasoning message.
+  - With the setting on, a 400 for another reason also fails the run with that message.
+  - Less reasoning can make summaries and topics less careful. Items already summarized are not summarized again.
+
 ## D-042 Let the user choose how many linked pages a run reads: Off, Shallow, or Normal — accepted (2026-11-25)
 
 - **Decision** (the user chose the recommendation for U1–U3 of the design at plan approval).

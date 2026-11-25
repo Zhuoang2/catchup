@@ -56,6 +56,7 @@ def test_save_and_read_encrypted_configuration(api):
         "provider": "openai_compatible",
         "base_url": "https://provider.example/v1", "model_id": "provider-current",
         "key_set": True, "api_key_last4": "4821",
+        "reasoning": "default",
     }
     assert client.get("/api/settings/model").json() == response.json()
     assert KEY.encode() not in response.content
@@ -127,8 +128,81 @@ def test_save_and_read_anthropic_configuration(api):
     assert response.json() == {
         "provider": "anthropic", "base_url": "https://api.anthropic.com",
         "model_id": "claude-opus-5-5", "key_set": True, "api_key_last4": "4821",
+        "reasoning": "default",
     }
     assert client.get("/api/settings/model").json() == response.json()
+
+
+def test_read_without_configuration_reports_default_reasoning(api):
+    client, _ = api
+    assert client.get("/api/settings/model").json()["reasoning"] == "default"
+
+
+@pytest.mark.parametrize("provider,reasoning", [
+    ("openai_compatible", "low"), ("openai_compatible", "off"),
+    ("anthropic", "low"), ("anthropic", "default"),
+])
+def test_save_and_read_reasoning(api, provider, reasoning):
+    client, _ = api
+    response = client.put("/api/settings/model", json={
+        "provider": provider, "base_url": "https://provider.example/v1",
+        "model_id": "test-model", "api_key": KEY, "reasoning": reasoning,
+    })
+    assert response.status_code == 200
+    assert response.json()["reasoning"] == reasoning
+    assert client.get("/api/settings/model").json()["reasoning"] == reasoning
+
+
+@pytest.mark.parametrize("provider,reasoning", [
+    ("anthropic", "off"), ("openai_compatible", "max"), ("openai_compatible", ""),
+])
+def test_unsupported_reasoning_is_refused(api, provider, reasoning):
+    client, _ = api
+    before = client.put("/api/settings/model", json={
+        "provider": "openai_compatible", "base_url": "https://provider.example/v1",
+        "model_id": "saved-model", "api_key": KEY, "reasoning": "low",
+    }).json()
+    response = client.put("/api/settings/model", json={
+        "provider": provider, "base_url": "https://other.example",
+        "model_id": "new-model", "api_key": "new-test-only-key", "reasoning": reasoning,
+    })
+    assert response.status_code == 422
+    assert response.json()["error"] == {
+        "code": "invalid_reasoning",
+        "message": "Choose a Reasoning setting that this provider supports.",
+    }
+    assert client.get("/api/settings/model").json() == before
+
+
+@pytest.mark.parametrize("extra", [{}, {"reasoning": None}], ids=["omitted", "null"])
+def test_save_without_reasoning_keeps_it(api, extra):
+    client, _ = api
+    assert client.put("/api/settings/model", json={
+        "provider": "openai_compatible", "base_url": "https://provider.example/v1",
+        "model_id": "saved-model", "api_key": KEY, "reasoning": "low",
+    }).status_code == 200
+    response = client.put("/api/settings/model", json={
+        "base_url": "https://provider.example/v1", "model_id": "new-model", **extra,
+    })
+    assert response.status_code == 200
+    assert response.json()["reasoning"] == "low"
+    assert client.get("/api/settings/model").json()["reasoning"] == "low"
+
+
+def test_provider_change_without_reasoning_resets_it(api):
+    client, _ = api
+    assert client.put("/api/settings/model", json={
+        "provider": "openai_compatible", "base_url": "https://provider.example/v1",
+        "model_id": "saved-model", "api_key": KEY, "reasoning": "off",
+    }).status_code == 200
+    response = client.put("/api/settings/model", json={
+        "provider": "anthropic", "base_url": "https://api.anthropic.com",
+        "model_id": "claude-opus-5-5", "api_key": "new-test-only-key",
+    })
+    assert response.status_code == 200
+    assert response.json()["provider"] == "anthropic"
+    assert response.json()["reasoning"] == "default"
+    assert client.get("/api/settings/model").json()["reasoning"] == "default"
 
 
 def test_save_without_provider_keeps_the_saved_provider(api):

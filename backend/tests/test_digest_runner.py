@@ -137,7 +137,25 @@ def test_run_passes_the_saved_provider_to_every_client(environment, monkeypatch)
     stub_collection(monkeypatch)
     assert execute(environment)["status"] == "succeeded"
     assert len(calls) == 2
-    assert all(len(args) == 4 and args[-1] == "anthropic" for args in calls)
+    assert all(args[3:] == ("anthropic", "default") for args in calls)
+
+
+def test_run_passes_the_saved_reasoning_to_every_client(environment, monkeypatch):
+    seed(environment)
+    with environment.app.state.session_factory() as session:
+        session.get(ModelConfig, 1).reasoning = "low"
+        session.commit()
+    calls = []
+
+    def factory(*args):
+        calls.append(args)
+        return FakeModel()
+
+    environment.app.state.model_client_factory = factory
+    stub_collection(monkeypatch)
+    assert execute(environment)["status"] == "succeeded"
+    assert len(calls) == 2
+    assert all(len(args) == 5 and args[4] == "low" for args in calls)
 
 
 def test_stage_durations_are_saved_for_each_stage(environment, monkeypatch):

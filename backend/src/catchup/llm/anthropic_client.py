@@ -13,12 +13,13 @@ import httpx2
 
 from catchup.llm.client import (
     AuthFailed, ConnectionFailed, InsufficientBalance, InvalidAnswer, ModelInfo,
-    ProviderError, RateLimited,
+    ProviderError, RateLimited, ReasoningRejected,
 )
 
 logging.getLogger("anthropic").setLevel(logging.WARNING)
 
 DEFAULT_MODEL = "claude-opus-5-5"
+REASONING_EFFORTS = {"low": "low"}
 FALLBACK_MODELS = frozenset({
     "claude-fable-5-2", "claude-fable-5-1", "claude-opus-5-5",
     "claude-opus-5", "claude-sonnet-5-5",
@@ -32,9 +33,13 @@ class AnthropicModelClient:
         api_key: str,
         model: str = "",
         *,
+        reasoning: str = "default",
         http_client: httpx2.Client | None = None,
         sleep: Callable[[float], None] = time.sleep,
     ):
+        if reasoning != "default" and reasoning not in REASONING_EFFORTS:
+            raise ValueError("Choose a Reasoning setting that this provider supports.")
+        self.reasoning = reasoning
         self.base_url = base_url
         self.model = model
         self._sleep = sleep
@@ -49,13 +54,15 @@ class AnthropicModelClient:
     def close(self) -> None:
         self._client.close()
 
-    def _call(self, operation: Callable[[], Any]) -> Any:
+    def _call(self, operation: Callable[[], Any], *, reasoning_sent: bool = False) -> Any:
         for attempt in range(3):
             try:
                 return operation()
             except anthropic.AuthenticationError as exc:
                 raise AuthFailed("The provider rejected the API key.") from exc
             except anthropic.APIStatusError as exc:
+                if reasoning_sent and exc.status_code in (400, 422):
+                    raise ReasoningRejected() from exc
                 body = exc.body if isinstance(exc.body, dict) else {}
                 error = body.get("error", {})
                 details = error.get("details", {}) if isinstance(error, dict) else {}
@@ -124,6 +131,8 @@ class AnthropicModelClient:
             "max_tokens": max(max_tokens, 16_000),
             "timeout": httpx2.Timeout(connect=10.0, read=300.0, write=10.0, pool=10.0),
         }
+        if self.reasoning != "default":
+            options["output_config"] = {"effort": REASONING_EFFORTS[self.reasoning]}
         if system:
             options["system"] = "\n\n".join(system)
         endpoint = self._client.messages
@@ -161,4 +170,4 @@ class AnthropicModelClient:
                 raise ValueError("model answer is not a JSON object")
             return data
 
-        return self._call(chat)
+        return self._call(chat, reasoning_sent=self.reasoning != "default")

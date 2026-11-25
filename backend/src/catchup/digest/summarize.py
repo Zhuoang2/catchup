@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from collections.abc import Callable, Iterable
 import re
 
-from catchup.llm.client import AuthFailed, InsufficientBalance, ModelClient, ModelError, ProviderError
+from catchup.llm.client import AuthFailed, InsufficientBalance, ModelClient, ModelError, ProviderError, ReasoningRejected
 from catchup.llm.prompts import (
     SUMMARY_MAX_TOKENS, combine_messages, long_transcript_messages,
     part_messages, summary_messages,
@@ -125,7 +125,7 @@ def _summarize(client: ModelClient, item: SummaryInput, language: str,
             if len(choices) == 3:
                 break
         return SummaryResult(item.id, summary.strip(), used=used, images=tuple(choices))
-    except (AuthFailed, InsufficientBalance):
+    except (AuthFailed, InsufficientBalance, ReasoningRejected):
         raise
     except (ModelError, ValueError):
         return SummaryResult(item.id, None, unavailable=True)
@@ -153,7 +153,7 @@ def summarize_items(
                    for item in uncached]
         for future in as_completed(futures):
             on_result(future.result())
-    except (AuthFailed, InsufficientBalance):
+    except (AuthFailed, InsufficientBalance, ReasoningRejected):
         # Do not wait for unrelated, possibly slow provider calls before failing.
         pool.shutdown(wait=False, cancel_futures=True)
         raise

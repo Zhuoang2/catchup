@@ -8,7 +8,7 @@ import pytest
 from catchup.llm.anthropic_client import AnthropicModelClient
 from catchup.llm.client import (
     AuthFailed, ConnectionFailed, InsufficientBalance, InvalidAnswer, ModelInfo,
-    ProviderError, RateLimited,
+    ProviderError, RateLimited, ReasoningRejected,
 )
 
 BASE = "https://anthropic.example"
@@ -73,7 +73,7 @@ def error_response(status, type, *, spend_limit=False):
 def provider():
     clients = []
 
-    def make(answers, *, model="claude-haiku-5-5", path="/v1/messages"):
+    def make(answers, *, model="claude-haiku-5-5", path="/v1/messages", reasoning="default"):
         requests, sleeps = [], []
 
         def handle(request):
@@ -86,7 +86,7 @@ def provider():
             return answer
 
         client = AnthropicModelClient(
-            BASE, "test-only-key", model,
+            BASE, "test-only-key", model, reasoning=reasoning,
             http_client=httpx2.Client(transport=httpx2.MockTransport(handle)), sleep=sleeps.append,
         )
         clients.append(client)
@@ -349,3 +349,46 @@ def test_fallback_usage_counts_every_attempt(provider):
     ], model="claude-opus-5-5")
     assert client.chat_json([], 200) == {"summary": "ok"}
     assert client.usage_totals() == (25, 12)
+
+
+@pytest.mark.parametrize("model", ["claude-haiku-5-5", "claude-opus-5-5"])
+def test_low_reasoning_sends_output_config_effort(provider, model):
+    client, requests, _ = provider([stream_body("{}")], model=model, reasoning="low")
+    assert client.chat_json([{"role": "user", "content": "x"}], 100) == {}
+    body = json.loads(requests[0].content)
+    assert body["output_config"] == {"effort": "low"}
+    assert "thinking" not in body
+    if model == "claude-opus-5-5":
+        assert body["fallbacks"] == "default"
+        assert "server-side-fallback-2026-07-01" in requests[0].headers["anthropic-beta"]
+
+
+def test_provider_default_sends_no_output_config(provider):
+    client, requests, _ = provider([stream_body("{}")], reasoning="default")
+    assert client.chat_json([{"role": "user", "content": "x"}], 100) == {}
+    body = json.loads(requests[0].content)
+    assert "output_config" not in body
+    assert "thinking" not in body
+
+
+@pytest.mark.parametrize("status", [400, 422])
+@pytest.mark.parametrize("reasoning,error", [("low", ReasoningRejected), ("default", ProviderError)])
+def test_anthropic_refused_reasoning_raises_reasoning_rejected(provider, reasoning, error, status):
+    client, requests, sleeps = provider(
+        [error_response(status, "invalid_request_error")], reasoning=reasoning,
+    )
+    with pytest.raises(error) as caught:
+        client.chat_json([{"role": "user", "content": "x"}], 100)
+    assert type(caught.value) is error
+    if reasoning == "low":
+        assert str(caught.value) == (
+            "The model provider rejected a request with the Reasoning setting. "
+            "Choose Provider default in Settings, then generate again."
+        )
+    assert len(requests) == 1
+    assert sleeps == []
+
+
+def test_anthropic_refuses_off():
+    with pytest.raises(ValueError):
+        AnthropicModelClient(BASE, "test-only-key", "claude-opus-5-5", reasoning="off")

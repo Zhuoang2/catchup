@@ -53,7 +53,7 @@ This supersedes the note in `docs/handoff.md` §9 that OpenSpec/RePPIT are not t
 
 ## Shipping (D-035)
 
-Claude Code's personal skills `/reppit-apply` (plan approval → ready to merge) and `/ship` (merge approval → done) read this section. Each change stops for the user at two gates only: plan approval and merge approval. The review and fix-round rules above (D-016, D-023) still apply.
+Claude Code's personal skills `/reppit-apply` (plan approval → ready to merge) and `/merge-change` (merge approval → done) read this section. Each change stops for the user at two gates only: plan approval and merge approval. The review and fix-round rules above (D-016, D-023) still apply.
 
 - **Plan approval.** Mark the change's decision accepted (no quote in the decision log) and add the ai-usage-log plan entry with the user's words, translated from Chinese. Commit `openspec: plan <change> (#N)` on branch `<change>`, then `git switch -q main` in the main checkout so that `droid exec -w <change>` can check the branch out. Move the board item to In Progress, and write its item id in `work/agent-memory.md`.
 - **Droid.**

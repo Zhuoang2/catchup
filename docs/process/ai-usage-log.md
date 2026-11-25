@@ -3015,6 +3015,12 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - **Problems / adjustment:**
   - **The smoke script pins the whole preferences answer,** so any new preference breaks it. A plan that adds a preference field now has to list `scripts/docker-smoke.sh` among the files to change.
 
+## 2026-11-25 — Rename the `/ship` skill to `/merge-change` (Claude Code, Opus 5.5)
+
+- **Prompts** (translated from Chinese): after Claude reported that the Claude Code app now has a built-in `/ship` command with the same name as the user's skill, and suggested `/merge-change`: "Make the changes first."
+- **Outcome:** the Shipping section of `AGENTS.md` names the skill `/merge-change`, and D-035 has a follow-up line. The skill itself was renamed in the user's dotfiles.
+- **Problems / adjustment:** the app's built-in `/ship` pushes the branch and opens a PR, and only the user can start it. While both had the same name, Claude could not start the user's skill, and a session in another project followed its steps by hand.
+
 ## 2026-11-25 — `add-reasoning-setting` (#4): plan (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
 
 - **Prompts** (translated from Chinese):

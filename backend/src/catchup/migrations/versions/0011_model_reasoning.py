@@ -7,8 +7,8 @@ model and key.
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0010_model_reasoning"
-down_revision = "0009_model_provider"
+revision = "0011_model_reasoning"
+down_revision = "0010_link_depth"
 branch_labels = None
 depends_on = None
 

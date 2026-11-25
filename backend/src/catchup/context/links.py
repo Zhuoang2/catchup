@@ -18,6 +18,8 @@ def _site_host(host: str) -> str:
 
 def related_links(item_link: str, site_url: str, links: list[EntryLink] | tuple[EntryLink, ...],
                   limit: int) -> list[EntryLink]:
+    if limit <= 0:
+        return []
     # An address that cannot be parsed matches nothing.
     item = split_url(item_link)
     own = (item.scheme.lower(), item.netloc.lower(), item.path.rstrip("/")) if item is not None else None

@@ -724,7 +724,7 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
 ## D-041 Let the user lower or turn off the model's reasoning, per provider — accepted (2026-11-25)
 
 - **Decision** (the user chose option A for U1–U3 of the design at plan approval).
-  - **Setting.** The saved model configuration gets a Reasoning choice, stored in a new `model_config.reasoning` column (migration `0010_model_reasoning`): Provider default (every existing configuration), Low, or Off. Off is offered for OpenAI-compatible providers only. Changing the provider resets it to Provider default.
+  - **Setting.** The saved model configuration gets a Reasoning choice, stored in a new `model_config.reasoning` column (migration `0011_model_reasoning`, planned as `0010_model_reasoning` and renumbered at the merge because #54's `0010_link_depth` merged first): Provider default (every existing configuration), Low, or Off. Off is offered for OpenAI-compatible providers only. Changing the provider resets it to Provider default.
   - **Requests.** Provider default sends nothing, as today. For OpenAI-compatible providers, Low sends `reasoning_effort: "low"` and Off sends `reasoning_effort: "none"`; for Anthropic, Low sends `output_config.effort: "low"`, also with the fallback models. No call sends `thinking`, and the output limits do not change.
   - **Refusals.** When Reasoning is not Provider default and the provider answers HTTP 400 or 422, the run fails at once with a message that says to choose Provider default, and the main screen offers Check settings.
   - **Settings** gets a Reasoning select after Model, saved like a model choice.
@@ -742,6 +742,31 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Some models refuse a choice, for example Gemini 3 and 4 refuse Off, and Anthropic's Sonnet 4.5 and Haiku 4.5 refuse any effort. The run then fails with the Reasoning message.
   - With the setting on, a 400 for another reason also fails the run with that message.
   - Less reasoning can make summaries and topics less careful. Items already summarized are not summarized again.
+
+## D-042 Let the user choose how many linked pages a run reads: Off, Shallow, or Normal — accepted (2026-11-25)
+
+- **Decision** (the user chose the recommendation for U1–U3 of the design at plan approval).
+  - **A "Linked pages" choice in Settings → Digest,** stored in `app_settings.link_depth` (migration `0010_link_depth`), read once when a run starts.
+    - **Normal** (the default, and every instance that saved no choice) is today's behavior: up to `CATCHUP_LINKS_PER_ITEM` links per item (default 8), and author replies.
+    - **Shallow** reads up to 3 links per item, or `CATCHUP_LINKS_PER_ITEM` when that is lower, and author replies.
+    - **Off** sends no context request, robots.txt included. Replies saved with a page from the browser, or kept from an X thread, are still used. Other items stay not gathered, so a later run that still finds them pending reads them at its own level.
+  - Every level keeps the per-run limit, the 3,000- and 16,000-character caps, robots.txt, and `CATCHUP_AUTHOR_REPLIES`. The environment settings keep their meaning: they set Normal.
+  - Each option names its pages per item with the server's numbers, and a note says that each page adds run time and up to 3,000 characters to the item's summary request, and names the per-run limit.
+  - No Deep level in this change: #54 stays open for it, and the PR says "Part of #54".
+
+  Planned as the lean OpenSpec change `add-link-depth-setting` (issue #54). If #4 (D-041) is merged first, this entry stays after it; this change's migration is renumbered if #4 also takes `0010`.
+- **Why.** When the user chose #48's design (2026-10-19), they asked for a later choice between deep and shallow reading (#54). Only environment settings change the numbers today, which needs a restart. D-020 and D-036 both deferred the choice to #54.
+- **Alternatives:**
+  - **A Deep level without a model** (twice Normal's links and per-run limit, 6,000 characters per page, 32,000 per item). Offered to the user (design U1 B): it reads more of long pages, but the #48 sample's typical entry has no related links beyond Normal's 8, and it doubles run time and context size.
+  - **#48's model-picked links as Deep** (design U1 C). Rejected for this change: an extra model call per item with links, a nondeterministic selection, and new link rules for whole pages. It needs its own research.
+  - **Environment settings as upper limits for every level, or removed** (design U2). Rejected: upper limits only matter with a Deep level, and removing them breaks instances that set them.
+  - **Off covering linked pages only, still reading author replies** (design U3). Offered to the user; rejected as the recommendation because Off would still request post pages.
+  - **Off as no context pass at all, or marking Off items as having no context.** Rejected: saved replies would be lost, or the items would never be gathered later.
+  - **Numbers written into the Settings page.** Rejected: wrong when the server's settings differ.
+- **Consequences:**
+  - Runs at Shallow make smaller summary requests; in large runs the per-run limit, not the level, bounds the number of requests.
+  - A page saved from the browser with saved replies is marked gathered at Off, so its links are not read later.
+  - Token savings are not measured before the merge; the user can compare runs at Shallow and Normal on their own instance.
 
 ## D-043 Ask the grouping call for fewer, broader topics, within a limit that grows with the item count — accepted (2026-11-25)
 

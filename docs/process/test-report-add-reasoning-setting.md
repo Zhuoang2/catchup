@@ -288,3 +288,7 @@ The containers, their volumes, the stubs, and the browser tab were removed after
   - **Fixed by Claude (test only, D-023 class c):** the Anthropic refusal rule is now tested at 422 as well as 400 (mutation "400 only" had passed); a model choice followed by a Reasoning choice is now tested (mutation X12, which saved the saved model instead of the chosen one, had passed). Both mutations fail the new tests.
   - **Recorded, not fixed:** leaving `ReasoningRejected` out of the fast pool shutdown only delays the failure (a probe measured 0.05 s against 3.01 s); the Anthropic model list passing the flag has no visible effect; merge calls and long-item part and combine calls send the setting through the same `chat_json` (a probe saw all 17 calls carry it), with no committed test of their own.
   - **Plan wording:** the F7 and F8 rows of task 4.3 lost their indent in Claude's plan fix; restored.
+
+### Merge with main
+
+Merge with `main` after #32 and #54 (2026-11-25): only `backend/tests/test_db.py` and the three log files conflicted. The migration became `0011_model_reasoning` with `down_revision = "0010_link_depth"`, as the plan approval allowed. `test_db.py` keeps both migration tests: #54's now upgrades to `0010_link_depth` instead of head, and #4's starts at `0010_link_depth`, checks that head is `0011_model_reasoning`, and downgrades to `0010_link_depth`; the four head assertions name `0011_model_reasoning`.

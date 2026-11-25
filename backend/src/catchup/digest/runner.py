@@ -258,6 +258,7 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                 raise AppError("model_not_configured", "Set up a model in Settings before generating.")
             language_row = session.get(AppSettings, 1)
             language = language_row.digest_language if language_row else "en"
+            link_depth = language_row.link_depth if language_row else "normal"
             captions_enabled = language_row.youtube_captions if language_row else False
             skip_shorts = language_row.youtube_skip_shorts if language_row else True
             # Configuration and language are read once, before any source check.
@@ -351,7 +352,7 @@ def run_digest(app: FastAPI, run_id: int) -> None:
         with factory() as session:
             cutoff = session.scalar(select(func.max(Item.id))) or 0
         started = monotonic()
-        gather_context(factory, run_id, app.state.settings, spacer)
+        gather_context(factory, run_id, app.state.settings, spacer, level=link_depth)
         _stage_seconds(factory, run_id, "context", started)
 
         with factory() as session:

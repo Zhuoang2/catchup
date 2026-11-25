@@ -62,6 +62,7 @@ class AppSettings(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     digest_language: Mapped[str] = mapped_column(String(40), default="en", server_default="en")
+    link_depth: Mapped[str] = mapped_column(String(16), default="normal", server_default="normal")
     youtube_captions: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     youtube_skip_shorts: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
     show_images: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")

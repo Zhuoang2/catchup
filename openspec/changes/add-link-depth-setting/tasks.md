@@ -43,7 +43,7 @@ Implementer notes:
 
 ## 2. Storing the level, and the preferences API (content-collection, user-interface; design D6)
 
-- [ ] 2.1 Write failing tests:
+- [x] 2.1 Write failing tests:
   - in `backend/tests/test_db.py`, `test_link_depth_migration_defaults_existing_settings_and_downgrades`, following `test_model_provider_migration_defaults_existing_config_and_downgrades`: upgrade a temporary engine to `0009_model_provider`; insert `INSERT INTO app_settings (id, digest_language, youtube_captions, youtube_skip_shorts, show_images, updated_at) VALUES (1, 'zh-Hans', 1, 0, 0, '2026-11-01')`; keep the row as a dict; upgrade to `head`; the row's `link_depth` is `"normal"`, the rest equals the kept row, and `alembic_version` is `0010_link_depth`; downgrade to `0009_model_provider`; `app_settings` has no `link_depth` column, and the row equals the kept row.
 
     Also change the existing head checks in `test_db.py`: add `assert (migrations / "versions" / "0010_link_depth.py").is_file()` after the `0009` line (`:127`), and change the four assertions that the head is `"0009_model_provider"` (`:145`, `:314`, `:354`, `:495`) to `"0010_link_depth"`. These are the only existing assertions in this file that change.
@@ -55,7 +55,7 @@ Implementer notes:
     - `test_preference_numbers_cannot_be_written`: `PUT {"link_depth_pages": {"normal": 99}, "context_fetches_per_run": 1}` answers 200, and `GET` still answers the server's numbers.
 
   Verify: the migration test fails (there is no `0010_link_depth` revision, so the upgraded row has no `link_depth`), and so do the changed head checks; every changed and new preferences test fails, `test_preference_numbers_cannot_be_written` included, because its `GET` lacks the numbers.
-- [ ] 2.2 Implement design D6:
+- [x] 2.2 Implement design D6:
   - `backend/src/catchup/migrations/versions/0010_link_depth.py` with `revision = "0010_link_depth"` and `down_revision = "0009_model_provider"`, adding `app_settings.link_depth` (`String(16)`, not null, `server_default="normal"`); the downgrade drops it with `batch_alter_table("app_settings", recreate="never")`. Give it a one-line docstring, as `0005_item_images.py` has;
   - `AppSettings.link_depth` in `backend/src/catchup/models.py`, with `default="normal", server_default="normal"`;
   - in `backend/src/catchup/api/settings.py`: `PreferenceInput.link_depth: str | None = None`; `read_preferences` takes `request: Request` and adds `link_depth` (`"normal"` without a row), `link_depth_pages` (`link_depth_pages(request.app.state.settings)`), and `context_fetches_per_run` (`request.app.state.settings.context_fetches_per_run`); `save_preferences` takes `request: Request`, refuses a `link_depth` not in `LINK_DEPTHS` with `AppError("invalid_link_depth", "Choose Off, Shallow, or Normal for linked pages.", 422)` before it writes anything, stores a valid one, and returns `read_preferences(request, session)`.

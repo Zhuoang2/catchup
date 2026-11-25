@@ -55,6 +55,7 @@ export default function Settings() {
   const [last4, setLast4] = useState<string | null>(null)
   const [model, setModel] = useState('')
   const [reasoning, setReasoning] = useState<Reasoning>('default')
+  const selectedReasoning = useRef<Reasoning>('default')
   const [savedReasoning, setSavedReasoning] = useState<Reasoning>('default')
   const [models, setModels] = useState<string[]>([])
   const [language, setLanguage] = useState('en')
@@ -115,6 +116,7 @@ export default function Settings() {
       setBaseUrl(settings.base_url)
       setModel(settings.model_id)
       setReasoning(settings.reasoning ?? 'default')
+      selectedReasoning.current = settings.reasoning ?? 'default'
       setSavedReasoning(settings.reasoning ?? 'default')
       setModels(settings.model_id ? [settings.model_id] : [])
       setSavedModel(settings.model_id)
@@ -305,7 +307,8 @@ export default function Settings() {
         return
       }
       await queueModelSave({ base_url: testedBaseUrl, model_id: chosen, api_key: testedKey,
-        provider: testedProvider, reasoning: testedReasoning },
+        provider: testedProvider,
+        reasoning: selectedProvider.current === testedProvider ? selectedReasoning.current : testedReasoning },
         saved => (testedKey
           ? `Connection succeeded. Saved key ending in ${saved.api_key_last4} with model ${chosen}.`
           : `Connection succeeded. Saved model ${chosen}.`) +
@@ -326,6 +329,7 @@ export default function Settings() {
   function chooseReasoning(choice: Reasoning) {
     setMessage(''); setSaveError('')
     setReasoning(choice)
+    selectedReasoning.current = choice
     if (!key && baseUrl.trim() === savedBaseUrl && provider === savedProvider && savedModel) {
       void queueModelSave({ base_url: savedBaseUrl, model_id: model, api_key: '', provider, reasoning: choice },
         () => `Saved reasoning: ${reasoningLabels[choice]}.`, 'The reasoning setting was not saved. ')
@@ -338,6 +342,7 @@ export default function Settings() {
     setBaseUrl(choice === savedProvider ? savedBaseUrl ?? providerUrls[choice] : providerUrls[choice])
     setModel(choice === savedProvider ? savedModel : '')
     setReasoning(choice === savedProvider ? savedReasoning : 'default')
+    selectedReasoning.current = choice === savedProvider ? savedReasoning : 'default'
     setModels(choice === savedProvider ? savedModels : [])
     setKey('')
     setError(''); setErrorField(null); setMessage(''); setSaveError('')

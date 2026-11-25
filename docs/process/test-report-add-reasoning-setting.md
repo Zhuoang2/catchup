@@ -151,3 +151,94 @@ Command for each, from `frontend/` with the Node PATH above:
 - Docker build/smoke/live checks were not run, as explicitly prohibited for
   this implementation session. They remain for Claude Code review. No
   container, volume, port 8800, push, merge, tag or PR was touched.
+
+## Fix round 1
+
+2026-11-25. Factory Droid (model not exposed in this completion run),
+using `openspec-apply-change` and `tdd`, starting at `078f8e9` in Claude
+Code's review worktree. Only task group 6 was implemented.
+
+### Regression and fix (6.1–6.2)
+
+Added the three prescribed tests inside `describe('reasoning settings')`,
+using the existing rendered-page and mocked-fetch boundaries. No existing
+test was changed. From `frontend/`, with the Node PATH below, ran:
+
+```sh
+npm test -- --run src/pages/Settings.test.tsx -t "sends a Reasoning choice made during a connection test|keeps the tested provider.s Reasoning when the provider changes during a test|sends the saved Reasoning with the test.s save"
+```
+
+- Before the production fix: exit **1**, **1 failed, 2 passed, 74 skipped**.
+  `sends a Reasoning choice made during a connection test with the test's save`
+  received `[['saved-model', 'low'], ['live-a', 'default']]` instead of
+  `[['saved-model', 'low'], ['live-a', 'low']]`.
+  `keeps the tested provider's Reasoning when the provider changes during a test`
+  and `sends the saved Reasoning with the test's save` both passed.
+- After the fix: same command exited **0**, **3 passed, 74 skipped**, 677ms.
+  Full frontend tests also passed **349 tests in 14 files**, 4.97s, and the
+  TypeScript/Vite build passed, **40 modules**, 215ms, before mutations.
+- Confirmed cause: the connection-test continuation always used the
+  Reasoning captured before its await. The approved fix reads a ref updated
+  on load, Reasoning choice and provider choice, but uses the captured
+  tested-provider choice when another provider is selected.
+- Diagnostic ranking from the supplied review finding: (1) stale captured
+  Reasoning, confirmed by the wrong second body and T1; (2) save-queue
+  reordering, ruled out by the observed PUT order; (3) cross-provider value
+  mixing, ruled out on the original code by the second regression test.
+  The review already supplied the cause and exact minimal fix, so no
+  independent exploratory instrumentation or further minimization was needed.
+
+### Isolated mutations T1–T4 (6.2)
+
+Each mutation was applied alone to `Settings.tsx`. For each, ran
+`DEBUG_PRINT_LIMIT=0 npm test -- --run src/pages/Settings.test.tsx` in
+`frontend/` with the Node PATH below. This environment setting only
+suppresses verbose failure DOM dumps. All runs exited **1** for behavioral
+assertion failures, with no other failed tests.
+
+| Id | Mutation | Actual failed tests | Actual result |
+| --- | --- | --- | --- |
+| T1 | Test save always sends `testedReasoning` | `sends a Reasoning choice made during a connection test with the test's save` | 1 failed, 76 passed |
+| T2 | Test save always sends `selectedReasoning.current` | `keeps the tested provider's Reasoning when the provider changes during a test` | 1 failed, 76 passed |
+| T3 | `chooseReasoning` does not update the ref | `sends a Reasoning choice made during a connection test with the test's save`; `waits to save a Reasoning choice when the key was edited` | 2 failed, 75 passed |
+| T4 | Page load does not update the ref | `sends the saved Reasoning with the test's save` | 1 failed, 76 passed |
+
+Before each mutation, saved the complete `git diff --binary` in memory.
+After each run, restored by editing, then compared the entire diff with
+that mutation's saved diff byte-for-byte. **All four matched exactly**.
+No mutation survived and no invalid mutation attempt occurred.
+
+### Full verification (6.3)
+
+All commands below exited **0**, after all mutations were restored.
+Backend commands ran in `backend/`, frontend/extension commands in their
+respective directories, and OpenSpec/diff checks at the repository root.
+Every npm command used
+`export PATH="$HOME/.nvm/versions/node/v22.17.1/bin:$PATH"`.
+
+| Directory | Command | Actual result output |
+| --- | --- | --- |
+| backend | `uv run --offline pytest` | `1309 passed, 2 warnings in 33.28s` |
+| frontend | `npm test -- --run` | `Test Files  14 passed (14)`; `Tests  349 passed (349)`; `Duration  6.36s` |
+| frontend | `npm run build` | `tsc --noEmit && vite build`; `40 modules transformed.`; `built in 293ms` |
+| extension | `npm test -- --run` | `Test Files  7 passed (7)`; `Tests  169 passed (169)`; `Duration  3.58s` |
+| extension | `npm run build` | `tsc --noEmit && vite build && node scripts/check-build.mjs`; `10 modules transformed.`; `built in 129ms` |
+| root | `DO_NOT_TRACK=1 openspec validate add-reasoning-setting --strict` | `Change 'add-reasoning-setting' is valid` |
+| root | `git diff --check` | No output. Repeated after evidence/checklist edits. |
+
+The two backend warnings remain the intentional malformed-input-token
+Pydantic serializer warnings from the existing Anthropic usage-shape tests.
+All other suites were existing checks; this round added only the three
+Settings regressions above.
+
+### Deviations and limits
+
+No behavior or task-plan deviation was needed. Both `node_modules`
+directories already existed, so installation was skipped as permitted by
+the fix-round prompt; no manifest, lockfile or dependency was changed.
+All tests used mocked provider traffic and invented credentials.
+Only Settings source/tests, this report, the AI usage log and group 6
+checkboxes were edited. No temporary helper files or debug instrumentation
+were created. No Docker/smoke/live check, real-provider request, secret
+access, port 8800, container/volume change or publishing action occurred.
+Docker smoke and live checks remain with Claude Code review.

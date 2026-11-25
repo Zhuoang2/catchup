@@ -897,6 +897,58 @@ describe('saving after a model test', () => {
 })
 
 describe('reasoning settings', () => {
+  it("sends a Reasoning choice made during a connection test with the test's save", async () => {
+    let finishTest!: (response: ReturnType<typeof respond>) => void
+    const pending = new Promise<ReturnType<typeof respond>>(resolve => { finishTest = resolve })
+    mockModelProvider({ test: () => pending })
+    render(<Settings/>)
+    await screen.findByLabelText('API key')
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    const reasoning = screen.getByLabelText('Reasoning')
+    fireEvent.change(reasoning, { target: { value: 'low' } })
+    await act(async () => { finishTest(respond({ ok: true, models: ['live-a', 'live-b'] })) })
+    await waitFor(() => expect(modelPuts().map(body => [body.model_id, body.reasoning])).toEqual([
+      ['saved-model', 'low'], ['live-a', 'low'],
+    ]))
+    await screen.findByText('Connection succeeded. Saved model live-a. Choose another model to change it.')
+    expect(reasoning).toHaveValue('low')
+    const provider = screen.getByLabelText('Provider')
+    fireEvent.change(provider, { target: { value: 'anthropic' } })
+    fireEvent.change(provider, { target: { value: 'openai_compatible' } })
+    expect(reasoning).toHaveValue('low')
+  })
+
+  it("keeps the tested provider's Reasoning when the provider changes during a test", async () => {
+    let finishTest!: (response: ReturnType<typeof respond>) => void
+    const pending = new Promise<ReturnType<typeof respond>>(resolve => { finishTest = resolve })
+    mockModelProvider({
+      saved: { base_url: 'https://api.deepseek.com', model_id: 'saved-model',
+        key_set: true, api_key_last4: '1234', reasoning: 'off' },
+      test: () => pending,
+    })
+    render(<Settings/>)
+    await screen.findByLabelText('API key')
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    fireEvent.change(screen.getByLabelText('Provider'), { target: { value: 'anthropic' } })
+    await act(async () => { finishTest(respond({ ok: true, models: ['live-a', 'live-b'] })) })
+    await waitFor(() => {
+      expect(modelPuts()).toHaveLength(1)
+      expect(modelPuts()[0]).toMatchObject({ provider: 'openai_compatible', reasoning: 'off' })
+    })
+  })
+
+  it("sends the saved Reasoning with the test's save", async () => {
+    mockModelProvider({ saved: { base_url: 'https://api.deepseek.com', model_id: 'saved-model',
+      key_set: true, api_key_last4: '1234', reasoning: 'off' } })
+    render(<Settings/>)
+    await screen.findByLabelText('API key')
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    await waitFor(() => expect(modelPuts()).toEqual([{
+      base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: '',
+      provider: 'openai_compatible', reasoning: 'off',
+    }]))
+  })
+
   it('shows the saved Reasoning after the Model select with its hint', async () => {
     mockModelProvider({ saved: { base_url: 'https://api.deepseek.com', model_id: 'saved-model',
       key_set: true, api_key_last4: '1234', reasoning: 'off' } })

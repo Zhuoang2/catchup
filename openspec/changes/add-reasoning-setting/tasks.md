@@ -109,7 +109,7 @@ Implementer notes:
 
 ## 3. Runs send the choice, and a refused setting fails the run (D3, D4, D7)
 
-- [ ] 3.1 Write these tests and watch them fail. They fail because the runner passes four arguments, and because summary calls do not re-raise `ReasoningRejected`.
+- [x] 3.1 Write these tests and watch them fail. They fail because the runner passes four arguments, and because summary calls do not re-raise `ReasoningRejected`.
 
   **In `backend/tests/test_digest_runner.py`.** The only allowed edit to an existing test: in `test_run_passes_the_saved_provider_to_every_client`, replace `assert all(len(args) == 4 and args[-1] == "anthropic" for args in calls)` with `assert all(args[3:] == ("anthropic", "default") for args in calls)`. Then add:
   - **`test_run_passes_the_saved_reasoning_to_every_client`.** With `reasoning` set to `low` on the saved row, both factory calls receive `"low"` as their fifth argument.
@@ -125,14 +125,14 @@ Implementer notes:
   **In `frontend/src/pages/Home.test.tsx`.** The only allowed edit: add `['reasoning_rejected', 'Check settings']` to the table of `offers the right primary action for %s with reused summary copy` (lines 1057-1059).
 
   **In `backend/tests/test_readme_providers.py`.** Add the phrases "Reasoning", "Provider default", "reasoning_effort", "output_config.effort", and "choose Provider default" to the list.
-- [ ] 3.2 Implement:
+- [x] 3.2 Implement:
   - `backend/src/catchup/digest/runner.py`: read `config.reasoning` with the other settings, and pass it as the fifth positional argument at both factory calls;
   - `backend/src/catchup/digest/summarize.py`: re-raise `ReasoningRejected` with `AuthFailed` and `InsufficientBalance` in `_summarize`, and add it to the fast shutdown in `summarize_items`;
   - `frontend/src/pages/Home.tsx`: add `'reasoning_rejected'` to `configErrors`;
   - `README.md`: the Reasoning paragraph of design D7, in "Supported model providers", after the Anthropic item.
 
   Then run `uv run --offline pytest` in `backend/` and `npm test -- --run` in `frontend/`, and watch them pass.
-- [ ] 3.3 Run these mutations one at a time, and record which tests fail:
+- [x] 3.3 Run these mutations one at a time, and record which tests fail:
 
   | Mutation | Change | Expected failing tests |
   | --- | --- | --- |

@@ -30,7 +30,7 @@ function savedItems(run: Run) {
   return `${plural(total, 'item')} (${total - updates} summarized, ${updates} in Creator updates)`
 }
 const active = (run: Run) => ['queued', 'collecting', 'summarizing', 'grouping'].includes(run.status)
-const configErrors = ['auth_failed', 'insufficient_balance', 'model_not_configured', 'connection_failed']
+const configErrors = ['auth_failed', 'insufficient_balance', 'model_not_configured', 'connection_failed', 'reasoning_rejected']
 
 function SourceChecks({ checks, label, compact = false }: { checks: Check[]; label: string; compact?: boolean }) {
   if (!checks.length) return null

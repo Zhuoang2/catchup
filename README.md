@@ -659,6 +659,15 @@ provider to generate summaries and group them into topics.
   A custom address must pass Anthropic's beta headers for this feature.
   The SDK also reads `ANTHROPIC_CUSTOM_HEADERS` from the server's environment.
 
+**Reasoning:** choose **Provider default** to send no reasoning parameter,
+**Low** to reason less, or **Off** to request no reasoning (OpenAI-compatible
+providers only). OpenAI-compatible requests send `reasoning_effort` as `low`
+or `none`; Anthropic's Low sends `output_config.effort` as `low`, including
+when requesting a fallback model. Less reasoning can make digests faster
+and cheaper, but summaries and topics may be less careful. If a run fails
+with the Reasoning message, choose Provider default in Settings and
+generate again.
+
 ## Supported sources
 
 CatchUp supports RSS/Atom feeds, including sites that declare a feed or

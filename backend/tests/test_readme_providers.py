@@ -7,5 +7,7 @@ def test_readme_documents_supported_model_providers():
         "Supported model providers", "OpenAI-compatible", "Anthropic", "https://api.anthropic.com",
         "claude-opus-5-5", "at least 16,000 output tokens", "fallback model",
         "Changing the provider or its URL requires entering the API key again",
+        "Reasoning", "Provider default", "reasoning_effort", "output_config.effort",
+        "choose Provider default",
     ):
         assert phrase in readme

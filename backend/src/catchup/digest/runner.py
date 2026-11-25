@@ -263,6 +263,7 @@ def run_digest(app: FastAPI, run_id: int) -> None:
             # Configuration and language are read once, before any source check.
             base_url, model_id = config.base_url, config.model_id
             model_provider = config.provider
+            reasoning = config.reasoning
             key = decrypt_key(config.api_key_encrypted, app.state.settings.secret_key)
             source_ids = session.scalars(
                 select(Source.id).where(Source.kind.not_in(("capture", "x"))).order_by(Source.id)
@@ -285,7 +286,7 @@ def run_digest(app: FastAPI, run_id: int) -> None:
             session.commit()
         if context_window is None:
             try:
-                with closing(app.state.model_client_factory(base_url, key, model_id, model_provider)) as provider:
+                with closing(app.state.model_client_factory(base_url, key, model_id, model_provider, reasoning)) as provider:
                     match = next((entry for entry in provider.list_models() if entry.id == model_id), None)
                 value = match.context_window if match else None
                 if type(value) is int and value > 0:
@@ -438,7 +439,7 @@ def run_digest(app: FastAPI, run_id: int) -> None:
             call_budget = (app.state.settings.single_call_chars
                            or (max(2_000, context_window - SUMMARY_MAX_TOKENS - 2_000)
                                if context_window else 60_000))
-            with closing(app.state.model_client_factory(base_url, key, model_id, model_provider)) as client:
+            with closing(app.state.model_client_factory(base_url, key, model_id, model_provider, reasoning)) as client:
                 try:
                     started = monotonic()
                     summarize_items(client, inputs, language, call_budget, record,

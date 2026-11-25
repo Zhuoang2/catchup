@@ -20,8 +20,8 @@ def configure(client):
 
 
 def install_factory(client, handle, sleeps):
-    client.app.state.model_client_factory = lambda base, key, model, provider: make_model_client(
-        base, key, model, provider,
+    client.app.state.model_client_factory = lambda base, key, model, provider, reasoning: make_model_client(
+        base, key, model, provider, reasoning,
         http_client=httpx2.Client(transport=httpx2.MockTransport(handle)), sleep=sleeps.append,
     )
 
@@ -88,3 +88,31 @@ def test_anthropic_rejected_key_fails_the_run(environment, monkeypatch):
     assert (result["status"], result["error_kind"]) == ("failed", "auth_failed")
     assert [row.state for row in all_rows(environment, Item)] == ["pending"] * 3
     assert sleeps == []
+
+
+def test_anthropic_run_sends_low_effort_with_fallback(environment, monkeypatch):
+    configure(environment)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        session.get(ModelConfig, 1).reasoning = "low"
+        session.commit()
+    bodies, sleeps = [], []
+
+    def handle(request):
+        assert request.url.host == "anthropic.example"
+        if request.method == "GET" and request.url.path == "/v1/models":
+            return httpx2.Response(200, json={"has_more": False, "data": []})
+        assert request.method == "POST" and request.url.path == "/v1/messages"
+        body = json.loads(request.content)
+        bodies.append(body)
+        if "item_refs" in body["system"]:
+            return stream_body('{"topics": [{"title": "Technology", "overview": "News", "item_refs": ["i1", "i2", "i3"]}]}')
+        return stream_body('{"summary": "English summary"}')
+
+    install_factory(environment, handle, sleeps)
+    assert execute(environment)["status"] == "succeeded"
+    assert len(bodies) == 4
+    for body in bodies:
+        assert body["output_config"] == {"effort": "low"}
+        assert body["fallbacks"] == "default"
+        assert "thinking" not in body

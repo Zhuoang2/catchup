@@ -629,7 +629,7 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
 
   Planned as the OpenSpec change `add-bilibili-sources` (issue #40). The user chose Proposal 1 on 2026-11-22.
 - **Why.**
-  - Bilibili publishes no feeds and no API for following other people's uploads. The Open Platform covers only accounts linked to the developer (developer service agreement, sections 一.1 and 四.2, updated 2025-05-28).
+  - Bilibili publishes no feeds and no API for following other people's uploads. The Open Platform covers only accounts linked to the developer (developer service agreement, sections 1.1 and 4.2, updated 2025-05-28).
   - D-013 allows video summaries only from transcripts or subtitles. Subtitles come back only to a logged-in session, according to yt-dlp's and RSSHub's code.
   - Bilibili's user agreement (updated 2025-04-30, effective 2025-05-07) forbids getting the platform's content or data "by any means (including … any automated program, script or software) and for any reason" without Bilibili's prior written permission (section 5.6(3), translated from Chinese). Section 1.2 limits the services to non-commercial use. It has no personal or research exception, and says nothing about keeping derived summaries or deleting data after use.
   - In January 2026 a law firm acting for Bilibili made the main public documentation of these web APIs shut down. The letter named the APIs' access-control and security-authentication mechanisms.

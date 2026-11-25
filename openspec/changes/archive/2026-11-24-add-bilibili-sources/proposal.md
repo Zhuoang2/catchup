@@ -2,7 +2,7 @@
 
 ## Why
 
-The user asked on 2026-10-17 whether CatchUp can follow Bilibili uploaders (UP 主), and #40 records the request. Bilibili publishes no feeds, and its user agreement forbids getting its content with automated programs (section 5.6(3), 2025-04-30). Open-source tools that list an uploader's videos use Bilibili's signed web API, and Bilibili's lawyers acted against public documentation of that API in January 2026 (research.md).
+The user asked on 2026-10-17 whether CatchUp can follow Bilibili uploaders, and #40 records the request. Bilibili publishes no feeds, and its user agreement forbids getting its content with automated programs (section 5.6(3), 2025-04-30). Open-source tools that list an uploader's videos use Bilibili's signed web API, and Bilibili's lawyers acted against public documentation of that API in January 2026 (research.md).
 
 On 2026-11-22 the user chose Proposal 1 of `design.md`: CatchUp reads uploaders through an RSSHub that the user runs, and CatchUp itself never contacts Bilibili.
 

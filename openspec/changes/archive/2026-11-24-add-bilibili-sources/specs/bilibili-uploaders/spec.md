@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Lets the user follow Bilibili uploaders (UP 主) as sources, read through an RSSHub instance that the instance's operator runs and configures. CatchUp itself never contacts Bilibili, and summarizes videos only from the subtitles RSSHub provides.
+Lets the user follow Bilibili uploaders as sources, read through an RSSHub instance that the instance's operator runs and configures. CatchUp itself never contacts Bilibili, and summarizes videos only from the subtitles RSSHub provides.
 
 ## ADDED Requirements
 

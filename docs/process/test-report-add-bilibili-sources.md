@@ -282,6 +282,8 @@ No real RSSHub was run and nothing was requested from Bilibili. A local stand-in
 
 The containers, volumes, and stubs were removed afterwards.
 
+A live check against a real RSSHub was not run: it would download the third-party image and make requests to Bilibili from this machine. The user chose to skip it (2026-11-24); the stand-in checks cover CatchUp's side.
+
 ### Findings
 
 - **`/code-review` (high) on `ec98682..2e42f2d`:** no findings. On fix round 1: one nit, a rewrapped README line about 81 columns wide; fixed in Claude's review commit.

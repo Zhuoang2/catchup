@@ -107,14 +107,14 @@ New module `backend/src/catchup/sources/bilibili.py`:
 
 - **Order.** `preview` calls `uploader_mid` first, then `x_username`, then `discover`.
 - **`_bilibili_preview`.**
-  - It fetches and parses the uploader, and checks for a duplicate by `bilibili:uploader:<mid>`.
+  - It first checks for a duplicate by `bilibili:uploader:<mid>`, without asking RSSHub, then fetches and parses the uploader.
   - It caches the response in `feed_cache` under that address, with `dataclasses.replace(response, url=feed_url)`.
   - It returns the same shape as the X preview, with `kind: "bilibili"`, `follows_site_feed_notice: false`, and `captions_enabled: false`.
 - **Errors.**
   - `FetchError` goes through `_fetch_error`, so the code is `rsshub_not_configured`, `rsshub_failed`, `blocked_address`, or `rate_limited`.
   - `FeedParseError` becomes `AppError("rsshub_failed", "RSSHub could not read this uploader.", 422)`.
 - **Confirm.**
-  - A `feed_url` matching `bilibili:uploader:[0-9]{1,20}` takes the cached response, or fetches again, then goes through the existing confirm loop with the parsed `Feed`.
+  - A `feed_url` matching `bilibili:uploader:[0-9]{1,20}` is first checked for a duplicate, without asking RSSHub. Otherwise it takes the cached response, or fetches again, then goes through the existing confirm loop with the parsed `Feed`.
   - In the loop, a `bilibili` entry gets `transcript_status = "found"`, `content_text = entry.transcript_text` and `content_origin = "transcript"` when it has subtitles.
   - Otherwise it gets `transcript_status = "subtitle_wait"` and the feed text with `content_origin = "feed"`. That text is never summarized.
   - `article_text` is never called for it. `image_candidates` and `entry_links` are empty.

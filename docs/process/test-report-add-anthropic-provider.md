@@ -419,3 +419,7 @@ The container, its volume, and the stub were removed afterwards.
     - the test handler repeats its last answer for an extra request, but every test asserts its request count;
     - "A declined grouping call", "Base URL stays editable for both providers", and "the next run asks Anthropic's model list" are covered only by combining unit tests.
   - **Fixed in Claude's review commit:** the Droid entry's model name and prompt excerpt in the AI usage log.
+
+### At shipping
+
+After the change was archived and `main` was merged into the branch twice (`5fe8b88` with #43, then `99f51db` with #65): backend 1183 (1150 plus #65's tests), frontend 331, extension 168, both builds, `DO_NOT_TRACK=1 openspec validate --all --strict` 10 of 10, and `scripts/docker-smoke.sh` 12 of 12 on an image built from the final merge commit `19d51c5`. The digest-generation spec merged cleanly with #65's archived requirement, and both changes' requirements appear in it word for word.

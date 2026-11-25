@@ -2944,3 +2944,20 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - **Problems / adjustment:**
   - **The machine restarted during the review.** The scratchpad, with Droid's prompt files and logs, was cleared and the review worktrees were lost; everything was committed, so the worktrees were recreated from the branch. Session data had already been recorded.
   - **Droid put its implementation entry at the top of this log.** Claude moved it into date order, and the fix round's task said where its own entry goes.
+
+## 2026-11-25 — `add-reasoning-setting` (#4): plan (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
+
+- **Prompts** (translated from Chinese):
+  - After #40 merged, the user chose three issues to plan at the same time: "Start #4, #54, and #32 in parallel."
+  - After reviewing the three plans, the user decided: "Approve all three plans as recommended; conflicts approved in advance." The advance approval covers merge conflicts between #4 and #54 in which each side only adds its own lines: Claude keeps both sides, renumbers the second migration to `0011`, and re-runs the checks; any other conflict still stops for the user.
+- **Outcome:**
+  - **Checked on `main` `145811f`.** Both model clients build each request in one place, and both already fail at once, without a retry, on HTTP 400 and 422. Summary calls re-raise only a rejected key and an empty balance; the runner calls the model factory twice, for the context-window lookup and for summaries and grouping.
+  - **Provider facts** (read 2026-11-24; the DeepSeek, Ollama, and Gemini pages show no update date): DeepSeek's Chat Completions reference and thinking-mode guide (`reasoning_effort` `none` turns thinking off, the default is `high`, and an omitted `thinking` object follows `reasoning_effort`; Claude re-read both pages for these three facts), OpenAI's chat completion reference, Ollama's and Gemini's OpenAI-compatibility pages, and Claude Code's `claude-api` reference for Anthropic's `output_config.effort` and thinking rules (model table cached 2026-11-03).
+  - **Probes:** `openai` 3.24.0 sends `reasoning_effort` as given and leaves it out when absent; `anthropic` 1.13.0 sends `output_config` on both `messages.stream` and `beta.messages.stream`.
+  - **Plan.** A Reasoning choice on the model configuration (migration `0010_model_reasoning`): `reasoning_effort` `low` or `none`, Anthropic `output_config.effort` `low`, and nothing for Provider default; a `ReasoningRejected` error that fails the run on 400 or 422 while the setting is on; a Reasoning select in Settings. Five task groups with mutations R1–R6, S1–S5, N1–N4, F1–F8, and Doc; the implementer notes tell Droid not to run Docker. D-041. The user chose the recommendation (A) for U1–U3.
+  - **D-023 fresh-eyes check.** A sub-agent that saw only the change folder and the code prototyped all five groups (1,306 backend and 345 frontend tests passed) and ran every named mutation. Claude checked each of its nine findings against the code, re-ran three frontend mutations in the prototype, and applied all nine:
+    - an existing migration test upgraded to the head revision and compared the whole row, so the new column broke it; the plan now lets that test stop at `0009_model_provider`;
+    - the provider-switch test could not see the reset, because a select whose value has no option shows its first option, so it now checks the body of the next save; two more checks cover the saved choice after a save (mutations F7 and F8);
+    - the factory test must use the `httpx2` completion helper of `test_model_errors.py`; adding imports is always allowed; the refused-setting test sends a new key; fuller lists of failing tests for R4, N1, and N4; line references.
+- **Problems / adjustment:**
+  - **The plan forbade the one edit an existing migration test needed**, and **two Settings mutations would have survived** its tests. The prototype run caught both before Droid.

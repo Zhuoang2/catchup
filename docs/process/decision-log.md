@@ -638,3 +638,25 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Under A, the installed app and the Safari touch icon get slightly thicker bars and a larger square once the browser updates them.
   - Chrome may show the old tab icon until CatchUp is reloaded once.
   - The maskable icon's corners stay slightly outside the 40% safe circle, as before.
+
+## D-040 Show each digest image's text as a visible caption, and keep formula and small images out of the candidates — accepted (2026-11-22)
+
+- **Decision.**
+  - **Captions.** Each chosen image shows its text as a caption under it, in the digest's language. The image itself has an empty `alt`, so assistive technology reads the text once, as the figure's caption. An image without text is not shown. A failed image is hidden with its caption. Digests saved earlier show their stored text as the caption.
+  - **Candidates.** An image is not kept when its address is a rendered formula (`latex.php`, `latex.codecogs.com`, or a QuickLaTeX cache file), or when the entry states its width or height as under 100 px. An image with no stated size is kept. This replaces the 1×1 rule. Candidates stored earlier are filtered again before the summary call, and saved digests do not show formula images.
+  - **Prompt.** The summary call chooses an image only when a reader who has not read the item can understand it from the image and its caption, usually one, and at most 3. The caption says what the image shows and why it matters.
+
+  Planned as the lean OpenSpec change `improve-digest-image-captions` (issue #65, the part left after D-033).
+- **Why.** In the user's live check of #41 (2026-11-01), Simon Willison's benchmark drawings showed with no visible explanation, because the text the summary wrote was only the `alt` attribute, and Terence Tao's posts offered formula images such as `{T}` from `s0.wp.com/latex.php` as candidates (#65).
+- **Alternatives:**
+  - **A hard limit of one image, or a setting for the number.** Offered to the user as options (design D1); the user chose the recommendation. The setting needs a migration and edits the Settings page.
+  - **Two texts per image, a short `alt` and a caption.** Rejected: more output, a new stored field, and mostly the same words.
+  - **Keep `alt` and hide the caption from assistive technology.** Rejected: visible text that screen reader users cannot reach.
+  - **Measure images that state no size.** Rejected: candidates must not fetch images.
+  - **Match `latex` anywhere, or the `class="latex"` attribute.** Rejected: drops unrelated images, and X posts, captures, and stored candidates have no class.
+  - **Rewrite stored candidates with a migration.** Rejected: filtering when they are read covers them, as in D-033.
+- **Consequences:**
+  - Captions in digests saved earlier describe the image but may not say why it matters.
+  - `Image from <source>` is shown as a caption when neither the model nor the page gave a text.
+  - Sizes written with units or in `style`, and pages saved from the browser, which send no sizes, get only the address rules.
+  - A summary reused from an earlier run keeps its earlier choice; its formula images are hidden when the digest is served.

@@ -71,7 +71,7 @@ it('keeps the images inside the summary cell and before Also read', async () => 
     }] }],
   }))
   const { container } = page()
-  await screen.findByRole('img', { name: 'Growth chart' })
+  await screen.findByText('Growth chart', { selector: 'figcaption' })
   const article = container.querySelector('article.item')!
   expect(Array.from(article.children).map(child => child.className)).toEqual([
     'item-meta', 'item-title', 'item-body',
@@ -95,7 +95,7 @@ it.each([
       }] }] }))
   const { container } = page()
   await screen.findByRole('heading', { name: 'News' })
-  if (shown) expect(screen.getByRole('img', { name: 'Growth chart' })).toBeInTheDocument()
+  if (shown) expect(screen.getByText('Growth chart', { selector: 'figcaption' })).toBeInTheDocument()
   else expect(container.querySelector('img')).toBeNull()
   expect(fetchMock).toHaveBeenCalledWith('/api/settings/preferences', undefined)
   await expectAccessible(container)

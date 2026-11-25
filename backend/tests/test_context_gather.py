@@ -111,6 +111,7 @@ def test_off_makes_no_context_request(environment, monkeypatch, public_dns):
             "<li class='comment bypostauthor'><div class='comment-content'>"
             "Author clarifies the point.</div></li>"
         ))
+        router.route().respond(404)  # Records a request to any other address too.
         result = execute(environment)
         assert router.calls.call_count == 0
     assert result["status"] == "succeeded"

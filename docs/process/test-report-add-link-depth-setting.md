@@ -199,3 +199,49 @@ Repository: `git diff --check`, exit 0, no output.
 3. `3ee1db8` — group 3, per-run snapshot, context integration, README.
 4. `5f6fc2e` — group 4, Settings choice and tests.
 5. Group 5 records this report, the AI usage entry, and completed task checklist.
+
+## Review by Claude Code
+
+Reviewed in worktree `review54` on the branch. Droid's run started at the plan commit `48619e4` and ended at `d65f875`.
+
+### Checks
+
+| Check | Result |
+| --- | --- |
+| Backend `uv run --offline pytest` | 1299 passed on `d65f875` and on Claude's review commit |
+| Frontend `npm test -- --run`, `npm run build` | 340 passed; build passed |
+| Extension `npm test -- --run`, `npm run build` | 169 passed; build passed |
+| `DO_NOT_TRACK=1 openspec validate add-link-depth-setting --strict` | valid |
+| `git diff --check 48619e4..HEAD` | clean |
+| `scripts/docker-smoke.sh catchup:fix54-local` (built from `d65f875`) | 6 of 12 with the script on the branch (step 7 compares the whole preferences answer); 12 of 12 after Claude updated the script's two expected answers; the old script still fails on the same image |
+
+### Live check
+
+A scratch container from `catchup:fix54-local` ran on its own volume and port 8854, with a local OpenAI-compatible stub model on the host. One page was saved through the extension API with two replies and one link to `https://docs.example/article`.
+
+- **Settings, 1280 px:** "Linked pages" sits in "Step 2: Digest" with the value Normal; its options read "Off — no linked pages or author replies", "Shallow — up to 3 pages per item", and "Normal — up to 8 pages per item"; the select's `aria-describedby` names the note "Each page read adds time to a run, and up to 3,000 characters to that item's summary request, which uses more tokens. A run reads at most 60 pages."
+- **Save Off:** the preferences `PUT` answered `link_depth: "off"`, the page announced "Settings saved.", and the select read Off after a reload.
+- **375 px:** no horizontal scroll (scroll width 375); the select spans 16–359 px.
+- **Run at Off:** succeeded; the linked-page total was 1 of 1 (the saved replies, no linked page); the summary request carried "First reply" and "Second reply"; the digest holds the page.
+
+The container, its volume, the stub, and the browser tab were removed afterwards.
+
+### Findings
+
+- **`/code-review` (high) on `48619e4..d65f875`:**
+  - the README's browser-extension sentence was one long line in a wrapped paragraph: re-wrapped in Claude's review commit;
+  - a hand-edited unknown level shows as Off in Settings, while runs treat it as Normal: recorded, because the API refuses unknown levels (design D1);
+  - the note's "A run reads at most 60 pages" also counts robots.txt requests, post pages, and comment feeds: a wording decision for the user, with the spec point below.
+- **Spec sub-agent** (independent, detached worktree): no defect in behavior the spec requires; all 18 named mutations failed their tests, and 11 more were caught. Claude checked its findings against the code:
+  - **Fixed by Claude (test only, D-023 class c):**
+    - the Off test's `router.calls.call_count == 0` saw only the five mocked addresses: respx does not record a request to an address without a route, and the context pass swallows the error. A catch-all route now records any other request. Under mutation G1 with only the catch-all, the count assertion fails with 5 requests; without any route it passes and the test fails only later;
+    - the README's extension sentence had no phrase check: `test_readme_context.py` now checks "at the **Linked pages** level chosen in Settings".
+  - **Recorded, not fixed:**
+    - when the preferences request fails, the options read "up to 0 pages per item" and the note "at most 0 pages": the page shows the load error, and the other preferences also fall back to defaults then;
+    - mutation X1 (the pass reads the environment's author-replies switch instead of the level's) is equivalent: at Off the empty budget stops the item first, and at Shallow and Normal the values are the same;
+    - no test for Off with X items or podcasts, or for author replies at Shallow: the sub-agent's probes showed the right behavior (no request and gathered for an X item with thread replies, NULL for a podcast, the post page read once at Shallow);
+    - a level that is not a string is refused with `invalid_request`, as `digest_language` is; nothing is written;
+    - the migration's `nullable`, the downgrade's `recreate` mode, the plural of the per-run limit, and the field's place before the images switch survive the tests; they are literal or equivalent;
+    - "Mutations observed failing" above lists only the tests each mutation was run against: G1 and R2 also fail `test_off_keeps_saved_replies`, and U3 also fails "names the server's own numbers".
+  - **For the user (spec wording):** the note's "up to 3,000 characters" per page leaves out the post page, whose author replies can add up to 4,000; and its run limit counts robots.txt, post pages, and comment feeds as well as linked pages.
+- **Docker smoke:** see Checks. The plan did not list `scripts/docker-smoke.sh`, which pins the whole preferences answer.

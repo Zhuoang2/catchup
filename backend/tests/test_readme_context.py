@@ -16,5 +16,6 @@ def test_readme_documents_public_context_limits_and_robots():
         "**Shallow** reads up to 3 links per item",
         "**Off** sends no context request at all",
         "A run uses the level saved when it starts",
+        "at the **Linked pages** level chosen in Settings",
     ):
         assert phrase in readme

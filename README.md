@@ -176,8 +176,9 @@ It saves only text the page shows, and takes the main text from
 Readability's strict first pass, so a short post is not replaced by a
 longer sponsor block or sidebar.
 
-In the next digest run, the CatchUp server reads the links recorded on each saved page at the **Linked pages** level chosen in Settings, as it does for website items.
-It requests them itself, without your cookies. A link that
+In the next digest run, the CatchUp server reads the links recorded on each
+saved page at the **Linked pages** level chosen in Settings, as it does for
+website items. It requests them itself, without your cookies. A link that
 carries a private token, such as an email-confirmation or unsubscribe link,
 may act when it is requested, so do not save pages that show such links.
 

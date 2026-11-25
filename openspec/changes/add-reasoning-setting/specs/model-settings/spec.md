@@ -60,7 +60,7 @@ The Model provider group in Settings SHALL show a **Reasoning** select after **M
 - Its hint reads "Less reasoning makes digests faster and cheaper. Summaries and topics may be less careful." and is associated with the select for assistive technology.
 - Choosing a provider other than the saved one MUST set Reasoning to "Provider default". Choosing the saved provider again MUST restore the saved choice.
 
-Every save from the Model provider group MUST send the Reasoning choice shown when that save starts: the automatic save after a successful test, a model choice, a Reasoning choice, and **Save**.
+Every save from the Model provider group MUST send the Reasoning choice shown when that save starts: the automatic save after a successful test, a model choice, a Reasoning choice, and **Save**. A choice made while a connection test runs is therefore sent by the test's automatic save too. Only when another provider was chosen during the test does that save send the choice shown when the test started, which belongs to the tested provider.
 
 While the provider, base URL, and key fields match the saved configuration, choosing a Reasoning option SHALL save it right away, one save at a time in the order of the choices, together with model choices. The page MUST then read "Saved reasoning: <option>." with the option's label. Otherwise, the choice is saved by the next successful test or by **Save**. Results and errors MUST be shown and announced in the Model provider group, as for model choices; a failed save reads "The reasoning setting was not saved. " followed by the reason.
 
@@ -83,6 +83,10 @@ While the provider, base URL, and key fields match the saved configuration, choo
 #### Scenario: Edited key waits for a test
 - **WHEN** the user pastes a new key, chooses "Low", and then a test succeeds
 - **THEN** nothing is saved before the test, and the test's automatic save sends the Reasoning `low`
+
+#### Scenario: Choice made during a connection test
+- **WHEN** a configuration is saved with Provider default, the user clicks Test connection, and chooses "Low" before the test answers
+- **THEN** the test's automatic save sends the Reasoning `low`, and after the user chooses "Anthropic" and then "OpenAI-compatible" again, the select reads "Low"
 
 #### Scenario: Save sends the choice
 - **WHEN** the user pastes a new key, chooses "Off", and clicks Save without testing

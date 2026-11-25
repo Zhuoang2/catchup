@@ -190,3 +190,29 @@ Implementer notes:
   - what failed and how it was handled.
 
   Leave the session line (session id, turns, minutes) to Claude Code.
+
+## 6. Fix round 1: a Reasoning choice made during a connection test (model-settings "Choose reasoning in Settings"; design D6)
+
+Found at review. Choosing a Reasoning option while a connection test runs saved it at once, and then the test's automatic save sent the value shown when the test started. The select read "Low" while the saved choice was Provider default. The spec requires every save to send the choice shown when that save starts.
+
+- [ ] 6.1 Write these tests in `frontend/src/pages/Settings.test.tsx`, inside `describe('reasoning settings')`, and watch the first one fail. Hold the connection test's answer with a pending promise, as `saves a Reasoning choice and a model choice in order` holds a `PUT`: pass `test: () => pending` to `mockModelProvider`, and resolve it with `respond({ ok: true, models: ['live-a', 'live-b'] })` inside `act`.
+  - **`sends a Reasoning choice made during a connection test with the test's save`.** `mockModelProvider` with the default saved configuration (Provider default) and the held test. Render `<Settings/>`, wait for the `API key` field, click "Test connection", then choose "Low". Resolve the test. Then:
+    - `modelPuts().map(body => [body.model_id, body.reasoning])` equals `[['saved-model', 'low'], ['live-a', 'low']]` (the Reasoning choice's save, then the test's save);
+    - the Reasoning select has the value `low`;
+    - after choosing "Anthropic" and then "OpenAI-compatible" in the Provider select, the Reasoning select has the value `low` again.
+
+    This is the scenario "Choice made during a connection test". It fails on the current code: the second body has `'default'`.
+  - **`keeps the tested provider's Reasoning when the provider changes during a test`.** `mockModelProvider` with `saved: { …the default saved configuration, reasoning: 'off' }` and the held test. Render, click "Test connection", choose "Anthropic" in the Provider select, then resolve the test. The only `PUT` has `provider: 'openai_compatible'` and `reasoning: 'off'`. It passes on the current code, and mutation T2 in 6.2 shows that it can fail.
+- [ ] 6.2 In `frontend/src/pages/Settings.tsx`, implement design D6's rule for the test's save: add `const selectedReasoning = useRef<Reasoning>('default')`, set `selectedReasoning.current` wherever `setReasoning` is called (the page load, `chooseReasoning`, and `chooseProvider`), and in `testConnection` send `reasoning: selectedProvider.current === testedProvider ? selectedReasoning.current : testedReasoning` in the test's `queueModelSave`. Change nothing else.
+
+  Verify:
+  - the tests from 6.1 pass, and `npm test -- --run` and `npm run build` pass in `frontend/`;
+  - each mutation below, applied alone, fails the named test:
+
+  | Id | Mutation | Expected failing test |
+  | --- | --- | --- |
+  | T1 | the test's save sends `testedReasoning` in every case | `sends a Reasoning choice made during a connection test with the test's save` |
+  | T2 | the test's save sends `selectedReasoning.current` in every case | `keeps the tested provider's Reasoning when the provider changes during a test` |
+  | T3 | `chooseReasoning` does not set `selectedReasoning.current` | `sends a Reasoning choice made during a connection test with the test's save` |
+
+- [ ] 6.3 Run the checks of task 5.1 again. Add a section "Fix round 1" to `docs/process/test-report-add-reasoning-setting.md`, after Droid's earlier sections, with the commands and their counts, whether 6.1's first test failed before 6.2 and the second passed, and mutations T1–T3 with the tests that failed. Add one Droid entry for this round to `docs/process/ai-usage-log.md`, after the latest entry, in the format of your first entry; leave the session line to Claude Code. Commit.

@@ -171,7 +171,7 @@ Implementer notes:
 
 ## 3. Checks and report
 
-- [ ] 3.1 Run the full checks:
+- [x] 3.1 Run the full checks:
   - `uv run --offline pytest` in `backend/` (record the count; main had 1269 tests);
   - `npm test -- --run` and `npm run build` in `frontend/` and in `extension/`, with Node 22.17.1 (record the counts);
   - `DO_NOT_TRACK=1 openspec validate improve-topic-grouping --strict`;

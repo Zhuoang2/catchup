@@ -154,13 +154,30 @@ def test_image_prompt_keeps_chinese_alt_and_caption_readable():
     assert "\\u" not in user
 
 
+def test_image_rules_ask_for_self_explaining_images_with_captions():
+    image = [{"origin": "html", "alt": "Chart", "caption": ""}]
+    for messages in (summary_messages("Post", "Text", "en", images=image),
+                     long_transcript_messages("Talk", "Transcript", "en", images=image)):
+        system = messages[0]["content"]
+        for rule in (
+            "usually only one",
+            "a reader who has not read the item can understand it from the image and its caption",
+            "Choose a second or third image only when each shows something different",
+            "rendered formulas",
+            "write in alt a caption of up to 120 characters",
+            "saying what the image shows and why it matters",
+            '{"ref": "I1", "alt": "What the image shows and why it matters"}',
+        ):
+            assert rule in system
+
+
 def test_image_prompts_request_summary_language_alt_and_share_neutral_example():
     image = [{"origin": "html", "alt": "Chart", "caption": ""}]
     for messages in (summary_messages("Post", "Text", "zh-Hans", images=image),
                      long_transcript_messages("Talk", "Transcript", "zh-Hans", images=image)):
         system = messages[0]["content"]
         assert "in the language of the summary" in system
-        assert '{"ref": "I1", "alt": "What the image shows"}' in system
+        assert '{"ref": "I1", "alt": "What the image shows and why it matters"}' in system
         assert "Video thumbnail" not in system
 
 

@@ -32,10 +32,13 @@ def language_instruction(language: str, *, topics: bool = False) -> str:
 
 
 IMAGE_RULES = (
-    "Choose at most 3 images that show something the summary relies on, ordered by importance. "
-    "Never choose logos, avatars, or decorative images; choose none when unsure. "
-    "For each choice, write a short alt text of up to 120 characters "
-    "in the language of the summary. "
+    "Choose at most 3 images, ordered by importance, and usually only one. "
+    "Choose an image only when it shows something the summary relies on, and "
+    "a reader who has not read the item can understand it from the image and its caption. "
+    "Choose a second or third image only when each shows something different. "
+    "Never choose logos, avatars, decorative images, or rendered formulas; choose none when unsure. "
+    "For each choice, write in alt a caption of up to 120 characters in the language of the summary, "
+    "saying what the image shows and why it matters. "
 )
 
 
@@ -83,7 +86,7 @@ def summary_messages(title: str, text: str, language: str,
             f"{language_instruction(language)} Return only json. "
             'Example output: {"summary": "A short factual summary."'
             + (', "used": ["L1"]' if context else '')
-            + (', "images": [{"ref": "I1", "alt": "What the image shows"}]' if images else '')
+            + (', "images": [{"ref": "I1", "alt": "What the image shows and why it matters"}]' if images else '')
             + '}'
         )},
         {"role": "user", "content": f"Title: {title}\nContent:\n{text}{blocks}{_image_block(images)}"},
@@ -100,7 +103,7 @@ def long_transcript_messages(title: str, text: str, language: str,
             f"{IMAGE_RULES if images else ''}"
             f"{language_instruction(language)} Return only json. "
             'Example output: {"summary": "Overview.\\n- Key point one\\n- Key point two"'
-            + (', "images": [{"ref": "I1", "alt": "What the image shows"}]' if images else '') + '}'
+            + (', "images": [{"ref": "I1", "alt": "What the image shows and why it matters"}]' if images else '') + '}'
         )},
         {"role": "user", "content": f"Title: {title}\nTranscript:\n{text}{_image_block(images)}"},
     ]

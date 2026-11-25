@@ -2944,3 +2944,18 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - **Problems / adjustment:**
   - **The machine restarted during the review.** The scratchpad, with Droid's prompt files and logs, was cleared and the review worktrees were lost; everything was committed, so the worktrees were recreated from the branch. Session data had already been recorded.
   - **Droid put its implementation entry at the top of this log.** Claude moved it into date order, and the fix round's task said where its own entry goes.
+
+## 2026-11-25 — `improve-topic-grouping` (#32): plan (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
+
+- **Prompts** (translated from Chinese):
+  - After #40 merged, the user chose three issues to plan at the same time: "Start #4, #54, and #32 in parallel."
+  - After reviewing the three plans, the user decided: "Approve all three plans as recommended; conflicts approved in advance." The advance approval covers merge conflicts between #4 and #54 in which each side only adds its own lines: Claude keeps both sides, renumbers the second migration to `0011`, and re-runs the checks; any other conflict still stops for the user.
+- **Outcome:**
+  - **Checked on `main` `145811f`.** The grouping instruction `group_messages` has not changed since 89bdc02 (2026-10-03, per `git log -L`), and nothing limits the number of topics. Batch calls reuse the single-call path. Several test models route on words in the system text, which the new text keeps.
+  - **Plan.** A topic limit of ⌈√(2n)⌉ topics for n items, at most n and 12, in the grouping and merge instructions, with rules for broad topics, titles, and overviews; the merge input gains each batch topic's item count; the limit is guidance only. Three task groups with mutations L1–L3, P1–P4, K1–K2, K1m–K2m, and B1–B3; no migration; the implementer notes tell Droid not to run Docker. D-043. The user chose the recommendation for D1, D2, and D7: guidance only, the ⌈√(2n)⌉ limit, and a quality check on the user's next 2–3 real digests after the merge.
+  - **D-023 fresh-eyes check.** A sub-agent that saw only the change folder and the code prototyped both code groups (1,293 backend tests passed) and ran every named mutation; each failed its named tests. Claude checked its five findings against the code and applied all five:
+    - the guidance-only rule had no test on the batched path (two mutations after the merge call passed the suite), so a test and mutations K1m and K2m now cover it;
+    - the spec delta now says that the one-item text replaces the broad-topic points, and lists the merge call's rules instead of "the same rules";
+    - the reach of one assertion, K2's failure (`StopIteration`), and a line reference.
+- **Problems / adjustment:**
+  - **The spec delta said "no further model call" for every grouping answer, but the plan tested it only for single calls.** The prototype run caught it before Droid.

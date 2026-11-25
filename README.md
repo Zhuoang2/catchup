@@ -1,7 +1,7 @@
 # CatchUp
 
 CatchUp is a self-hosted, on-demand personal digest. Configure an
-OpenAI-compatible model (DeepSeek is tested), then add the sites and feeds you
+OpenAI-compatible model (DeepSeek is tested) or Anthropic, then add the sites and feeds you
 follow. The main screen, Latest, shows your newest saved digest and a Generate
 digest button. CatchUp collects what is new since each source's last successful
 check and writes a topic-grouped digest with links to the originals. Older
@@ -98,8 +98,8 @@ By default, the backend accepts requests only for `localhost`, `127.0.0.1`,
 and `[::1]` (with or without a port). If you deploy behind a domain, set
 `CATCHUP_ALLOWED_HOSTS` to a comma-separated list that includes that domain,
 for example `localhost,127.0.0.1,[::1],catchup.example.org`. Do not add
-untrusted domains or `*`. Changing a model provider URL requires entering
-the API key again; CatchUp will not send a stored key to a new address.
+untrusted domains or `*`. Changing the provider or its URL requires entering
+the API key again; CatchUp will not send a stored key to a new provider or address.
 From their respective directories, run backend tests with `uv run pytest`
 and frontend tests/build with `npm test -- --run` and `npm run build`.
 Tests require neither a network connection nor a real model key.
@@ -550,6 +550,27 @@ stop the development backend first so its database file is complete, then
 copy `backend/data/catchup.sqlite3` into the stopped container's volume
 before starting it. Keep the same instance secret if it contains an
 encrypted model key.
+
+## Supported model providers
+
+Choose one provider in Settings. Collected content is sent to the chosen
+provider to generate summaries and group them into topics.
+
+- **OpenAI-compatible:** APIs that follow OpenAI's Chat Completions format.
+  DeepSeek is tested, and `https://api.deepseek.com` is the default base URL.
+- **Anthropic:** uses the native Messages API. Get a key from the Anthropic
+  Console and use `https://api.anthropic.com`, or edit the address for a proxy.
+  CatchUp lists models from your account, with `claude-opus-5-5` first when
+  available. Opus 5.5 costs $4 input and $20 output per million tokens.
+  Some models always think, so CatchUp allows at least 16,000 output tokens
+  per request; thinking counts toward that limit.
+
+  For `claude-fable-5-2`, `claude-fable-5-1`, `claude-opus-5-5`,
+  `claude-opus-5`, and `claude-sonnet-5-5`, a refused request is retried
+  within the same call on a fallback model chosen by Anthropic, and billed
+  at that model's rates. Other models do not request a fallback.
+  A custom address must pass Anthropic's beta headers for this feature.
+  The SDK also reads `ANTHROPIC_CUSTOM_HEADERS` from the server's environment.
 
 ## Supported sources
 

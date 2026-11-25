@@ -58,6 +58,35 @@ def test_run_progress_migration_fills_sources_total_and_downgrades(tmp_path) -> 
         engine.dispose()
 
 
+def test_model_provider_migration_defaults_existing_config_and_downgrades(tmp_path) -> None:
+    engine = make_engine(tmp_path)
+    config = Config()
+    config.set_main_option("script_location", str(Path(catchup.__file__).resolve().parent / "migrations"))
+    config.attributes["connection"] = engine
+    try:
+        command.upgrade(config, "0008_run_progress")
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO model_config (id, base_url, model_id, api_key_encrypted, "
+                "api_key_last4, context_window, updated_at) VALUES "
+                "(1, 'https://provider.example', 'saved-model', 'test-ciphertext', "
+                "'1234', 1000000, '2026-11-01')"
+            ))
+            before = connection.execute(text("SELECT * FROM model_config")).mappings().one()
+            before = dict(before)
+        command.upgrade(config, "head")
+        with engine.connect() as connection:
+            after = dict(connection.execute(text("SELECT * FROM model_config")).mappings().one())
+            assert after.pop("provider") == "openai_compatible"
+            assert after == before
+        command.downgrade(config, "0008_run_progress")
+        assert "provider" not in {column["name"] for column in inspect(engine).get_columns("model_config")}
+        with engine.connect() as connection:
+            assert dict(connection.execute(text("SELECT * FROM model_config")).mappings().one()) == before
+    finally:
+        engine.dispose()
+
+
 def test_startup_migrates_database_and_enables_wal(test_settings: Settings) -> None:
     with TestClient(create_app(test_settings)) as client:
         engine = client.app.state.engine
@@ -95,6 +124,7 @@ def test_migrations_live_inside_package() -> None:
     assert (migrations / "versions" / "0006_captures.py").is_file()
     assert (migrations / "versions" / "0007_x_accounts.py").is_file()
     assert (migrations / "versions" / "0008_run_progress.py").is_file()
+    assert (migrations / "versions" / "0009_model_provider.py").is_file()
 
 
 def test_existing_database_at_old_revision_is_unchanged(tmp_path) -> None:
@@ -112,7 +142,7 @@ def test_existing_database_at_old_revision_is_unchanged(tmp_path) -> None:
             ).scalars().all()
         migrate(engine)
         with engine.connect() as connection:
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0008_run_progress"
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0009_model_provider"
             assert connection.execute(text("SELECT digest_language FROM app_settings WHERE id=1")).scalar_one() == "zh-Hans"
             assert connection.execute(
                 text("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -281,7 +311,7 @@ def test_image_migration_from_0004_preserves_rows_and_downgrades(tmp_path) -> No
             ))
         command.upgrade(config, "head")
         with engine.connect() as connection:
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0008_run_progress"
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0009_model_provider"
             assert connection.execute(text(
                 "SELECT image_candidates, summary_images FROM items WHERE id=1"
             )).one() == (None, None)
@@ -321,7 +351,7 @@ def test_capture_migration_preserves_rows_and_removes_capture_sources_on_downgra
             ))
         command.upgrade(config, "head")
         with engine.connect() as connection:
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0008_run_progress"
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0009_model_provider"
             assert connection.execute(text("SELECT title, site_name, captured_replies FROM items WHERE id=1")).one() == (
                 "Post", None, None,
             )
@@ -462,7 +492,7 @@ def test_migrate_copy_of_0006_database(tmp_path) -> None:
     try:
         migrate(copied)
         with copied.connect() as connection:
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0008_run_progress"
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0009_model_provider"
         assert {"x_accounts", "x_credentials"} <= set(inspect(copied).get_table_names())
     finally:
         copied.dispose()

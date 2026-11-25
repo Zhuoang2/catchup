@@ -618,6 +618,38 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Two requests to one host can be open at the same time when the first takes longer than 1 second. Requests still start at least 1 second apart.
   - The total can move by a few pages after a redirect, or while several reads are in progress. It equals the number read when the pass ends.
 
+## D-037 Add Anthropic as a second model provider, through the official SDK — accepted (2026-11-22)
+
+- **Decision.**
+  - **Provider choice.** The model configuration gets a provider, `openai_compatible` (the default, and every existing configuration) or `anthropic`, stored in a new `model_config.provider` column (migration `0009_model_provider`). One configuration stays active at a time. Changing the provider, like changing the base URL, needs the API key again, and clears the recorded context window.
+  - **Second client.** A new `AnthropicModelClient` calls Anthropic's Messages API through the official `anthropic` Python SDK, pinned `>=1.13,<2`, behind the existing client surface (`list_models`, `chat_json`, `usage_totals`, `close`). A provider factory picks the client. The OpenAI-compatible client, the prompts, and the summary and grouping stages do not change.
+  - **Requests.** The prompts' system text goes to `system`. No sampling parameters or prefill are sent. Every call allows at least 16,000 output tokens and streams its answer.
+  - **JSON.** Answers are parsed as a JSON object, or a JSON object in one fenced block, and retried as today when they are not.
+  - **Errors.** 529 and stream errors that report overload or an internal error are temporary. A spend-limit 429 counts as insufficient balance. A refusal is not retried.
+  - **Fallback models.** For `claude-fable-5-2`, `claude-fable-5-1`, `claude-opus-5-5`, `claude-opus-5`, and `claude-sonnet-5-5`, every call asks for Anthropic's server-side fallback model.
+  - **Model list.** It comes from Anthropic, without retired models, with `claude-opus-5-5` first when listed.
+  - **Settings** gets a Provider select. Choosing a provider fills in its default address.
+
+  Planned as the lean OpenSpec change `add-anthropic-provider` (issue #12). The JSON method, the fallback models, the default model, the SDK version, and one configuration rather than one per provider were the user's choices at plan approval (design U1–U6); the user chose the recommendation for each.
+- **Why.**
+  - D-004 planned an Anthropic-native adapter behind the same interface (#12).
+  - The `claude-api` reference that Claude Code uses says to call Claude through the official SDK, not through OpenAI-compatible shims. It also says to stream long requests, and to opt into server-side fallbacks by default for the listed models.
+  - Thinking cannot be turned off on `claude-opus-5-5`, and it counts toward `max_tokens`, so the 4,096-token summary limit could leave answers empty.
+  - Keeping the client surface lets the stages and their 15 test fakes stay as they are.
+- **Alternatives:**
+  - **Raw HTTP through `httpx2`.** Rejected unless the user prefers no new package: it would re-implement streaming and typed errors.
+  - **LiteLLM, or Anthropic's OpenAI-compatible endpoint.** Rejected: a large dependency, and the reference rules out shims.
+  - **Structured outputs (`output_config.format`).** Offered as the user's alternative. A shared all-optional schema would have to follow every key the prompts ask for (including #65's planned image changes). Models without support would fail every call. The schema cannot be checked against the real API before review.
+  - **Infer the provider from the base URL.** Rejected: proxy addresses would be misread.
+  - **One saved key per provider.** Offered as the user's alternative. It needs a new table and more Settings states.
+  - **A shared base class for both clients.** Rejected: it would change the tested OpenAI client, whose retry rules differ.
+- **Consequences:**
+  - A new dependency, `anthropic`, with `docstring-parser`, is added to the lockfile before implementation. Docker builds download them.
+  - The default model `claude-opus-5-5` always thinks, at effort `medium`. A per-provider setting is #4. The client keeps all request options in one place, and the model list reports each model's effort and thinking support.
+  - A refused request rescued by a fallback model is billed at that model's rates.
+  - Downgrading the database turns Anthropic configurations into OpenAI-compatible ones, which then need a new test.
+  - If #40 also adds migration `0009`, the second change to merge renumbers its migration.
+
 ## D-039 Draw the CatchUp mark on a 16 × 16 grid so the tab icon stays sharp — accepted (2026-11-22)
 
 - **Decision (option A; B and C were the alternatives).**

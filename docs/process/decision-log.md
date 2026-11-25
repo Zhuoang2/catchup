@@ -588,6 +588,7 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
 - **Consequences:**
   - Fix rounds within D-023's limits no longer produce a question; the user sees them in the merge-ready report.
   - The user still approves every plan and every merge, and decides every rebuild of port 8800.
+- **Follow-up (2026-11-25):** the `/ship` skill is now named `/merge-change`. The Claude Code app has a built-in `/ship` command, which pushes the branch and opens a PR and which only the user can start, so Claude could not start a skill with the same name.
 
 ## D-036 Read linked pages for up to 4 items at once, and count only what the run can still read — accepted (2026-11-20)
 

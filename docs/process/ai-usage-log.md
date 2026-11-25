@@ -3014,3 +3014,9 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - **Decision 1 (A), applied after the merge approval:** the note now reads "Each page read adds time to a run, and up to 3,000 characters to that item's summary request (up to 4,000 for author replies), which uses more tokens. A run makes at most 60 page requests, robots.txt files included." Claude changed the two Settings tests first (2 failed), then `Settings.tsx`, the spec delta, design D7, the proposal, and `tasks.md`. After this change and the archive: backend 1299, frontend 340, extension 169, both builds, `openspec validate --all --strict` 11 passed, and `scripts/docker-smoke.sh` 12 of 12 on an image rebuilt from the archive commit.
 - **Problems / adjustment:**
   - **The smoke script pins the whole preferences answer,** so any new preference breaks it. A plan that adds a preference field now has to list `scripts/docker-smoke.sh` among the files to change.
+
+## 2026-11-25 — Rename the `/ship` skill to `/merge-change` (Claude Code, Opus 5.5)
+
+- **Prompts** (translated from Chinese): after Claude reported that the Claude Code app now has a built-in `/ship` command with the same name as the user's skill, and suggested `/merge-change`: "Make the changes first."
+- **Outcome:** the Shipping section of `AGENTS.md` names the skill `/merge-change`, and D-035 has a follow-up line. The skill itself was renamed in the user's dotfiles.
+- **Problems / adjustment:** the app's built-in `/ship` pushes the branch and opens a PR, and only the user can start it. While both had the same name, Claude could not start the user's skill, and a session in another project followed its steps by hand.

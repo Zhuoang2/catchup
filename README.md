@@ -332,7 +332,8 @@ docker compose up -d --build --wait
 The optional override sets `CATCHUP_RSSHUB_URL=http://rsshub:1200` for
 CatchUp and runs `diygod/rsshub:latest` without publishing an RSSHub port.
 That image is a third-party download from Docker Hub; CatchUp does not build
-or publish it. As of 2026-11-22, it is about 130–133 MB compressed (amd64/arm64).
+or publish it. As of 2026-11-22, it is about 130–133 MB compressed
+(amd64/arm64).
 If uploader lists fail and need RSSHub's browser fallback, change its `image`
 in `compose.rsshub.yaml` to `diygod/rsshub:chromium-bundled`, about 391–507 MB
 compressed depending on architecture, then run the appropriate start command

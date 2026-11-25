@@ -253,3 +253,39 @@ Extension:
 Both production builds passed TypeScript checking and Vite bundling; the extension's bundled-output check also passed. No frontend or extension source changed in this round. The additional backend cases use existing invented fixtures and offline DNS/respx seams; the existing suites were reused.
 
 No network request, Docker command, live check, or protected-instance operation was performed. Port 8800, containers, and volumes were untouched. No packages were upgraded and no secrets were read, written, printed, or committed. Claude Code runs Docker smoke and the live checks at review. The session line remains for Claude Code to add.
+
+## Review by Claude Code
+
+Reviewed in worktree `review40` on the branch. Droid's runs started at `ec98682` (the plan, merged with `main`; groups 1–7) and at `8d8464a` (fix round 1, with fixes from a fresh-eyes check in `3aeca4c`).
+
+### Checks
+
+| Check | Result |
+| --- | --- |
+| Backend `uv run --offline pytest` | 1166 passed on `2e42f2d`; 1168 after fix round 1 |
+| Frontend `npm test -- --run`, `npm run build` | 321 passed; build passed |
+| Extension `npm test -- --run`, `npm run build` | 169 passed; build passed |
+| `DO_NOT_TRACK=1 openspec validate add-bilibili-sources --strict` | valid |
+| `git diff --check` | clean |
+| `scripts/docker-smoke.sh catchup:fix40-local` (built from `2e42f2d`, then from `44f2183`) | 12 of 12 both times |
+
+### Live check
+
+No real RSSHub was run and nothing was requested from Bilibili. A local stand-in on the host served the repository's invented fixture (`backend/tests/fixtures/rsshub-uploader.json`, with its dates moved to the last few hours) for `/bilibili/user/video/<mid>?format=json`, and logged every request. A scratch container from `catchup:fix40-local` ran on its own volume with `CATCHUP_RSSHUB_URL=http://host.docker.internal:18766`, and a local OpenAI-compatible stub model answered the summaries.
+
+- **Before the fix round** (image from `2e42f2d`, port 8840):
+  - Preview of `https://space.bilibili.com/2267573`: kind `bilibili`, `feed_url` `bilibili:uploader:2267573`, title "Sample Uploader", the three videos (the article entry left out). A video page address answered 422 `not_a_bilibili_uploader`. The same uploader again answered "Already following Sample Uploader."
+  - After following, one run succeeded: "Video with subtitles" was summarized from its subtitles (stored text "Hello / / world", origin `transcript`), and the two videos without subtitles stayed pending in `subtitle_wait`, with their descriptions kept but not summarized.
+  - The stand-in saw exactly two requests: the preview and the run's check (confirm used the cached preview).
+  - Sources page: the row showed the "Bilibili uploader" badge and the space address, and the supported-sources list names Bilibili uploaders. The preview showed the method line and the terms notice. The home page showing the latest digest has no source-count rail, as before this change; `Home.test.tsx` checks the count text.
+- **After the fix round** (image from `44f2183`, port 8841): after one uploader was followed, the stand-in was switched to answer 503. A preview of `https://m.bilibili.com/space/2267573` answered 422 `duplicate` and a confirm of `bilibili:uploader:2267573` answered 409 `duplicate`, with no RSSHub request; a new uploader answered 422 `rsshub_failed` ("RSSHub could not read this uploader (HTTP 503).").
+
+The containers, volumes, and stubs were removed afterwards.
+
+### Findings
+
+- **`/code-review` (high) on `ec98682..2e42f2d`:** no findings. On fix round 1: one nit, a rewrapped README line about 81 columns wide; fixed in Claude's review commit.
+- **Spec sub-agent** (independent, detached worktree; it re-ran all 17 named mutations, and each failed its named test; it found no path by which CatchUp requests a Bilibili host):
+  - **Fixed in fix round 1:** a followed uploader was not reported as a duplicate while RSSHub failed; the README did not say that the RSSHub image is a third-party download, nor that an older published image lacks this change; no test covered the uploader request's size limit and spacing.
+  - **Decided by the user (2026-11-24), spec delta and design.md only:** the not-configured message applies to uploader addresses, and other Bilibili addresses are not uploaders; RSSHub's rate limiting is reported as rate limiting; the connect-time exception applies to every connection of one fetch, so only DNS rebinding of the operator's own RSSHub host could reach a private address on a redirect, and design D4 now says so; Bilibili images offered by other sources stay out of this change.
+  - **Recorded, not fixed:** the connect-time check compares host and port but no test changes the port there (the pre-check's port comparison is tested by E2); the collection path has no test of its own that Bilibili items skip `article_text` (the host rule tested by H2 refuses the request anyway); several spec scenarios are checked at `safe_fetch` or by reading the code, not through the API.

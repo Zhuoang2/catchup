@@ -144,7 +144,7 @@ Implementer notes:
 
 ## 4. Settings page (D6)
 
-- [ ] 4.1 In `frontend/src/pages/Settings.test.tsx`, write these tests and watch them fail. They fail because there is no Reasoning select, and because the bodies have no `reasoning`.
+- [x] 4.1 In `frontend/src/pages/Settings.test.tsx`, write these tests and watch them fail. They fail because there is no Reasoning select, and because the bodies have no `reasoning`.
   - **Test types.** Add `reasoning` to `ModelBody`, and an optional `reasoning` to `mockModelProvider`'s `saved` type. Its default PUT answer also echoes `reasoning: body.reasoning`.
   - **Existing tests.** The only allowed edit to them is adding `reasoning: 'default'` to every expected PUT body (`modelPuts()` comparisons). Mocked GET answers may stay without `reasoning`: the page treats a missing value as Provider default.
   - **`shows the saved Reasoning after the Model select with its hint`.** A saved `reasoning: 'off'` gives a Reasoning select reading "Off", with the options "Provider default", "Low", and "Off" in that order. The Model select comes before it in document order, inside `modelSection()`. Its accessible description is exactly "Less reasoning makes digests faster and cheaper. Summaries and topics may be less careful.". This is the scenario "Saved choice is shown".
@@ -155,8 +155,8 @@ Implementer notes:
   - **`reports a failed Reasoning save in the model group`.** The PUT answers `respond({ error: { code: 'invalid_reasoning', message: 'Choose a Reasoning setting that this provider supports.' } }, 422)`. The alert in `modelSection()` reads exactly "The reasoning setting was not saved. Choose a Reasoning setting that this provider supports.", and `expectNoBottomAlert()` holds.
   - **`saves a Reasoning choice and a model choice in order`.** Inside `describe('saving model choices')`, after `testAndSave()`, hold the PUT for the Reasoning choice "Low" (as `saves quick successive model choices in order` does), then choose the model "live-b". The second PUT starts only after the first finishes, and the PUT bodies are, in order, the test's save, `{ …, model_id: 'live-a', reasoning: 'low' }`, and `{ …, model_id: 'live-b', reasoning: 'low' }`.
   - **`has no accessibility violations with the Reasoning select`.** Run `expectAccessible` on the rendered page.
-- [ ] 4.2 Implement design D6 in `frontend/src/pages/Settings.tsx`. In `frontend/`, run `npm test -- --run` and `npm run build`, and watch them pass.
-- [ ] 4.3 Run these mutations one at a time, each against `Settings.test.tsx`, and record which tests fail:
+- [x] 4.2 Implement design D6 in `frontend/src/pages/Settings.tsx`. In `frontend/`, run `npm test -- --run` and `npm run build`, and watch them pass.
+- [x] 4.3 Run these mutations one at a time, each against `Settings.test.tsx`, and record which tests fail:
 
   | Mutation | Change | Expected failing test |
   | --- | --- | --- |

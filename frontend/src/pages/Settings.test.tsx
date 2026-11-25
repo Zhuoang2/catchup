@@ -9,7 +9,7 @@ function respond(data: unknown, status = 200) {
   return { ok: status < 400, status, json: async () => data }
 }
 
-type ModelBody = { base_url: string; model_id: string; api_key: string; provider: string }
+type ModelBody = { base_url: string; model_id: string; api_key: string; provider: string; reasoning: string }
 
 function mockModelProvider({
   saved = { base_url: 'https://api.deepseek.com', model_id: 'saved-model',
@@ -17,7 +17,7 @@ function mockModelProvider({
   test = () => respond({ ok: true, models: ['live-a', 'live-b'] }),
   put,
 }: {
-  saved?: { base_url: string; model_id: string; key_set: boolean; api_key_last4: string | null; provider?: string }
+  saved?: { base_url: string; model_id: string; key_set: boolean; api_key_last4: string | null; provider?: string; reasoning?: string }
   test?: () => ReturnType<typeof respond> | Promise<ReturnType<typeof respond>>
   put?: (body: ModelBody) => ReturnType<typeof respond> | Promise<ReturnType<typeof respond>>
 } = {}) {
@@ -26,6 +26,7 @@ function mockModelProvider({
     if (url === '/api/settings/model' && options?.method === 'PUT') {
       const body = JSON.parse(options.body as string) as ModelBody
       return put ? put(body) : respond({ base_url: body.base_url, model_id: body.model_id,
+        reasoning: body.reasoning,
         key_set: true, api_key_last4: body.api_key ? body.api_key.slice(-4) : saved.api_key_last4 })
     }
     if (url === '/api/settings/model' && !options?.method) return respond(saved)
@@ -129,7 +130,7 @@ describe('model settings', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
     await waitFor(() => expect(modelPuts()).toEqual([{
       base_url: 'https://api.anthropic.com', model_id: 'claude-opus-5-5',
-      api_key: 'key-7d2e', provider: 'anthropic',
+      api_key: 'key-7d2e', provider: 'anthropic', reasoning: 'default',
     }]))
     const testCall = fetchMock.mock.calls.find(([url]) => url === '/api/settings/model/test')!
     expect(JSON.parse(testCall[1].body as string)).toEqual({
@@ -187,7 +188,7 @@ describe('model settings', () => {
     })
     await waitFor(() => expect(modelPuts()).toEqual([{
       base_url: 'https://api.anthropic.com', model_id: 'claude-opus-5-5',
-      api_key: 'key-7d2e', provider: 'anthropic',
+      api_key: 'key-7d2e', provider: 'anthropic', reasoning: 'default',
     }]))
     expect(provider).toHaveValue('openai_compatible')
     expect(screen.getByLabelText('Base URL')).toHaveValue('https://api.deepseek.com')
@@ -197,7 +198,7 @@ describe('model settings', () => {
     await waitFor(() => expect(modelPuts()).toHaveLength(2))
     expect(modelPuts()[1]).toEqual({
       base_url: 'https://api.deepseek.com', model_id: 'saved-model',
-      api_key: '', provider: 'openai_compatible',
+      api_key: '', provider: 'openai_compatible', reasoning: 'default',
     })
   })
 
@@ -222,7 +223,7 @@ describe('model settings', () => {
     expect(await screen.findByLabelText('Provider')).toHaveValue('anthropic')
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(modelPuts()).toEqual([{
-      provider: 'anthropic', base_url: 'https://api.anthropic.com', model_id: 'claude-opus-5-5', api_key: '',
+      provider: 'anthropic', reasoning: 'default', base_url: 'https://api.anthropic.com', model_id: 'claude-opus-5-5', api_key: '',
     }]))
   })
 
@@ -773,7 +774,7 @@ describe('saving after a model test', () => {
     fireEvent.change(key, { target: { value: 'secret-3f9a' } })
     fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
     await waitFor(() => expect(modelPuts()).toEqual([{
-      provider: 'openai_compatible',
+      provider: 'openai_compatible', reasoning: 'default',
       base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: 'secret-3f9a',
     }]))
     expect(await within(modelSection()).findByRole('status')).toHaveTextContent(
@@ -792,7 +793,7 @@ describe('saving after a model test', () => {
     fireEvent.change(await screen.findByLabelText('API key'), { target: { value: 'new-key-9999' } })
     fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
     await waitFor(() => expect(modelPuts()).toEqual([{
-      provider: 'openai_compatible',
+      provider: 'openai_compatible', reasoning: 'default',
       base_url: 'https://api.deepseek.com', model_id: 'saved-model', api_key: 'new-key-9999',
     }]))
     await waitFor(() => expect(within(modelSection()).getByRole('status').textContent)
@@ -806,7 +807,7 @@ describe('saving after a model test', () => {
     await screen.findByLabelText('API key')
     fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
     await waitFor(() => expect(modelPuts()).toEqual([{
-      provider: 'openai_compatible',
+      provider: 'openai_compatible', reasoning: 'default',
       base_url: 'https://api.deepseek.com', model_id: 'saved-model', api_key: '',
     }]))
     await waitFor(() => expect(within(modelSection()).getByRole('status').textContent)
@@ -858,7 +859,7 @@ describe('saving after a model test', () => {
     fireEvent.change(screen.getByLabelText('Base URL'), { target: { value: 'https://later.example' } })
     await act(async () => { finishTest(respond({ ok: true, models: ['live-a', 'live-b'] })) })
     await waitFor(() => expect(modelPuts()).toEqual([{
-      provider: 'openai_compatible',
+      provider: 'openai_compatible', reasoning: 'default',
       base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: 'tested-key-1111',
     }]))
     expect(key).toHaveValue('typed-later')
@@ -895,6 +896,112 @@ describe('saving after a model test', () => {
   })
 })
 
+describe('reasoning settings', () => {
+  it('shows the saved Reasoning after the Model select with its hint', async () => {
+    mockModelProvider({ saved: { base_url: 'https://api.deepseek.com', model_id: 'saved-model',
+      key_set: true, api_key_last4: '1234', reasoning: 'off' } })
+    render(<Settings/>)
+    const reasoning = await screen.findByRole('combobox', { name: 'Reasoning' })
+    expect(reasoning).toHaveValue('off')
+    expect(within(reasoning).getByRole('option', { selected: true })).toHaveTextContent('Off')
+    expect(within(reasoning).getAllByRole('option').map(option => option.textContent))
+      .toEqual(['Provider default', 'Low', 'Off'])
+    expect(modelSection()).toContainElement(reasoning)
+    expect(screen.getByLabelText('Model').compareDocumentPosition(reasoning)
+      & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(reasoning).toHaveAccessibleDescription(
+      'Less reasoning makes digests faster and cheaper. Summaries and topics may be less careful.')
+  })
+
+  it('offers no Off for Anthropic and restores the saved choice', async () => {
+    mockModelProvider({ saved: { base_url: 'https://api.deepseek.com', model_id: 'saved-model',
+      key_set: true, api_key_last4: '1234', reasoning: 'off' } })
+    render(<Settings/>)
+    const reasoning = await screen.findByLabelText('Reasoning')
+    const provider = screen.getByLabelText('Provider')
+    fireEvent.change(provider, { target: { value: 'anthropic' } })
+    expect(reasoning).toHaveValue('default')
+    expect(within(reasoning).getAllByRole('option').map(option => option.textContent))
+      .toEqual(['Provider default', 'Low'])
+    fireEvent.change(provider, { target: { value: 'openai_compatible' } })
+    expect(reasoning).toHaveValue('off')
+    fireEvent.change(provider, { target: { value: 'anthropic' } })
+    fireEvent.change(screen.getByLabelText('API key'), { target: { value: 'new-key-7777' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    await waitFor(() => expect(modelPuts()).toEqual([{
+      base_url: 'https://api.anthropic.com', model_id: 'live-a', api_key: 'new-key-7777',
+      provider: 'anthropic', reasoning: 'default',
+    }]))
+  })
+
+  it('saves a Reasoning choice right away', async () => {
+    mockModelProvider()
+    render(<Settings/>)
+    const reasoning = await screen.findByLabelText('Reasoning')
+    fireEvent.change(reasoning, { target: { value: 'low' } })
+    await waitFor(() => expect(modelPuts()).toEqual([{
+      base_url: 'https://api.deepseek.com', model_id: 'saved-model', api_key: '',
+      provider: 'openai_compatible', reasoning: 'low',
+    }]))
+    await waitFor(() => expect(within(modelSection()).getByRole('status').textContent)
+      .toBe('Saved reasoning: Low.'))
+    const provider = screen.getByLabelText('Provider')
+    fireEvent.change(provider, { target: { value: 'anthropic' } })
+    fireEvent.change(provider, { target: { value: 'openai_compatible' } })
+    expect(reasoning).toHaveValue('low')
+  })
+
+  it('waits to save a Reasoning choice when the key was edited', async () => {
+    mockModelProvider()
+    render(<Settings/>)
+    const reasoning = await screen.findByLabelText('Reasoning')
+    fireEvent.change(screen.getByLabelText('API key'), { target: { value: 'new-key-7777' } })
+    await act(async () => { fireEvent.change(reasoning, { target: { value: 'low' } }) })
+    expect(modelPuts()).toEqual([])
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    await waitFor(() => expect(modelPuts()).toEqual([{
+      base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: 'new-key-7777',
+      provider: 'openai_compatible', reasoning: 'low',
+    }]))
+  })
+
+  it('sends the shown Reasoning with Save', async () => {
+    mockModelProvider()
+    render(<Settings/>)
+    const reasoning = await screen.findByLabelText('Reasoning')
+    fireEvent.change(screen.getByLabelText('API key'), { target: { value: 'new-key-7777' } })
+    await act(async () => { fireEvent.change(reasoning, { target: { value: 'off' } }) })
+    expect(modelPuts()).toEqual([])
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await screen.findByText('Settings saved.')
+    expect(modelPuts()).toEqual([{
+      base_url: 'https://api.deepseek.com', model_id: 'saved-model', api_key: 'new-key-7777',
+      provider: 'openai_compatible', reasoning: 'off',
+    }])
+    const provider = screen.getByLabelText('Provider')
+    fireEvent.change(provider, { target: { value: 'anthropic' } })
+    fireEvent.change(provider, { target: { value: 'openai_compatible' } })
+    expect(reasoning).toHaveValue('off')
+  })
+
+  it('reports a failed Reasoning save in the model group', async () => {
+    mockModelProvider({ put: () => respond({ error: { code: 'invalid_reasoning',
+      message: 'Choose a Reasoning setting that this provider supports.' } }, 422) })
+    render(<Settings/>)
+    fireEvent.change(await screen.findByLabelText('Reasoning'), { target: { value: 'low' } })
+    expect((await within(modelSection()).findByRole('alert')).textContent).toBe(
+      'The reasoning setting was not saved. Choose a Reasoning setting that this provider supports.')
+    expectNoBottomAlert()
+  })
+
+  it('has no accessibility violations with the Reasoning select', async () => {
+    mockModelProvider()
+    const { container } = render(<Settings/>)
+    await screen.findByLabelText('Reasoning')
+    await expectAccessible(container)
+  })
+})
+
 describe('saving model choices', () => {
   async function testAndSave() {
     render(<Settings/>)
@@ -902,6 +1009,34 @@ describe('saving model choices', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Test connection' }))
     await screen.findByText('Connection succeeded. Saved model live-a. Choose another model to change it.')
   }
+
+  it('saves a Reasoning choice and a model choice in order', async () => {
+    let finishChoice!: (response: ReturnType<typeof respond>) => void
+    const pending = new Promise<ReturnType<typeof respond>>(resolve => { finishChoice = resolve })
+    mockModelProvider({ put: body => body.model_id === 'live-a' && body.reasoning === 'low'
+      ? pending : respond({ base_url: body.base_url, model_id: body.model_id,
+        reasoning: body.reasoning, key_set: true, api_key_last4: '1234' }) })
+    await testAndSave()
+    fireEvent.change(screen.getByLabelText('Reasoning'), { target: { value: 'low' } })
+    await waitFor(() => expect(modelPuts()).toHaveLength(2))
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'live-b' } })
+    })
+    expect(modelPuts()).toHaveLength(2)
+    await act(async () => {
+      finishChoice(respond({ base_url: 'https://api.deepseek.com', model_id: 'live-a',
+        reasoning: 'low', key_set: true, api_key_last4: '1234' }))
+    })
+    await waitFor(() => expect(modelPuts()).toEqual([
+      { base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: '',
+        provider: 'openai_compatible', reasoning: 'default' },
+      { base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: '',
+        provider: 'openai_compatible', reasoning: 'low' },
+      { base_url: 'https://api.deepseek.com', model_id: 'live-b', api_key: '',
+        provider: 'openai_compatible', reasoning: 'low' },
+    ]))
+    await screen.findByText('Saved model live-b.')
+  })
 
   it('waits to save a model choice when the key was edited', async () => {
     mockModelProvider()
@@ -911,7 +1046,7 @@ describe('saving model choices', () => {
       fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'live-b' } })
     })
     expect(modelPuts()).toEqual([{
-      provider: 'openai_compatible',
+      provider: 'openai_compatible', reasoning: 'default',
       base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: '',
     }])
     expect(screen.getByLabelText('Model')).toHaveValue('live-b')
@@ -925,7 +1060,7 @@ describe('saving model choices', () => {
       fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'live-b' } })
     })
     expect(modelPuts()).toEqual([{
-      provider: 'openai_compatible',
+      provider: 'openai_compatible', reasoning: 'default',
       base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: '',
     }])
     expect(screen.getByLabelText('Model')).toHaveValue('live-b')
@@ -947,7 +1082,7 @@ describe('saving model choices', () => {
       fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'live-b' } })
     })
     expect(modelPuts()).toEqual([{
-      provider: 'openai_compatible',
+      provider: 'openai_compatible', reasoning: 'default',
       base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: 'secret-3f9a',
     }])
     expect(screen.getByLabelText('Model')).toHaveValue('live-b')
@@ -958,8 +1093,8 @@ describe('saving model choices', () => {
     await testAndSave()
     fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'live-b' } })
     await waitFor(() => expect(modelPuts()).toEqual([
-      { base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: '', provider: 'openai_compatible' },
-      { base_url: 'https://api.deepseek.com', model_id: 'live-b', api_key: '', provider: 'openai_compatible' },
+      { base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: '', provider: 'openai_compatible', reasoning: 'default' },
+      { base_url: 'https://api.deepseek.com', model_id: 'live-b', api_key: '', provider: 'openai_compatible', reasoning: 'default' },
     ]))
     await waitFor(() => expect(within(modelSection()).getByRole('status').textContent)
       .toBe('Saved model live-b.'))
@@ -973,7 +1108,7 @@ describe('saving model choices', () => {
     await waitFor(() => expect(screen.getByLabelText('API key')).toHaveValue(''))
     fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'live-b' } })
     await waitFor(() => expect(modelPuts()[1]).toEqual(
-      { base_url: 'https://api.deepseek.com', model_id: 'live-b', api_key: '', provider: 'openai_compatible' }))
+      { base_url: 'https://api.deepseek.com', model_id: 'live-b', api_key: '', provider: 'openai_compatible', reasoning: 'default' }))
   })
 
   it('saves quick successive model choices in order', async () => {
@@ -998,9 +1133,9 @@ describe('saving model choices', () => {
         key_set: true, api_key_last4: '1234' }))
     })
     await waitFor(() => expect(modelPuts()).toEqual([
-      { base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: '', provider: 'openai_compatible' },
-      { base_url: 'https://api.deepseek.com', model_id: 'live-b', api_key: '', provider: 'openai_compatible' },
-      { base_url: 'https://api.deepseek.com', model_id: 'live-c', api_key: '', provider: 'openai_compatible' },
+      { base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: '', provider: 'openai_compatible', reasoning: 'default' },
+      { base_url: 'https://api.deepseek.com', model_id: 'live-b', api_key: '', provider: 'openai_compatible', reasoning: 'default' },
+      { base_url: 'https://api.deepseek.com', model_id: 'live-c', api_key: '', provider: 'openai_compatible', reasoning: 'default' },
     ]))
     await waitFor(() => expect(within(modelSection()).getByRole('status').textContent)
       .toBe('Saved model live-c.'))
@@ -1025,9 +1160,9 @@ describe('saving model choices', () => {
     await waitFor(() => expect(within(modelSection()).getByRole('status').textContent)
       .toBe('Saved model live-c.'))
     expect(modelPuts()).toEqual([
-      { base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: '', provider: 'openai_compatible' },
-      { base_url: 'https://api.deepseek.com', model_id: 'live-b', api_key: '', provider: 'openai_compatible' },
-      { base_url: 'https://api.deepseek.com', model_id: 'live-c', api_key: '', provider: 'openai_compatible' },
+      { base_url: 'https://api.deepseek.com', model_id: 'live-a', api_key: '', provider: 'openai_compatible', reasoning: 'default' },
+      { base_url: 'https://api.deepseek.com', model_id: 'live-b', api_key: '', provider: 'openai_compatible', reasoning: 'default' },
+      { base_url: 'https://api.deepseek.com', model_id: 'live-c', api_key: '', provider: 'openai_compatible', reasoning: 'default' },
     ])
     expect(within(modelSection()).queryByRole('alert')).toBeNull()
   })

@@ -6,8 +6,9 @@ import { useDocumentTitle } from '../components/useDocumentTitle'
 import { Alert, Button, PageHead, Switch } from '../components/ui'
 
 type Provider = 'openai_compatible' | 'anthropic'
-type ModelSettings = { provider?: Provider; base_url: string; model_id: string; key_set: boolean; api_key_last4: string | null }
-type ModelSave = { provider: Provider; base_url: string; model_id: string; api_key: string }
+type Reasoning = 'default' | 'low' | 'off'
+type ModelSettings = { provider?: Provider; reasoning?: Reasoning; base_url: string; model_id: string; key_set: boolean; api_key_last4: string | null }
+type ModelSave = { provider: Provider; reasoning: Reasoning; base_url: string; model_id: string; api_key: string }
 type Preferences = { digest_language: string; youtube_captions: boolean; youtube_skip_shorts: boolean;
   show_images: boolean }
 type TestResult = { ok: true; models: string[] }
@@ -15,6 +16,7 @@ type Browser = { id: number; name: string; created_at: string; last_used_at: str
 type ConnectedBrowser = Omit<Browser, 'last_used_at'> & { token: string }
 type XSettings = { token_set: boolean; token_last4: string | null }
 const languageOptions = ['en', 'zh-Hans', 'original']
+const reasoningLabels = { default: 'Provider default', low: 'Low', off: 'Off' }
 const providerUrls = {
   openai_compatible: 'https://api.deepseek.com',
   anthropic: 'https://api.anthropic.com',
@@ -52,6 +54,8 @@ export default function Settings() {
   const [key, setKey] = useState('')
   const [last4, setLast4] = useState<string | null>(null)
   const [model, setModel] = useState('')
+  const [reasoning, setReasoning] = useState<Reasoning>('default')
+  const [savedReasoning, setSavedReasoning] = useState<Reasoning>('default')
   const [models, setModels] = useState<string[]>([])
   const [language, setLanguage] = useState('en')
   const [otherLanguage, setOtherLanguage] = useState('')
@@ -110,6 +114,8 @@ export default function Settings() {
       setSavedProvider(settings.provider ?? 'openai_compatible')
       setBaseUrl(settings.base_url)
       setModel(settings.model_id)
+      setReasoning(settings.reasoning ?? 'default')
+      setSavedReasoning(settings.reasoning ?? 'default')
       setModels(settings.model_id ? [settings.model_id] : [])
       setSavedModel(settings.model_id)
       setSavedModels(settings.model_id ? [settings.model_id] : [])
@@ -264,6 +270,7 @@ export default function Settings() {
         setLast4(saved.api_key_last4)
         setSavedBaseUrl(saved.base_url)
         setSavedProvider(saved.provider ?? values.provider)
+        setSavedReasoning(saved.reasoning ?? values.reasoning)
         setSavedModel(saved.model_id)
         setSavedModels(listedModels)
         setKey(current => current === values.api_key ? '' : current)
@@ -281,6 +288,7 @@ export default function Settings() {
     const testedBaseUrl = baseUrl
     const testedKey = key
     const testedProvider = provider
+    const testedReasoning = reasoning
     try {
       const result = await request<TestResult>('/settings/model/test', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -296,7 +304,8 @@ export default function Settings() {
         setModelStatus('Connection succeeded, but the provider listed no models. Nothing was saved.')
         return
       }
-      await queueModelSave({ base_url: testedBaseUrl, model_id: chosen, api_key: testedKey, provider: testedProvider },
+      await queueModelSave({ base_url: testedBaseUrl, model_id: chosen, api_key: testedKey,
+        provider: testedProvider, reasoning: testedReasoning },
         saved => (testedKey
           ? `Connection succeeded. Saved key ending in ${saved.api_key_last4} with model ${chosen}.`
           : `Connection succeeded. Saved model ${chosen}.`) +
@@ -309,8 +318,17 @@ export default function Settings() {
     setMessage(''); setSaveError('')
     setModel(choice)
     if (!key && baseUrl.trim() === savedBaseUrl && provider === savedProvider) {
-      void queueModelSave({ base_url: savedBaseUrl, model_id: choice, api_key: '', provider },
+      void queueModelSave({ base_url: savedBaseUrl, model_id: choice, api_key: '', provider, reasoning },
         () => `Saved model ${choice}.`, 'The model was not saved. ')
+    }
+  }
+
+  function chooseReasoning(choice: Reasoning) {
+    setMessage(''); setSaveError('')
+    setReasoning(choice)
+    if (!key && baseUrl.trim() === savedBaseUrl && provider === savedProvider && savedModel) {
+      void queueModelSave({ base_url: savedBaseUrl, model_id: model, api_key: '', provider, reasoning: choice },
+        () => `Saved reasoning: ${reasoningLabels[choice]}.`, 'The reasoning setting was not saved. ')
     }
   }
 
@@ -319,6 +337,7 @@ export default function Settings() {
     selectedProvider.current = choice
     setBaseUrl(choice === savedProvider ? savedBaseUrl ?? providerUrls[choice] : providerUrls[choice])
     setModel(choice === savedProvider ? savedModel : '')
+    setReasoning(choice === savedProvider ? savedReasoning : 'default')
     setModels(choice === savedProvider ? savedModels : [])
     setKey('')
     setError(''); setErrorField(null); setMessage(''); setSaveError('')
@@ -334,10 +353,11 @@ export default function Settings() {
     try {
       const saved = await request<ModelSettings>('/settings/model', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ base_url: baseUrl, model_id: model, api_key: key, provider }),
+        body: JSON.stringify({ base_url: baseUrl, model_id: model, api_key: key, provider, reasoning }),
       })
       setSavedBaseUrl(saved.base_url)
       setSavedProvider(saved.provider ?? provider)
+      setSavedReasoning(saved.reasoning ?? reasoning)
       setSavedModel(saved.model_id)
       setSavedModels(models)
       setLast4(saved.api_key_last4)
@@ -418,6 +438,15 @@ export default function Settings() {
           </select>
           {error && errorField === 'model' && <p className="field-error" id="model-select-error" role="alert">
             <Icon name="alert"/>{error}</p>}</div>
+        <div className="field"><label className="field-label" htmlFor="reasoning">Reasoning</label>
+          <select className="input select" id="reasoning" value={reasoning} aria-describedby="reasoning-hint"
+            onChange={event => chooseReasoning(event.target.value as Reasoning)}>
+            <option value="default">Provider default</option>
+            <option value="low">Low</option>
+            {provider === 'openai_compatible' && <option value="off">Off</option>}
+          </select>
+          <p className="field-hint" id="reasoning-hint">Less reasoning makes digests faster and cheaper. Summaries and topics may be less careful.</p>
+        </div>
       </SettingsSection>
       <SettingsSection number={2} title="Digest">
         <div className="field"><label className="field-label" htmlFor="lang">Digest language</label>

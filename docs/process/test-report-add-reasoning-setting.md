@@ -273,7 +273,9 @@ A scratch container from `catchup:fix4-local` (built from `0c9e593`) ran on its 
 
 In the browser, with Anthropic and Low saved, Settings showed the Reasoning select after Model, with the options "Provider default" and "Low" and the hint linked by `aria-describedby`; choosing "Provider default" sent one `PUT` and announced "Saved reasoning: Provider default."
 
-The container, its volume, the stub, and the browser tab were removed afterwards.
+After fix round 1, a second scratch container from `catchup:fix4-local` (built from `b7a82e8`) ran on port 8845 against a stub whose model list answered after 6 seconds. With Provider default saved, Claude clicked "Test connection" in the browser and chose "Low" while the test was still waiting. Two `PUT`s followed: the Reasoning choice's, then the test's; both answered `reasoning: "low"`, the select read Low, and the saved configuration read Low.
+
+The containers, their volumes, the stubs, and the browser tab were removed afterwards.
 
 ### Findings
 

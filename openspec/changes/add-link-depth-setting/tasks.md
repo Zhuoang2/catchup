@@ -64,7 +64,7 @@ Implementer notes:
 
 ## 3. The run uses the level (content-collection; design D2, D3, D4, D5)
 
-- [ ] 3.1 Write tests in `backend/tests/test_context_gather.py`, with a helper `set_level(client, level)` that writes `link_depth` on the `AppSettings` row with id 1. Import `AuthFailed` from `catchup.llm.client`, as `test_digest_runner.py` does.
+- [x] 3.1 Write tests in `backend/tests/test_context_gather.py`, with a helper `set_level(client, level)` that writes `link_depth` on the `AppSettings` row with id 1. Import `AuthFailed` from `catchup.llm.client`, as `test_digest_runner.py` does.
   - `test_shallow_reads_the_first_three_links` ("Shallow reads three links"): `setup(environment, [(f"https://h{i}.example/p", str(i)) for i in range(5)])`, level `shallow`, `stub_collection(monkeypatch)`; each site's robots.txt answers 404 and each page answers `html(str(i), "Linked text " * 40)`. The run succeeds; the page routes are called `[1, 1, 1, 0, 0]` times and the robots.txt routes `[1, 1, 1, 0, 0]` times; `(context_total, context_done) == (3, 3)`.
   - `test_shallow_follows_a_lower_server_setting` ("Shallow under a lower server setting"): three links on `https://docs.example/`, level `shallow`, `links_per_item=2` through `replace(environment.app.state.settings, ...)`. The pages are called `[1, 1, 0]` times.
   - `test_normal_follows_the_server_setting` ("Normal follows the server setting"): six links on `https://docs.example/`, level `normal`, `links_per_item=5`. The pages are called `[1, 1, 1, 1, 1, 0]` times.
@@ -75,12 +75,12 @@ Implementer notes:
   - `test_run_without_saved_digest_settings_reads_at_normal` ("No level saved", for an instance that saved a model with Test connection but never saved Settings): `setup(environment, [("https://docs.example/one", "One")])`, then delete the `AppSettings` row with id 1 through `environment.app.state.session_factory()`; `stub_collection(monkeypatch)`; robots.txt answers 404 and the page answers `html("One", "Linked text " * 40)`. The run succeeds and requests the page once.
 
   Verify: `test_shallow_reads_the_first_three_links`, `test_off_makes_no_context_request`, `test_off_keeps_saved_replies`, `test_item_left_by_off_is_read_later`, and `test_level_saved_during_a_run_applies_to_the_next_run` fail on the code of group 2, because the run ignores the level. `test_shallow_follows_a_lower_server_setting`, `test_normal_follows_the_server_setting`, and `test_run_without_saved_digest_settings_reads_at_normal` pass already, because Normal reads the same links; mutations L4, L7, and R3 show that they can fail.
-- [ ] 3.2 Implement design D2 and D3:
+- [x] 3.2 Implement design D2 and D3:
   - `gather_context(factory, run_id, settings, spacer, level="normal")` in `backend/src/catchup/context/gather.py` computes `limits = context_limits(level, settings)` and uses `limits.fetches_per_run` for the budget (`gather.py:109`), `limits.links_per_item` in the `related_links` call of the plan (`:126-130`), and `limits.author_replies` in place of `settings.author_replies` (`:131`). Change nothing else in the pass;
   - `run_digest` in `backend/src/catchup/digest/runner.py` reads `link_depth` from the same `AppSettings` row as the language (`runner.py:259-262`), `"normal"` without a row, and passes `level=link_depth` to `gather_context` (`runner.py:353`).
 
   Verify: the tests from 3.1 pass, and `uv run --offline pytest` passes in `backend/`, with every existing test in `test_context_gather.py` and `test_digest_runner.py` unchanged. Mutations G1, R1, R2, and R3, and L1, L3, L4, and L7 again, each fail the run tests named in design "Testing". Restore the code after each.
-- [ ] 3.3 Document the levels in `README.md`:
+- [x] 3.3 Document the levels in `README.md`:
   - after the sentence "Pages that cannot be read are skipped without failing the digest.", which ends the context paragraph that names `CATCHUP_AUTHOR_REPLIES` (wrapped over `README.md:703-705`), add this paragraph as a single unwrapped line. `test_readme_context.py` matches exact phrases, so a line break inside a checked phrase fails it:
 
     > Settings → Digest → **Linked pages** chooses how much of this a run reads. **Normal**, the default, reads up to `CATCHUP_LINKS_PER_ITEM` links per item, and author replies. **Shallow** reads up to 3 links per item, or fewer when `CATCHUP_LINKS_PER_ITEM` is lower, and author replies. **Off** sends no context request at all, so no linked pages or author replies are read; replies saved with a page from the browser, or kept from a followed X account's thread, are still used. Every level keeps the per-run limit. A run uses the level saved when it starts.

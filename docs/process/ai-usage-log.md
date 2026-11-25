@@ -2979,3 +2979,9 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - **Spec sub-agent:** no behavior defect; all 15 named mutation runs failed their tests. Claude verified its findings: the merge limit was tested at one value on a plateau (`topic_limit` is 5 for 9 to 12 items) and the merge input's counts only where each batch answered one topic, so mutations that hard-code 5, use one item fewer, or count the batch instead of the topic passed the suite. Claude added `test_merge_limit_and_counts_follow_the_items_of_each_topic` (13 items in batches of 5, 5, and 3; limit 6; counts 3, 2, 5, 3), and showed each of those three mutations fails it. The order of the text's parts, a key's place in the merge input, and a double space are recorded as literal-string survivors. Two table rows in `tasks.md` lost their indent in Claude's plan fix; Claude restored it.
 - **Problems / adjustment:**
   - **The plan's batch fixture sat on a plateau of the limit formula,** so its merge-limit assertion could not tell the right count of items from a wrong one. Fixtures for a formula now need a value where neighbouring inputs give different results.
+
+## 2026-11-25 — Rename the `/ship` skill to `/merge-change` (Claude Code, Opus 5.5)
+
+- **Prompts** (translated from Chinese): after Claude reported that the Claude Code app now has a built-in `/ship` command with the same name as the user's skill, and suggested `/merge-change`: "Make the changes first."
+- **Outcome:** the Shipping section of `AGENTS.md` names the skill `/merge-change`, and D-035 has a follow-up line. The skill itself was renamed in the user's dotfiles.
+- **Problems / adjustment:** the app's built-in `/ship` pushes the branch and opens a PR, and only the user can start it. While both had the same name, Claude could not start the user's skill, and a session in another project followed its steps by hand.

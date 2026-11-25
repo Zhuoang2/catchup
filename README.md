@@ -259,6 +259,93 @@ or when your X access ends. Pages saved separately with the extension's
 **model provider** for summarization, as with other sources. X's rules do not
 explicitly say whether such a provider counts as a third party.
 
+## Bilibili uploaders
+
+Follow an uploader by pasting its space address, such as
+`https://space.bilibili.com/2267573`, on Sources or using the extension's
+**Follow this site**. CatchUp never contacts Bilibili; your RSSHub makes
+those requests. It reads the uploader's JSON Feed and summarizes videos
+only from subtitles included in that feed, never from video descriptions.
+Without subtitles, a video waits for `CATCHUP_CAPTION_WAIT_HOURS` (default
+24 hours), then appears in Creator updates as **No subtitles from RSSHub**.
+CatchUp does not download video or audio, or collect Bilibili images,
+comments, or linked pages.
+
+**Bilibili's user agreement, section 5.6(3), updated 2025-04-30, forbids
+getting its content with automated programs without Bilibili's written
+permission, for any reason. You take that risk when using your RSSHub.**
+RSSHub gets subtitles only with your own logged-in Bilibili cookie.
+Keep that cookie only in RSSHub's settings: CatchUp never asks for or
+stores it. For the Compose setup below, configure `BILIBILI_COOKIE_<uid>`
+(your logged-in account's numeric id, not the uploader's) in `.env.rsshub`.
+Keep this file private and do not commit or share it. Using the cookie
+can put your Bilibili account at risk.
+
+We recommend running your own RSSHub. A public RSSHub instance receives
+the ids of the uploaders you follow, publishes no terms, and may not
+return subtitles. Instances on Cloudflare Workers do not return subtitles.
+
+### Optional RSSHub beside CatchUp
+
+First complete the [Docker installation](#run-with-docker), including
+creating the private `.env` with your instance secret. Work from that
+installation directory, not `backend/`.
+
+Bilibili uploaders need a CatchUp version that includes them. Until the
+`latest` image does, use the `edge` image or a source build: an older
+CatchUp would request the pasted Bilibili address itself.
+
+For a **published-image install**, download `compose.rsshub.yaml` next to
+`compose.yaml`:
+
+```sh
+curl -fsSLo compose.rsshub.yaml https://raw.githubusercontent.com/Zhuoang2/catchup/main/compose.rsshub.yaml
+```
+
+This install has no `COMPOSE_FILE` line yet. Add the following line to
+your existing `.env`, keeping its instance secret:
+
+```dotenv
+COMPOSE_FILE=compose.yaml:compose.rsshub.yaml
+```
+
+Then start both services and wait for CatchUp's health check:
+
+```sh
+docker compose up -d --wait
+```
+
+For a **source build**, the override is already in the checkout. Change
+the existing `COMPOSE_FILE=compose.yaml:compose.build.yaml` line in `.env`
+to the following, rather than adding a second `COMPOSE_FILE` line:
+
+```dotenv
+COMPOSE_FILE=compose.yaml:compose.build.yaml:compose.rsshub.yaml
+```
+
+Then rebuild and start both services:
+
+```sh
+docker compose up -d --build --wait
+```
+
+The optional override sets `CATCHUP_RSSHUB_URL=http://rsshub:1200` for
+CatchUp and runs `diygod/rsshub:latest` without publishing an RSSHub port.
+That image is a third-party download from Docker Hub; CatchUp does not build
+or publish it. As of 2026-11-22, it is about 130–133 MB compressed
+(amd64/arm64).
+If uploader lists fail and need RSSHub's browser fallback, change its `image`
+in `compose.rsshub.yaml` to `diygod/rsshub:chromium-bundled`, about 391–507 MB
+compressed depending on architecture, then run the appropriate start command
+above again. The browser fallback may be slow; a later manual digest run can
+use RSSHub's cached result.
+
+To use an RSSHub you already run instead of this override, set
+`CATCHUP_RSSHUB_URL` in the CatchUp process environment and restart it.
+For example, use `https://rsshub.example/hub`; a path prefix is allowed,
+but credentials, a query, or a fragment are not. This is an operator
+environment setting, not a CatchUp Settings field.
+
 ## Run with Docker
 
 Install Docker with Compose **2.24 or newer**. No local Python, uv, or Node
@@ -598,6 +685,9 @@ limited to `CATCHUP_CAPTIONS_PER_RUN` (default 20); deferred videos stay
 pending. Shorts are skipped by default, unless you switch off Skip Shorts
 in Settings. Creator updates show a reason for missing transcripts or captions
 without sending show notes or descriptions to the model.
+
+Bilibili uploaders are supported through an RSSHub you run and configure;
+see [Bilibili uploaders](#bilibili-uploaders) for setup and the terms risk.
 
 For website items, CatchUp reads related links and author replies from public pages
 only. Context fetches honor each site's robots.txt, including the sites that

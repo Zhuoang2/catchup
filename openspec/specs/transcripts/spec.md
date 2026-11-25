@@ -11,7 +11,7 @@ The system SHALL classify each saved source as a website feed, a podcast, or a Y
 - a podcast when more than half of its entries carry audio enclosures
 - otherwise a website feed
 
-The built-in source for pages saved from the browser is a fourth kind, "Saved from browser". A followed X account is a fifth kind, "X account". Neither is ever classified or reclassified, because neither has a feed.
+The built-in source for pages saved from the browser is a fourth kind, "Saved from browser". A followed X account is a fifth kind, "X account". A followed Bilibili uploader is a sixth kind, "Bilibili uploader". None of these three is ever classified or reclassified: the first two have no feed, and an uploader is recognized from its address.
 
 The classification MUST be refreshed on every successful check, so sources saved before this capability existed are classified on their next check. Their pending items are then handled as podcast or YouTube items. A source classified as a podcast or YouTube channel MUST NOT be reclassified as a website feed by a later check.
 
@@ -48,6 +48,10 @@ Within a podcast source, only entries that carry an audio enclosure are episodes
 #### Scenario: X account source
 - **WHEN** the user follows an X account
 - **THEN** its source has the kind "X account", and no check reclassifies it
+
+#### Scenario: Bilibili uploader source
+- **WHEN** the user follows a Bilibili uploader
+- **THEN** its source has the kind "Bilibili uploader", and no check reclassifies it
 
 ### Requirement: Use published podcast transcripts
 For a podcast episode, the system SHALL use a transcript the feed publishes for that episode, and SHALL consider every transcript the episode lists:
@@ -166,12 +170,13 @@ YouTube caption requests SHALL be made for one video at a time, after all source
 - **THEN** its captions are still requested on that next run, within the limit
 
 ### Requirement: Record why a transcript is unavailable
-For every podcast or YouTube item that ends without a transcript, the system SHALL record one reason:
+For every podcast, YouTube, or Bilibili item that ends without a transcript, the system SHALL record one reason:
 - caption fetching is off
 - the video has no captions
 - blocked by YouTube
 - captions could not be fetched
 - no transcript within N days
+- no subtitles from RSSHub (Bilibili videos only)
 
 "Blocked by YouTube" MUST be distinguished from "the video has no captions". Any other caption failure, including unexpected errors, is "captions could not be fetched".
 
@@ -186,6 +191,10 @@ For every podcast or YouTube item that ends without a transcript, the system SHA
 #### Scenario: Unexpected response format
 - **WHEN** caption fetching is on and the caption library fails with an unexpected error for one video
 - **THEN** that video's recorded reason is "captions could not be fetched" and the run continues
+
+#### Scenario: Bilibili video without subtitles
+- **WHEN** a Bilibili video still has no subtitles from RSSHub when its subtitle wait ends
+- **THEN** the recorded reason is "no subtitles from RSSHub"
 
 ### Requirement: Skip YouTube Shorts by default
 The system SHALL skip YouTube Shorts unless the user turns off "skip Shorts" in Settings. The setting MUST be on by default. A skipped Short MUST be recorded as already seen. It never appears in a digest, neither summarized nor under Creator updates, and no caption request is made for it. This includes Shorts that were pending before this capability existed.

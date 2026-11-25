@@ -6,6 +6,13 @@ import { Alert, Button, Chip, KindBadge, PageHead, Progress, Rail, ReasonLabel,
 import { useJump } from './useJump'
 
 describe('shared components', () => {
+  it('names the Bilibili kind and the no-subtitles reason', async () => {
+    const { container } = render(<><KindBadge kind="bilibili"/><ReasonLabel reason="no_subtitles"/></>)
+    expect(screen.getByText('Bilibili uploader')).toBeInTheDocument()
+    expect(screen.getByText('No subtitles from RSSHub')).toBeInTheDocument()
+    await expectAccessible(container)
+  })
+
   it('limits the switch label to the track and text and links its description', async () => {
     const { container } = render(<><Switch label="Fetch captions locally" checked={false}
       onChange={() => {}} describedBy="risk"/><p id="risk">Caption fetching may be blocked.</p></>)

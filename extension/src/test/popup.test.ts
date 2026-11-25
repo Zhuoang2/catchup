@@ -70,6 +70,29 @@ function mockXTokenFlow(save = async () => response(200, { token_set: true, toke
   })
 }
 
+it('labels a bilibili preview as Bilibili uploader and shows its space address', async () => {
+  connect()
+  chromeMock.tabs.query.mockResolvedValue([{
+    id: 1, url: 'https://space.bilibili.com/2267573', title: 'Uploader space',
+  }])
+  fetchMock.mockImplementation(async (url: string) => url.endsWith('/preview')
+    ? response(200, { ...preview, title: 'Sample Uploader', kind: 'bilibili',
+      feed_url: 'bilibili:uploader:2267573', site_url: 'https://space.bilibili.com/2267573',
+      follows_site_feed_notice: false, captions_enabled: false })
+    : url.endsWith('/sources') ? response(201, { id: 12 }) : response(200, { waiting: 3 }))
+  await initPopup()
+  fireEvent.click(screen.getByRole('button', { name: 'Follow this site' }))
+  await screen.findByRole('heading', { name: 'Sample Uploader' })
+  expect(screen.getByText('Bilibili uploader')).toBeInTheDocument()
+  expect(screen.getByText('https://space.bilibili.com/2267573')).toBeInTheDocument()
+  expect(document.body).not.toHaveTextContent('bilibili:uploader:2267573')
+  expect((await axe(document.body, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([])
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+  await screen.findByText('Source saved.')
+  const confirm = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/api/sources'))
+  expect(JSON.parse(confirm?.[1].body as string)).toEqual({ feed_url: 'bilibili:uploader:2267573' })
+})
+
 // Guard: opening connected must not move the user's initial focus.
 it('does not move focus when the popup opens connected', async () => {
   connect()

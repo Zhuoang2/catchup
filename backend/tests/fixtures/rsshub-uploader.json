@@ -1,0 +1,57 @@
+{
+  "version": "https://jsonfeed.org/version/1.1",
+  "title": "Sample Uploader 的 bilibili 空间",
+  "home_page_url": "https://space.bilibili.com/2267573",
+  "items": [
+    {
+      "id": "https://www.bilibili.com/video/BV1aa411c7aA",
+      "url": "https://www.bilibili.com/video/BV1aa411c7aA",
+      "title": "Video with subtitles",
+      "date_published": "2026-11-21T10:00:00.000Z",
+      "content_html": "<iframe src=\"https://player.bilibili.com/player.html?bvid=BV1aa411c7aA\"></iframe><img src=\"https://i0.hdslb.com/cover-a.jpg\"><br>Description A",
+      "authors": [
+        {
+          "name": "Sample Uploader"
+        }
+      ],
+      "attachments": [
+        {
+          "url": "https://www.bilibili.com/blackboard/html5player.html?bvid=BV1aa411c7aA",
+          "mime_type": "text/html"
+        },
+        {
+          "url": "data:text/plain;charset=utf-8,1%0A00%3A00%3A01%2C000%20--%3E%2000%3A00%3A04%2C000%0AHello%0A%0A2%0A00%3A00%3A04%2C000%20--%3E%2000%3A00%3A06%2C000%0Aworld%0A",
+          "mime_type": "text/srt",
+          "title": "字幕 - 中文"
+        },
+        {
+          "url": "data:text/plain;charset=utf-8,1%0A00%3A00%3A01%2C000%20--%3E%2000%3A00%3A04%2C000%0ASecond%20track%0A",
+          "mime_type": "text/srt"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bilibili.com/video/BV1bb411c7bB",
+      "title": "Video without subtitles",
+      "content_html": "Description B",
+      "date_published": "2026-11-20T10:00:00.000Z",
+      "attachments": [
+        {
+          "url": "https://www.bilibili.com/video/BV1bb411c7bB",
+          "mime_type": "text/html"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bilibili.com/video/av170001",
+      "title": "Old video",
+      "content_html": "Description C",
+      "date_published": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "url": "https://space.bilibili.com/2267573/article",
+      "title": "Not a video",
+      "content_html": "x"
+    }
+  ]
+}

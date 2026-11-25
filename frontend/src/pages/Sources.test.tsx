@@ -35,6 +35,48 @@ afterEach(() => {
 })
 
 describe('sources', () => {
+  it('previews a Bilibili uploader with its space address and the terms note', async () => {
+    fetchMock.mockImplementation(async (path: string) => path === '/api/sources'
+      ? respond([])
+      : respond({ ...preview, feed_url: 'bilibili:uploader:2267573',
+        site_url: 'https://space.bilibili.com/2267573', title: 'Sample Uploader',
+        kind: 'bilibili', follows_site_feed_notice: false, captions_enabled: false }))
+    const { container } = page()
+    fireEvent.change(screen.getByLabelText('Website or feed URL'),
+      { target: { value: 'https://space.bilibili.com/2267573' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    const region = await screen.findByRole('region', { name: 'Source preview' })
+    expect(region).toHaveTextContent('Bilibili uploader')
+    expect(region).toHaveTextContent(
+      'Subtitles read through your RSSHub; videos without subtitles are listed without summaries')
+    expect(region).toHaveTextContent("Bilibili's user agreement does not allow automated access")
+    expect(region).toHaveTextContent('your RSSHub makes those requests')
+    expect(within(region).getByRole('link', { name: 'https://space.bilibili.com/2267573' }))
+      .toHaveAttribute('href', 'https://space.bilibili.com/2267573')
+    expect(region).not.toHaveTextContent('bilibili:uploader:2267573')
+    expect(within(region).queryByText('Feed')).toBeNull()
+    await expectAccessible(container)
+  })
+
+  it('shows a Bilibili uploader by its space address', async () => {
+    fetchMock.mockResolvedValue(respond([{ ...saved, title: 'Sample Uploader', kind: 'bilibili',
+      site_url: 'https://space.bilibili.com/2267573', feed_url: 'bilibili:uploader:2267573' }]))
+    const { container } = page()
+    const row = (await screen.findByRole('button', { name: 'Delete Sample Uploader' })).closest('li')!
+    expect(row).toHaveTextContent('Bilibili uploader')
+    expect(row).toHaveTextContent('https://space.bilibili.com/2267573')
+    expect(row).not.toHaveTextContent('bilibili:uploader:2267573')
+    expect(within(row).getByText('https://space.bilibili.com/2267573'))
+      .toHaveAttribute('title', 'https://space.bilibili.com/2267573')
+    await expectAccessible(container)
+  })
+
+  it('lists Bilibili uploaders among what you can add', async () => {
+    page()
+    await screen.findByText('No sources yet')
+    expect(screen.getByText('Bilibili uploaders — through an RSSHub you run')).toBeInTheDocument()
+  })
+
   it('shows loading progress and ignores Preview while a preview loads', async () => {
     let finish!: (response: ReturnType<typeof respond>) => void
     const pending = new Promise<ReturnType<typeof respond>>(resolve => { finish = resolve })

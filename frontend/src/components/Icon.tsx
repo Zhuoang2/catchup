@@ -1,5 +1,5 @@
 type Name = 'generate' | 'sources' | 'history' | 'settings' | 'podcast' | 'youtube'
-  | 'feed' | 'capture' | 'x' | 'external' | 'check' | 'alert' | 'info' | 'clock'
+  | 'feed' | 'capture' | 'x' | 'bilibili' | 'external' | 'check' | 'alert' | 'info' | 'clock'
 
 const shapes: Record<Name, React.ReactNode> = {
   generate: <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>,
@@ -8,6 +8,7 @@ const shapes: Record<Name, React.ReactNode> = {
   settings: <><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 0 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></>,
   podcast: <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zM19 11a7 7 0 0 1-14 0M12 18v3"/>,
   youtube: <><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M10 9.5v5l4-2.5z"/></>,
+  bilibili: <><rect x="3" y="4" width="18" height="14" rx="1"/><path d="M10 8v6l5-3zM12 18v3M8 21h8"/></>,
   feed: <path d="M4 6h16M4 12h16M4 18h10"/>,
   capture: <path d="M6 3h9l4 4v14H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM15 3v5h5M8 12h8M8 16h6"/>,
   x: <path d="M4 3h3l13 18h-3L4 3zM4 21 20 3"/>,

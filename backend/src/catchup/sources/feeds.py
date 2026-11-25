@@ -293,6 +293,7 @@ class FeedEntry:
     comment_count: int | None = None
     author: str | None = None
     images: tuple[EntryImage, ...] = ()
+    transcript_text: str | None = None
 
 
 @dataclass(frozen=True)
@@ -303,6 +304,7 @@ class Feed:
     entries: list[FeedEntry]
     youtube_host: bool = False
     audio_share: float = 0.0
+    source_kind: str | None = None
 
     @property
     def shared_links(self) -> set[str]:
@@ -311,6 +313,8 @@ class Feed:
 
     @property
     def kind(self) -> str:
+        if self.source_kind is not None:
+            return self.source_kind
         if self.youtube_host:
             return "youtube"
         if self.audio_share > 0.5:

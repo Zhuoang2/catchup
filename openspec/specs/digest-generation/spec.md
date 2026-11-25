@@ -222,6 +222,7 @@ A saved digest SHALL contain a "Creator updates" section after the topic summari
   - blocked by YouTube
   - captions could not be fetched
   - no transcript within N days, where N is the wait in effect when the digest was saved
+  - no subtitles from RSSHub, for a Bilibili video
 
 A digest MUST be saved when the run includes only such items. It then contains only the Creator updates section. The system MUST NOT call the model for these items, and MUST NOT show their show notes or descriptions.
 
@@ -244,6 +245,10 @@ A digest MUST be saved when the run includes only such items. It then contains o
 #### Scenario: Blocked and missing captions shown differently
 - **WHEN** one video's caption request is blocked by YouTube and another video has no captions
 - **THEN** Creator updates shows "blocked by YouTube" for the first and "the video has no captions" for the second
+
+#### Scenario: Bilibili video past the subtitle wait
+- **WHEN** a Bilibili video has no subtitles from RSSHub when its subtitle wait ends
+- **THEN** the next saved digest lists it under its uploader in Creator updates with the reason "no subtitles from RSSHub", and no model call is made for it
 
 ### Requirement: Summarize long texts in full
 The system SHALL summarize an item's entire text. The single-call budget is computed in characters from the selected model's context window:

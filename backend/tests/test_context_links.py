@@ -96,3 +96,11 @@ def test_unparsable_link_is_skipped():
     bad = EntryLink("http://[x", "Bad")
     good = EntryLink("https://docs.example/changelog", "Changelog")
     assert related_links(ITEM, SITE, [bad, good], 8) == [good]
+
+
+def test_related_links_skip_bilibili_hosts():
+    links = [EntryLink(url, "Link") for url in (
+        "https://www.bilibili.com/video/BV1xx411c7mD", "https://b23.tv/abc123",
+        "https://space.bilibili.com/2267573", "https://i0.hdslb.com/a.png", "https://example.com/a",
+    )]
+    assert related_links(ITEM, SITE, links, 8) == [links[-1]]

@@ -13,6 +13,7 @@ from catchup.models import Item, Source, SourceCheck, utc_now
 from catchup.net.host_spacing import HostSpacer
 from catchup.net.safe_fetch import FetchError, safe_fetch
 from catchup.sources.feeds import FeedEntry, FeedParseError, is_short, parse_feed
+from catchup.sources.bilibili import fetch_uploader, parse_uploader_feed
 from catchup.transcripts.context import TranscriptContext
 from catchup.transcripts.convert import convert_transcript
 
@@ -78,8 +79,13 @@ def check_source(session: Session, source: Source, run_id: int, settings: Settin
                  transcripts: TranscriptContext | None = None) -> SourceCheck:
     """Check one saved source; persist its items and outcome in one transaction."""
     try:
-        response = safe_fetch(source.feed_url, spacer=spacer, max_bytes=settings.max_feed_bytes)
-        feed = parse_feed(response)
+        if source.kind == "bilibili":
+            mid = source.feed_url.removeprefix("bilibili:uploader:")
+            response = fetch_uploader(mid, settings, spacer=spacer)
+            feed = parse_uploader_feed(response, mid)
+        else:
+            response = safe_fetch(source.feed_url, spacer=spacer, max_bytes=settings.max_feed_bytes)
+            feed = parse_feed(response)
     except (FetchError, FeedParseError) as exc:
         now = utc_now()
         check = SourceCheck(
@@ -109,6 +115,13 @@ def check_source(session: Session, source: Source, run_id: int, settings: Settin
                 Item.transcript_status.in_(("to_fetch", "waiting")) | Item.transcript_status.is_(None),
             ))
         }
+    elif source.kind == "bilibili":
+        by_key = {
+            item.identity_key: item for item in session.scalars(select(Item).where(
+                Item.source_id == source.id, Item.state == "pending",
+                Item.transcript_status == "subtitle_wait",
+            ))
+        }
     fallback_links = {source.feed_url, feed.feed_url} | feed.shared_links
     links = {item.link for item in known if item.link not in fallback_links}
     matched_previous = any(
@@ -131,15 +144,26 @@ def check_source(session: Session, source: Source, run_id: int, settings: Settin
                     prior.transcript_status = "text"
                     prior.summary = None
                     prior.summary_language = None
+        if source.kind == "bilibili" and (prior := by_key.get(entry.identity_key)) is not None:
+            if entry.transcript_text:
+                prior.transcript_status = "found"
+                prior.content_text = entry.transcript_text
+                prior.content_origin = "transcript"
+                prior.summary = None
+                prior.summary_language = None
         if entry.identity_key in seen_keys or (entry.link not in fallback_links and entry.link in seen_links):
             continue
         transcript_status = ("to_fetch" if source.kind == "youtube" or
                              (source.kind == "podcast" and entry.has_audio) else
                              "text" if source.kind == "podcast" else None)
+        if source.kind == "bilibili":
+            transcript_status = "found" if entry.transcript_text else "subtitle_wait"
         text, origin = (
             article_text(entry, fallback_links, settings.short_text_chars, spacer=spacer)
             if transcript_status in (None, "text") else (entry.content_text, "feed")
         )
+        if source.kind == "bilibili" and entry.transcript_text:
+            text, origin = entry.transcript_text, "transcript"
         skip_shorts = transcripts.youtube_skip_shorts if transcripts else True
         state = ("baseline" if source.kind == "youtube" and skip_shorts and is_short(entry.link)
                  else "pending")

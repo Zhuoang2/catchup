@@ -675,3 +675,112 @@ def test_time_in_allow_does_not_count_against_the_deadline(resolve, monkeypatch)
     with respx.mock(assert_all_mocked=True) as router:
         router.get(PUBLIC).mock(return_value=httpx.Response(200, content=b"ok"))
         assert safe_fetch(PUBLIC, allow=allow).content == b"ok"
+
+
+@pytest.mark.parametrize("url", [
+    "https://www.bilibili.com/video/BV1xx411c7mD",
+    "https://space.bilibili.com/2267573",
+    "https://b23.tv/abc123",
+    "https://i0.hdslb.com/bfs/cover.jpg",
+    "https://upos-sz.bilivideo.com/video.mp4",
+    "https://BILIBILI.COM./video/x",
+])
+def test_bilibili_hosts_are_refused_before_dns(monkeypatch, url):
+    hosts = []
+    monkeypatch.setattr(socket, "getaddrinfo", lambda host, *args, **kwargs: hosts.append(host) or [])
+    with pytest.raises(FetchError) as error:
+        safe_fetch(url)
+    assert (error.value.code, str(error.value)) == (
+        "blocked_address", "Bilibili pages are never requested; uploaders are read through RSSHub.",
+    )
+    assert hosts == []
+
+
+def test_lookalike_hosts_are_not_bilibili():
+    from catchup.net.bilibili_hosts import is_bilibili_host
+
+    for host in ("notbilibili.com", "bilibili.com.example", "b23.tv.example", None):
+        assert not is_bilibili_host(host)
+    for host in ("bilibili.com", "www.bilibili.com.", "B23.TV"):
+        assert is_bilibili_host(host)
+
+
+def test_redirect_to_bilibili_is_refused(resolve):
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get(PUBLIC).respond(301, headers={"location": "https://www.bilibili.com/video/BV1xx411c7mD"})
+        blocked = router.get(re.compile(
+            r"https?://([^/]*\.)?(bilibili\.com|b23\.tv|hdslb\.com|bilivideo\.com)(:\d+)?/.*"
+        )).mock(side_effect=AssertionError("Bilibili must never be requested"))
+        with pytest.raises(FetchError) as error:
+            safe_fetch(PUBLIC)
+        assert error.value.code == "blocked_address"
+        assert blocked.call_count == 0
+
+
+def test_private_origin_allows_only_that_origin(resolve):
+    resolve["rsshub.test"] = ["10.0.0.7"]
+    url = "http://rsshub.test:1200/bilibili/user/video/2267573?format=json"
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get(url).respond(200, content=b"uploader")
+        blocked = router.get(re.compile(
+            r"https?://([^/]*\.)?(bilibili\.com|b23\.tv|hdslb\.com|bilivideo\.com)(:\d+)?/.*"
+        )).mock(side_effect=AssertionError("Bilibili must never be requested"))
+        assert safe_fetch(url, private_origin="http://rsshub.test:1200").content == b"uploader"
+        with pytest.raises(FetchError) as error:
+            safe_fetch(url)
+        assert error.value.code == "blocked_address"
+        assert blocked.call_count == 0
+
+
+@pytest.mark.parametrize("url,origin,allowed", [
+    ("http://rsshub.test:1201/x", "http://rsshub.test:1200", False),
+    ("http://other.test:1200/x", "http://rsshub.test:1200", False),
+    ("https://rsshub.test:1200/x", "http://rsshub.test:1200", False),
+    ("http://RSSHUB.test:80/x", "http://rsshub.test", True),
+], ids=["other-port", "other-host", "other-scheme", "default-port"])
+def test_private_origin_is_exact(resolve, url, origin, allowed):
+    resolve.update({"rsshub.test": ["10.0.0.7"], "other.test": ["10.0.0.7"]})
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        route = router.get(url).respond(200, content=b"ok")
+        blocked = router.get(re.compile(
+            r"https?://([^/]*\.)?(bilibili\.com|b23\.tv|hdslb\.com|bilivideo\.com)(:\d+)?/.*"
+        )).mock(side_effect=AssertionError("Bilibili must never be requested"))
+        if allowed:
+            assert safe_fetch(url, private_origin=origin).content == b"ok"
+        else:
+            with pytest.raises(FetchError) as error:
+                safe_fetch(url, private_origin=origin)
+            assert error.value.code == "blocked_address"
+            assert route.call_count == 0
+        assert blocked.call_count == 0
+
+
+@pytest.mark.parametrize("target", ["http://rsshub.test:1200/b", "http://10.0.0.5/feed"])
+def test_private_origin_does_not_follow_redirects(resolve, target):
+    resolve.update({"rsshub.test": ["10.0.0.7"], "10.0.0.5": ["10.0.0.5"]})
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("http://rsshub.test:1200/a").respond(302, headers={"location": target})
+        destination = router.get(target).respond(200)
+        blocked = router.get(re.compile(
+            r"https?://([^/]*\.)?(bilibili\.com|b23\.tv|hdslb\.com|bilivideo\.com)(:\d+)?/.*"
+        )).mock(side_effect=AssertionError("Bilibili must never be requested"))
+        with pytest.raises(FetchError) as error:
+            safe_fetch("http://rsshub.test:1200/a", private_origin="http://rsshub.test:1200")
+        assert error.value.code == "blocked_address"
+        assert destination.call_count == blocked.call_count == 0
+
+
+def test_private_origin_connect_check_is_exact(monkeypatch, failed_connections):
+    monkeypatch.setattr(socket, "getaddrinfo", lambda host, port, **kwargs: _dns_answers(["10.0.0.7"], port))
+    with pytest.raises(FetchError) as error:
+        safe_fetch("http://rsshub.test:1200/x", private_origin="http://rsshub.test:1200")
+    assert error.value.code == "fetch_failed"
+    assert failed_connections == [("10.0.0.7", 1200)]
+
+    failed_connections.clear()
+    answers = iter([["8.8.8.8"], ["127.0.0.1"]])
+    monkeypatch.setattr(socket, "getaddrinfo", lambda host, port, **kwargs: _dns_answers(next(answers), port))
+    with pytest.raises(FetchError) as error:
+        safe_fetch("http://public.example/feed", private_origin="http://rsshub.test:1200")
+    assert error.value.code == "blocked_address"
+    assert failed_connections == []

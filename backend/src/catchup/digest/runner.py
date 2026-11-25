@@ -35,7 +35,7 @@ from catchup.transcripts.youtube import fetch_captions
 ACTIVE = ("queued", "collecting", "summarizing", "grouping")
 _start_lock = threading.Lock()
 logger = logging.getLogger(__name__)
-CREATOR_REASONS = {"captions_off", "no_captions", "blocked", "captions_failed", "no_transcript"}
+CREATOR_REASONS = {"captions_off", "no_captions", "blocked", "captions_failed", "no_transcript", "no_subtitles"}
 CHECK_FAILED_MESSAGE = "Could not check this source."
 
 
@@ -55,9 +55,12 @@ def select_pending(rows, now, transcript_wait_days: int, caption_wait_hours: int
                 updates.append((item.id, "no_transcript"))
             else:
                 waiting += 1
-        elif status in ("caption_wait", "unplayable_wait"):
+        elif status in ("caption_wait", "unplayable_wait", "subtitle_wait"):
             if item.discovered_at + timedelta(hours=caption_wait_hours) <= now:
-                updates.append((item.id, "no_captions" if status == "caption_wait" else "captions_failed"))
+                updates.append((item.id, {
+                    "caption_wait": "no_captions", "unplayable_wait": "captions_failed",
+                    "subtitle_wait": "no_subtitles",
+                }[status]))
             else:
                 waiting += 1
         elif status in (None, "to_fetch") and source.kind == "youtube":

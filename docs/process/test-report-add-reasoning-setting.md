@@ -242,3 +242,47 @@ checkboxes were edited. No temporary helper files or debug instrumentation
 were created. No Docker/smoke/live check, real-provider request, secret
 access, port 8800, container/volume change or publishing action occurred.
 Docker smoke and live checks remain with Claude Code review.
+
+## Review by Claude Code
+
+Reviewed in worktree `review4` on the branch. Droid's first run started at the plan commit `310e23d` and ended at `0c9e593`; fix round 1 started at its plan commit `9794c2a` (with fresh-eyes fixes in `078f8e9`) and ended at `b7a82e8`.
+
+### Checks
+
+| Check | Result |
+| --- | --- |
+| Backend `uv run --offline pytest` | 1307 passed on `0c9e593`; 1309 with Claude's review tests (`e3c8abc`) and after fix round 1 |
+| Frontend `npm test -- --run`, `npm run build` | 345 passed on `0c9e593`, 346 with Claude's review test, 349 after fix round 1; build passed |
+| Extension `npm test -- --run`, `npm run build` | 169 passed; build passed |
+| `DO_NOT_TRACK=1 openspec validate add-reasoning-setting --strict` | valid |
+| `git diff --check 310e23d..HEAD` | clean |
+| `scripts/docker-smoke.sh catchup:fix4-local` (built from `0c9e593`, then from `b7a82e8`) | 12 of 12 both times |
+
+### Live check
+
+A scratch container from `catchup:fix4-local` (built from `0c9e593`) ran on its own volume and port 8844, with a local stub on the host that answered both the OpenAI-compatible chat API and the Anthropic Messages API (as a stream) and recorded every request body. Each run summarized two pages saved through the extension API.
+
+| Setting | Requests | Run |
+| --- | --- | --- |
+| OpenAI-compatible, Low | every chat call had `reasoning_effort: "low"`, none had `thinking` | succeeded |
+| OpenAI-compatible, Off | every chat call had `reasoning_effort: "none"` | succeeded |
+| OpenAI-compatible, Low, stub answers 400 | each summary call made once, no grouping call | failed with `reasoning_rejected` and "The model provider rejected a request with the Reasoning setting. Choose Provider default in Settings, then generate again."; items stayed pending and were summarized by the next run |
+| OpenAI-compatible, Provider default | no call had `reasoning_effort` | succeeded |
+| Anthropic, Off | — | the save was refused with 422 `invalid_reasoning` |
+| Anthropic, Low (`claude-opus-5-5`) | every Messages call went to the beta endpoint with `server-side-fallback-2026-07-01`, `output_config: {"effort": "low"}`, and `fallbacks: "default"`, and none had `thinking` | succeeded |
+
+In the browser, with Anthropic and Low saved, Settings showed the Reasoning select after Model, with the options "Provider default" and "Low" and the hint linked by `aria-describedby`; choosing "Provider default" sent one `PUT` and announced "Saved reasoning: Provider default."
+
+The container, its volume, the stub, and the browser tab were removed afterwards.
+
+### Findings
+
+- **`/code-review` (high) on `310e23d..0c9e593`** (none changed):
+  - with Reasoning on, any 400 or 422 fails the run with the Reasoning message, even when another cause made the provider refuse: this is decision U2, option A, as the user approved;
+  - an invalid value stored by hand fails the run with a generic error: the API refuses such values (design D5);
+  - a Reasoning choice made before any model is saved is sent by the next test or Save, without a message: as design D6 says.
+- **Spec sub-agent** (independent, detached worktree; all 26 named mutations failed their tests):
+  - **Fixed in fix round 1 (Droid; D-023 class b):** a Reasoning choice made while a connection test ran was saved at once and then overwritten by the test's save, which sent the value shown at the test's start. The select then read "Low" while Provider default was saved. Design D6 had said "the value shown when the test started", against the spec's "the Reasoning choice shown when that save starts". Task group 6 added three tests and a ref (`selectedReasoning`) that the test's save reads; when another provider was chosen during the test, the save keeps the tested provider's value, a rule now in the spec delta with the scenario "Choice made during a connection test". A fresh sub-agent's check of group 6 added the page-load test (T4). Claude re-ran T1–T4 on `b7a82e8`: each failed its named tests (T3 also `waits to save a Reasoning choice when the key was edited`), and the code was restored exactly.
+  - **Fixed by Claude (test only, D-023 class c):** the Anthropic refusal rule is now tested at 422 as well as 400 (mutation "400 only" had passed); a model choice followed by a Reasoning choice is now tested (mutation X12, which saved the saved model instead of the chosen one, had passed). Both mutations fail the new tests.
+  - **Recorded, not fixed:** leaving `ReasoningRejected` out of the fast pool shutdown only delays the failure (a probe measured 0.05 s against 3.01 s); the Anthropic model list passing the flag has no visible effect; merge calls and long-item part and combine calls send the setting through the same `chat_json` (a probe saw all 17 calls carry it), with no committed test of their own.
+  - **Plan wording:** the F7 and F8 rows of task 4.3 lost their indent in Claude's plan fix; restored.

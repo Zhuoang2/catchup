@@ -127,6 +127,26 @@ def test_invalid_rsshub_answers(body):
         parse_uploader_feed(FetchResponse(ROUTE, body, "text/html", 200), MID)
 
 
+def test_fetch_uploader_uses_feed_limit_and_spacing(monkeypatch, test_settings):
+    monkeypatch.setattr(socket, "getaddrinfo", lambda host, port, **kwargs: [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.7", port)),
+    ])
+    waited = []
+
+    class Spacer:
+        def wait(self, url):
+            waited.append(url)
+
+    settings = replace(test_settings, rsshub_url=RSSHUB, max_feed_bytes=6 * 1024 * 1024)
+    body = b" " * (5 * 1024 * 1024 + 1)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get(ROUTE).respond(200, content=body)
+        blocked = router.get(BILIBILI).mock(side_effect=AssertionError("Bilibili must never be requested"))
+        assert fetch_uploader(MID, settings, spacer=Spacer()).content == body
+        assert waited == [ROUTE]
+        assert blocked.call_count == 0
+
+
 @pytest.mark.parametrize("case", ["not-configured", "ok", "prefix", "http-error", "redirect-to-bilibili"])
 def test_fetch_uploader(monkeypatch, test_settings, case):
     monkeypatch.setattr(socket, "getaddrinfo", lambda host, port, **kwargs: [

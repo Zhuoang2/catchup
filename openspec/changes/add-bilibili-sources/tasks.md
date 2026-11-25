@@ -394,7 +394,7 @@ Claude Code's review of `ec98682..2e42f2d` confirmed these. The user also decide
 - **The README does not warn that an older published image lacks this change.** Until `latest` includes it, an older CatchUp would request a pasted Bilibili address itself, so "CatchUp never contacts Bilibili" would not hold.
 - **No test covers the uploader request's size limit and spacing** (bilibili-uploaders: "The request MUST carry CatchUp's User-Agent, use the feed size limit, and follow the run's per-host spacing").
 
-- [ ] 8.1 Write these tests:
+- [x] 8.1 Write these tests:
   - in `backend/tests/test_bilibili_sources_api.py`, **`test_duplicate_is_reported_without_asking_rsshub`**:
     ```python
     def test_duplicate_is_reported_without_asking_rsshub(client):
@@ -433,14 +433,14 @@ Claude Code's review of `ec98682..2e42f2d` confirmed these. The user also decide
   - in `backend/tests/test_rsshub_docs.py`, add `"third-party download"` and `"Bilibili uploaders need a CatchUp version that includes them"` to the phrase list of `test_readme_explains_bilibili_uploaders`, after `"No subtitles from RSSHub"`. It fails on the current README.
 
   Verify: the duplicate test and the docs test fail on the current code as stated, and the limit test passes. Change no existing test, other than the two phrases.
-- [ ] 8.2 Fix them:
+- [x] 8.2 Fix them:
   - in `backend/src/catchup/api/sources.py`, `_bilibili_preview` first checks `_existing(f"bilibili:uploader:{mid}", session)` and raises `_duplicate(duplicate, 422)` before it calls `fetch_uploader`; the later duplicate check after parsing is removed. In `confirm`, right after the `bilibili:uploader:<digits>` format check, `if bilibili and (duplicate := _existing(feed_url, session)): raise _duplicate(duplicate, 409)`, before the feed cache or RSSHub is used.
   - in `README.md`, in the `### Optional RSSHub beside CatchUp` part of `## Bilibili uploaders`:
     - after the paragraph that ends "installation directory, not `backend/`.", add a paragraph: "Bilibili uploaders need a CatchUp version that includes them. Until the `latest` image does, use the `edge` image or a source build: an older CatchUp would request the pasted Bilibili address itself."
     - replace the paragraph that starts "The optional override sets `CATCHUP_RSSHUB_URL=http://rsshub:1200`" with: "The optional override sets `CATCHUP_RSSHUB_URL=http://rsshub:1200` for CatchUp and runs `diygod/rsshub:latest` without publishing an RSSHub port. That image is a third-party download from Docker Hub; CatchUp does not build or publish it. As of 2026-11-22, it is about 130–133 MB compressed (amd64/arm64). If uploader lists fail and need RSSHub's browser fallback, change its `image` in `compose.rsshub.yaml` to `diygod/rsshub:chromium-bundled`, about 391–507 MB compressed depending on architecture, then run the appropriate start command above again. The browser fallback may be slow; a later manual digest run can use RSSHub's cached result." Keep the README's line wrapping style (about 78 columns).
 
   Then run the tests of 8.1, `uv run --offline pytest tests/test_bilibili.py tests/test_bilibili_sources_api.py tests/test_sources_api.py tests/test_x_sources_api.py tests/test_rsshub_docs.py tests/test_install_docs.py tests/test_readme_context.py`, the full `uv run --offline pytest`, and `npm test -- --run` in `extension/` (`src/test/docs.test.ts` reads `README.md`), and watch them pass.
-- [ ] 8.3 Run these mutations one at a time, inspect each result before the next, restore the code after each by editing the file back, and confirm the restore by comparing `git diff` with the diff you saved before the mutation (8.1 and 8.2 are not committed yet):
+- [x] 8.3 Run these mutations one at a time, inspect each result before the next, restore the code after each by editing the file back, and confirm the restore by comparing `git diff` with the diff you saved before the mutation (8.1 and 8.2 are not committed yet):
 
   | Mutation | Change | Expected failing test |
   | --- | --- | --- |
@@ -450,6 +450,6 @@ Claude Code's review of `ec98682..2e42f2d` confirmed these. The user also decide
   | M4 | the sentence "That image is a third-party download from Docker Hub; CatchUp does not build or publish it." removed from the README | `test_readme_explains_bilibili_uploaders` |
   | M5 | the early duplicate check in `confirm` removed | `test_duplicate_is_reported_without_asking_rsshub` |
   | M6 | the sentence "Bilibili uploaders need a CatchUp version that includes them." removed from the README | `test_readme_explains_bilibili_uploaders` |
-- [ ] 8.4 Run the commands of task 7.1 again, with the whitespace check as `git diff 9d6eb81 --check`, as 7.1 recorded it (no `docker build`, `scripts/docker-smoke.sh`, or any Docker command, and do not touch port 8800). Add a "Fix round 1" section to `docs/process/test-report-add-bilibili-sources.md` with the red and green results of 8.1 and 8.2, M1–M6, and the commands' counts. Add one Droid entry for this round at the end of `docs/process/ai-usage-log.md`, after this change's implementation entry (Claude Code moved it there in date order), with the heading `## 2026-11-24 — `add-bilibili-sources` (#40): fix round 1 (Factory Droid; model not exposed in this session)`, the same bullet layout as the implementation entry, and a verbatim prompt excerpt in quotation marks; leave out the session line, which Claude Code adds at review.
+- [x] 8.4 Run the commands of task 7.1 again, with the whitespace check as `git diff 9d6eb81 --check`, as 7.1 recorded it (no `docker build`, `scripts/docker-smoke.sh`, or any Docker command, and do not touch port 8800). Add a "Fix round 1" section to `docs/process/test-report-add-bilibili-sources.md` with the red and green results of 8.1 and 8.2, M1–M6, and the commands' counts. Add one Droid entry for this round at the end of `docs/process/ai-usage-log.md`, after this change's implementation entry (Claude Code moved it there in date order), with the heading `## 2026-11-24 — `add-bilibili-sources` (#40): fix round 1 (Factory Droid; model not exposed in this session)`, the same bullet layout as the implementation entry, and a verbatim prompt excerpt in quotation marks; leave out the session line, which Claude Code adds at review.
 
   Verify: every command passes, and the report has the actual numbers.

@@ -65,6 +65,17 @@ def assert_saved_items(client):
         assert all(item.image_candidates == [] and item.entry_links == [] for item in items.values())
 
 
+def test_duplicate_is_reported_without_asking_rsshub(client):
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        route, blocked = serve_uploader(router, uploader_body())
+        assert client.post("/api/sources", json={"feed_url": STABLE}).status_code == 201
+        route.respond(503, content=b"Busy")
+        again = client.post("/api/sources/preview", json={"url": "https://m.bilibili.com/space/2267573"})
+        assert again.status_code == 422 and again.json()["error"]["code"] == "duplicate"
+        assert client.post("/api/sources", json={"feed_url": STABLE}).status_code == 409
+        assert route.call_count == 1 and blocked.call_count == 0
+
+
 def test_preview_uploader(client):
     body = uploader_body()
     body["items"] = [{

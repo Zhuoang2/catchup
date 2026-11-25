@@ -166,6 +166,9 @@ def _x_confirm(feed_url: str, request: Request, session: Session) -> dict:
 
 
 def _bilibili_preview(mid: str, request: Request, session: Session) -> dict:
+    duplicate = _existing(f"bilibili:uploader:{mid}", session)
+    if duplicate:
+        raise _duplicate(duplicate, 422)
     try:
         response = fetch_uploader(mid, request.app.state.settings)
         feed = parse_uploader_feed(response, mid)
@@ -173,9 +176,6 @@ def _bilibili_preview(mid: str, request: Request, session: Session) -> dict:
         raise _fetch_error(exc) from exc
     except FeedParseError as exc:
         raise AppError("rsshub_failed", FAILED_MESSAGE, 422) from exc
-    duplicate = _existing(feed.feed_url, session)
-    if duplicate:
-        raise _duplicate(duplicate, 422)
     request.app.state.feed_cache.put(replace(response, url=feed.feed_url))
     recent = sorted(
         feed.entries, key=lambda entry: entry.published_at.timestamp() if entry.published_at else float("-inf"),
@@ -232,6 +232,8 @@ def confirm(data: ConfirmInput, request: Request, session: Session = Depends(get
     bilibili = feed_url.startswith("bilibili:")
     if bilibili and not re.fullmatch(r"bilibili:uploader:[0-9]{1,20}", feed_url):
         raise AppError("not_a_bilibili_uploader", NOT_UPLOADER_MESSAGE, 422)
+    if bilibili and (duplicate := _existing(feed_url, session)):
+        raise _duplicate(duplicate, 409)
     try:
         response = request.app.state.feed_cache.pop(feed_url)
         if bilibili:

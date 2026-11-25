@@ -42,6 +42,8 @@ def test_readme_explains_bilibili_uploaders():
         ".env.rsshub",
         "public RSSHub instance",
         "No subtitles from RSSHub",
+        "third-party download",
+        "Bilibili uploaders need a CatchUp version that includes them",
     ):
         assert phrase in text
     starts = [

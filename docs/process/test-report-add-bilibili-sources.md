@@ -170,3 +170,86 @@ dist/assets/popup-DUKAg8vm.js     14.21 kB │ gzip: 5.29 kB
 - No coverage measurement was requested or run; passing test counts are not a coverage percentage.
 - Claude Code runs the independent code/spec review, Docker smoke, and live check with a local RSSHub at review, on fresh review resources and ports other than 8800. These checks remain unperformed by Droid by explicit instruction.
 - The AI usage log leaves the session id, turns, and minutes for Claude Code to fill in from the completed run.
+
+## Fix round 1
+
+### Scope and setup
+
+- Group 8 only, based on `8d8464a` and the fresh-eyes corrections in `3aeca4c`, in Claude Code's review worktree.
+- Re-derived the duplicate rule from the invariant that a validated uploader's stable identity is already known locally. Preview must report an existing source before any RSSHub request; confirmation must do so before touching the feed cache or RSSHub. The shared post-parse confirmation check remains for other feed types.
+- Added the two tests exactly as specified and only the two permitted phrases to the existing README test. No other groups 1–7 tests were changed.
+- Python 3.12.13 and pytest 9.1.1; all backend commands used `uv run --offline pytest` from `backend/`. The first run created this worktree's virtual environment from locally cached locked packages; no dependency declarations or lockfiles changed.
+- Node 22.17.1 was selected for every npm command. `npm ci --offline --no-audit --no-fund` passed in `frontend/` (124 packages) and `extension/` (120 packages), with the existing `whatwg-encoding@3.1.1` deprecation warning only.
+
+### Tasks 8.1 and 8.2: red and green
+
+The initial command was:
+
+```sh
+uv run --offline pytest tests/test_bilibili_sources_api.py::test_duplicate_is_reported_without_asking_rsshub tests/test_bilibili.py::test_fetch_uploader_uses_feed_limit_and_spacing tests/test_rsshub_docs.py::test_readme_explains_bilibili_uploaders -q --tb=short
+```
+
+It produced **2 failed, 1 passed in 3.02s**, exactly as planned:
+
+- The duplicate test failed because preview reported `rsshub_failed` instead of `duplicate` after the mocked RSSHub answer changed to 503.
+- The README test failed on missing `third-party download`.
+- The feed-limit/spacing guard passed before implementation. M2 and M3 below separately demonstrate its sensitivity to both requirements.
+
+After moving duplicate checks ahead of RSSHub/cache access and adding the specified README paragraphs:
+
+- The same three targeted checks: **3 passed in 3.92s**.
+- `uv run --offline pytest tests/test_bilibili.py tests/test_bilibili_sources_api.py tests/test_sources_api.py tests/test_x_sources_api.py tests/test_rsshub_docs.py tests/test_install_docs.py tests/test_readme_context.py`: **149 passed in 5.28s**.
+- Full `uv run --offline pytest`: **1168 passed in 33.63s**.
+- Extension `npm test -- --run`: **169 passed, 7 files, 2.38s**.
+
+All expected initial and post-fix results held. No diagnosis stop or change to the approved plan was needed.
+
+### Task 8.3: named mutations
+
+Saved the complete uncommitted `git diff --no-ext-diff` before the mutations. Applied each mutation alone, ran its named test, inspected the failure, then restored by editing. After every restoration, `cmp` confirmed the current diff matched the saved pre-mutation diff **byte-for-byte**, exit 0. The temporary comparison files were removed afterward.
+
+| Mutation | Named test | Observed result |
+| --- | --- | --- |
+| M1: preview duplicate check moved back after parsing | `test_duplicate_is_reported_without_asking_rsshub` | **Killed: 1 failed in 1.58s**; preview returned `rsshub_failed`, not `duplicate` |
+| M2: remove `max_bytes=settings.max_feed_bytes` | `test_fetch_uploader_uses_feed_limit_and_spacing` | **Killed: 1 failed in 3.14s**; the response exceeded the default 5 MB limit |
+| M3: remove `spacer=spacer` | `test_fetch_uploader_uses_feed_limit_and_spacing` | **Killed: 1 failed in 0.47s**; recorded waits were `[]`, not `[ROUTE]` |
+| M4: remove the third-party download sentence | `test_readme_explains_bilibili_uploaders` | **Killed: 1 failed in 2.31s**; missing `third-party download` |
+| M5: remove the early confirmation duplicate check | `test_duplicate_is_reported_without_asking_rsshub` | **Killed: 1 failed in 1.62s**; confirmation returned 422, not 409 |
+| M6: remove the CatchUp-version warning sentence | `test_readme_explains_bilibili_uploaders` | **Killed: 1 failed in 0.04s**; missing the version-warning phrase |
+
+All six mutations were killed and restored. Restored targeted checks: **3 passed in 1.63s**. `sources/bilibili.py` has no lasting change.
+
+### Task 8.4: final checks
+
+All seven commands exited **0**. npm commands used `export PATH="$HOME/.nvm/versions/node/v22.17.1/bin:$PATH"` first.
+
+| Directory | Command | Actual output/result |
+| --- | --- | --- |
+| `backend/` | `uv run --offline pytest` | **1168 collected, 1168 passed in 43.97s** |
+| `frontend/` | `npm test -- --run` | **14 files passed, 321 tests passed**, 9.20s |
+| `frontend/` | `npm run build` | `tsc --noEmit && vite build`; **40 modules transformed**, `built in 689ms` |
+| `extension/` | `npm test -- --run` | **7 files passed, 169 tests passed**, 5.57s |
+| `extension/` | `npm run build` | `tsc --noEmit && vite build && node scripts/check-build.mjs`; **10 modules transformed**, `built in 330ms` |
+| root | `DO_NOT_TRACK=1 openspec validate add-bilibili-sources --strict` | `Change 'add-bilibili-sources' is valid` |
+| root | `git diff 9d6eb81 --check` | No output, exit 0 |
+
+Final suite output excerpts:
+
+```text
+collected 1168 items
+============================ 1168 passed in 43.97s =============================
+
+Frontend:
+ Test Files  14 passed (14)
+      Tests  321 passed (321)
+   Duration  9.20s
+
+Extension:
+ Test Files  7 passed (7)
+      Tests  169 passed (169)
+   Duration  5.57s
+```
+
+Both production builds passed TypeScript checking and Vite bundling; the extension's bundled-output check also passed. No frontend or extension source changed in this round. The additional backend cases use existing invented fixtures and offline DNS/respx seams; the existing suites were reused.
+
+No network request, Docker command, live check, or protected-instance operation was performed. Port 8800, containers, and volumes were untouched. No packages were upgraded and no secrets were read, written, printed, or committed. Claude Code runs Docker smoke and the live checks at review. The session line remains for Claude Code to add.

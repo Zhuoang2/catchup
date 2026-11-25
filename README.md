@@ -291,6 +291,10 @@ First complete the [Docker installation](#run-with-docker), including
 creating the private `.env` with your instance secret. Work from that
 installation directory, not `backend/`.
 
+Bilibili uploaders need a CatchUp version that includes them. Until the
+`latest` image does, use the `edge` image or a source build: an older
+CatchUp would request the pasted Bilibili address itself.
+
 For a **published-image install**, download `compose.rsshub.yaml` next to
 `compose.yaml`:
 
@@ -327,12 +331,13 @@ docker compose up -d --build --wait
 
 The optional override sets `CATCHUP_RSSHUB_URL=http://rsshub:1200` for
 CatchUp and runs `diygod/rsshub:latest` without publishing an RSSHub port.
-As of 2026-11-22, that image is about 130–133 MB compressed (amd64/arm64).
-If uploader lists fail and need RSSHub's browser fallback, change its
-`image` in `compose.rsshub.yaml` to `diygod/rsshub:chromium-bundled`, about
-391–507 MB compressed depending on architecture, then run the appropriate
-start command above again. The browser fallback may be slow; a later
-manual digest run can use RSSHub's cached result.
+That image is a third-party download from Docker Hub; CatchUp does not build
+or publish it. As of 2026-11-22, it is about 130–133 MB compressed (amd64/arm64).
+If uploader lists fail and need RSSHub's browser fallback, change its `image`
+in `compose.rsshub.yaml` to `diygod/rsshub:chromium-bundled`, about 391–507 MB
+compressed depending on architecture, then run the appropriate start command
+above again. The browser fallback may be slow; a later manual digest run can
+use RSSHub's cached result.
 
 To use an RSSHub you already run instead of this override, set
 `CATCHUP_RSSHUB_URL` in the CatchUp process environment and restart it.

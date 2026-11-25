@@ -226,6 +226,17 @@ def test_first_capture_creates_source_and_item(client, connected):
         assert item.image_candidates[0]["alt"] == "Photo"
 
 
+def test_capture_drops_formula_images(client, connected):
+    response = save_page(client, connected, images=[
+        {"url": "https://s0.wp.com/latex.php?latex=x", "alt": "x"},
+        {"url": "https://example.com/photo.png", "alt": "Photo"},
+    ])
+    assert response.status_code == 201
+    with client.app.state.session_factory() as session:
+        item = session.scalar(select(Item))
+        assert [image["url"] for image in item.image_candidates] == ["https://example.com/photo.png"]
+
+
 def test_capture_drops_images_on_local_addresses(client, connected):
     response = save_page(client, connected, images=[
         {"url": "http://[::1]:9000/i.png", "alt": "Local"},

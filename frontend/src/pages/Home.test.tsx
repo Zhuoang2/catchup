@@ -174,7 +174,7 @@ it.each([['off', false], ['read fails', true]] as const)(
     })
     const { container } = render(<MemoryRouter><Home/></MemoryRouter>)
     await screen.findByRole('heading', { name: 'Technology' })
-    if (shown) expect(screen.getByRole('img', { name: 'Growth chart' })).toBeInTheDocument()
+    if (shown) expect(screen.getByText('Growth chart', { selector: 'figcaption' })).toBeInTheDocument()
     else expect(container.querySelector('img')).toBeNull()
     expect(fetchMock).toHaveBeenCalledWith('/api/settings/preferences', undefined)
     await expectAccessible(container)

@@ -2,7 +2,7 @@
 
 import hashlib
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from urllib.parse import urlsplit
@@ -114,10 +114,20 @@ def _entry_images(entry, description: str, base: str, channel_images: set[str]) 
     return filter_image_urls(candidates, base, channel_images)
 
 
+def is_formula_image(url: str) -> bool:
+    parts = split_url(url)
+    if parts is None:
+        return False
+    filename = parts.path.rsplit("/", 1)[-1].lower()
+    return (filename == "latex.php"
+            or (parts.hostname or "").lower().rstrip(".") == "latex.codecogs.com"
+            or filename.startswith("quicklatex.com-"))
+
+
 def filter_image_urls(
     candidates: list[EntryImage], base: str = "", excluded: set[str] | None = None,
 ) -> tuple[EntryImage, ...]:
-    """Keep at most eight safe image addresses, preserving feed candidate order."""
+    """Keep up to eight safe, non-formula images with no stated side under 100 px, in order."""
     result: list[EntryImage] = []
     seen: set[str] = set()
     for image in candidates:
@@ -127,8 +137,8 @@ def filter_image_urls(
             continue
         if (not is_public_url(url)
                 or "/avatar/" in parts.path.lower() or "/blavatar/" in parts.path.lower()
-                or (image.width is not None and image.height is not None
-                    and image.width <= 1 and image.height <= 1)
+                or is_formula_image(url)
+                or any(size is not None and size < 100 for size in (image.width, image.height))
                 or url in (excluded or ())):
             continue
         key = parts._replace(fragment="").geturl()
@@ -139,6 +149,19 @@ def filter_image_urls(
         if len(result) == 8:
             break
     return tuple(result)
+
+
+def stored_image_candidates(stored: object) -> list[dict]:
+    candidates = [
+        EntryImage(
+            image["url"], image.get("alt", ""), image.get("caption", ""),
+            _dimension(image.get("width")), _dimension(image.get("height")),
+            image.get("origin", "html"),
+        )
+        for image in (stored or [])
+        if isinstance(image, dict) and isinstance(image.get("url"), str)
+    ]
+    return [asdict(image) for image in filter_image_urls(candidates)]
 
 
 def ordered_candidates(candidates: tuple[TranscriptCandidate, ...],

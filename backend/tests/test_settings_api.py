@@ -17,8 +17,8 @@ class FakeProvider:
         self.error = None
         self.calls = []
 
-    def __call__(self, base_url, api_key, model):
-        self.calls.append((base_url, api_key, model))
+    def __call__(self, base_url, api_key, model, provider):
+        self.calls.append((base_url, api_key, model, provider))
         return self
 
     def list_models(self):
@@ -51,6 +51,7 @@ def test_save_and_read_encrypted_configuration(api):
     response = save(client)
     assert response.status_code == 200
     assert response.json() == {
+        "provider": "openai_compatible",
         "base_url": "https://provider.example/v1", "model_id": "provider-current",
         "key_set": True, "api_key_last4": "4821",
     }
@@ -104,7 +105,108 @@ def test_can_test_stored_key_without_resending_it(api):
     save(client)
     response = client.post("/api/settings/model/test", json={})
     assert response.json()["models"] == ["provider-current", "provider-next"]
-    assert fake.calls[-1] == ("https://provider.example/v1", KEY, "provider-current")
+    assert fake.calls[-1] == ("https://provider.example/v1", KEY, "provider-current", "openai_compatible")
+
+
+def test_read_without_configuration_reports_the_default_provider(api):
+    client, _ = api
+    response = client.get("/api/settings/model").json()
+    assert response["provider"] == "openai_compatible"
+    assert response["base_url"] == "https://api.deepseek.com"
+
+
+def test_save_and_read_anthropic_configuration(api):
+    client, _ = api
+    response = client.put("/api/settings/model", json={
+        "provider": "anthropic", "base_url": "https://api.anthropic.com",
+        "model_id": "claude-opus-5-5", "api_key": KEY,
+    })
+    assert response.status_code == 200
+    assert response.json() == {
+        "provider": "anthropic", "base_url": "https://api.anthropic.com",
+        "model_id": "claude-opus-5-5", "key_set": True, "api_key_last4": "4821",
+    }
+    assert client.get("/api/settings/model").json() == response.json()
+
+
+def test_save_without_provider_keeps_the_saved_provider(api):
+    client, _ = api
+    assert client.put("/api/settings/model", json={
+        "provider": "anthropic", "base_url": "https://api.anthropic.com",
+        "model_id": "claude-opus-5-5", "api_key": KEY,
+    }).status_code == 200
+    response = client.put("/api/settings/model", json={
+        "base_url": "https://api.anthropic.com", "model_id": "claude-sonnet-5-5",
+    })
+    assert response.status_code == 200
+    assert response.json()["provider"] == "anthropic"
+    assert response.json()["model_id"] == "claude-sonnet-5-5"
+    assert response.json()["api_key_last4"] == "4821"
+
+
+def test_unknown_provider_is_refused(api):
+    client, fake = api
+    before = save(client).json()
+    for method, path, body in [
+        (client.put, "/api/settings/model", {
+            "base_url": "https://provider.example/v1", "model_id": "provider-current",
+            "api_key": "new-test-only-key", "provider": "gemini",
+        }),
+        (client.post, "/api/settings/model/test", {"api_key": "new-test-only-key", "provider": "gemini"}),
+    ]:
+        response = method(path, json=body)
+        assert response.status_code == 422
+        assert response.json()["error"] == {
+            "code": "invalid_model_config", "message": "Choose a supported model provider.",
+        }
+        assert client.get("/api/settings/model").json() == before
+    assert fake.calls == []
+
+
+def test_provider_change_requires_a_new_key(api):
+    client, fake = api
+    before = save(client).json()
+    for method, path, body in [
+        (client.put, "/api/settings/model", {
+            "base_url": "https://provider.example/v1", "model_id": "provider-current",
+            "api_key": "", "provider": "anthropic",
+        }),
+        (client.post, "/api/settings/model/test", {"provider": "anthropic"}),
+    ]:
+        response = method(path, json=body)
+        assert response.status_code == 422
+        assert response.json()["error"]["code"] == "api_key_required"
+        assert client.get("/api/settings/model").json() == before
+    assert fake.calls == []
+
+
+def test_provider_change_clears_the_context_window(api):
+    client, _ = api
+    save(client)
+    with client.app.state.session_factory() as session:
+        session.get(ModelConfig, 1).context_window = 1_000_000
+        session.commit()
+    response = client.put("/api/settings/model", json={
+        "base_url": "https://provider.example/v1", "model_id": "provider-current",
+        "api_key": "new-test-only-key", "provider": "anthropic",
+    })
+    assert response.status_code == 200
+    with client.app.state.session_factory() as session:
+        assert session.get(ModelConfig, 1).context_window is None
+
+
+def test_connection_test_passes_the_provider(api):
+    client, fake = api
+    assert client.post("/api/settings/model/test", json={
+        "provider": "anthropic", "base_url": "https://anthropic.example", "api_key": KEY,
+    }).status_code == 200
+    assert fake.calls[-1][-1] == "anthropic"
+    assert client.put("/api/settings/model", json={
+        "provider": "anthropic", "base_url": "https://anthropic.example",
+        "model_id": "claude-opus-5-5", "api_key": KEY,
+    }).status_code == 200
+    assert client.post("/api/settings/model/test", json={}).status_code == 200
+    assert fake.calls[-1][-1] == "anthropic"
 
 
 def test_changed_provider_requires_new_key_for_save_and_test(api):

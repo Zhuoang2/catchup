@@ -35,13 +35,16 @@ function SourceTime({ value }: { value: string | null }) {
   return value && <><span aria-hidden="true">·</span><time dateTime={value}>{shortDateTime(value)}</time></>
 }
 
-function ItemImages({ images }: { images: { url: string; alt: string }[] }) {
+function ItemImages({ images, lang }: { images: { url: string; alt: string }[]; lang?: string }) {
   const [failed, setFailed] = useState<Set<number>>(() => new Set())
-  if (failed.size === images.length) return null
+  const visible = images.map((image, index) => ({ image, index }))
+    .filter(({ image, index }) => typeof image.alt === 'string' && image.alt.trim() && !failed.has(index))
+  if (!visible.length) return null
   return <div className="item-images">
-    {images.map((image, index) => failed.has(index) ? null : <figure key={`${image.url}-${index}`}>
-      <img src={image.url} alt={image.alt} loading="lazy" decoding="async"
+    {visible.map(({ image, index }) => <figure key={`${image.url}-${index}`}>
+      <img src={image.url} alt="" loading="lazy" decoding="async"
         referrerPolicy="no-referrer" onError={() => setFailed(previous => new Set(previous).add(index))}/>
+      <figcaption lang={lang || undefined}>{image.alt}</figcaption>
     </figure>)}
   </div>
 }
@@ -89,7 +92,7 @@ export function DigestArticle({ digest, className = '', before, headEnd, showIma
                   : item.summary && <div className="item-body">
                     <SummaryText text={item.summary} lang={lang}/>
                     {showImages && !!item.images?.length && <ItemImages
-                      key={`${digest.id}-${index}-${position}`} images={item.images}/>}
+                      key={`${digest.id}-${index}-${position}`} images={item.images} lang={lang}/>}
                     {!!item.also_read?.length && <p className="also-read">Also read: {' '}
                       {item.also_read.map((part, index) => <span key={`${part.url}-${index}`}>
                         {index > 0 && ' · '}

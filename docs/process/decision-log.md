@@ -618,6 +618,38 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Two requests to one host can be open at the same time when the first takes longer than 1 second. Requests still start at least 1 second apart.
   - The total can move by a few pages after a redirect, or while several reads are in progress. It equals the number read when the pass ends.
 
+## D-037 Add Anthropic as a second model provider, through the official SDK — accepted (2026-11-22)
+
+- **Decision.**
+  - **Provider choice.** The model configuration gets a provider, `openai_compatible` (the default, and every existing configuration) or `anthropic`, stored in a new `model_config.provider` column (migration `0009_model_provider`). One configuration stays active at a time. Changing the provider, like changing the base URL, needs the API key again, and clears the recorded context window.
+  - **Second client.** A new `AnthropicModelClient` calls Anthropic's Messages API through the official `anthropic` Python SDK, pinned `>=1.13,<2`, behind the existing client surface (`list_models`, `chat_json`, `usage_totals`, `close`). A provider factory picks the client. The OpenAI-compatible client, the prompts, and the summary and grouping stages do not change.
+  - **Requests.** The prompts' system text goes to `system`. No sampling parameters or prefill are sent. Every call allows at least 16,000 output tokens and streams its answer.
+  - **JSON.** Answers are parsed as a JSON object, or a JSON object in one fenced block, and retried as today when they are not.
+  - **Errors.** 529 and stream errors that report overload or an internal error are temporary. A spend-limit 429 counts as insufficient balance. A refusal is not retried.
+  - **Fallback models.** For `claude-fable-5-2`, `claude-fable-5-1`, `claude-opus-5-5`, `claude-opus-5`, and `claude-sonnet-5-5`, every call asks for Anthropic's server-side fallback model.
+  - **Model list.** It comes from Anthropic, without retired models, with `claude-opus-5-5` first when listed.
+  - **Settings** gets a Provider select. Choosing a provider fills in its default address.
+
+  Planned as the lean OpenSpec change `add-anthropic-provider` (issue #12). The JSON method, the fallback models, the default model, the SDK version, and one configuration rather than one per provider were the user's choices at plan approval (design U1–U6); the user chose the recommendation for each.
+- **Why.**
+  - D-004 planned an Anthropic-native adapter behind the same interface (#12).
+  - The `claude-api` reference that Claude Code uses says to call Claude through the official SDK, not through OpenAI-compatible shims. It also says to stream long requests, and to opt into server-side fallbacks by default for the listed models.
+  - Thinking cannot be turned off on `claude-opus-5-5`, and it counts toward `max_tokens`, so the 4,096-token summary limit could leave answers empty.
+  - Keeping the client surface lets the stages and their 15 test fakes stay as they are.
+- **Alternatives:**
+  - **Raw HTTP through `httpx2`.** Rejected unless the user prefers no new package: it would re-implement streaming and typed errors.
+  - **LiteLLM, or Anthropic's OpenAI-compatible endpoint.** Rejected: a large dependency, and the reference rules out shims.
+  - **Structured outputs (`output_config.format`).** Offered as the user's alternative. A shared all-optional schema would have to follow every key the prompts ask for (including #65's planned image changes). Models without support would fail every call. The schema cannot be checked against the real API before review.
+  - **Infer the provider from the base URL.** Rejected: proxy addresses would be misread.
+  - **One saved key per provider.** Offered as the user's alternative. It needs a new table and more Settings states.
+  - **A shared base class for both clients.** Rejected: it would change the tested OpenAI client, whose retry rules differ.
+- **Consequences:**
+  - A new dependency, `anthropic`, with `docstring-parser`, is added to the lockfile before implementation. Docker builds download them.
+  - The default model `claude-opus-5-5` always thinks, at effort `medium`. A per-provider setting is #4. The client keeps all request options in one place, and the model list reports each model's effort and thinking support.
+  - A refused request rescued by a fallback model is billed at that model's rates.
+  - Downgrading the database turns Anthropic configurations into OpenAI-compatible ones, which then need a new test.
+  - If #40 also adds migration `0009`, the second change to merge renumbers its migration.
+
 ## D-038 Follow Bilibili uploaders through an RSSHub the user runs, and never request Bilibili from CatchUp — accepted (2026-11-22)
 
 - **Decision.**
@@ -666,3 +698,25 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Under A, the installed app and the Safari touch icon get slightly thicker bars and a larger square once the browser updates them.
   - Chrome may show the old tab icon until CatchUp is reloaded once.
   - The maskable icon's corners stay slightly outside the 40% safe circle, as before.
+
+## D-040 Show each digest image's text as a visible caption, and keep formula and small images out of the candidates — accepted (2026-11-22)
+
+- **Decision.**
+  - **Captions.** Each chosen image shows its text as a caption under it, in the digest's language. The image itself has an empty `alt`, so assistive technology reads the text once, as the figure's caption. An image without text is not shown. A failed image is hidden with its caption. Digests saved earlier show their stored text as the caption.
+  - **Candidates.** An image is not kept when its address is a rendered formula (`latex.php`, `latex.codecogs.com`, or a QuickLaTeX cache file), or when the entry states its width or height as under 100 px. An image with no stated size is kept. This replaces the 1×1 rule. Candidates stored earlier are filtered again before the summary call, and saved digests do not show formula images.
+  - **Prompt.** The summary call chooses an image only when a reader who has not read the item can understand it from the image and its caption, usually one, and at most 3. The caption says what the image shows and why it matters.
+
+  Planned as the lean OpenSpec change `improve-digest-image-captions` (issue #65, the part left after D-033).
+- **Why.** In the user's live check of #41 (2026-11-01), Simon Willison's benchmark drawings showed with no visible explanation, because the text the summary wrote was only the `alt` attribute, and Terence Tao's posts offered formula images such as `{T}` from `s0.wp.com/latex.php` as candidates (#65).
+- **Alternatives:**
+  - **A hard limit of one image, or a setting for the number.** Offered to the user as options (design D1); the user chose the recommendation. The setting needs a migration and edits the Settings page.
+  - **Two texts per image, a short `alt` and a caption.** Rejected: more output, a new stored field, and mostly the same words.
+  - **Keep `alt` and hide the caption from assistive technology.** Rejected: visible text that screen reader users cannot reach.
+  - **Measure images that state no size.** Rejected: candidates must not fetch images.
+  - **Match `latex` anywhere, or the `class="latex"` attribute.** Rejected: drops unrelated images, and X posts, captures, and stored candidates have no class.
+  - **Rewrite stored candidates with a migration.** Rejected: filtering when they are read covers them, as in D-033.
+- **Consequences:**
+  - Captions in digests saved earlier describe the image but may not say why it matters.
+  - `Image from <source>` is shown as a caption when neither the model nor the page gave a text.
+  - Sizes written with units or in `style`, and pages saved from the browser, which send no sizes, get only the address rules.
+  - A summary reused from an earlier run keeps its earlier choice; its formula images are hidden when the digest is served.

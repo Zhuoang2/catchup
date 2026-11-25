@@ -153,11 +153,15 @@ On startup, the system SHALL mark any run left unfinished as failed. Its items M
 - **THEN** after restart that run shows as failed and a new run can include its items
 
 ### Requirement: Work with reasoning models by default
-The system SHALL request output budgets large enough that a provider's default reasoning mode does not leave summary or grouping responses empty.
+The system SHALL request output budgets large enough that a provider's default reasoning mode does not leave summary or grouping responses empty. For the Anthropic provider, every model call MUST allow at least 16,000 output tokens, because thinking cannot be turned off on some Anthropic models and counts toward that limit.
 
 #### Scenario: Provider reasons before answering
 - **WHEN** the configured model reasons before producing output, as DeepSeek does by default
 - **THEN** item summaries and topic grouping still return content within the requested budget
+
+#### Scenario: Anthropic model that always thinks
+- **WHEN** the Anthropic provider is configured, and an item's summary call asks for 4,096 output tokens
+- **THEN** the request to Anthropic allows 16,000 output tokens
 
 ### Requirement: Summaries focus on substance
 Item summaries SHALL be 2–4 sentences about the item's substance, except for long transcripts as described below. They MUST NOT include platform identifiers, user handles, submission metadata, or timestamps unless essential to the meaning. An item without substantive content MUST be described in one short sentence saying so. A transcript longer than the configurable long-item threshold (default 20,000 characters) SHALL be summarized as a 2–3 sentence overview followed by 3–6 key points. Summaries of transcripts MUST NOT describe visual content.
@@ -172,6 +176,12 @@ Item summaries SHALL be 2–4 sentences about the item's substance, except for l
 
 ### Requirement: Retry transient model errors
 The system SHALL retry model calls that return empty content, rate-limit errors, or temporary server errors, with backoff and a bounded number of attempts. Temporary server errors are HTTP 500, 502, 503, and 504. An answer that is not valid JSON, that is JSON but not an object, or that is not a chat completion with text content, such as an HTML or plain-text page sent with status 200, MUST be retried like empty content. Such an answer MUST NOT fail the run by itself. Authentication and insufficient-balance errors MUST fail the run immediately with a message telling the user to fix the configuration.
+
+For the Anthropic provider:
+- HTTP 529 (overloaded), and an error inside the answer stream that reports an overloaded or internal API error, are also temporary server errors;
+- an answer with status 200 that is not a message stream, or whose text is not a JSON object, MUST be retried like empty content;
+- a JSON object inside a single fenced code block counts as a JSON object;
+- a refusal is not retried (see "Handle model refusals").
 
 #### Scenario: Empty model response
 - **WHEN** a model call returns empty content once and valid content on retry
@@ -192,6 +202,14 @@ The system SHALL retry model calls that return empty content, rate-limit errors,
 #### Scenario: Rejected key during a run
 - **WHEN** the provider rejects the API key during a run
 - **THEN** the run fails immediately, its items remain pending, and the user is told to check the model settings
+
+#### Scenario: Anthropic is overloaded
+- **WHEN** an Anthropic summary call answers HTTP 529 once and valid content on retry
+- **THEN** the item's summary is saved from the valid content
+
+#### Scenario: Fenced JSON from Anthropic
+- **WHEN** an Anthropic summary call answers with a JSON object inside a fenced code block marked `json`
+- **THEN** the item's summary is saved from that object, without a retry
 
 ### Requirement: Creator updates
 A saved digest SHALL contain a "Creator updates" section after the topic summaries whenever the run includes items that cannot be summarized because no transcript is available. The section MUST group these items by source (the creator or show). For each item it MUST show:
@@ -282,15 +300,23 @@ When an item has gathered context, the summary call SHALL receive it after the i
 - **THEN** the reference is dropped, and the summary is kept
 
 ### Requirement: Choose important images in summaries
-When an item has image candidates, the summary call SHALL receive them as short descriptions: each one's alt text, caption, position, and origin. The model SHALL choose at most 3 images that show something the summary relies on, such as a chart, a screenshot, a diagram, or the photo the story is about, ordered by importance, each with a short alt text. It MUST choose none when no image matters, and MUST NOT choose logos, avatars, or decorative images. Choices that do not match a candidate MUST be discarded. The choice SHALL be stored with the summary and reused with it.
+When an item has image candidates, the summary call SHALL receive them as short descriptions: each one's alt text, caption, position, and origin. Candidates that the rules of "Keep image candidates for items" in `content-collection` leave out MUST NOT be offered, including candidates stored before those rules. The model SHALL choose an image only when it shows something the summary relies on, such as a chart, a screenshot, a diagram, or the photo the story is about, and a reader who has not read the item can understand it from the image and its caption. It SHALL usually choose one image, and a second or third only when each shows something different that the summary relies on, ordered by importance, never more than 3. For each choice it SHALL write a caption of up to 120 characters, in the language of the summary, that says what the image shows and why it matters. The caption is stored as the image's text. It MUST choose none when no image matters, and MUST NOT choose logos, avatars, decorative images, or rendered formulas. Choices that do not match a candidate MUST be discarded. The choice SHALL be stored with the summary and reused with it.
 
 #### Scenario: Release post with a screenshot
 - **WHEN** an item's summary describes a new tool's interface, and its first image is a screenshot of that interface
-- **THEN** the screenshot is chosen, with a short alt text
+- **THEN** the screenshot is chosen, with a caption that says what it shows
+
+#### Scenario: Benchmark drawing
+- **WHEN** an item compares models by the drawings they make of a pelican riding a bicycle, and its candidates are those drawings
+- **THEN** at most one drawing is chosen unless the others show something different, and its caption says that it is a model's output for that drawing test
 
 #### Scenario: No important image
 - **WHEN** an item's only candidate is a decorative header image
 - **THEN** no image is chosen
+
+#### Scenario: Formula candidate stored before the rules
+- **WHEN** a pending item collected before the formula rule has the candidates `https://s0.wp.com/latex.php?latex=%7BT%7D` and `https://cdn.example/chart.png`
+- **THEN** the summary call is offered only the chart, as `I1`
 
 #### Scenario: Unknown image reference
 - **WHEN** the summary output names an image reference the item does not have
@@ -350,3 +376,22 @@ Each duration MUST be saved when its stage ends, so a run that fails keeps the d
 #### Scenario: Run with no new content
 - **WHEN** a run finds nothing to summarize
 - **THEN** its API response has durations for the checks, the caption pass, and the context pass only
+
+### Requirement: Handle model refusals
+When the Anthropic provider reports that the model declined a request for safety reasons, the system MUST NOT retry that request.
+- A declined summary call makes that item's summary unavailable, and the run still saves the digest.
+- A declined grouping call is handled like grouping answers that stay unusable after retries.
+
+For the Anthropic models `claude-fable-5-2`, `claude-fable-5-1`, `claude-opus-5-5`, `claude-opus-5`, and `claude-sonnet-5-5`, every model call MUST ask Anthropic to run a declined request again on a fallback model of Anthropic's choice, within the same call. Only a request that the fallback model also declines counts as declined. Calls to other models MUST NOT ask for a fallback.
+
+#### Scenario: Summary declined
+- **WHEN** Anthropic reports that the model declined one item's summary call
+- **THEN** the call is made once, that item appears with a note that its summary is unavailable, and the run saves the digest
+
+#### Scenario: Fallback asked for a supported model
+- **WHEN** the configured Anthropic model is `claude-opus-5-5`
+- **THEN** every summary and grouping call asks Anthropic for a fallback model
+
+#### Scenario: No fallback for other models
+- **WHEN** the configured Anthropic model is `claude-haiku-5-5`
+- **THEN** no call asks Anthropic for a fallback model

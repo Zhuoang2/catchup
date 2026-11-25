@@ -122,6 +122,24 @@ def execute(client):
     return client.get(f"/api/digest-runs/{run.id}").json()
 
 
+def test_run_passes_the_saved_provider_to_every_client(environment, monkeypatch):
+    seed(environment)
+    with environment.app.state.session_factory() as session:
+        session.get(ModelConfig, 1).provider = "anthropic"
+        session.commit()
+    calls = []
+
+    def factory(*args):
+        calls.append(args)
+        return FakeModel()
+
+    environment.app.state.model_client_factory = factory
+    stub_collection(monkeypatch)
+    assert execute(environment)["status"] == "succeeded"
+    assert len(calls) == 2
+    assert all(len(args) == 4 and args[-1] == "anthropic" for args in calls)
+
+
 def test_stage_durations_are_saved_for_each_stage(environment, monkeypatch):
     from catchup.digest import runner
 
@@ -741,6 +759,31 @@ def test_group_failure_preserves_pending_and_retry_uses_cached_summary(environme
     assert run_checks(environment, succeeded["id"])[0].new_count == 1
     assert len(retry.calls) == 1
     assert all_rows(environment, DigestItem)[0].summary == "Cached"
+
+
+def test_summary_call_is_not_offered_formula_candidates_stored_earlier(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        session.scalar(select(Item)).image_candidates = [
+            {"url": "https://s0.wp.com/latex.php?latex=%7BT%7D", "alt": "{T}",
+             "caption": "", "origin": "html"},
+            {"url": "https://cdn.example/chart.png", "alt": "Chart", "caption": "", "origin": "html"},
+        ]
+        session.commit()
+    model = FakeModel([
+        {"summary": "Explains the chart.", "images": [{"ref": "I1", "alt": "Rising sales"}]},
+        {"topics": [{"title": "Charts", "overview": "Overview", "item_refs": ["i1"]}]},
+    ])
+    environment.app.state.model_client_factory = lambda *_: model
+    result = execute(environment)
+    assert result["status"] == "succeeded"
+    message = model.calls[0][0][1]["content"]
+    assert 'I1 — in the post, position 1; alt "Chart"' in message
+    assert "{T}" not in message
+    assert "I2" not in message
+    item = environment.get(f"/api/digests/{result['digest_id']}").json()["topics"][0]["items"][0]
+    assert item["images"] == [{"url": "https://cdn.example/chart.png", "alt": "Rising sales"}]
 
 
 def test_record_persists_image_choices_and_retry_keeps_them(environment, monkeypatch):

@@ -16,23 +16,26 @@ from catchup.errors import AppError
 from catchup.llm.client import (
     AuthFailed, ConnectionFailed, InsufficientBalance, ModelClient, ProviderError, RateLimited,
 )
+from catchup.llm.anthropic_client import AnthropicModelClient
+from catchup.llm.providers import DEFAULT_BASE_URL, DEFAULT_BASE_URLS, PROVIDERS, make_model_client
 from catchup.models import (AppSettings, Digest, DigestItem, DigestRun, DigestTopic,
                              Item, ModelConfig, Source, XCredential, utc_now)
 from catchup.sources.x_api import XApiError, XClient
 
 router = APIRouter(prefix="/api/settings")
-DEFAULT_BASE_URL = "https://api.deepseek.com"
 
 
 class ModelInput(BaseModel):
     base_url: str
     model_id: str
     api_key: str | None = None
+    provider: str | None = None
 
 
 class TestInput(BaseModel):
     base_url: str | None = None
     api_key: str | None = None
+    provider: str | None = None
 
 
 class PreferenceInput(BaseModel):
@@ -175,8 +178,15 @@ def delete_all_x(request: Request) -> dict:
         return {"digest_items": len(removed), "digests": deleted_digests, "accounts": len(accounts)}
 
 
-def get_model_client_factory() -> Callable[..., ModelClient]:
-    return ModelClient
+def get_model_client_factory() -> Callable[..., ModelClient | AnthropicModelClient]:
+    return make_model_client
+
+
+def _model_provider(value: str | None, row: ModelConfig | None) -> str:
+    provider = value if value is not None else row.provider if row else "openai_compatible"
+    if provider not in PROVIDERS:
+        raise AppError("invalid_model_config", "Choose a supported model provider.", 422)
+    return provider
 
 
 def _read_key(row: ModelConfig, secret: str | None) -> str:
@@ -192,6 +202,7 @@ def _read_key(row: ModelConfig, secret: str | None) -> str:
 
 def _public_model(row: ModelConfig | None) -> dict:
     return {
+        "provider": row.provider if row else "openai_compatible",
         "base_url": row.base_url if row else DEFAULT_BASE_URL,
         "model_id": row.model_id if row else "",
         "key_set": row is not None,
@@ -218,26 +229,28 @@ def read_model(session: Session = Depends(get_session)) -> dict:
 
 @router.put("/model")
 def save_model(data: ModelInput, request: Request, session: Session = Depends(get_session)) -> dict:
+    row = session.get(ModelConfig, 1)
+    provider = _model_provider(data.provider, row)
     base_url, model_id = data.base_url.strip(), data.model_id.strip()
     if not _valid_provider_url(base_url) or not model_id:
         raise AppError("invalid_model_config", "Enter a valid provider URL and model ID.", 422)
-    row = session.get(ModelConfig, 1)
     if data.api_key and data.api_key.strip():
         encrypted = encrypt_key(data.api_key.strip(), request.app.state.settings.secret_key)
         last4 = data.api_key.strip()[-4:]
-    elif row and base_url == row.base_url:
+    elif row and base_url == row.base_url and provider == row.provider:
         encrypted, last4 = row.api_key_encrypted, row.api_key_last4
     elif row:
-        raise AppError("api_key_required", "Enter an API key when changing the provider base URL.", 422)
+        raise AppError("api_key_required", "Enter an API key when changing the provider or its base URL.", 422)
     else:
         raise AppError("missing_api_key", "Enter an API key before saving model settings.", 422)
     if row is None:
-        row = ModelConfig(id=1, base_url=base_url, model_id=model_id,
+        row = ModelConfig(id=1, provider=provider, base_url=base_url, model_id=model_id,
                           api_key_encrypted=encrypted, api_key_last4=last4)
         session.add(row)
     else:
-        if row.base_url != base_url or row.model_id != model_id:
+        if row.base_url != base_url or row.model_id != model_id or row.provider != provider:
             row.context_window = None
+        row.provider = provider
         row.base_url, row.model_id = base_url, model_id
         row.api_key_encrypted, row.api_key_last4 = encrypted, last4
         row.updated_at = utc_now()
@@ -250,17 +263,19 @@ def test_model(
     data: TestInput,
     request: Request,
     session: Session = Depends(get_session),
-    factory: Callable[..., ModelClient] = Depends(get_model_client_factory),
+    factory: Callable[..., ModelClient | AnthropicModelClient] = Depends(get_model_client_factory),
 ) -> dict:
     row = session.get(ModelConfig, 1)
-    base_url = (data.base_url or (row.base_url if row else DEFAULT_BASE_URL)).strip()
-    if not data.api_key and row and base_url != row.base_url:
-        raise AppError("api_key_required", "Enter an API key when changing the provider base URL.", 422)
-    api_key = data.api_key or (_read_key(row, request.app.state.settings.secret_key) if row else "")
+    provider = _model_provider(data.provider, row)
+    base_url = (data.base_url or (row.base_url if row else DEFAULT_BASE_URLS[provider])).strip()
+    api_key = (data.api_key or "").strip()
+    if not api_key and row and (base_url != row.base_url or provider != row.provider):
+        raise AppError("api_key_required", "Enter an API key when changing the provider or its base URL.", 422)
+    api_key = api_key or (_read_key(row, request.app.state.settings.secret_key) if row else "")
     if not api_key or not _valid_provider_url(base_url):
         raise AppError("invalid_model_config", "Enter a provider URL and API key to test.", 422)
     try:
-        with closing(factory(base_url, api_key, row.model_id if row else "")) as client:
+        with closing(factory(base_url, api_key, row.model_id if row else "", provider)) as client:
             models = client.list_models()
     except AuthFailed as exc:
         raise AppError(exc.code, str(exc), 401) from exc

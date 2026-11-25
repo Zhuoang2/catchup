@@ -103,10 +103,10 @@ def _group(client: ModelClient, items: list[GroupItem], language: str, batch_cha
         batch_topics.extend(_group(client, batch, language, len(_payload(batch)), context_window))
     refs = {f"b{n}": n for n in range(1, len(batch_topics) + 1)}
     merge_input = json.dumps([
-        {"ref": ref, "title": topic.title, "overview": topic.overview}
+        {"ref": ref, "title": topic.title, "overview": topic.overview, "items": len(topic.item_ids)}
         for ref, topic in zip(refs, batch_topics)
     ], ensure_ascii=False)
-    merged = client.chat_json(merge_messages(merge_input, language),
+    merged = client.chat_json(merge_messages(merge_input, language, topic_limit(len(items))),
                               max_tokens=grouping_max_tokens(len(batch_topics), context_window))
     placements = _valid_topics(merged, refs, "topic_refs", language)
     return [

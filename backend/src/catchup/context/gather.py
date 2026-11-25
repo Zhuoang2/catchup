@@ -10,6 +10,7 @@ from sqlalchemy import select
 from trafilatura import extract
 
 from catchup.context.comments import author_replies
+from catchup.context.depth import context_limits
 from catchup.context.links import related_links
 from catchup.context.robots import RobotsCache, origin
 from catchup.models import DigestRun, Item, ItemContext, Source
@@ -105,8 +106,9 @@ class ContextProgress:
             self._commit()
 
 
-def gather_context(factory, run_id: int, settings, spacer) -> None:
-    budget = [settings.context_fetches_per_run]
+def gather_context(factory, run_id: int, settings, spacer, level="normal") -> None:
+    limits = context_limits(level, settings)
+    budget = [limits.fetches_per_run]
     robots = RobotsCache(budget=budget, spacer=spacer)
     with factory() as session:
         rows = session.execute(
@@ -126,9 +128,9 @@ def gather_context(factory, run_id: int, settings, spacer) -> None:
             links = related_links(
                 item.link, site_url,
                 [EntryLink(**link) for link in (item.entry_links or [])],
-                settings.links_per_item,
+                limits.links_per_item,
             )
-            comments = bool(source.kind not in ("capture", "x") and settings.author_replies
+            comments = bool(source.kind not in ("capture", "x") and limits.author_replies
                             and item.comment_count and item.comment_count > 0)
             captured_replies = item.captured_replies or [] if source.kind in ("capture", "x") else []
             plan.append((item.id, site_url, links, comments, captured_replies))

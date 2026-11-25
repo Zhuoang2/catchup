@@ -176,8 +176,8 @@ It saves only text the page shows, and takes the main text from
 Readability's strict first pass, so a short post is not replaced by a
 longer sponsor block or sidebar.
 
-In the next digest run, the CatchUp server reads up to
-`CATCHUP_LINKS_PER_ITEM` links recorded on each saved page, as it does for
+In the next digest run, the CatchUp server reads the links recorded on each
+saved page at the **Linked pages** level chosen in Settings, as it does for
 website items. It requests them itself, without your cookies. A link that
 carries a private token, such as an email-confirmation or unsubscribe link,
 may act when it is requested, so do not save pages that show such links.
@@ -703,6 +703,8 @@ that limit.
 Set `CATCHUP_AUTHOR_REPLIES` (default on) to `0`, `false`, or `no` to turn off
 author-reply fetching. Pages that cannot be read are skipped without failing
 the digest.
+
+Settings → Digest → **Linked pages** chooses how much of this a run reads. **Normal**, the default, reads up to `CATCHUP_LINKS_PER_ITEM` links per item, and author replies. **Shallow** reads up to 3 links per item, or fewer when `CATCHUP_LINKS_PER_ITEM` is lower, and author replies. **Off** sends no context request at all, so no linked pages or author replies are read; replies saved with a page from the browser, or kept from a followed X account's thread, are still used. Every level keeps the per-run limit. A run uses the level saved when it starts.
 
 Feed documents may be up to `CATCHUP_MAX_FEED_BYTES` (default 33554432,
 32 MiB). Articles and transcripts remain limited to 5 MiB. Text longer

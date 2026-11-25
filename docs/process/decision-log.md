@@ -721,6 +721,31 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Sizes written with units or in `style`, and pages saved from the browser, which send no sizes, get only the address rules.
   - A summary reused from an earlier run keeps its earlier choice; its formula images are hidden when the digest is served.
 
+## D-042 Let the user choose how many linked pages a run reads: Off, Shallow, or Normal — accepted (2026-11-25)
+
+- **Decision** (the user chose the recommendation for U1–U3 of the design at plan approval).
+  - **A "Linked pages" choice in Settings → Digest,** stored in `app_settings.link_depth` (migration `0010_link_depth`), read once when a run starts.
+    - **Normal** (the default, and every instance that saved no choice) is today's behavior: up to `CATCHUP_LINKS_PER_ITEM` links per item (default 8), and author replies.
+    - **Shallow** reads up to 3 links per item, or `CATCHUP_LINKS_PER_ITEM` when that is lower, and author replies.
+    - **Off** sends no context request, robots.txt included. Replies saved with a page from the browser, or kept from an X thread, are still used. Other items stay not gathered, so a later run that still finds them pending reads them at its own level.
+  - Every level keeps the per-run limit, the 3,000- and 16,000-character caps, robots.txt, and `CATCHUP_AUTHOR_REPLIES`. The environment settings keep their meaning: they set Normal.
+  - Each option names its pages per item with the server's numbers, and a note says that each page adds run time and up to 3,000 characters to the item's summary request, and names the per-run limit.
+  - No Deep level in this change: #54 stays open for it, and the PR says "Part of #54".
+
+  Planned as the lean OpenSpec change `add-link-depth-setting` (issue #54). If #4 (D-041) is merged first, this entry stays after it; this change's migration is renumbered if #4 also takes `0010`.
+- **Why.** When the user chose #48's design (2026-10-19), they asked for a later choice between deep and shallow reading (#54). Only environment settings change the numbers today, which needs a restart. D-020 and D-036 both deferred the choice to #54.
+- **Alternatives:**
+  - **A Deep level without a model** (twice Normal's links and per-run limit, 6,000 characters per page, 32,000 per item). Offered to the user (design U1 B): it reads more of long pages, but the #48 sample's typical entry has no related links beyond Normal's 8, and it doubles run time and context size.
+  - **#48's model-picked links as Deep** (design U1 C). Rejected for this change: an extra model call per item with links, a nondeterministic selection, and new link rules for whole pages. It needs its own research.
+  - **Environment settings as upper limits for every level, or removed** (design U2). Rejected: upper limits only matter with a Deep level, and removing them breaks instances that set them.
+  - **Off covering linked pages only, still reading author replies** (design U3). Offered to the user; rejected as the recommendation because Off would still request post pages.
+  - **Off as no context pass at all, or marking Off items as having no context.** Rejected: saved replies would be lost, or the items would never be gathered later.
+  - **Numbers written into the Settings page.** Rejected: wrong when the server's settings differ.
+- **Consequences:**
+  - Runs at Shallow make smaller summary requests; in large runs the per-run limit, not the level, bounds the number of requests.
+  - A page saved from the browser with saved replies is marked gathered at Off, so its links are not read later.
+  - Token savings are not measured before the merge; the user can compare runs at Shallow and Normal on their own instance.
+
 ## D-043 Ask the grouping call for fewer, broader topics, within a limit that grows with the item count — accepted (2026-11-25)
 
 - **Decision** (the user chose the recommendation for D1, D2, and D7 of the design at plan approval).

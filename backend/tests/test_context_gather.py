@@ -9,7 +9,8 @@ import pytest
 import respx
 from sqlalchemy import select
 
-from catchup.models import DigestItem, DigestRun, Item, ItemContext, Source
+from catchup.llm.client import AuthFailed
+from catchup.models import AppSettings, DigestItem, DigestRun, Item, ItemContext, Source
 from catchup.net.host_spacing import HostSpacer
 from test_digest_runner import FakeModel, environment, execute, saved_capture, seed, stub_collection
 
@@ -39,6 +40,157 @@ def setup(client, links, *, comments=0, kind="feed", audio=False):
 
 def html(title, text):
     return f"<html><head><title>{title}</title></head><body><article><p>{text}</p></article></body></html>"
+
+
+def set_level(client, level):
+    with client.app.state.session_factory() as session:
+        session.get(AppSettings, 1).link_depth = level
+        session.commit()
+
+
+def test_shallow_reads_the_first_three_links(environment, monkeypatch, public_dns):
+    setup(environment, [(f"https://h{i}.example/p", str(i)) for i in range(5)])
+    set_level(environment, "shallow")
+    stub_collection(monkeypatch)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        robots = [router.get(f"https://h{i}.example/robots.txt").respond(404) for i in range(5)]
+        pages = [router.get(f"https://h{i}.example/p").respond(
+            200, text=html(str(i), "Linked text " * 40),
+        ) for i in range(5)]
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert [page.call_count for page in pages] == [1, 1, 1, 0, 0]
+    assert [route.call_count for route in robots] == [1, 1, 1, 0, 0]
+    assert (result["context_total"], result["context_done"]) == (3, 3)
+
+
+def test_shallow_follows_a_lower_server_setting(environment, monkeypatch, public_dns):
+    setup(environment, [(f"https://docs.example/{i}", str(i)) for i in range(3)])
+    set_level(environment, "shallow")
+    environment.app.state.settings = replace(environment.app.state.settings, links_per_item=2)
+    stub_collection(monkeypatch)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").respond(404)
+        pages = [router.get(f"https://docs.example/{i}").respond(
+            200, text=html(str(i), "Linked text " * 40),
+        ) for i in range(3)]
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert [page.call_count for page in pages] == [1, 1, 0]
+
+
+def test_normal_follows_the_server_setting(environment, monkeypatch, public_dns):
+    setup(environment, [(f"https://docs.example/{i}", str(i)) for i in range(6)])
+    set_level(environment, "normal")
+    environment.app.state.settings = replace(environment.app.state.settings, links_per_item=5)
+    stub_collection(monkeypatch)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").respond(404)
+        pages = [router.get(f"https://docs.example/{i}").respond(
+            200, text=html(str(i), "Linked text " * 40),
+        ) for i in range(6)]
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert [page.call_count for page in pages] == [1, 1, 1, 1, 1, 0]
+
+
+def test_off_makes_no_context_request(environment, monkeypatch, public_dns):
+    setup(environment, [("https://docs.example/one", "One"),
+                        ("https://docs.example/two", "Two")], comments=2)
+    with environment.app.state.session_factory() as session:
+        session.scalar(select(Item)).entry_author = "Writer"
+        session.commit()
+    set_level(environment, "off")
+    stub_collection(monkeypatch)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").respond(404)
+        router.get("https://s0.example/robots.txt").respond(404)
+        router.get("https://docs.example/one").respond(200, text=html("One", "Linked text " * 40))
+        router.get("https://docs.example/two").respond(200, text=html("Two", "Linked text " * 40))
+        router.get("https://s0.example/0").respond(200, text=(
+            "<li class='comment bypostauthor'><div class='comment-content'>"
+            "Author clarifies the point.</div></li>"
+        ))
+        router.route().respond(404)  # Records a request to any other address too.
+        result = execute(environment)
+        assert router.calls.call_count == 0
+    assert result["status"] == "succeeded"
+    assert result["digest_item_count"] == 1
+    assert (result["context_total"], result["context_done"]) == (0, 0)
+    with environment.app.state.session_factory() as session:
+        assert session.scalar(select(Item)).context_status is None
+        assert session.scalars(select(ItemContext)).all() == []
+
+
+def test_off_keeps_saved_replies(environment, public_dns):
+    item_id = capture_with_context(
+        environment, links=[("https://docs.example/article", "Article")],
+        replies=["First reply", "Second reply"],
+    )
+    set_level(environment, "off")
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").respond(404)
+        router.get("https://docs.example/article").respond(200, text=html("Article", "Linked text " * 40))
+        result = execute(environment)
+        assert router.calls.call_count == 0
+    assert result["status"] == "succeeded"
+    assert (result["context_total"], result["context_done"]) == (1, 1)
+    with environment.app.state.session_factory() as session:
+        item = session.get(Item, item_id)
+        assert item.context_status == "gathered"
+        assert [(part.ref, part.text) for part in item.contexts] == [("A1", "First reply\n\nSecond reply")]
+
+
+def test_item_left_by_off_is_read_later(environment, monkeypatch, public_dns):
+    setup(environment, [("https://docs.example/one", "One")])
+    set_level(environment, "off")
+    stub_collection(monkeypatch)
+    environment.app.state.model_client_factory = lambda *_: FakeModel([AuthFailed("bad key")])
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").respond(404)
+        page = router.get("https://docs.example/one").respond(200, text=html("One", "Linked text " * 40))
+        assert execute(environment)["status"] == "failed"
+        assert page.call_count == 0
+        environment.app.state.model_client_factory = lambda *_: FakeModel()
+        set_level(environment, "normal")
+        assert execute(environment)["status"] == "succeeded"
+        assert page.call_count == 1
+    with environment.app.state.session_factory() as session:
+        assert session.scalar(select(Item)).context_status == "gathered"
+
+
+def test_level_saved_during_a_run_applies_to_the_next_run(environment, monkeypatch, public_dns):
+    setup(environment, [("https://docs.example/one", "One")])
+    set_level(environment, "off")
+    stub_collection(monkeypatch, on_check=lambda: set_level(environment, "normal"))
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").respond(404)
+        page = router.get("https://docs.example/one").respond(200, text=html("One", "Linked text " * 40))
+        assert execute(environment)["status"] == "succeeded"
+        assert page.call_count == 0
+        with environment.app.state.session_factory() as session:
+            assert session.get(AppSettings, 1).link_depth == "normal"
+            item = session.scalar(select(Item))
+            item.state = "pending"
+            item.summary = None
+            session.commit()
+        stub_collection(monkeypatch)
+        assert execute(environment)["status"] == "succeeded"
+        assert page.call_count == 1
+
+
+def test_run_without_saved_digest_settings_reads_at_normal(environment, monkeypatch, public_dns):
+    setup(environment, [("https://docs.example/one", "One")])
+    with environment.app.state.session_factory() as session:
+        session.delete(session.get(AppSettings, 1))
+        session.commit()
+    stub_collection(monkeypatch)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").respond(404)
+        page = router.get("https://docs.example/one").respond(200, text=html("One", "Linked text " * 40))
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert page.call_count == 1
 
 
 @pytest.mark.parametrize("urls,units,expected", [

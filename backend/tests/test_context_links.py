@@ -8,6 +8,12 @@ ITEM = "https://site.example/posts/one"
 SITE = "https://site.example/"
 
 
+def test_limit_zero_keeps_no_links():
+    links = [EntryLink("https://docs.example/a", "A"), EntryLink("https://docs.example/b", "B")]
+    assert related_links(ITEM, SITE, links, 0) == []
+    assert related_links(ITEM, SITE, links, -1) == []
+
+
 def test_filters_navigation_share_login_media_and_non_http_but_keeps_discussions():
     rejected = [
         ITEM + "/#comments", "https://site.example/tags/python",

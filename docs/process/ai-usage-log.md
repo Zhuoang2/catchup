@@ -2735,6 +2735,47 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - **The plan did not say what `reachable_reads` does with an address that `safe_fetch` refuses.** Claude found it while Droid was still running, by reading the code. The fix-round tests came from that probe.
   - **A zsh variable with several test ids ran no tests,** because zsh does not split words. The O1 run was repeated with an array.
 
+## 2026-11-22 — `improve-small-icon-legibility` (#43, part 2): plan (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
+
+- **Prompts** (translated from Chinese):
+  - After #64 merged, the user chose four issues to plan at the same time: "Start #43, #12, #40, and #65 in parallel."
+  - After reviewing the four plans, the user decided: "#43: option A; #12: everything as recommended, network approved; #40: Proposal 1; #65: everything as recommended."
+- **Outcome:**
+  - **Checked on `main` `795c5e7`.** A planning sub-agent traced the blur: the bars of `icon.svg` are 38/1024 high, about 0.6 px at 16 px, and the square's edges fall on half pixels (2.56 px and 13.44 px). The extension's build copies `icon-192.png`, so its toolbar icon uses the same drawing.
+  - **Three options were rendered** with the local headless Chrome 157 at 16 px and 32 px, on 1x and 2x screens, on light and dark tabs. Today's icon has 12 colors at 16 px; option A has 2.
+  - **Browser choice of icons.** Chromium's `favicon_handler.cc` gives an SVG without `sizes` the same desktop score as an ideal size, and downloads the next candidate only if it scores higher, so the 32 px PNG proposed in #43 would never be used. Claude read the scoring code itself.
+  - **Plan.** Option A of D1: every icon file drawn from one rule on a 16 × 16 grid by `make-icons.py`, the offline page's inline copy updated, two new tests in `install.test.ts`, and mutations G1–G6. Group 2 tells Droid not to run Docker. D-039.
+  - **D-023 fresh-eyes check.** A sub-agent that saw only `tasks.md` and the code prototyped both tests and every mutation in a scratch worktree. Claude checked each finding before changing the plan; four were confirmed and applied:
+    - the frontend has no `@types/node`, so `node:zlib` needs one line in `src/test/node-fs.d.ts`, or `npm run build` fails;
+    - G5 named a variable the new code need not keep, so the mutation stopped the generator and was never applied;
+    - one `expect` per pixel took about 5 s, Vitest's default timeout, so the tests compare in loops;
+    - the PNG reader also requires interlace method 0.
+- **Problems / adjustment:**
+  - **The first draft said the extension's toolbar icon would become sharp.** That holds only for averaging over 16 × 16 blocks: Chrome 157 drawing the new 192 px PNG in `<img width=16>` still gave 7 colors. The design, the spec delta, the proposal, and D-039 now say it was not checked.
+
+## 2026-11-22 — `improve-small-icon-legibility` (#43, part 2): implementation (Factory Droid, GPT-6.1 Sol)
+
+- **Prompt as run (faithful excerpt):** "Implement OpenSpec change improve-small-icon-legibility (issue #43) in this worktree, on branch improve-small-icon-legibility. Claude Code committed the approved plan in fae68c8; the user approved it on 2026-11-22." "Do task groups 1 and 2 in order, using the openspec-apply-change skill and the tdd skill: write each task's tests first, run them, and watch each fail for the reason the task gives before you change the code; check a task off only after its verification passes; run each named mutation alone, inspect its result before the next, restore the code after each by editing the file back, and confirm the restore with git diff." The prompt selected option A, restricted icon generation to `frontend/scripts/make-icons.py`, required offline checks, Node 22.17.1, unchanged dependencies/locks, telemetry-disabled OpenSpec calls and separate group commits, prohibited protected plan/spec/log edits, destructive Git commands, Docker, port 8800, publishing and secrets, and required stopping with ranked diagnosis on unexpected results.
+- **Tool / process:** Factory Droid with `openspec-apply-change` and `tdd`. Read the project context, approved proposal, design, full tasks and spec delta. Used the agreed real-file, DOMParser and inflateSync seams. Added only the two specified tests with a shared literal design pattern and the one-line `node:zlib` declaration; existing tests stayed unchanged.
+- **Red → green:** Before artwork edits, the install suite returned exactly **2 failed, 5 passed**: SVG edge 164 had remainder 36 modulo 64; the first PNG mismatch was `icon-192.png`, block (2, 2), pixel (24, 24). Implemented the approved generator geometry, preserving the maskable box, regenerated all five files with the script, and changed only the offline icon's encoded href. The asset suite then passed **7 tests**, including byte-identical regeneration and offline embedding; it passed again after all mutations were restored.
+- **Mutations:** Ran G1–G6 separately, inspected each failure, edited back, regenerated where applicable, and checked the restored asset/generator diff after each. Every named mutation was killed by its named assertion: G1 edge 397, G2 edge 398, G3 edge 164, G4 pattern mismatch with valid grid edges, G5 successfully regenerated thin PNG bars (first wrong pixel (60, 79), block (5, 6)), and G6 stale offline SVG equality. Each selected run had **1 failed, 6 skipped**. No invalid mutation or unexpected red/green occurred; no prompt adjustment was needed.
+- **Verification / outcome:** Group 1 committed as `0df57ec` after frontend **316 tests / 14 files**, extension **168 tests / 7 files**, and both builds passed. Task 2.1 repeated both suites and builds: frontend **316 passed** (21.81 s), extension **168 passed** (11.96 s), TypeScript/Vite passed with **40 / 10 modules**, and the extension build check passed. Backend `uv run --offline pytest`: **1082 passed in 124.73 s**. That command automatically created its environment using 60 cached packages and built the local project; no separate backend install was run and no dependency or lockfile changed. Strict OpenSpec validation and `git diff --check` passed. Both required npm installs succeeded offline under Node 22.17.1; their existing deprecation warning was non-fatal.
+- **Evidence / limits:** Commands, actual red/green results and all six mutation outcomes are in `docs/process/test-report-improve-small-icon-legibility.md`; group 2 records the report, this entry and final task completion. No protected planning artifact or decision/requirements log changed, and no temporary helper file was created. Docker smoke and the live/container/rendering checks remain unperformed for Claude Code review. No Docker, port 8800, push, merge, tag or PR action was taken. The session line is left to Claude Code.
+- **Session:** `e32f4478-9215-41f2-b81c-e09f343362e7`, 145 turns, about 7.4 minutes. Claude Code added this line at review.
+
+## 2026-11-22 — `improve-small-icon-legibility` (#43, part 2): review (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
+
+- **Prompts** (translated from Chinese):
+  - The plan approval ("#43: option A; ...") covered Droid's run and this review.
+  - Claude's merge-ready report asked: "Leave decision 1 unfixed as recommended, then approve #43's merge and finish by the list above?" The user replied: "OK, #43: not fixing, as recommended; merge approved." Decision 1 was the maskable icon's bars, 1 px off center.
+- **Outcome:**
+  - **Checks** on `f4b7f16`: backend 1082, frontend 316, extension 168, both builds, strict validation, `git diff --check`, and `scripts/docker-smoke.sh` 12 of 12 on `catchup:fix43-local`.
+  - **Live check** on port 8843 with a fresh volume: the served icons and offline page matched the repository, and headless Chrome 157 drew the served `/icon.svg` with exactly two colors at 16 px and 32 px, on 1x and 2x, matching the planned pattern (`main`'s icon: 12 colors at 16 px).
+  - **`/code-review` (high):** one nit, the maskable icon's bars 1 px off center; not fixed.
+  - **Spec sub-agent:** no behavior defect; G1–G6 matched Droid's report. One test gap (F1) fixed in Claude's review commit: the SVG test now refuses elements and attributes it does not model, proved with mutations E1–E3 in a `git archive` export. Two pre-existing notes on the maskable icon (F2, F3) recorded, not fixed.
+- **Problems / adjustment:**
+  - **The planned SVG test modelled geometry only.** The plan's own red and green results held, but three render-changing edits passed it. Next time, a test that models a file format also refuses what it does not model.
+
 ## 2026-11-22 — `add-anthropic-provider` (#12): plan (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
 
 - **Prompts** (translated from Chinese):

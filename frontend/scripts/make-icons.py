@@ -17,16 +17,16 @@ def chunk(kind: bytes, data: bytes) -> bytes:
 
 def pixel(x: int, y: int, size: int, maskable: bool) -> tuple[int, int, int]:
     # The maskable mark stays entirely within the central 80% safe zone.
-    left = int(size * (0.21 if maskable else 0.16))
+    left = int(size * (0.21 if maskable else 0.125))
     right = size - left
     top = left
     bottom = right
     if not (left <= x < right and top <= y < bottom):
         return BG
-    width = right - left
-    bar_left, bar_right = left + int(width * .23), right - int(width * .23)
-    bar_height = max(1, int(width * .055))
-    for bar_y in (top + int(width * .38), top + int(width * .57)):
+    unit = (right - left) / 12
+    bar_left, bar_right = left + int(3 * unit), left + int(9 * unit)
+    bar_height = int(unit)
+    for bar_y in (top + int(4 * unit), top + int(7 * unit)):
         if bar_left <= x < bar_right and bar_y <= y < bar_y + bar_height:
             return BG
     return FG
@@ -54,8 +54,8 @@ def main() -> None:
     (output / "icon.svg").write_text(
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">'
         '<rect width="1024" height="1024" fill="#f4f0e6"/>'
-        '<rect x="164" y="164" width="696" height="696" fill="#151412"/>'
-        '<path d="M324 430h376M324 562h376" stroke="#f4f0e6" stroke-width="38"/>'
+        '<rect x="128" y="128" width="768" height="768" fill="#151412"/>'
+        '<path d="M320 416h384M320 608h384" stroke="#f4f0e6" stroke-width="64"/>'
         '</svg>\n', encoding="utf-8"
     )
 

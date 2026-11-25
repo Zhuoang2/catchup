@@ -51,6 +51,24 @@ function expectNoBottomAlert() {
   }
 }
 
+function mockLinkedPages(preferences: Record<string, unknown>) {
+  const original = fetchMock.getMockImplementation()!
+  fetchMock.mockImplementation(async (url: string, options?: RequestInit) => {
+    if (url === '/api/settings/preferences' && !options?.method) return respond({
+      digest_language: 'en', youtube_captions: false, youtube_skip_shorts: true, show_images: true,
+      link_depth: 'normal', link_depth_pages: { off: 0, shallow: 3, normal: 8 },
+      context_fetches_per_run: 60, ...preferences,
+    })
+    return original(url, options)
+  })
+}
+
+function preferencePuts() {
+  return fetchMock.mock.calls.filter(([url, options]) =>
+    url === '/api/settings/preferences' && options?.method === 'PUT')
+    .map(([, options]) => JSON.parse(options.body as string) as Record<string, unknown>)
+}
+
 beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock)
   fetchMock.mockImplementation(async (url: string) => {
@@ -60,6 +78,7 @@ beforeEach(() => {
     })
     if (url === '/api/settings/preferences') return respond({
       digest_language: 'en', youtube_captions: false, youtube_skip_shorts: true,
+      link_depth: 'normal', link_depth_pages: { off: 0, shallow: 3, normal: 8 }, context_fetches_per_run: 60,
     })
     if (url === '/api/settings/extension-tokens') return respond([])
     if (url === '/api/settings/x') return respond({ token_set: false, token_last4: null })
@@ -69,6 +88,62 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals()
   fetchMock.mockReset()
+})
+
+describe('linked pages', () => {
+  it('shows the linked-pages choice with its numbers and cost note', async () => {
+    const { container } = render(<Settings/>)
+    const select = await screen.findByRole('combobox', { name: 'Linked pages' })
+    expect(screen.getByRole('heading', { name: 'Step 2: Digest' }).closest('section')).toContainElement(select)
+    expect(select).toHaveValue('normal')
+    expect(within(select).getAllByRole('option').map(option => option.textContent)).toEqual([
+      'Off — no linked pages or author replies',
+      'Shallow — up to 3 pages per item',
+      'Normal — up to 8 pages per item',
+    ])
+    expect(select).toHaveAccessibleDescription("Each page read adds time to a run, and up to 3,000 characters to that item's summary request, which uses more tokens. A run reads at most 60 pages.")
+    await expectAccessible(container)
+  })
+
+  it("names the server's own numbers", async () => {
+    mockLinkedPages({ link_depth_pages: { off: 0, shallow: 3, normal: 5 }, context_fetches_per_run: 40 })
+    const first = render(<Settings/>)
+    const select = await screen.findByRole('combobox', { name: 'Linked pages' })
+    expect(within(select).getByRole('option', { name: 'Shallow — up to 3 pages per item' })).toBeInTheDocument()
+    expect(within(select).getByRole('option', { name: 'Normal — up to 5 pages per item' })).toBeInTheDocument()
+    expect(select).toHaveAccessibleDescription(/A run reads at most 40 pages\.$/)
+    first.unmount()
+    mockLinkedPages({ link_depth_pages: { off: 0, shallow: 1, normal: 1 } })
+    render(<Settings/>)
+    const single = await screen.findByRole('combobox', { name: 'Linked pages' })
+    expect(within(single).getByRole('option', { name: 'Shallow — up to 1 page per item' })).toBeInTheDocument()
+    expect(within(single).getByRole('option', { name: 'Normal — up to 1 page per item' })).toBeInTheDocument()
+  })
+
+  it('saves Off with the other digest preferences', async () => {
+    render(<Settings/>)
+    const select = await screen.findByRole('combobox', { name: 'Linked pages' })
+    fireEvent.change(select, { target: { value: 'off' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await screen.findByText('Settings saved.')
+    expect(preferencePuts()).toHaveLength(1)
+    expect(preferencePuts()[0]).toMatchObject({
+      link_depth: 'off', digest_language: 'en', show_images: true,
+      youtube_captions: false, youtube_skip_shorts: true,
+    })
+  })
+
+  it('loads a saved Off and keeps it when saving without changing it', async () => {
+    mockLinkedPages({ link_depth: 'off' })
+    render(<Settings/>)
+    const select = await screen.findByRole('combobox', { name: 'Linked pages' })
+    expect(select).toHaveValue('off')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await screen.findByText('Settings saved.')
+    expect(select).toHaveValue('off')
+    expect(preferencePuts()).toHaveLength(1)
+    expect(preferencePuts()[0]).toMatchObject({ link_depth: 'off' })
+  })
 })
 
 describe('model settings', () => {
@@ -378,6 +453,7 @@ describe('model settings', () => {
       if (url === '/api/settings/preferences' && !options?.method) return respond({
         digest_language: 'en', youtube_captions: false, youtube_skip_shorts: true,
         show_images: false,
+        link_depth: 'normal', link_depth_pages: { off: 0, shallow: 3, normal: 8 }, context_fetches_per_run: 60,
       })
       if (url === '/api/settings/preferences' && options?.method === 'PUT') {
         saved = JSON.parse(options.body as string) as Record<string, unknown>
@@ -454,7 +530,8 @@ describe('model settings', () => {
         base_url: 'https://api.deepseek.com', model_id: 'saved-model',
         key_set: true, api_key_last4: '1234',
       })
-      return respond({ digest_language: 'en', youtube_captions: false, youtube_skip_shorts: true })
+      return respond({ digest_language: 'en', youtube_captions: false, youtube_skip_shorts: true,
+        link_depth: 'normal', link_depth_pages: { off: 0, shallow: 3, normal: 8 }, context_fetches_per_run: 60 })
     })
     const { container } = render(<Settings />)
     await screen.findByLabelText('API key')
@@ -543,7 +620,8 @@ describe('model settings', () => {
       if (url === '/api/settings/model') return respond({
         base_url: 'https://api.deepseek.com', model_id: '', key_set: false, api_key_last4: null,
       })
-      return respond({ digest_language: 'en', youtube_captions: false, youtube_skip_shorts: true })
+      return respond({ digest_language: 'en', youtube_captions: false, youtube_skip_shorts: true,
+        link_depth: 'normal', link_depth_pages: { off: 0, shallow: 3, normal: 8 }, context_fetches_per_run: 60 })
     })
     const { container } = render(<Settings />)
     const key = await screen.findByLabelText('API key')

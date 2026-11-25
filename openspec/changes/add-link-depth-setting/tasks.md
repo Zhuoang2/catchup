@@ -92,7 +92,7 @@ Implementer notes:
 
 ## 4. The Settings choice (user-interface; design D7)
 
-- [ ] 4.1 Write failing tests in `frontend/src/pages/Settings.test.tsx`:
+- [x] 4.1 Write failing tests in `frontend/src/pages/Settings.test.tsx`:
   - add `link_depth: 'normal', link_depth_pages: { off: 0, shallow: 3, normal: 8 }, context_fetches_per_run: 60` to every preferences `GET` answer that the page applies: the default answer in `beforeEach` (`:61-63`), the `GET` answer of `loads stored images off and preserves off when saving without changing it` (`:378-381`), and the fallback answers of `explains authentication errors` (`:457`) and `shows the first-run key hint and saves preferences without exposing the key` (`:546`). Without the last two, the page reads `link_depth_pages` of `undefined` and those tests fail. These four answers are the only existing test lines that change. The fallback of `shows load failures above the Model provider heading` (`:521`) and the `PUT` answers (`:540`, `:1182`) stay as they are, because the page never applies them;
   - `shows the linked-pages choice with its numbers and cost note` ("Default choice"): `screen.findByRole('combobox', { name: 'Linked pages' })` is inside the "Step 2: Digest" section, has the value `normal`, and its options' texts are exactly `['Off — no linked pages or author replies', 'Shallow — up to 3 pages per item', 'Normal — up to 8 pages per item']`; it `toHaveAccessibleDescription("Each page read adds time to a run, and up to 3,000 characters to that item's summary request, which uses more tokens. A run reads at most 60 pages.")`; `expectAccessible(container)` passes;
   - `names the server's own numbers` ("Server numbers"): the preferences answer has `link_depth_pages: { off: 0, shallow: 3, normal: 5 }` and `context_fetches_per_run: 40`; the Shallow and Normal options read `'Shallow — up to 3 pages per item'` and `'Normal — up to 5 pages per item'`, and the description ends with `'A run reads at most 40 pages.'`. After unmounting the first render, with `{ off: 0, shallow: 1, normal: 1 }` they read `'Shallow — up to 1 page per item'` and `'Normal — up to 1 page per item'`;
@@ -100,7 +100,7 @@ Implementer notes:
   - `loads a saved Off and keeps it when saving without changing it`: the `GET` answer has `link_depth: 'off'` (with the numbers); the select has the value `off`; after Save, it still has `off`, and the `PUT` body has `link_depth: 'off'`.
 
   Verify: the four new tests fail; the existing tests still pass with the four changed answers.
-- [ ] 4.2 In `frontend/src/pages/Settings.tsx`:
+- [x] 4.2 In `frontend/src/pages/Settings.tsx`:
   - extend `Preferences` with `link_depth: 'off' | 'shallow' | 'normal'`, `link_depth_pages: { off: number; shallow: number; normal: number }`, and `context_fetches_per_run: number`; keep a `linkDepth` state and the two numbers, set from the loaded preferences (`:104-123`);
   - in the Digest group, after the language field and before the images switch, add the field of design D7: a `<label className="field-label" htmlFor="link-depth">Linked pages</label>`, a `<select className="input select" id="link-depth" aria-describedby="link-depth-note">` with the three options (values `off`, `shallow`, `normal`), labels built with `plural` from `../components/format`, and `<p className="field-hint" id="link-depth-note">` with the note;
   - send `link_depth: linkDepth` in the preferences `PUT` (`:346-352`).

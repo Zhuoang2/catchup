@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode, type Ref } from 'react'
 import { ApiError, request } from '../api/client'
-import { shortDateTime } from '../components/format'
+import { plural, shortDateTime } from '../components/format'
 import { Icon } from '../components/Icon'
 import { useDocumentTitle } from '../components/useDocumentTitle'
 import { Alert, Button, PageHead, Switch } from '../components/ui'
@@ -9,7 +9,8 @@ type Provider = 'openai_compatible' | 'anthropic'
 type ModelSettings = { provider?: Provider; base_url: string; model_id: string; key_set: boolean; api_key_last4: string | null }
 type ModelSave = { provider: Provider; base_url: string; model_id: string; api_key: string }
 type Preferences = { digest_language: string; youtube_captions: boolean; youtube_skip_shorts: boolean;
-  show_images: boolean }
+  show_images: boolean; link_depth: 'off' | 'shallow' | 'normal';
+  link_depth_pages: { off: number; shallow: number; normal: number }; context_fetches_per_run: number }
 type TestResult = { ok: true; models: string[] }
 type Browser = { id: number; name: string; created_at: string; last_used_at: string | null }
 type ConnectedBrowser = Omit<Browser, 'last_used_at'> & { token: string }
@@ -58,6 +59,9 @@ export default function Settings() {
   const [youtubeCaptions, setYoutubeCaptions] = useState(false)
   const [skipShorts, setSkipShorts] = useState(true)
   const [showImages, setShowImages] = useState(true)
+  const [linkDepth, setLinkDepth] = useState<Preferences['link_depth']>('normal')
+  const [linkDepthPages, setLinkDepthPages] = useState<Preferences['link_depth_pages']>({ off: 0, shallow: 0, normal: 0 })
+  const [contextFetchesPerRun, setContextFetchesPerRun] = useState(0)
   const [error, setError] = useState('')
   const [errorField, setErrorField] = useState<'key' | 'base' | 'model' | 'other' | null>(null)
   const [saveError, setSaveError] = useState('')
@@ -121,6 +125,9 @@ export default function Settings() {
       setYoutubeCaptions(preferences.youtube_captions)
       setSkipShorts(preferences.youtube_skip_shorts)
       setShowImages(preferences.show_images !== false)
+      setLinkDepth(preferences.link_depth)
+      setLinkDepthPages(preferences.link_depth_pages)
+      setContextFetchesPerRun(preferences.context_fetches_per_run)
     }).catch((err: unknown) => { if (mounted) setLoadError(errorMessage(err)) })
       .finally(() => { if (mounted) setLoading(false) })
     return () => { mounted = false }
@@ -349,6 +356,7 @@ export default function Settings() {
           digest_language: language === 'other' ? otherLanguage : language,
           youtube_captions: youtubeCaptions, youtube_skip_shorts: skipShorts,
           show_images: showImages,
+          link_depth: linkDepth,
         }),
       })
       setMessage('Settings saved.')
@@ -435,6 +443,18 @@ export default function Settings() {
             onChange={event => setOtherLanguage(event.target.value)} required/>
           {error && errorField === 'other' && <p className="field-error" id="other-error" role="alert">
             <Icon name="alert"/>{error}</p>}</div>}
+        <div className="field"><label className="field-label" htmlFor="link-depth">Linked pages</label>
+          <select className="input select" id="link-depth" aria-describedby="link-depth-note" value={linkDepth}
+            onChange={event => setLinkDepth(event.target.value as Preferences['link_depth'])}>
+            <option value="off">Off — no linked pages or author replies</option>
+            <option value="shallow">Shallow — up to {plural(linkDepthPages.shallow, 'page')} per item</option>
+            <option value="normal">Normal — up to {plural(linkDepthPages.normal, 'page')} per item</option>
+          </select>
+          <p className="field-hint" id="link-depth-note">
+            Each page read adds time to a run, and up to 3,000 characters to that item's summary request, which uses more tokens.
+            {' '}A run reads at most {plural(contextFetchesPerRun, 'page')}.
+          </p>
+        </div>
         <Switch label="Show images from source sites" checked={showImages}
           onChange={event => setShowImages(event.target.checked)} describedBy="images-note"/>
         <p className="field-hint" id="images-note">

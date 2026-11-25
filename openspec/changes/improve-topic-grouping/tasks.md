@@ -166,8 +166,8 @@ Implementer notes:
   | B2 | the merge input without `"items"` | `test_batched_grouping_limits_follow_batch_and_total_counts` |
   | B3 | the merge text without `Each batch topic gives the number of items it holds. ` | `test_merge_prompt_asks_for_broad_final_topics_within_the_limit` |
   | P3 again | `group.py` passes `12` to `group_messages` | now also `test_batched_grouping_limits_follow_batch_and_total_counts` |
-| K1m | after the merge call, when the validated final topics outnumber `topic_limit(len(items))`, the final topics after the first `limit - 1` are folded into one "Other" topic | `test_batched_grouping_keeps_more_final_topics_than_the_limit` |
-| K2m | after the merge call, when the validated final topics outnumber `topic_limit(len(items))`, one more call `client.chat_json([{"role": "system", "content": "Check"}, {"role": "user", "content": "[]"}], max_tokens=100)` is made before returning | `test_batched_grouping_keeps_more_final_topics_than_the_limit` |
+  | K1m | after the merge call, when the validated final topics outnumber `topic_limit(len(items))`, the final topics after the first `limit - 1` are folded into one "Other" topic | `test_batched_grouping_keeps_more_final_topics_than_the_limit` |
+  | K2m | after the merge call, when the validated final topics outnumber `topic_limit(len(items))`, one more call `client.chat_json([{"role": "system", "content": "Check"}, {"role": "user", "content": "[]"}], max_tokens=100)` is made before returning | `test_batched_grouping_keeps_more_final_topics_than_the_limit` |
 
 ## 3. Checks and report
 

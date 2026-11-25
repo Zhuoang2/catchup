@@ -640,3 +640,23 @@ def test_batched_grouping_keeps_more_final_topics_than_the_limit():
         ("F1", [1]), ("F2", [2]), ("F3", [3]), ("F4", [4]), ("F5", [5]),
         ("F6", [6, 7, 8, 9, 10]),
     ]
+
+
+def test_merge_limit_and_counts_follow_the_items_of_each_topic():
+    from catchup.digest.group import _payload
+    from catchup.llm.prompts import merge_messages
+
+    items = [GroupItem(n, f"Title {n:02}", "Source", "Summary") for n in range(1, 14)]
+    client = FakeModel([
+        {"topics": [{"title": "A", "overview": "a", "item_refs": ["i1", "i2", "i3"]},
+                    {"title": "B", "overview": "b", "item_refs": ["i4", "i5"]}]},
+        {"topics": [{"title": "C", "overview": "c", "item_refs": ["i1", "i2", "i3", "i4", "i5"]}]},
+        {"topics": [{"title": "D", "overview": "d", "item_refs": ["i1", "i2", "i3"]}]},
+        {"topics": [{"title": "All", "overview": "all", "topic_refs": ["b1", "b2", "b3", "b4"]}]},
+    ])
+    topics = group_items(client, items, "en", len(_payload(items[:5])))
+    assert [len(json.loads(messages[1]["content"])) for messages, _ in client.calls[:3]] == [5, 5, 3]
+    assert "use at most 6 final topics" in client.calls[3][0][0]["content"]
+    assert [entry["items"] for entry in json.loads(client.calls[3][0][1]["content"])] == [3, 2, 5, 3]
+    assert [(topic.title, topic.item_ids) for topic in topics] == [("All", list(range(1, 14)))]
+    assert "use at most 12 final topics" in merge_messages("[]", "en", 12)[0]["content"]

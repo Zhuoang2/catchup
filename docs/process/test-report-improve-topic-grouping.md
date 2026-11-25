@@ -148,3 +148,40 @@ value. No unrelated test failed, so no isolated failure rerun was needed.
 - No plan deviations. Every stated pre-change failure/pass and every named
   mutation matched the approved plan. Protected planning/process files were
   not edited. No temporary helper files were created.
+
+## Review by Claude Code
+
+Reviewed in worktree `review32` on the branch. Droid's run started at the plan commit `42561a0` and ended at `cf0c6e8`.
+
+### Checks
+
+| Check | Result |
+| --- | --- |
+| Backend `uv run --offline pytest` | 1294 passed on `cf0c6e8`; 1295 with Claude's review test |
+| Frontend `npm test -- --run`, `npm run build` | 336 passed; build passed |
+| Extension `npm test -- --run`, `npm run build` | 169 passed; build passed |
+| `DO_NOT_TRACK=1 openspec validate improve-topic-grouping --strict` | valid |
+| `git diff --check 42561a0..HEAD` | clean |
+| `scripts/docker-smoke.sh catchup:fix32-local` (built from `cf0c6e8`) | 12 of 12 |
+
+### Live check
+
+A scratch container from `catchup:fix32-local` ran on its own volume and port 8832, with a local OpenAI-compatible stub model on the host that recorded every request. Seven pages were saved through the extension API (two about Apple, two about AI, one each about AI rules, a library, and a recipe), and one run succeeded:
+
+- the run made 8 model calls: 7 summaries and 1 grouping call, with no merge call;
+- the grouping call's system text contained "use at most 4 topics" and the exact text of design D6, over 7 item refs;
+- the stub answered 6 topics; the saved digest has those 6 topics in the model's order, with 2, 1, 1, 1, 1, and 1 items, and no further model call was made.
+
+The container, its volume, and the stub were removed afterwards.
+
+### Findings
+
+- **`/code-review` (high) on `42561a0..cf0c6e8`:**
+  - the Droid entry's heading in the AI usage log used a comma instead of the log's dash: fixed in Claude's review commit;
+  - the merge input's key `items` could read as a list rather than a count: not changed, because design D3 and the tests name the key, and the merge text says what it holds.
+- **Spec sub-agent** (independent, detached worktree): no behavior defect; every requirement and scenario is implemented, the text matches design D6 exactly for four languages and every limit, and all 15 named mutation runs failed their tests. Claude checked its findings against the code:
+  - **Fixed by Claude (test only, D-023 class c):** the merge limit was tested at one value, and the 10-item fixture sits on a plateau of the formula (`topic_limit` is 5 for 9, 10, 11, and 12 items); the merge input's counts were tested only where each batch answered one topic. Mutations that hard-code "use at most 5 final topics", pass `topic_limit(len(items) - 1)`, or count the batch's items instead of the topic's passed the suite. The new test `test_merge_limit_and_counts_follow_the_items_of_each_topic` groups 13 items in batches of 5, 5, and 3, with a first batch that answers topics of 3 and 2 items; it expects the limit 6 and the counts 3, 2, 5, and 3, and also checks the merge text for a limit of 12. Each of the three mutations, applied alone, failed it, and the code was restored exactly.
+  - **Recorded, not fixed (literal strings):** moving the size sentence after the title sentence, putting `items` before `overview` in the merge input, and a double space before the size sentence survive the tests; the code has none of them.
+  - **Wording:** the "Mutations killed" column above lists only the tests each mutation was named for. K1 and K2 also fail the batched keep test, and L3 also fails the batch test.
+  - **Plan wording:** the K1m and K2m rows of the task 2.2 table lost their indent in Claude's plan fix; restored.
+- **Not checked here:** real-model grouping quality is the user's check on their next 2–3 real digests after the merge (design D7, Q1).

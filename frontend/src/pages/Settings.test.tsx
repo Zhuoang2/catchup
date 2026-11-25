@@ -101,7 +101,7 @@ describe('linked pages', () => {
       'Shallow — up to 3 pages per item',
       'Normal — up to 8 pages per item',
     ])
-    expect(select).toHaveAccessibleDescription("Each page read adds time to a run, and up to 3,000 characters to that item's summary request, which uses more tokens. A run reads at most 60 pages.")
+    expect(select).toHaveAccessibleDescription("Each page read adds time to a run, and up to 3,000 characters to that item's summary request (up to 4,000 for author replies), which uses more tokens. A run makes at most 60 page requests, robots.txt files included.")
     await expectAccessible(container)
   })
 
@@ -111,7 +111,7 @@ describe('linked pages', () => {
     const select = await screen.findByRole('combobox', { name: 'Linked pages' })
     expect(within(select).getByRole('option', { name: 'Shallow — up to 3 pages per item' })).toBeInTheDocument()
     expect(within(select).getByRole('option', { name: 'Normal — up to 5 pages per item' })).toBeInTheDocument()
-    expect(select).toHaveAccessibleDescription(/A run reads at most 40 pages\.$/)
+    expect(select).toHaveAccessibleDescription(/A run makes at most 40 page requests, robots\.txt files included\.$/)
     first.unmount()
     mockLinkedPages({ link_depth_pages: { off: 0, shallow: 1, normal: 1 } })
     render(<Settings/>)

@@ -104,10 +104,10 @@ Linked pages                       <select id="link-depth" aria-describedby="lin
   Off — no linked pages or author replies
   Shallow — up to 3 pages per item
   Normal — up to 8 pages per item
-Each page read adds time to a run, and up to 3,000 characters to that item's summary request, which uses more tokens. A run reads at most 60 pages.
+Each page read adds time to a run, and up to 3,000 characters to that item's summary request (up to 4,000 for author replies), which uses more tokens. A run makes at most 60 page requests, robots.txt files included.
 ```
 
-The numbers come from `link_depth_pages` and `context_fetches_per_run`, through `plural` from `components/format.ts` ("up to 1 page per item"). The 3,000 is the per-page cut (`gather.py:189`), which no setting changes. The select's value is the stored level, and it is sent in the existing preferences `PUT`. The page reads the new fields directly, without fallbacks, because the frontend and the API ship together (D-006); the test mocks that answer preferences get the new fields.
+The numbers come from `link_depth_pages` and `context_fetches_per_run`, through `plural` from `components/format.ts` ("up to 1 page per item"). The 3,000 is the per-page cut (`gather.py:189`), which no setting changes; the author replies read from a post page have their own cut of 4,000 (`comments.py:21`). The run's limit is the budget that robots.txt, post pages, and comment feeds share with linked pages, so the note counts page requests, not pages. The select's value is the stored level, and it is sent in the existing preferences `PUT`. The page reads the new fields directly, without fallbacks, because the frontend and the API ship together (D-006); the test mocks that answer preferences get the new fields.
 
 Alternatives: a radio group (rejected: the Digest group already uses a select for a choice among fixed values, and three options fit in one); numbers written into the page (rejected: wrong when the server's settings differ).
 

@@ -451,8 +451,8 @@ export default function Settings() {
             <option value="normal">Normal — up to {plural(linkDepthPages.normal, 'page')} per item</option>
           </select>
           <p className="field-hint" id="link-depth-note">
-            Each page read adds time to a run, and up to 3,000 characters to that item's summary request, which uses more tokens.
-            {' '}A run reads at most {plural(contextFetchesPerRun, 'page')}.
+            Each page read adds time to a run, and up to 3,000 characters to that item's summary request (up to 4,000 for author replies), which uses more tokens.
+            {' '}A run makes at most {plural(contextFetchesPerRun, 'page request')}, robots.txt files included.
           </p>
         </div>
         <Switch label="Show images from source sites" checked={showImages}

@@ -1038,6 +1038,28 @@ describe('saving model choices', () => {
     await screen.findByText('Saved model live-b.')
   })
 
+  it('saves a model choice and then a Reasoning choice in order', async () => {
+    let finishChoice!: (response: ReturnType<typeof respond>) => void
+    const pending = new Promise<ReturnType<typeof respond>>(resolve => { finishChoice = resolve })
+    mockModelProvider({ put: body => body.model_id === 'live-b' && body.reasoning === 'default'
+      ? pending : respond({ base_url: body.base_url, model_id: body.model_id,
+        reasoning: body.reasoning, key_set: true, api_key_last4: '1234' }) })
+    await testAndSave()
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'live-b' } })
+    })
+    fireEvent.change(screen.getByLabelText('Reasoning'), { target: { value: 'low' } })
+    expect(modelPuts()).toHaveLength(2)
+    await act(async () => {
+      finishChoice(respond({ base_url: 'https://api.deepseek.com', model_id: 'live-b',
+        reasoning: 'default', key_set: true, api_key_last4: '1234' }))
+    })
+    await waitFor(() => expect(modelPuts().map(body => [body.model_id, body.reasoning])).toEqual([
+      ['live-a', 'default'], ['live-b', 'default'], ['live-b', 'low'],
+    ]))
+    await screen.findByText('Saved reasoning: Low.')
+  })
+
   it('waits to save a model choice when the key was edited', async () => {
     mockModelProvider()
     await testAndSave()

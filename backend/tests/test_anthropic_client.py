@@ -371,10 +371,11 @@ def test_provider_default_sends_no_output_config(provider):
     assert "thinking" not in body
 
 
+@pytest.mark.parametrize("status", [400, 422])
 @pytest.mark.parametrize("reasoning,error", [("low", ReasoningRejected), ("default", ProviderError)])
-def test_anthropic_refused_reasoning_raises_reasoning_rejected(provider, reasoning, error):
+def test_anthropic_refused_reasoning_raises_reasoning_rejected(provider, reasoning, error, status):
     client, requests, sleeps = provider(
-        [error_response(400, "invalid_request_error")], reasoning=reasoning,
+        [error_response(status, "invalid_request_error")], reasoning=reasoning,
     )
     with pytest.raises(error) as caught:
         client.chat_json([{"role": "user", "content": "x"}], 100)

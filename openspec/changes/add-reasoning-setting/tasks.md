@@ -166,8 +166,8 @@ Implementer notes:
   | F4 | **Save** leaves out `reasoning` | `sends the shown Reasoning with Save` |
   | F5 | a Reasoning choice sends its own request instead of using `queueModelSave` | `saves a Reasoning choice and a model choice in order` |
   | F6 | the select has no `aria-describedby` | `shows the saved Reasoning after the Model select with its hint` |
-| F7 | `queueModelSave` does not update `savedReasoning` | `saves a Reasoning choice right away` |
-| F8 | **Save** does not update `savedReasoning` | `sends the shown Reasoning with Save` |
+  | F7 | `queueModelSave` does not update `savedReasoning` | `saves a Reasoning choice right away` |
+  | F8 | **Save** does not update `savedReasoning` | `sends the shown Reasoning with Save` |
 
 ## 5. Checks and report
 

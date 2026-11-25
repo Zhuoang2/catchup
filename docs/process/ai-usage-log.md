@@ -2971,7 +2971,7 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 
 ## 2026-11-25 — `improve-topic-grouping` (#32): review (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
 
-- **Prompts** (translated from Chinese): the plan approval ("Approve all three plans as recommended; conflicts approved in advance") covered Droid's run and this review.
+- **Prompts** (translated from Chinese): the plan approval ("Approve all three plans as recommended; conflicts approved in advance") covered Droid's run and this review. Claude's merge-ready report covered #32, #54, and #4 in one question. The user replied: "Decision 1 as recommended, A; approve the three merges and wrap up." Decision 1 concerned #54 only; #32 had no decision.
 - **Outcome:**
   - **Checks:** backend 1294 on Droid's head `cf0c6e8`, 1295 with Claude's review test; frontend 336; extension 169; both builds; strict validation; `git diff --check`; `scripts/docker-smoke.sh` 12 of 12 on `catchup:fix32-local`.
   - **Live check** on port 8832 with a fresh volume and a local OpenAI-compatible stub: 7 pages saved through the extension API; the run's one grouping call asked for "use at most 4 topics" over 7 refs; the stub answered 6 topics, and the digest kept all 6 in the model's order, with no further model call (8 calls: 7 summaries and 1 grouping).

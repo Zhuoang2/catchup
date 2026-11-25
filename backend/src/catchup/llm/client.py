@@ -29,6 +29,16 @@ class InsufficientBalance(ModelError):
     code = "insufficient_balance"
 
 
+class ReasoningRejected(ModelError):
+    code = "reasoning_rejected"
+
+    def __init__(self):
+        super().__init__(
+            "The model provider rejected a request with the Reasoning setting. "
+            "Choose Provider default in Settings, then generate again."
+        )
+
+
 class RateLimited(ModelError):
     code = "rate_limited"
 
@@ -51,6 +61,9 @@ class ModelInfo:
     context_window: int | None = None
 
 
+REASONING_EFFORTS = {"low": "low", "off": "none"}
+
+
 class ModelClient:
     def __init__(
         self,
@@ -58,9 +71,13 @@ class ModelClient:
         api_key: str,
         model: str = "",
         *,
+        reasoning: str = "default",
         http_client: httpx2.Client | None = None,
         sleep: Callable[[float], None] = time.sleep,
     ):
+        if reasoning != "default" and reasoning not in REASONING_EFFORTS:
+            raise ValueError("Choose a Reasoning setting that this provider supports.")
+        self.reasoning = reasoning
         self.base_url = base_url
         self.model = model
         self._sleep = sleep
@@ -75,7 +92,7 @@ class ModelClient:
     def close(self) -> None:
         self._client.close()
 
-    def _call(self, operation: Callable[[], Any]) -> Any:
+    def _call(self, operation: Callable[[], Any], *, reasoning_sent: bool = False) -> Any:
         for attempt in range(3):
             try:
                 result = operation()
@@ -85,6 +102,8 @@ class ModelClient:
             except openai.AuthenticationError as exc:
                 raise AuthFailed("The provider rejected the API key.") from exc
             except openai.APIStatusError as exc:
+                if reasoning_sent and exc.status_code in (400, 422):
+                    raise ReasoningRejected() from exc
                 if exc.status_code == 402:
                     raise InsufficientBalance("The provider account has insufficient balance.") from exc
                 if exc.status_code not in (429, 500, 502, 503, 504) or attempt == 2:
@@ -131,6 +150,10 @@ class ModelClient:
             return self._prompt_tokens, self._completion_tokens
 
     def chat_json(self, messages: list[dict[str, str]], max_tokens: int) -> dict[str, Any]:
+        options = {}
+        if self.reasoning != "default":
+            options["reasoning_effort"] = REASONING_EFFORTS[self.reasoning]
+
         def chat() -> dict[str, Any] | None:
             # The SDK returns a str, list, or partly built object for answers that are not
             # chat completions, so nothing about the result's shape is assumed.
@@ -140,6 +163,7 @@ class ModelClient:
                 max_tokens=max_tokens,
                 response_format={"type": "json_object"},
                 timeout=httpx2.Timeout(connect=10.0, read=300.0, write=10.0, pool=10.0),
+                **options,
             )
             usage = getattr(result, "usage", None)
             if hasattr(usage, "prompt_tokens") or hasattr(usage, "completion_tokens"):
@@ -160,4 +184,4 @@ class ModelClient:
                 raise ValueError("model answer is not a JSON object")
             return data
 
-        return self._call(chat)
+        return self._call(chat, reasoning_sent=self.reasoning != "default")

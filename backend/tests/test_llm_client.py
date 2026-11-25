@@ -10,6 +10,7 @@ import respx
 
 from catchup.llm.client import (
     AuthFailed, ConnectionFailed, InsufficientBalance, ModelClient, ModelInfo, ProviderError, RateLimited,
+    ReasoningRejected,
 )
 
 BASE = "https://provider.example/v1"
@@ -334,3 +335,104 @@ def test_model_list_skips_entries_that_are_not_models(mock_provider) -> None:
     client = ModelClient(BASE, "test-only-key", http_client=http_client, sleep=lambda _: None)
     assert client.list_models() == [ModelInfo("m")]
     client.close()
+
+
+@pytest.mark.parametrize("reasoning,expected", [
+    ("default", None), ("low", "low"), ("off", "none"),
+])
+def test_reasoning_choice_sets_reasoning_effort(mock_provider, reasoning, expected):
+    router, http_client = mock_provider
+    route = router.post(f"{BASE}/chat/completions").mock(return_value=completion('{"ok": true}'))
+    sleeps = []
+    client = ModelClient(BASE, "test-only-key", "test-model", reasoning=reasoning,
+                         http_client=http_client, sleep=sleeps.append)
+    try:
+        assert client.chat_json([{"role": "user", "content": "x"}], 100) == {"ok": True}
+        body = json.loads(route.calls[0].request.content)
+        if expected is None:
+            assert "reasoning_effort" not in body
+        else:
+            assert body["reasoning_effort"] == expected
+        assert "thinking" not in body
+    finally:
+        client.close()
+
+
+@pytest.mark.parametrize("status", [400, 422])
+def test_refused_reasoning_raises_reasoning_rejected_without_retry(mock_provider, status):
+    router, http_client = mock_provider
+    route = router.post(f"{BASE}/chat/completions").mock(
+        return_value=httpx.Response(status, json={"error": {"message": "unsupported"}}),
+    )
+    sleeps = []
+    client = ModelClient(BASE, "test-only-key", "test-model", reasoning="low",
+                         http_client=http_client, sleep=sleeps.append)
+    try:
+        with pytest.raises(ReasoningRejected) as caught:
+            client.chat_json([{"role": "user", "content": "x"}], 100)
+        assert caught.value.code == "reasoning_rejected"
+        assert str(caught.value) == (
+            "The model provider rejected a request with the Reasoning setting. "
+            "Choose Provider default in Settings, then generate again."
+        )
+        assert route.call_count == 1
+        assert sleeps == []
+    finally:
+        client.close()
+
+
+def test_refusal_with_provider_default_stays_a_provider_error(mock_provider):
+    router, http_client = mock_provider
+    route = router.post(f"{BASE}/chat/completions").mock(
+        return_value=httpx.Response(400, json={"error": {"message": "unsupported"}}),
+    )
+    sleeps = []
+    client = ModelClient(BASE, "test-only-key", "test-model", reasoning="default",
+                         http_client=http_client, sleep=sleeps.append)
+    try:
+        with pytest.raises(ProviderError) as caught:
+            client.chat_json([{"role": "user", "content": "x"}], 100)
+        assert type(caught.value) is ProviderError
+        assert route.call_count == 1
+    finally:
+        client.close()
+
+
+@pytest.mark.parametrize("status,error", [(401, AuthFailed), (402, InsufficientBalance)])
+def test_other_errors_keep_their_meaning_with_reasoning_set(mock_provider, status, error):
+    router, http_client = mock_provider
+    route = router.post(f"{BASE}/chat/completions").mock(
+        return_value=httpx.Response(status, json={"error": {"message": "unsupported"}}),
+    )
+    sleeps = []
+    client = ModelClient(BASE, "test-only-key", "test-model", reasoning="off",
+                         http_client=http_client, sleep=sleeps.append)
+    try:
+        with pytest.raises(error):
+            client.chat_json([{"role": "user", "content": "x"}], 100)
+        assert route.call_count == 1
+        assert sleeps == []
+    finally:
+        client.close()
+
+
+def test_model_list_refusal_stays_a_provider_error_with_reasoning_set(mock_provider):
+    router, http_client = mock_provider
+    route = router.get(f"{BASE}/models").mock(
+        return_value=httpx.Response(400, json={"error": {"message": "unsupported"}}),
+    )
+    sleeps = []
+    client = ModelClient(BASE, "test-only-key", "test-model", reasoning="low",
+                         http_client=http_client, sleep=sleeps.append)
+    try:
+        with pytest.raises(ProviderError) as caught:
+            client.list_models()
+        assert type(caught.value) is ProviderError
+        assert route.call_count == 1
+    finally:
+        client.close()
+
+
+def test_unknown_reasoning_choice_is_refused():
+    with pytest.raises(ValueError):
+        ModelClient(BASE, "test-only-key", "test-model", reasoning="max")

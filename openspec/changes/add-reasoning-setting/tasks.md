@@ -33,7 +33,7 @@ Implementer notes:
 
 ## 1. Clients and factory (D2–D4)
 
-- [ ] 1.1 Write these tests and watch them fail. They fail because the clients take no `reasoning`, and because `ReasoningRejected` and `REASONING_CHOICES` do not exist.
+- [x] 1.1 Write these tests and watch them fail. They fail because the clients take no `reasoning`, and because `ReasoningRejected` and `REASONING_CHOICES` do not exist.
 
   **In `backend/tests/test_llm_client.py`** (model `test-model`, `sleep=sleeps.append`):
   - **`test_reasoning_choice_sets_reasoning_effort`**, parametrized `("default", None)`, `("low", "low")`, `("off", "none")`. `chat_json([{"role": "user", "content": "x"}], 100)` returns the answer. The chat completion body's `reasoning_effort` equals the expected value, and is absent for `default`. `thinking` is absent.
@@ -52,13 +52,13 @@ Implementer notes:
   **In `backend/tests/test_model_providers.py`:**
   - **`test_factory_passes_the_reasoning_choice`**, parametrized over both providers. `make_model_client(BASE, "test-only-key", model, provider, "low", http_client=…, sleep=…)` with an `httpx2.MockTransport` handler that answers `completion("{}")` from `test_model_errors` (`openai_compatible`) or `stream_body("{}")` (`anthropic`). Do not use the `completion` of `test_llm_client`: it returns an `httpx.Response` for the respx bridge, and an `httpx2.MockTransport` handler that returns it fails with `TypeError`. After `chat_json([…], 100)`, the body has `"reasoning_effort": "low"` or `"output_config": {"effort": "low"}`.
   - **`test_reasoning_choices_per_provider`.** `REASONING_CHOICES == {"openai_compatible": ("default", "low", "off"), "anthropic": ("default", "low")}`.
-- [ ] 1.2 Implement design D2–D4 in the clients:
+- [x] 1.2 Implement design D2–D4 in the clients:
   - `backend/src/catchup/llm/client.py`: `ReasoningRejected(ModelError)` with `code = "reasoning_rejected"` and the message above; `REASONING_EFFORTS = {"low": "low", "off": "none"}`; the keyword `reasoning="default"` on `ModelClient`, which raises `ValueError` for anything other than `default` or a key of `REASONING_EFFORTS`; `_call(operation, *, reasoning_sent=False)`, which raises `ReasoningRejected` for an `openai.APIStatusError` with status 400 or 422 when `reasoning_sent` is true, before the existing status rules; `chat_json` adds `reasoning_effort=REASONING_EFFORTS[self.reasoning]` when the choice is not `default`, and passes `reasoning_sent`.
   - `backend/src/catchup/llm/anthropic_client.py`: `REASONING_EFFORTS = {"low": "low"}`; the same keyword and `ValueError`; `options["output_config"] = {"effort": …}` in `chat_json` when the choice is not `default`, for both endpoints; the same `_call` rule for `anthropic.APIStatusError`.
   - `backend/src/catchup/llm/providers.py`: `REASONING_CHOICES` built as `("default", *REASONING_EFFORTS)` for each client, and `make_model_client(base_url, api_key, model="", provider="openai_compatible", reasoning="default", **options)`, which passes `reasoning=reasoning`.
 
   Then run `uv run --offline pytest tests/test_llm_client.py tests/test_anthropic_client.py tests/test_model_providers.py`, and watch them pass.
-- [ ] 1.3 Run these mutations one at a time, and record which tests fail:
+- [x] 1.3 Run these mutations one at a time, and record which tests fail:
 
   | Mutation | Change | Expected failing tests |
   | --- | --- | --- |

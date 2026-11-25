@@ -1831,3 +1831,48 @@ def test_new_summary_resets_used_context_rows(environment, monkeypatch):
         contexts = {part.ref: part for part in session.scalars(select(ItemContext))}
         assert contexts["L1"].used is False
         assert contexts["L2"].used is True
+
+
+@pytest.mark.parametrize("count, phrase", [
+    (1, "Use one topic. "), (7, "use at most 4 topics"), (30, "use at most 8 topics"),
+])
+def test_run_asks_grouping_for_the_topic_limit_of_its_items(environment, monkeypatch, count, phrase):
+    seed(environment, count=count)
+    stub_collection(monkeypatch)
+    model = FakeModel()
+    environment.app.state.model_client_factory = lambda *_: model
+    assert execute(environment)["status"] == "succeeded"
+    grouping = [messages for messages, _ in model.calls if '"item_refs"' in messages[0]["content"]]
+    assert len(grouping) == 1
+    assert phrase in grouping[0][0]["content"]
+    assert '"ref": "i%d"' % count in grouping[0][1]["content"]
+
+
+def test_run_saves_more_topics_than_the_limit_as_answered(environment, monkeypatch):
+    seed(environment, count=7)
+    stub_collection(monkeypatch)
+
+    class SixTopicModel(FakeModel):
+        def chat_json(self, messages, max_tokens):
+            if '"item_refs"' in messages[0]["content"]:
+                self.calls.append((messages, max_tokens))
+                return {"topics": [
+                    {"title": f"Topic {n}", "overview": "Overview", "item_refs": refs}
+                    for n, refs in enumerate(
+                        [["i1"], ["i2"], ["i3", "i4"], ["i5"], ["i6"], ["i7"]], 1,
+                    )
+                ]}
+            return super().chat_json(messages, max_tokens)
+
+    model = SixTopicModel()
+    environment.app.state.model_client_factory = lambda *_: model
+    assert execute(environment)["status"] == "succeeded"
+    topics = sorted(
+        (row for row in all_rows(environment, DigestTopic) if row.kind == "topic"),
+        key=lambda row: row.position,
+    )
+    assert [row.title for row in topics] == [f"Topic {n}" for n in range(1, 7)]
+    items = all_rows(environment, DigestItem)
+    assert len(items) == 7
+    assert len({row.item_id for row in items}) == 7
+    assert len([messages for messages, _ in model.calls if '"summary"' not in messages[0]["content"]]) == 1

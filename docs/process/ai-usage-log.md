@@ -2945,6 +2945,41 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - **The machine restarted during the review.** The scratchpad, with Droid's prompt files and logs, was cleared and the review worktrees were lost; everything was committed, so the worktrees were recreated from the branch. Session data had already been recorded.
   - **Droid put its implementation entry at the top of this log.** Claude moved it into date order, and the fix round's task said where its own entry goes.
 
+## 2026-11-25 — `improve-topic-grouping` (#32): plan (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
+
+- **Prompts** (translated from Chinese):
+  - After #40 merged, the user chose three issues to plan at the same time: "Start #4, #54, and #32 in parallel."
+  - After reviewing the three plans, the user decided: "Approve all three plans as recommended; conflicts approved in advance." The advance approval covers merge conflicts between #4 and #54 in which each side only adds its own lines: Claude keeps both sides, renumbers the second migration to `0011`, and re-runs the checks; any other conflict still stops for the user.
+- **Outcome:**
+  - **Checked on `main` `145811f`.** The grouping instruction `group_messages` has not changed since 89bdc02 (2026-10-03, per `git log -L`), and nothing limits the number of topics. Batch calls reuse the single-call path. Several test models route on words in the system text, which the new text keeps.
+  - **Plan.** A topic limit of ⌈√(2n)⌉ topics for n items, at most n and 12, in the grouping and merge instructions, with rules for broad topics, titles, and overviews; the merge input gains each batch topic's item count; the limit is guidance only. Three task groups with mutations L1–L3, P1–P4, K1–K2, K1m–K2m, and B1–B3; no migration; the implementer notes tell Droid not to run Docker. D-043. The user chose the recommendation for D1, D2, and D7: guidance only, the ⌈√(2n)⌉ limit, and a quality check on the user's next 2–3 real digests after the merge.
+  - **D-023 fresh-eyes check.** A sub-agent that saw only the change folder and the code prototyped both code groups (1,293 backend tests passed) and ran every named mutation; each failed its named tests. Claude checked its five findings against the code and applied all five:
+    - the guidance-only rule had no test on the batched path (two mutations after the merge call passed the suite), so a test and mutations K1m and K2m now cover it;
+    - the spec delta now says that the one-item text replaces the broad-topic points, and lists the merge call's rules instead of "the same rules";
+    - the reach of one assertion, K2's failure (`StopIteration`), and a line reference.
+- **Problems / adjustment:**
+  - **The spec delta said "no further model call" for every grouping answer, but the plan tested it only for single calls.** The prototype run caught it before Droid.
+
+## 2026-11-25 — `improve-topic-grouping` (#32): implementation (Factory Droid, GPT-6.1 Sol)
+
+- **Prompt excerpt:** "Implement the OpenSpec change `improve-topic-grouping` (issue #32) in this repository." "Work through task groups 1 to 3 of `tasks.md` in order, using the `openspec-apply-change` skill, and complete every task with the `tdd` skill: write the task's tests first, run them, and watch each fail for the reason the task gives; then implement until they pass." "Run each named mutation alone, record which tests fail, and restore the code exactly". The prompt also required offline checks, no dependency changes, commits after each group, no Docker or port 8800, and no edits to the approved planning artifacts or decision/requirements logs.
+- **Outcome:** Implemented the exact approved grouping and merge instructions, the item-count topic limit, and merge input item counts. The limit remains guidance only, with no validation, fallback, token-budget, batch-packing, runner, API, schema, or frontend changes. Appended 25 backend test cases without changing existing tests. Group 1 committed as `508bd3a`; group 2 as `21cd538`; group 3 records the checks and report.
+- **Test-first evidence:** Before production edits, group 1 returned `21 failed, 1 passed`, with the specified import/signature/phrase failures and the existing-behavior runner keep test passing. After group 1, the group 2 additions returned `2 failed, 1 passed` at the specified merge seams, with batch limits already correct. All 15 isolated mutation runs (14 distinct named mutations, P3 repeated for batching) failed their expected tests; each restored `git diff` exactly matched its saved pre-mutation diff.
+- **Verification:** Final `uv run --offline pytest`: `1294 passed, 2 warnings`; frontend: 336 tests in 14 files and build passed; extension: 169 tests in 7 files and build passed; strict OpenSpec validation and `git diff --check` passed. Both Node installs used 22.17.1 and the offline locked cache; manifests and lockfiles are unchanged. Details, timings, commands, and mutation-to-test mapping are in `docs/process/test-report-improve-topic-grouping.md`.
+- **Session:** `c60214ff-1f66-4e43-b786-e36255aedc59`, 200 turns, about 8.5 minutes. Claude Code added this line, and the heading's dash, at review.
+- **Problems / adjustments:** None. No unrelated test failed. The two backend warnings are from unchanged malformed-usage Pydantic tests; npm reported the cached `whatwg-encoding` deprecation. Docker smoke and the live stub-model check remain for Claude Code review, and real-model quality remains the user's post-merge D7/Q1 check. No real credentials or network were used.
+
+## 2026-11-25 — `improve-topic-grouping` (#32): review (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
+
+- **Prompts** (translated from Chinese): the plan approval ("Approve all three plans as recommended; conflicts approved in advance") covered Droid's run and this review. Claude's merge-ready report covered #32, #54, and #4 in one question. The user replied: "Decision 1 as recommended, A; approve the three merges and wrap up." Decision 1 concerned #54 only; #32 had no decision.
+- **Outcome:**
+  - **Checks:** backend 1294 on Droid's head `cf0c6e8`, 1295 with Claude's review test; frontend 336; extension 169; both builds; strict validation; `git diff --check`; `scripts/docker-smoke.sh` 12 of 12 on `catchup:fix32-local`.
+  - **Live check** on port 8832 with a fresh volume and a local OpenAI-compatible stub: 7 pages saved through the extension API; the run's one grouping call asked for "use at most 4 topics" over 7 refs; the stub answered 6 topics, and the digest kept all 6 in the model's order, with no further model call (8 calls: 7 summaries and 1 grouping).
+  - **`/code-review` (high):** two nits: the Droid entry's heading used a comma instead of the log's dash (fixed), and the merge input's key `items` could read as a list (kept: the plan and tests pin it).
+  - **Spec sub-agent:** no behavior defect; all 15 named mutation runs failed their tests. Claude verified its findings: the merge limit was tested at one value on a plateau (`topic_limit` is 5 for 9 to 12 items) and the merge input's counts only where each batch answered one topic, so mutations that hard-code 5, use one item fewer, or count the batch instead of the topic passed the suite. Claude added `test_merge_limit_and_counts_follow_the_items_of_each_topic` (13 items in batches of 5, 5, and 3; limit 6; counts 3, 2, 5, 3), and showed each of those three mutations fails it. The order of the text's parts, a key's place in the merge input, and a double space are recorded as literal-string survivors. Two table rows in `tasks.md` lost their indent in Claude's plan fix; Claude restored it.
+- **Problems / adjustment:**
+  - **The plan's batch fixture sat on a plateau of the limit formula,** so its merge-limit assertion could not tell the right count of items from a wrong one. Fixtures for a formula now need a value where neighbouring inputs give different results.
+
 ## 2026-11-25 — `add-link-depth-setting` (#54): plan (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
 
 - **Prompts** (translated from Chinese):

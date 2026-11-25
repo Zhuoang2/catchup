@@ -745,3 +745,30 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Runs at Shallow make smaller summary requests; in large runs the per-run limit, not the level, bounds the number of requests.
   - A page saved from the browser with saved replies is marked gathered at Off, so its links are not read later.
   - Token savings are not measured before the merge; the user can compare runs at Shallow and Normal on their own instance.
+
+## D-043 Ask the grouping call for fewer, broader topics, within a limit that grows with the item count — accepted (2026-11-25)
+
+- **Decision** (the user chose the recommendation for D1, D2, and D7 of the design at plan approval).
+  - **Instructions.** The grouping call asks the model:
+    - to put items about the same subject (one company, product, event, or field) in one topic, even when they come from different sources;
+    - to prefer fewer, broader topics within the topic limit;
+    - to give an item a topic of its own only when it fits no other topic;
+    - to title each topic with the shared subject, and to write an overview of 1–2 sentences about what its items cover together, without repeating each item's summary.
+
+    The call that combines batch topics asks the same for final topics, and is told how many items each batch topic holds.
+  - **Limit.** The limit for `n` items is `⌈√(2n)⌉`, at most `n` and 12: 1 item, 1 topic; 7 items, 4; 30 items, 8; 61 or more, 12. A batch call uses its own items' limit, and the combining call the limit for all the items.
+  - **Guidance only.** A grouping with more topics than the limit is saved as the model answered. Nothing is dropped, moved, or merged, and no extra call is made.
+
+  Planned as the lean OpenSpec change `improve-topic-grouping` (issue #32). It was planned in parallel with D-041 (#4) and D-042 (#54). If those merge first, their entries go before this one.
+- **Why.** A real digest grouped 7 items into 6 topics (2026-10-13). The grouping instruction had said only "Group the supplied items by topic" since 2026-10-03, with no guidance on merging or topic count (#32, the second cause named in #25).
+- **Alternatives:**
+  - **One more combining call when the answer exceeds the limit** (design D1 B). Offered to the user. It adds a call and its wait to every run where the model ignores the limit.
+  - **Fold extra topics into "Other" in code.** Rejected: unrelated items lose their titles and overviews.
+  - **Treat too many topics as an invalid answer.** Rejected: after the retries, everything falls back to one "Other" topic.
+  - **`⌈n/3⌉`, at least 2** (design D2). Offered to the user. Closer to the issue's "2–5 topics for up to 15 items", but it forces 4–6 unrelated items into 2 topics.
+  - **Wording only, or a fixed range.** Rejected: no concrete target, or a range that is wrong for both 1 and 200 items.
+  - **A Settings choice for the number of topics.** Rejected for now: it needs a migration and edits the Settings page, which #4 and #54 edit in parallel.
+- **Consequences:**
+  - Whether the model follows the limit is known only from the user's own runs (design D7). The tests show that the instructions and limits reach the model, and that any answer is saved as before.
+  - Topics may become broad, such as one "AI" topic for model, chip, and policy news.
+  - The input of the combining call stays unbounded on small context windows, as before. The item counts add about 12 characters per batch topic.

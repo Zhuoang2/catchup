@@ -34,7 +34,7 @@ Implementer notes:
 
 ## 1. Single-call grouping asks for broad topics within the limit (digest-generation; design D1, D2, D4, D6)
 
-- [ ] 1.1 Write failing tests at the end of `backend/tests/test_digest_stages.py`:
+- [x] 1.1 Write failing tests at the end of `backend/tests/test_digest_stages.py`:
   - `test_topic_limit_grows_with_the_item_count`, parametrized over `(count, expected)`. It imports `topic_limit` from `catchup.llm.prompts` and asserts `topic_limit(count) == expected` for these pairs: `(1, 1)`, `(2, 2)`, `(3, 3)`, `(4, 3)`, `(5, 4)`, `(7, 4)`, `(8, 4)`, `(9, 5)`, `(11, 5)`, `(15, 6)`, `(18, 6)`, `(30, 8)`, `(60, 11)`, `(61, 12)`, `(200, 12)`, `(10_000, 12)`.
   - `test_grouping_prompt_asks_for_broad_topics_within_the_limit`. It imports `group_messages`.
     - For `system = group_messages("[]", "en", 4)[0]["content"]`, each of these strings is `in system`:
@@ -72,7 +72,7 @@ Implementer notes:
   - the limit table, with an import error;
   - the grouping text test, with a `TypeError`, because `group_messages` takes two arguments;
   - the 7-item test, because the text does not ask for at most 4 topics.
-- [ ] 1.2 Write tests at the end of `backend/tests/test_digest_runner.py`:
+- [x] 1.2 Write tests at the end of `backend/tests/test_digest_runner.py`:
   - `test_run_asks_grouping_for_the_topic_limit_of_its_items`, parametrized over `(count, phrase)`: `(1, "Use one topic. ")`, `(7, "use at most 4 topics")`, `(30, "use at most 8 topics")`.
     - Setup: `seed(environment, count=count)`, `stub_collection(monkeypatch)`, `model = FakeModel()`, and `environment.app.state.model_client_factory = lambda *_: model`.
     - `execute(environment)["status"] == "succeeded"`.
@@ -88,7 +88,7 @@ Implementer notes:
   Verify:
   - all three cases of the limit test fail on the current code;
   - the 6-topic test passes on the current code. It guards behavior that holds today, and mutations K1 and K2 in 1.3 show that it can fail.
-- [ ] 1.3 Implement:
+- [x] 1.3 Implement:
   - in `backend/src/catchup/llm/prompts.py`:
     - add `import math`;
     - just above `group_messages`, add `TOPIC_LIMIT_CAP = 12` and `topic_limit(count: int) -> int`, returning `min(count, TOPIC_LIMIT_CAP, math.isqrt(2 * count - 1) + 1)`, with a one-line docstring (design D2);

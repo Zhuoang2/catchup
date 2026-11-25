@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from catchup.llm.client import InvalidAnswer, ModelClient
-from catchup.llm.prompts import group_messages, grouping_batch_chars, grouping_max_tokens, merge_messages
+from catchup.llm.prompts import group_messages, grouping_batch_chars, grouping_max_tokens, merge_messages, topic_limit
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ def _group(client: ModelClient, items: list[GroupItem], language: str, batch_cha
            context_window: int | None) -> list[Topic]:
     payload = _payload(items)
     if len(payload) <= batch_chars or len(items) == 1:
-        response = client.chat_json(group_messages(payload, language),
+        response = client.chat_json(group_messages(payload, language, topic_limit(len(items))),
                                     max_tokens=grouping_max_tokens(len(items), context_window))
         return _valid_topics(response, {f"i{n}": item.id for n, item in enumerate(items, 1)}, "item_refs", language)
 

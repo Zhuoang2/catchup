@@ -39,6 +39,7 @@ class ModelConfig(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     provider: Mapped[str] = mapped_column(String(32), default="openai_compatible", server_default="openai_compatible")
+    reasoning: Mapped[str] = mapped_column(String(16), default="default", server_default="default")
     base_url: Mapped[str] = mapped_column(String(2048))
     model_id: Mapped[str] = mapped_column(String(255))
     api_key_encrypted: Mapped[str] = mapped_column(Text)

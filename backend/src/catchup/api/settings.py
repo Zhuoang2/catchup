@@ -17,7 +17,7 @@ from catchup.llm.client import (
     AuthFailed, ConnectionFailed, InsufficientBalance, ModelClient, ProviderError, RateLimited,
 )
 from catchup.llm.anthropic_client import AnthropicModelClient
-from catchup.llm.providers import DEFAULT_BASE_URL, DEFAULT_BASE_URLS, PROVIDERS, make_model_client
+from catchup.llm.providers import DEFAULT_BASE_URL, DEFAULT_BASE_URLS, PROVIDERS, REASONING_CHOICES, make_model_client
 from catchup.models import (AppSettings, Digest, DigestItem, DigestRun, DigestTopic,
                              Item, ModelConfig, Source, XCredential, utc_now)
 from catchup.sources.x_api import XApiError, XClient
@@ -30,6 +30,7 @@ class ModelInput(BaseModel):
     model_id: str
     api_key: str | None = None
     provider: str | None = None
+    reasoning: str | None = None
 
 
 class TestInput(BaseModel):
@@ -202,6 +203,7 @@ def _read_key(row: ModelConfig, secret: str | None) -> str:
 
 def _public_model(row: ModelConfig | None) -> dict:
     return {
+        "reasoning": row.reasoning if row else "default",
         "provider": row.provider if row else "openai_compatible",
         "base_url": row.base_url if row else DEFAULT_BASE_URL,
         "model_id": row.model_id if row else "",
@@ -231,6 +233,11 @@ def read_model(session: Session = Depends(get_session)) -> dict:
 def save_model(data: ModelInput, request: Request, session: Session = Depends(get_session)) -> dict:
     row = session.get(ModelConfig, 1)
     provider = _model_provider(data.provider, row)
+    reasoning = data.reasoning
+    if reasoning is not None and reasoning not in REASONING_CHOICES[provider]:
+        raise AppError("invalid_reasoning", "Choose a Reasoning setting that this provider supports.", 422)
+    if reasoning is None:
+        reasoning = row.reasoning if row and provider == row.provider else "default"
     base_url, model_id = data.base_url.strip(), data.model_id.strip()
     if not _valid_provider_url(base_url) or not model_id:
         raise AppError("invalid_model_config", "Enter a valid provider URL and model ID.", 422)
@@ -244,13 +251,14 @@ def save_model(data: ModelInput, request: Request, session: Session = Depends(ge
     else:
         raise AppError("missing_api_key", "Enter an API key before saving model settings.", 422)
     if row is None:
-        row = ModelConfig(id=1, provider=provider, base_url=base_url, model_id=model_id,
+        row = ModelConfig(id=1, provider=provider, reasoning=reasoning, base_url=base_url, model_id=model_id,
                           api_key_encrypted=encrypted, api_key_last4=last4)
         session.add(row)
     else:
         if row.base_url != base_url or row.model_id != model_id or row.provider != provider:
             row.context_window = None
         row.provider = provider
+        row.reasoning = reasoning
         row.base_url, row.model_id = base_url, model_id
         row.api_key_encrypted, row.api_key_last4 = encrypted, last4
         row.updated_at = utc_now()

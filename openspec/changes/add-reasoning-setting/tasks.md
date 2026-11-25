@@ -71,7 +71,7 @@ Implementer notes:
 
 ## 2. Store and save the choice (D1, D5)
 
-- [ ] 2.1 Write these tests and watch them fail. Fixtures that need the database or the API fail on the missing column or field.
+- [x] 2.1 Write these tests and watch them fail. Fixtures that need the database or the API fail on the missing column or field.
 
   **In `backend/tests/test_db.py`.** First make the only allowed edits to existing tests there:
   - change `"0009_model_provider"` to `"0010_model_reasoning"` in the four head-revision assertions (lines 145, 314, 354, and 495);
@@ -91,13 +91,13 @@ Implementer notes:
   - **`test_unsupported_reasoning_is_refused`**, parametrized `("anthropic", "off")`, `("openai_compatible", "max")`, `("openai_compatible", "")`. After saving an OpenAI-compatible configuration with `low`, a PUT with that provider, its address, a model, a new key, and that `reasoning` answers 422 with the code `invalid_reasoning` and the message "Choose a Reasoning setting that this provider supports.", and GET reports the same answer as before the PUT. This is the spec scenario "Off refused for Anthropic".
   - **`test_save_without_reasoning_keeps_it`**, parametrized over omitting the field and sending `null`. This is the scenario "Save without a Reasoning choice".
   - **`test_provider_change_without_reasoning_resets_it`.** This is the scenario "Provider changed without a Reasoning choice".
-- [ ] 2.2 Implement design D1 and D5:
+- [x] 2.2 Implement design D1 and D5:
   - `ModelConfig.reasoning` in `backend/src/catchup/models.py`: `String(16)`, default `"default"`, server default `"default"`;
   - `backend/src/catchup/migrations/versions/0010_model_reasoning.py`, following `0009_model_provider.py`, with a docstring saying that a downgrade loses the choice;
   - in `backend/src/catchup/api/settings.py`: `ModelInput.reasoning`, the save rules of D5 before anything is written, and `reasoning` in `_public_model`.
 
   Then run `uv run --offline pytest tests/test_db.py tests/test_settings_api.py`, and watch them pass.
-- [ ] 2.3 Run these mutations one at a time, and record which tests fail:
+- [x] 2.3 Run these mutations one at a time, and record which tests fail:
 
   | Mutation | Change | Expected failing tests |
   | --- | --- | --- |

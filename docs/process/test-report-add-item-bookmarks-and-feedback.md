@@ -3,7 +3,7 @@
 ## Implementation by Factory Droid, 2026-11-25 to 2026-11-26
 
 Implemented the five task groups in the approved change, including the two
-user-approved task amendments described below. This report records implementation
+task amendments Claude Code committed during the run, described below. This report records implementation
 checks, not Claude Code's independent review, Docker smoke, or live-browser checks.
 
 ### Final verification (task 5.1)
@@ -138,13 +138,13 @@ restored exactly; neither area has a durable implementation change.
 1. **Task 2.5 stopped for the existing exact-markup comparison.** React `useId`
    generated different panel ids between Home and the saved digest rendering.
    The existing test `shows the same digest reading markup on Home and the saved
-   digest page` failed. No existing test was weakened. The user approved Claude
-   Code's task amendment in `d39e9da`: use `feedback-${item.id}` instead, retaining
+   digest page` failed. No existing test was weakened. Claude Code amended the
+   task in `d39e9da`: use `feedback-${item.id}` instead, retaining
    its derived ids. The complete frontend suite and build then passed.
 2. **Task 3.5 stopped for the new Bookmarks accessibility check.** Sharing h3 item
    titles directly under the Bookmarks h1 caused axe `heading-order` to fail
-   (**374 passed, 1 failed** in the full frontend suite). The user approved Claude
-   Code's amendment in `71ce9a2`: shared ItemContent accepts `headingLevel?: 2 | 3`,
+   (**374 passed, 1 failed** in the full frontend suite). Claude Code amended the
+   task in `71ce9a2`: shared ItemContent accepts `headingLevel?: 2 | 3`,
    default 3; digest titles stay h3, Bookmarks uses h2, and the class stays
    `item-title`. The complete frontend suite and build then passed.
 3. The new Bookmarks fixture's summary text was made English while preserving

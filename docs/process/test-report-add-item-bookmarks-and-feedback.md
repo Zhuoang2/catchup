@@ -308,3 +308,44 @@ Docker smoke and live-browser review stay with Claude Code; no Docker command,
 container/volume operation, port 8800 access, push, merge, tag or PR was performed.
 The commit containing this section completes group 6; session metrics remain
 for Claude Code.
+
+## Review by Claude Code
+
+Reviewed in worktree `review8` on the branch. Droid's first run started at the plan commit `0546693` and ended at `613140d`; it stopped twice for gaps in the plan, which Claude Code closed in `d39e9da` and `71ce9a2`. Fix round 1 started at Claude Code's round plan `723fa0a` (refined in `b3519a0` after the fresh-eyes check) and ended at `bb44cfe`.
+
+### Checks
+
+| Check | Result |
+| --- | --- |
+| Backend `uv run --offline pytest` | 1392 passed on `613140d`; 1410 after fix round 1 |
+| Frontend `npm test -- --run`, `npm run build` | 376 passed on `613140d`, 381 after fix round 1; build passed |
+| Extension `npm test -- --run`, `npm run build` | 169 passed; build passed |
+| `DO_NOT_TRACK=1 openspec validate --all --strict` | 12 passed |
+| `git diff --check 0546693..HEAD` | clean |
+| `scripts/docker-smoke.sh catchup:fix8-local` (built from `613140d`, then from `bb44cfe`) | 12 of 12 both times |
+
+### Live check
+
+Scratch containers from `catchup:fix8-local` ran on their own volumes and ports 8858 and 8859. Saved digests were written into the scratch database with a short script run inside the container, because a run needs a model.
+
+- **Main screen, digest No. 2:** the item with a summary had Bookmark, Like, and Feedback; the item whose summary was unavailable had Bookmark and Like only. Bookmark became pressed with a check mark after the answer, focus stayed on it, and "Bookmarked." was announced.
+- **Feedback:** Save feedback without a rating showed "Choose Good or Poor." as an alert and marked both options invalid. Poor with a note saved both, closed the panel, returned focus to Feedback, showed "Rated poor", and announced "Feedback saved."; the digest answer held the rating and the note.
+- **Bookmarks:** History's Bookmarks link opened "Bookmarks · CatchUp" with History as the current navigation item; the entry's title was an `h2`, its digest link went to `/digests/2`, and it kept "Rated poor". Removing the bookmark kept the entry, unpressed, with focus on Bookmark and "Bookmark removed." announced; after a reload the screen showed "No bookmarks yet" and "Open the latest digest".
+- **Layout:** at 375 px the controls followed the summary and the page did not scroll sideways; at 1440 px they sat under the title, beside the summary.
+- **After fix round 1 (port 8859):** a pressed Bookmark with `aria-disabled="true"` set for the check took the same muted text and background as a busy unpressed button (text rgb(184, 178, 165)) and kept its strong border and check mark; before the fix it kept the full text color. The Bookmarks entry's link was named "From No. 1 · 26 Nov 2026".
+
+The containers, their volumes, the seed script, and the browser tabs were removed afterwards.
+
+### Findings
+
+- **Droid stopped twice, both times rightly**, on gaps in Claude Code's plan:
+  - at task 2.5, React `useId` gave the feedback panel different ids on the main screen and the saved digest page, so the existing markup comparison failed; the panel id now comes from the digest item id (`d39e9da`);
+  - at task 3.5, the Bookmarks screen's item titles were `h3` directly under its `h1`, which axe reports as `heading-order`; `ItemContent` now takes a heading level, and Bookmarks uses `h2` (`71ce9a2`).
+- **`/code-review` (high) on `0546693..613140d`:** two nits, not changed: an item's controls keep the marks they were first shown with if another tab changes them (one local user; a repeated request is harmless), and removing a mark that does not exist leaves an empty row (the plan's mutation A5 keeps it). **On the fix round:** no findings.
+- **Spec sub-agent** (independent, detached worktree): all 35 named mutations failed their tests. Claude checked its findings against the code:
+  - **Fixed in fix round 1 (Droid; D-023 class a):** a busy pressed toggle did not look disabled, because the pressed rule's `!important` text color outranked `.btn[aria-disabled="true"]`.
+  - **Fixed in fix round 1 (Droid; class b):** design D7 linked only "No. … · date", while the spec makes the whole "From No. … · date" the link; D7 was corrected and the code follows the spec.
+  - **Fixed in fix round 1 (Droid; spec scenarios no test covered):** Like while saving, Save feedback and Remove feedback while saving, the word "poor" after a Poor rating, focus on an item's title link staying put when a new digest arrives, every mark write refused cross-site (Origin, `Sec-Fetch-Site`, and a browser connection token), a rating kept after its source is deleted, and marks removed with a digest that deleting X data leaves empty. Mutations R1–R11 each failed their named tests.
+  - **Fixed by Claude (wording):** the Droid entry and this report said the user had approved the two task amendments; they were Claude Code's, under the plan approval. The prompt excerpt now quotes the prompts as run.
+  - **Recorded, not fixed:** not writing `rated_at` (an internal column the spec does not name), the Bookmarks query's topic-kind filter (equivalent: the API refuses marks on Creator updates), and Feedback for an item whose summary is empty but not marked unavailable (a data shape the runner does not produce).
+- **Fresh-eyes check of the round plan:** no blocker; its six findings were checked and applied before Droid ran (a seed that could not be rated, mutations R9–R11 for the tests that pass on today's code, design D6 matching the two CSS rules, an exact CSS check, a stronger focus check, and marked items before each refused `DELETE`).

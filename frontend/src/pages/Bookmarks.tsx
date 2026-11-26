@@ -53,8 +53,8 @@ export default function Bookmarks() {
         <article className="item">
           <ItemContent item={entry} lang={digestLang(entry.digest.language)} showImages={showImages}
             imageKey={`${entry.digest.id}-${entry.id}`} headingLevel={2}/>
-          <p className="bookmark-from">From <Link to={`/digests/${entry.digest.id}`}>
-            No. {entry.digest.id} · {shortDate(entry.digest.created_at)}
+          <p className="bookmark-from"><Link to={`/digests/${entry.digest.id}`}>
+            From No. {entry.digest.id} · {shortDate(entry.digest.created_at)}
           </Link></p>
           <ItemActions item={entry} title={entry.title} announce={announce} onChange={updateEntry}/>
         </article>

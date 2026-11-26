@@ -145,23 +145,44 @@ def test_marks_survive_source_deletion_and_restart(client, test_settings):
     ids = seed_digest(client)
     client.put(path(ids, "bookmark"))
     client.put(path(ids, "like"))
+    assert client.put(path(ids, "feedback"), json={"rating": "poor", "note": "Kept"}).status_code == 200
     assert client.delete(f"/api/sources/{ids['source']}").status_code == 204
     before = client.get(f"/api/digests/{ids['digest']}").json()
     assert before["topics"][0]["items"][0]["bookmarked"] is True
     assert before["topics"][0]["items"][0]["liked"] is True
+    assert before["topics"][0]["items"][0]["rating"] == "poor"
+    assert before["topics"][0]["items"][0]["note"] == "Kept"
     with TestClient(create_app(test_settings)) as restarted:
-        assert restarted.get(f"/api/digests/{ids['digest']}").json() == before
+        after = restarted.get(f"/api/digests/{ids['digest']}").json()
+        assert after == before
+        assert after["topics"][0]["items"][0]["rating"] == "poor"
+        assert after["topics"][0]["items"][0]["note"] == "Kept"
 
 
-def test_cross_site_and_extension_token_cannot_mark(client):
+@pytest.mark.parametrize("mark", ["bookmark", "like", "feedback"])
+@pytest.mark.parametrize("method", ["PUT", "DELETE"])
+@pytest.mark.parametrize("refusal", ["origin", "fetch-site", "extension"])
+def test_cross_site_and_extension_token_cannot_mark(client, mark, method, refusal):
     ids = seed_digest(client)
-    token = client.post("/api/settings/extension-tokens", json={"name": "Chrome"}).json()["token"]
-    for headers in [{"Origin": "http://localhost:3000"}, {"Authorization": f"Bearer {token}"}]:
-        response = client.put(path(ids, "bookmark"), headers=headers)
-        assert response.status_code == 403
-        assert response.json()["error"]["code"] == "cross_site_request"
+    expected = answer(ids["A"])
+    if method == "DELETE":
+        assert client.put(path(ids, "bookmark")).status_code == 200
+        assert client.put(path(ids, "like")).status_code == 200
+        assert client.put(path(ids, "feedback"), json={"rating": "good"}).status_code == 200
+        expected = answer(ids["A"], bookmarked=True, liked=True, rating="good")
+    if refusal == "extension":
+        token = client.post("/api/settings/extension-tokens", json={"name": "Chrome"}).json()["token"]
+        headers = {"Authorization": f"Bearer {token}"}
+    elif refusal == "fetch-site":
+        headers = {"Sec-Fetch-Site": "cross-site"}
+    else:
+        headers = {"Origin": "http://localhost:3000"}
+    options = {"json": {"rating": "good"}} if mark == "feedback" and method == "PUT" else {}
+    response = client.request(method, path(ids, mark), headers=headers, **options)
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "cross_site_request"
     item = client.get(f"/api/digests/{ids['digest']}").json()["topics"][0]["items"][0]
-    assert item["bookmarked"] is False
+    assert {key: item[key] for key in expected} == expected
 
 
 def test_digest_answer_loads_marks_in_one_query(client):

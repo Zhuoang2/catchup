@@ -309,6 +309,24 @@ it('bookmarks an item once the server saves it', async () => {
   expect(screen.getByRole('status')).toHaveTextContent('Bookmark removed.')
 })
 
+it('ignores a second Like while the change is saved', async () => {
+  let resolve!: (value: ReturnType<typeof respond>) => void
+  fetchMock.mockImplementationOnce(() => new Promise(done => { resolve = done }))
+  actionPage()
+  const button = screen.getByRole('button', { name: 'Like Article' })
+  button.focus()
+  fireEvent.click(button)
+  expect(button).toHaveAttribute('aria-disabled', 'true')
+  expect(button).toHaveAttribute('aria-pressed', 'false')
+  expect(button).not.toBeDisabled()
+  expect(button).toHaveFocus()
+  fireEvent.click(button)
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+  expect(fetchMock).toHaveBeenCalledWith('/api/digest-items/11/like', { method: 'PUT' })
+  await act(async () => resolve(respond({ ...unmarked, liked: true })))
+  expect(button).toHaveAttribute('aria-pressed', 'true')
+})
+
 it('likes and unlikes an item', async () => {
   fetchMock.mockResolvedValueOnce(respond({ ...unmarked, liked: true }))
     .mockResolvedValueOnce(respond(unmarked))
@@ -386,6 +404,35 @@ it('saves rating and note together and returns focus to Feedback', async () => {
   expect(button).toHaveAttribute('aria-expanded', 'false')
   expect(button.nextElementSibling).toHaveTextContent('Rated good')
   expect(screen.getByRole('status')).toHaveTextContent('Feedback saved.')
+})
+
+it('ignores Save feedback while the feedback is saved', async () => {
+  let resolve!: (value: ReturnType<typeof respond>) => void
+  fetchMock.mockImplementationOnce(() => new Promise(done => { resolve = done }))
+  actionPage({ rating: 'good' as const })
+  fireEvent.click(screen.getByRole('button', { name: 'Feedback on Article' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'Poor' }))
+  const save = screen.getByRole('button', { name: 'Save feedback' })
+  fireEvent.click(save)
+  expect(save).toHaveAttribute('aria-disabled', 'true')
+  expect(screen.getByRole('button', { name: 'Remove feedback' })).toHaveAttribute('aria-disabled', 'true')
+  fireEvent.click(save)
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+  const [url, options] = fetchMock.mock.calls[0]
+  expect(url).toBe('/api/digest-items/11/feedback')
+  expect(options.method).toBe('PUT')
+  expect(JSON.parse(options.body)).toEqual({ rating: 'poor', note: '' })
+  await act(async () => resolve(respond({ ...unmarked, rating: 'poor' })))
+})
+
+it("shows the saved rating's own word", async () => {
+  fetchMock.mockResolvedValueOnce(respond({ ...unmarked, rating: 'poor' }))
+  actionPage()
+  const button = screen.getByRole('button', { name: 'Feedback on Article' })
+  fireEvent.click(button)
+  fireEvent.click(screen.getByRole('radio', { name: 'Poor' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Save feedback' }))
+  await waitFor(() => expect(button.nextElementSibling).toHaveTextContent('Rated poor'))
 })
 
 it('asks for a rating before saving', () => {

@@ -177,6 +177,16 @@ it('spans and separates the Home run bar with one-row ready controls at all widt
 
 type LayoutRule = { selector: string; body: string; container: string | null }
 
+it('does not let the pressed style override a busy control', () => {
+  const rules = layoutRules(readFileSync('src/styles/components.css', 'utf8'))
+  const pressed = rules.find(rule => rule.selector === '.item-actions .btn[aria-pressed="true"]')?.body ?? ''
+  const active = rules.find(rule =>
+    rule.selector === '.item-actions .btn[aria-pressed="true"]:not([aria-disabled="true"])')?.body ?? ''
+  expect(active).toMatch(/(?:^|;)\s*color:\s*var\(--fg\)\s*!important\s*;/)
+  expect(pressed).toMatch(/border-color:\s*var\(--border-strong\)/)
+  expect(properties(pressed)).not.toContain('color')
+})
+
 function layoutRules(text: string, container: string | null = null): LayoutRule[] {
   const css = text.replace(/\/\*[\s\S]*?\*\//g, '')
   const rules: LayoutRule[] = []

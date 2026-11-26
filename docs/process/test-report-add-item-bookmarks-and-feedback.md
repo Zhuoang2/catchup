@@ -173,3 +173,138 @@ or volume operation, or port 8800 access was performed**. Independent code/spec
 review, Docker smoke and live-browser checks remain for Claude Code. No push,
 merge, tag, PR, archive or other outside-platform write was performed. Session
 id, turns and minutes are left for Claude Code to add to the AI usage log.
+
+## Fix round 1
+
+### Scope and diagnosis
+
+Factory Droid (GPT-6.1 Sol), 2026-11-26, resumed in Claude Code's review worktree
+from `b3519a0`. Completed task group 6 only, following `openspec-apply-change`,
+`tdd`, and the supplied review diagnosis with `diagnosing-bugs`. Claude Code
+authored the task/design amendments in `723fa0a` and `b3519a0` under the user's
+plan approval. The amendments during the initial implementation were likewise
+made by Claude Code under that approval, not approved separately by the user.
+
+The busy-control invariant is that a pressed toggle keeps its check mark and
+strong border, but its text takes the same muted color as any other busy button.
+Ranked hypotheses and their predictions:
+
+1. **Pressed color overrides the busy color.** Restricting only the pressed color
+   declaration to controls without `aria-disabled="true"` should fix the busy
+   appearance without removing the pressed border. Confirmed: the existing
+   pressed rule had the higher-specificity `color: var(--fg) !important`;
+   the prescribed CSS guard failed before the fix and passed after it. R1
+   reproduced the failure by restoring that old rule.
+2. **Generic busy styling is incorrect.** This would also affect non-pressed
+   controls. The existing `.btn[aria-disabled="true"]` rule already uses the
+   disabled background and muted text, matching `.btn:disabled`. The existing
+   busy-style checks remained green in the full suite.
+3. **The control lacks its busy attribute.** This would fail the held Like
+   request's `aria-disabled` assertion before any CSS edit. That test already
+   passed in 6.1; R3 showed it detects the missing attribute.
+
+The prescribed CSS-source seam provided the minimal deterministic check; no
+debugger, extra instrumentation, or temporary helper files were needed. The other
+production correction moves "From" into the Bookmarks digest link, matching the
+spec and amended D7 rather than the earlier contradictory design line.
+
+### 6.1: tests before implementation
+
+The frontend selection had **2 failed, 4 passed, 153 skipped in 4 files**, 941ms.
+The backend selection had **20 passed**, 3.53s. Production code had not yet changed.
+
+| Test or cases | Initial result |
+| --- | --- |
+| tokens: `does not let the pressed style override a busy control` | Failed: no exact pressed/non-busy selector existed; the received color block was empty |
+| Bookmarks: `lists bookmarked items with their digest link` | Failed: no link named `From No. 5 · 3 Oct 2026`; "From" was outside the link |
+| DigestArticle: `ignores a second Like while the change is saved` | Passed |
+| DigestArticle: `ignores Save feedback while the feedback is saved` | Passed |
+| DigestArticle: `shows the saved rating's own word` | Passed |
+| Home: `keeps focus on an item's title link when a new digest replaces the shown one` | Passed |
+| marks: `test_cross_site_and_extension_token_cannot_mark` | All 18 cases passed: six writes crossed with Origin, Sec-Fetch-Site alone, and extension-token refusals |
+| marks: `test_marks_survive_source_deletion_and_restart` | Passed, now including Poor feedback and the note Kept |
+| X settings: `test_delete_all_x_data_removes_marks_with_an_emptied_digest` | Passed, including the X-only item's valid summary, bookmark and Good rating before deletion |
+
+New tests were five frontend cases and the X-only digest case. Existing tests
+were strengthened only where 6.1 permits: the Bookmarks link name, the security
+matrix, and source-deletion/restart feedback persistence. No other existing test
+was modified. The existing pytest/Vitest suites and build checks were retained.
+
+### 6.2: implementation and green checks
+
+The only durable production edits are:
+
+- Split the pressed-toggle CSS into an unconditional strong border rule and a
+  foreground-color rule restricted to non-busy toggles.
+- Include the whole "From No. … · date" inside the Bookmarks digest link.
+
+Full backend verification passed **1410 tests, 2 warnings in 41.18s**. The full
+frontend suite passed **381 tests in 15 files**, 7.52s, and its TypeScript/Vite
+build passed, 41 modules, 166ms. This includes all 6.1 tests. No unrelated existing
+test failed.
+
+### 6.3: named mutations
+
+All **R1–R11** were detected. R8 has two prescribed variants, so there were
+**12 isolated mutation runs**. After each run, including between R8 variants,
+the file was edited back; the complete file and complete `git diff --binary`
+matched their saved pre-mutation versions exactly. No mutation survived or
+remains in the worktree.
+
+The file abbreviations from the initial implementation table apply below.
+
+| Mutation | Fault | Actual failing checks | Result |
+| --- | --- | --- | --- |
+| R1 | Restore the single pressed rule with unconditional color | tokens: `does not let the pressed style override a busy control` | 1 failed, 20 skipped |
+| R2 | Put From outside the digest link | bookmarks: `lists bookmarked items with their digest link` | 1 failed, 4 skipped |
+| R3 | Omit Like's busy aria-disabled | article: `ignores a second Like while the change is saved` | 1 failed, 29 skipped |
+| R4 | Remove the feedbackBusy early return | article: `ignores Save feedback while the feedback is saved`, observing two requests instead of one | 1 failed, 29 skipped |
+| R5 | Omit Remove feedback's busy aria-disabled | article: `ignores Save feedback while the feedback is saved` | 1 failed, 29 skipped |
+| R6 | Always display Rated good | article: `shows the saved rating's own word` | 1 failed, 29 skipped |
+| R7 | Move Home focus for any .item descendant | home: `keeps focus on an item's title link when a new digest replaces the shown one`, Generate incorrectly focused | 1 failed, 102 skipped |
+| R8, DELETE only | Permit extension DELETEs on digest-item paths | marks: `test_cross_site_and_extension_token_cannot_mark[extension-DELETE-<mark>]`, for bookmark, like and feedback | 3 failed, 15 passed |
+| R8, PUT and DELETE | Permit both extension write methods | marks: all six extension cases of `test_cross_site_and_extension_token_cannot_mark` | 6 failed, 12 passed |
+| R9 | Remove the Sec-Fetch-Site refusal condition | marks: all six fetch-site cases of `test_cross_site_and_extension_token_cannot_mark` | 6 failed, 12 passed |
+| R10 | Omit change_feedback's commit | marks: `test_marks_survive_source_deletion_and_restart` and all four `test_invalid_feedback_changes_nothing` cases, because saved feedback read back as None | 5 failed |
+| R11 | Remove CASCADE from the migration foreign key | x: `test_delete_all_x_data_removes_marks_with_an_emptied_digest` and `test_delete_all_x_data_removes_marks_on_x_items_only`, both with foreign-key IntegrityError; db: `test_item_marks_migration_creates_empty_table_and_downgrades`, with missing ondelete metadata | 3 failed |
+
+The security mutants returned 200 where 403 was required. DELETE cases started
+with Bookmark, Like and Good feedback saved, so allowing the request through
+would change a real mark. R10 also demonstrates that the strengthened persistence
+check is not satisfied merely by the feedback PUT's response.
+
+### 6.4: final checks
+
+All checks below exited 0 after every mutation had been restored. Backend
+commands ran in `backend/`. Frontend and extension commands ran in their own
+directories, each using
+`export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"; nvm use 22.17.1`
+before installing and checking. Both printed Node `v22.17.1`, npm `10.9.2`.
+
+| Directory | Command | Actual result |
+| --- | --- | --- |
+| `backend/` | `uv run --offline pytest` | **1410 passed, 2 warnings in 38.72s** |
+| `frontend/` | `npm ci --offline` | 124 locked packages installed, 125 audited, 0 vulnerabilities reported |
+| `frontend/` | `npm test -- --run` | **381 passed in 15 files**, 6.51s |
+| `frontend/` | `npm run build` | TypeScript/Vite passed; 41 modules, 152ms |
+| `extension/` | `npm ci --offline` | 120 locked packages installed, 121 audited, 0 vulnerabilities reported |
+| `extension/` | `npm test -- --run` | **169 passed in 7 files**, 3.54s |
+| `extension/` | `npm run build` | TypeScript/Vite/build checker passed; 10 modules, 111ms |
+| Repository root | `DO_NOT_TRACK=1 openspec validate add-item-bookmarks-and-feedback --strict` | `Change 'add-item-bookmarks-and-feedback' is valid` |
+| Repository root | `git diff --check` | Passed with no output |
+
+The two backend warnings are the existing intentional malformed-token-usage
+Pydantic serialization warnings noted above. Both npm installs emitted the
+existing `whatwg-encoding` deprecation warning. Frontend output was HTML 0.82 kB,
+CSS 21.47 kB (gzip 5.42 kB), and JavaScript 328.38 kB (gzip 100.23 kB).
+
+Only group 6 task checkboxes, its prescribed tests, the two production files and
+the two process logs changed in this round. No protected planning artifact,
+dependency manifest/lockfile, backend production code, migration, Home source,
+DigestArticle source, Settings, extension source or smoke script was durably
+changed. No plan deviation, unexpected failure, invalid mutation attempt, or
+concurrency rerun occurred. No temporary helper or debug instrumentation remains.
+Docker smoke and live-browser review stay with Claude Code; no Docker command,
+container/volume operation, port 8800 access, push, merge, tag or PR was performed.
+The commit containing this section completes group 6; session metrics remain
+for Claude Code.

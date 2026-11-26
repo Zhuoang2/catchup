@@ -300,6 +300,37 @@ def test_delete_all_removes_orphaned_x_digest_items_and_x_only_digests(client):
         assert session.scalar(select(DigestItem).where(DigestItem.source_kind == "x")) is None
 
 
+def test_delete_all_x_data_removes_marks_with_an_emptied_digest(client):
+    _, _, x_source_id = seed_mixed_digest(client)
+    with client.app.state.session_factory() as session:
+        x_only_run = DigestRun(status="succeeded")
+        session.add(x_only_run)
+        session.flush()
+        x_only = Digest(run_id=x_only_run.id, model_id="fake", item_count=1, source_count=1, language="en")
+        session.add(x_only)
+        session.flush()
+        x_only_run.digest_id = x_only.id
+        topic = DigestTopic(digest_id=x_only.id, position=0, title="X", overview="X")
+        session.add(topic)
+        session.flush()
+        item = DigestItem(digest_id=x_only.id, topic_id=topic.id, position=0, item_id=None,
+                          title="Orphan post", link="https://x.com/writer/status/3",
+                          source_name="X · Writer", source_kind="x", summary="X summary")
+        session.add(item)
+        session.delete(session.get(Source, x_source_id))
+        session.commit()
+        item_id, digest_id = item.id, x_only.id
+    assert client.put(f"/api/digest-items/{item_id}/bookmark").status_code == 200
+    assert client.put(f"/api/digest-items/{item_id}/feedback", json={"rating": "good"}).status_code == 200
+    assert client.post("/api/settings/x/delete-all").status_code == 200
+    assert client.get(f"/api/digests/{digest_id}").status_code == 404
+    with client.app.state.session_factory() as session:
+        assert session.scalars(select(DigestItemMark)).all() == []
+    response = client.get("/api/bookmarks")
+    assert response.status_code == 200
+    assert response.json() == []
+
+
 def test_delete_all_refuses_active_run_without_any_changes(client):
     client.put("/api/settings/x", json={"token": "test-" + "x" * 40})
     digest_id, _, x_source_id = seed_mixed_digest(client)

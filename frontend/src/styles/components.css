@@ -114,7 +114,8 @@
 .items { gap: 1.4rem; }
 .item { display: grid; gap: .45rem; }
 .item-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .5rem; min-width: 0; }
-.item-actions .btn[aria-pressed="true"] { color: var(--fg) !important; border-color: var(--border-strong); }
+.item-actions .btn[aria-pressed="true"] { border-color: var(--border-strong); }
+.item-actions .btn[aria-pressed="true"]:not([aria-disabled="true"]) { color: var(--fg) !important; }
 .feedback-state { color: var(--muted); font-size: .85em; }
 .feedback-panel { flex-basis: 100%; display: grid; gap: .5rem; min-width: 0; max-width: 100%; }
 .feedback-panel fieldset { min-width: 0; border: 0; padding: 0; }

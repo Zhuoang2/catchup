@@ -58,7 +58,7 @@ it('lists bookmarked items with their digest link', async () => {
   const first = within(articles[0])
   expect(first.getByText('Saved summary')).toBeInTheDocument()
   expect(articles[0].querySelector('.item-meta')).toHaveTextContent('Blog')
-  const from = first.getByRole('link', { name: 'No. 5 · 3 Oct 2026' })
+  const from = first.getByRole('link', { name: 'From No. 5 · 3 Oct 2026' })
   expect(from).toHaveAttribute('href', '/digests/5')
   expect(from.closest('p')?.textContent).toMatch(/^From /)
   expect(first.getByRole('button', { name: 'Bookmark Saved article' })).toHaveAttribute('aria-pressed', 'true')

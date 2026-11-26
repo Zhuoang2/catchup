@@ -939,6 +939,31 @@ it('moves focus to run-bar Generate when the first digest replaces the Generate 
   expect(screen.getByRole('button', { name: 'Generate digest' })).toHaveFocus()
 })
 
+it('moves focus to run-bar Generate when a new digest replaces the shown one while an item control has focus', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  const advancePoll = watchPollTimer()
+  const latest = { ...digest, id: 7, topics: [{ ...digest.topics[0], items: [{
+    ...digest.topics[0].items[0], id: 71, bookmarked: false, liked: false, rating: null, note: null,
+  }] }] }
+  const detail = { ...latest, id: 8, topics: [{ ...latest.topics[0], items: [{
+    ...latest.topics[0].items[0], id: 81,
+  }] }] }
+  const { container } = mockPage({ latest, detail })
+  const like = await screen.findByRole('button', { name: 'Like Saved story' })
+  const generate = screen.getByRole('button', { name: 'Generate digest' })
+  const original = fetchMock.getMockImplementation()!
+  fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+    if (path === '/api/digest-runs' && options?.method === 'POST') return respond(run)
+    if (path === '/api/digest-runs/1') return respond({ ...run, status: 'succeeded', digest_id: 8 })
+    return original(path, options)
+  })
+  like.focus()
+  fireEvent.click(generate)
+  await advancePoll()
+  await waitFor(() => expect(container.querySelector('.digest-head')).toHaveTextContent('No. 8'))
+  expect(screen.getByRole('button', { name: 'Generate digest' })).toHaveFocus()
+})
+
 it.each([['Generate screen', true], ['run bar', true], ['run bar', false]])(
   'moves focus to model setup in the %s only when Generate was focused (%s)', async (layout, focused) => {
   mockPage({ latest: layout === 'run bar' ? digest : null })

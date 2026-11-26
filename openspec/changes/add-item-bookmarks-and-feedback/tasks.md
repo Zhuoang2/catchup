@@ -285,7 +285,7 @@ Implementer notes:
 
 ## 4. X deletion, main-screen focus, and README (D1, D9, D10; x-accounts "Delete all X data"; user-interface "Bookmark, like, and give feedback on digest items")
 
-- [ ] 4.1 Write these tests.
+- [x] 4.1 Write these tests.
 
   **In `backend/tests/test_x_settings_api.py`:**
   - **`test_delete_all_x_data_removes_marks_on_x_items_only`.** It passes once group 1 is done; mutation M3 shows that it can fail.
@@ -310,8 +310,8 @@ Implementer notes:
     - the Privacy section contains "They are never sent to the model provider, and they do not change later digests.".
 
     It fails before D10.
-- [ ] 4.2 Implement D9 in `Home.tsx` and D10 in `README.md`. Run the backend and frontend suites; they pass.
-- [ ] 4.3 Run these mutations one at a time, and record which tests fail:
+- [x] 4.2 Implement D9 in `Home.tsx` and D10 in `README.md`. Run the backend and frontend suites; they pass.
+- [x] 4.3 Run these mutations one at a time, and record which tests fail:
   - **M3:** `DigestItemMark.digest_item_id`'s foreign key, in the model and in the migration, without `ondelete="CASCADE"`. Each test builds its database through the migration. Expect `test_delete_all_x_data_removes_marks_on_x_items_only` to fail, with an integrity error or a 500.
   - **H1:** the D9 line removed. Expect the Home test above to fail.
   - **Doc:** the Privacy sentence removed. Expect `test_readme_describes_bookmarks_and_their_privacy` to fail.

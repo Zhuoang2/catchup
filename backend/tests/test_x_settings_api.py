@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from catchup.main import create_app
-from catchup.models import (Digest, DigestItem, DigestRun, DigestTopic, Item, ItemContext,
+from catchup.models import (Digest, DigestItem, DigestItemMark, DigestRun, DigestTopic, Item, ItemContext,
                              Source, XAccount, XCredential)
 from catchup.sources.x_api import XPage, XUser
 
@@ -336,3 +336,23 @@ def test_removing_x_access_empties_the_preview_cache(client, operation):
                 else client.post("/api/settings/x/delete-all"))
     assert response.status_code in (200, 204)
     assert cache.pop(feed_url) is None
+
+
+def test_delete_all_x_data_removes_marks_on_x_items_only(client):
+    assert client.put("/api/settings/x", json={"token": "test-" + "x" * 40}).status_code == 200
+    seed_mixed_digest(client)
+    with client.app.state.session_factory() as session:
+        x_id = session.scalar(select(DigestItem.id).where(DigestItem.title == "X title"))
+        feed_id = session.scalar(select(DigestItem.id).where(DigestItem.title == "Feed"))
+    base = f"/api/digest-items/{x_id}"
+    assert client.put(base + "/bookmark").status_code == 200
+    assert client.put(base + "/like").status_code == 200
+    assert client.put(base + "/feedback", json={"rating": "poor", "note": "about the post"}).status_code == 200
+    assert client.put(f"/api/digest-items/{feed_id}/bookmark").status_code == 200
+    assert client.post("/api/settings/x/delete-all").status_code == 200
+    with client.app.state.session_factory() as session:
+        rows = session.scalars(select(DigestItemMark)).all()
+        assert len(rows) == 1
+        assert rows[0].digest_item_id == feed_id
+        assert rows[0].bookmarked_at is not None
+    assert [entry["title"] for entry in client.get("/api/bookmarks").json()] == ["Feed"]

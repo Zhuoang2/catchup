@@ -77,7 +77,7 @@ Implementer notes:
 
 ## 3. The Settings choice (user-interface; design D4)
 
-- [ ] 3.1 Write failing tests in `frontend/src/pages/Settings.test.tsx`:
+- [x] 3.1 Write failing tests in `frontend/src/pages/Settings.test.tsx`:
   - in every preferences `GET` answer that the page applies, `link_depth_pages` gains `deep: 16` and the answer gains `deep_context_fetches_per_run: 120`: `mockLinkedPages` (`:55-64`), the default answer in `beforeEach` (`:80-83`), and the `GET` answers of `loads stored images off and preserves off when saving without changing it` (`:457`), `explains authentication errors` (`:535`), and `shows the first-run key hint and saves preferences without exposing the key` (`:625`). These answers are the only existing lines that change, apart from the two tests below;
   - `shows the linked-pages choice with its numbers and cost note` (changed; "Default choice"): the options' texts are exactly `['Off — no linked pages or author replies', 'Shallow — up to 3 pages per item', 'Normal — up to 8 pages per item', 'Deep — up to 16 pages per item']`, and the select `toHaveAccessibleDescription("Each page read adds time to a run, and up to 3,000 characters to that item's summary request (6,000 at Deep, and up to 4,000 for author replies), which uses more tokens. A run makes at most 60 page requests (120 at Deep), robots.txt files included.")`; the rest of the test stays;
   - `names the server's own numbers` (changed; "Server numbers"): the first answer has `link_depth_pages: { off: 0, shallow: 3, normal: 5, deep: 10 }`, `context_fetches_per_run: 40`, and `deep_context_fetches_per_run: 80`; the options include `'Deep — up to 10 pages per item'`, and the description matches `/A run makes at most 40 page requests \(80 at Deep\), robots\.txt files included\.$/`. The second answer has `{ off: 0, shallow: 1, normal: 1, deep: 2 }`, and the options include `'Deep — up to 2 pages per item'`;
@@ -85,7 +85,7 @@ Implementer notes:
   - `loads a saved Deep and keeps it when saving without changing it` (new): `mockLinkedPages({ link_depth: 'deep' })`; the select has the value `deep`; after Save, it still has `deep`, and the `PUT` body has `link_depth: 'deep'`.
 
   Verify: the two changed and two new tests fail (there is no Deep option); the other existing tests still pass with the changed answers.
-- [ ] 3.2 In `frontend/src/pages/Settings.tsx`, as in design D4:
+- [x] 3.2 In `frontend/src/pages/Settings.tsx`, as in design D4:
   - `Preferences` (`:12-14`): `link_depth: 'off' | 'shallow' | 'normal' | 'deep'`, `link_depth_pages: { off: number; shallow: number; normal: number; deep: number }`, and `deep_context_fetches_per_run: number`; the initial `linkDepthPages` state gains `deep: 0`, and a new `deepContextFetchesPerRun` state starts at 0 and is set from the loaded preferences next to `setContextFetchesPerRun` (`:136-138`);
   - after the Normal option (`:485`), add `<option value="deep">Deep — up to {plural(linkDepthPages.deep, 'page')} per item</option>`;
   - the note (`:487-490`) becomes design D4's text: "(6,000 at Deep, and up to 4,000 for author replies)" in place of "(up to 4,000 for author replies)", and "page requests (… at Deep)" with `{deepContextFetchesPerRun}` after `{plural(contextFetchesPerRun, 'page request')}`.

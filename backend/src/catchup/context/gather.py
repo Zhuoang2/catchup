@@ -169,7 +169,7 @@ def gather_context(factory, run_id: int, settings, spacer, level="normal") -> No
             stored_urls = set()
             try:
                 for link in links:
-                    if linked_length >= 16_000:
+                    if linked_length >= limits.item_chars:
                         progress.drop_links(item_id)
                         break
                     progress.start(item_id)
@@ -188,7 +188,7 @@ def gather_context(factory, run_id: int, settings, spacer, level="normal") -> No
                         document = html.fromstring(response.content)
                         titles = document.xpath("//title/text()")
                         title = titles[0].strip() if titles and titles[0].strip() else link.text
-                        content = text.strip()[:min(3000, 16_000 - linked_length)]
+                        content = text.strip()[:min(limits.page_chars, limits.item_chars - linked_length)]
                         linked_length += len(content)
                         position += 1
                         stored_urls.add(response.url)

@@ -21,7 +21,7 @@ Implementer notes:
 
 ## 1. Deep in the context pass (content-collection; design D1, D2)
 
-- [ ] 1.1 Write failing tests:
+- [x] 1.1 Write failing tests:
   - in `backend/tests/test_context_depth.py`, rewrite the rows of `test_context_limits` so that every expected value names all five fields, `ContextLimits(links_per_item, fetches_per_run, author_replies, page_chars, item_chars)` (design D1: a row that relies on the defaults cannot catch mutation E6). Keep the parameters and ids, and use these rows:
     - `off`: `("off", 8, 60, True, ContextLimits(0, 0, False, 3000, 16000))`;
     - `shallow`: `("shallow", 8, 60, True, ContextLimits(3, 60, True, 3000, 16000))`;
@@ -44,7 +44,7 @@ Implementer notes:
     - `test_deep_reads_author_replies` ("Deep reads author replies"): `setup(environment, [], comments=2)`, level `deep`; robots.txt of `https://s0.example` answers 404, and the post page `https://s0.example/0` answers the comment body of `test_author_reply_context_and_disable_switch` (`backend/tests/test_context_gather.py:841-856`). The run succeeds, and the item's contexts are exactly `[("A1", "author_replies")]` as `(ref, kind)`, with `"Because of the update."` in the text.
 
   Verify: `test_context_depth.py` fails to collect with `TypeError: ContextLimits.__init__() takes 4 positional arguments but 6 were given`, because the parametrize rows build five-field `ContextLimits` objects at import time; pytest reports one collection error and runs none of the file's tests. Run `test_context_gather.py` in a separate pytest command, because a collection error interrupts the whole run. In `test_context_gather.py`, `test_deep_reads_twice_normals_links`, `test_page_cut_follows_the_level[deep]`, `test_deep_caps_an_items_linked_context`, and `test_deep_doubles_the_run_limit[deep]` fail, because a stored `"deep"` gets Normal's numbers today (`depth.py:22-23`). `test_page_cut_follows_the_level[shallow]`, `[normal]`, `test_deep_doubles_the_run_limit[normal]`, and `test_deep_reads_author_replies` pass already; mutations E5 and E6 in 1.2 show that they can fail.
-- [ ] 1.2 Implement design D1 and D2:
+- [x] 1.2 Implement design D1 and D2:
   - in `backend/src/catchup/context/depth.py`: the constants `DEEP_FACTOR = 2`, `PAGE_CHARS = 3_000`, `ITEM_CHARS = 16_000`, `DEEP_PAGE_CHARS = 6_000`, and `DEEP_ITEM_CHARS = 32_000`; `ContextLimits` gains `page_chars: int = PAGE_CHARS` and `item_chars: int = ITEM_CHARS`; `context_limits` returns D1's Deep row for `"deep"` and keeps every other row. Leave `LINK_DEPTHS` and `link_depth_pages` as they are (group 2 changes them);
   - in `backend/src/catchup/context/gather.py`, `gather_item` uses `limits.item_chars` in the loop check (`:172`) and in the cut (`:191`), and `limits.page_chars` in the cut, as D2 shows. Change nothing else in the pass.
 

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from catchup.config import Settings
 
 
-LINK_DEPTHS = ("off", "shallow", "normal")
+LINK_DEPTHS = ("off", "shallow", "normal", "deep")
 SHALLOW_LINKS = 3
 DEEP_FACTOR = 2
 PAGE_CHARS = 3_000
@@ -40,4 +40,4 @@ def context_limits(level: str, settings: Settings) -> ContextLimits:
 
 def link_depth_pages(settings: Settings) -> dict[str, int]:
     return {"off": 0, "shallow": min(SHALLOW_LINKS, settings.links_per_item),
-            "normal": settings.links_per_item}
+            "normal": settings.links_per_item, "deep": DEEP_FACTOR * settings.links_per_item}

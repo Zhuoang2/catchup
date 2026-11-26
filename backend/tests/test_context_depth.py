@@ -6,7 +6,7 @@ from catchup.context.depth import LINK_DEPTHS, ContextLimits, context_limits, li
 
 
 def test_link_depths():
-    assert LINK_DEPTHS == ("off", "shallow", "normal")
+    assert LINK_DEPTHS == ("off", "shallow", "normal", "deep")
 
 
 @pytest.mark.parametrize(
@@ -36,10 +36,10 @@ def test_context_limits(test_settings, level, links_per_item, context_fetches_pe
 
 
 @pytest.mark.parametrize("links_per_item,expected", [
-    (8, {"off": 0, "shallow": 3, "normal": 8}),
-    (5, {"off": 0, "shallow": 3, "normal": 5}),
-    (2, {"off": 0, "shallow": 2, "normal": 2}),
-    (1, {"off": 0, "shallow": 1, "normal": 1}),
+    (8, {"off": 0, "shallow": 3, "normal": 8, "deep": 16}),
+    (5, {"off": 0, "shallow": 3, "normal": 5, "deep": 10}),
+    (2, {"off": 0, "shallow": 2, "normal": 2, "deep": 4}),
+    (1, {"off": 0, "shallow": 1, "normal": 1, "deep": 2}),
 ])
 def test_link_depth_pages(test_settings, links_per_item, expected):
     assert link_depth_pages(replace(test_settings, links_per_item=links_per_item)) == expected

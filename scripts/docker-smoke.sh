@@ -86,7 +86,8 @@ for path, content_type in (
 assert json.loads(request("/api/settings/preferences", "PUT", {"digest_language": "zh-Hans"})) == {
     "digest_language": "zh-Hans", "youtube_captions": False, "youtube_skip_shorts": True,
     "show_images": True, "link_depth": "normal",
-    "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8}, "context_fetches_per_run": 60,
+    "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8, "deep": 16}, "context_fetches_per_run": 60,
+    "deep_context_fetches_per_run": 120,
 }
 print("PASS: saved zh-Hans preference")
 print("PASS: responses refuse framing")
@@ -122,7 +123,8 @@ with urlopen(request, timeout=5) as response:
     assert json.load(response) == {
         "digest_language": "zh-Hans", "youtube_captions": False, "youtube_skip_shorts": True,
         "show_images": True, "link_depth": "normal",
-        "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8}, "context_fetches_per_run": 60,
+        "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8, "deep": 16}, "context_fetches_per_run": 60,
+        "deep_context_fetches_per_run": 120,
     }
 print("PASS: preference survives restart")
 PY

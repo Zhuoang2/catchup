@@ -52,7 +52,7 @@ Implementer notes:
 
 ## 2. The levels in the API, the smoke script, and the README (content-collection, user-interface; design D1, D3, D5, D6)
 
-- [ ] 2.1 Write failing tests:
+- [x] 2.1 Write failing tests:
   - in `backend/tests/test_context_depth.py`:
     - `test_link_depths`: `LINK_DEPTHS == ("off", "shallow", "normal", "deep")`;
     - `test_link_depth_pages`: every expected dict gains `"deep"`: `(8, {"off": 0, "shallow": 3, "normal": 8, "deep": 16})`, `(5, {"off": 0, "shallow": 3, "normal": 5, "deep": 10})`, `(2, {"off": 0, "shallow": 2, "normal": 2, "deep": 4})`, `(1, {"off": 0, "shallow": 1, "normal": 1, "deep": 2})`;
@@ -67,7 +67,7 @@ Implementer notes:
   - in `backend/tests/test_readme_context.py`, add the phrases `"**Deep** reads up to twice"` and `"with a small model, prefer Normal or Shallow"` to the checked list, keeping the existing phrases.
 
   Verify: every changed and new test fails: `LINK_DEPTHS` and `link_depth_pages` lack Deep, the `GET` answer lacks `deep_context_fetches_per_run`, `"deep"` is refused, and the README lacks both phrases.
-- [ ] 2.2 Implement design D1 (the list and the pages), D3, D5, and D6:
+- [x] 2.2 Implement design D1 (the list and the pages), D3, D5, and D6:
   - in `backend/src/catchup/context/depth.py`, `LINK_DEPTHS = ("off", "shallow", "normal", "deep")`, and `link_depth_pages` adds `"deep": DEEP_FACTOR * settings.links_per_item`;
   - in `backend/src/catchup/api/settings.py`, `read_preferences` adds `"deep_context_fetches_per_run": context_limits("deep", request.app.state.settings).fetches_per_run` after `context_fetches_per_run`, and the refusal message becomes "Choose Off, Shallow, Normal, or Deep for linked pages."; import `context_limits` from `catchup.context.depth` next to `LINK_DEPTHS` (`api/settings.py:14`);
   - in `README.md`, in the paragraph that starts "Settings → Digest → **Linked pages** chooses how much of this a run reads." (`README.md:716`, one unwrapped line), insert after the Shallow sentence: "**Deep** reads up to twice `CATCHUP_LINKS_PER_ITEM` links per item, keeps up to 6,000 characters of each page and 32,000 per item, and allows twice `CATCHUP_CONTEXT_FETCHES_PER_RUN` requests per run; author replies are read as at Normal." Insert at the end of the paragraph, after "A run uses the level saved when it starts.": "Deep's larger context leaves less of each summary request for the item's own text, so long items are summarized in more parts; with a small model, prefer Normal or Shallow." In the same paragraph, replace "Every level keeps the per-run limit." with "Shallow and Normal keep the per-run limit." Keep the paragraph on one line, because `test_readme_context.py` matches exact phrases;

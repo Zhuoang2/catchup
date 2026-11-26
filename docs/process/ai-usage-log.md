@@ -3073,3 +3073,15 @@ Real usage records for the technical spec, alpha reflection, and final report. E
   - **Merge with `main` after #32 and #54:** only `backend/tests/test_db.py` and the three log files conflicted. The migration became `0011_model_reasoning` with `down_revision = "0010_link_depth"`, as the plan approval allowed. `test_db.py` keeps both migration tests: #54's now upgrades to `0010_link_depth` instead of head, and #4's starts at `0010_link_depth`, checks that head is `0011_model_reasoning`, and downgrades to `0010_link_depth`; the four head assertions name `0011_model_reasoning`.
 - **Problems / adjustment:**
   - **Claude's design D6 and spec delta disagreed** about which Reasoning value the connection test's save sends. The fresh-eyes check of the plan tested each sentence against the code, not the plan's sentences against each other; the spec sub-agent found it by trying the user's sequence of actions.
+
+## 2026-11-25 — `add-deep-link-level` (#54): plan (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
+
+- **Prompts** (translated from Chinese):
+  - After #4 merged, the user chose three issues to plan at the same time: "Start #54, #8, and #18 in parallel."
+  - After reviewing the three plans, the user decided: "Approve all three plans as recommended."
+- **Outcome:**
+  - **Checked on `main` `d75b75b`.** `app_settings.link_depth` is `String(16)` with no constraint; only the API's `LINK_DEPTHS` refuses `"deep"`, so no migration is needed. Normal's 8 links of up to 3,000 characters exceed the 16,000-character cap per item, so Normal already stops after about 6 full pages; more links alone would not read more.
+  - **Plan.** Deep reads twice `CATCHUP_LINKS_PER_ITEM` links per item (16 by default), keeps up to 6,000 characters of each page and 32,000 per item, and allows twice `CATCHUP_CONTEXT_FETCHES_PER_RUN` requests per run (120); author replies are read as at Normal, and no model call is added. The preferences API reports `deep` in `link_depth_pages` and a new `deep_context_fetches_per_run`; Settings shows "Deep — up to 16 pages per item" and one note for every level. Four task groups with mutations E1–E8, G1–G3, A1–A2, F1–F4, and R1. D-044. The user chose the recommendation for U1–U4.
+  - **D-023 fresh-eyes check.** A sub-agent that saw only the change folder and the code prototyped all groups (1,377 backend and 355 frontend tests passed) and ran all 23 named mutations; each failed its named test. Claude checked its seven findings against the code and applied all seven: the depth test file fails at collection rather than per case, so the gather tests run in a separate command; the README sentence "Every level keeps the per-run limit." would contradict Deep; real pytest ids, the `ids=` list, a missing import, an escaped pattern for the note, and frontend mutation names that clashed with the decision points U1–U4.
+- **Problems / adjustment:**
+  - **A collection error stops the whole pytest command,** so a combined run of the two test files would have shown no gather results at all, and Droid could have stopped or reported the wrong failure. The plan now runs them separately.

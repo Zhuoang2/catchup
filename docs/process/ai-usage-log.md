@@ -3097,7 +3097,7 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 
 ## 2026-11-26 — `add-deep-link-level` (#54): review (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
 
-- **Prompts** (translated from Chinese): the plan approval ("Approve all three plans as recommended") covered Droid's run and this review.
+- **Prompts** (translated from Chinese): the plan approval ("Approve all three plans as recommended") covered Droid's run and this review. Claude's merge-ready reports for #54 and #8 ended in one question. The user replied: "Approve merging #54 and #8 and finish up." Neither change had a decision.
 - **Outcome:**
   - **Checks:** backend 1377, frontend 355, extension 169, both builds, strict validation of all specs and changes, `git diff --check`, and `scripts/docker-smoke.sh` 12 of 12 on an image built from Droid's head.
   - **Live check** on port 8856 with a fresh volume: Settings offered Deep with the server's numbers and the planned note; choosing Deep and Save persisted after a reload; no horizontal scroll at 375 px. A run at Deep was not run live, because `safe_fetch` refuses local addresses, so a local stand-in site cannot serve linked pages.

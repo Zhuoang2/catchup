@@ -220,7 +220,7 @@ Implementer notes:
 
 ## 3. Bookmarks list and screen (D5, D7, D8; digest-history "List bookmarked items"; user-interface "Bookmarks screen")
 
-- [ ] 3.1 In `backend/tests/test_item_marks.py`, write these tests and watch them fail, because `GET /api/bookmarks` is a 404.
+- [x] 3.1 In `backend/tests/test_item_marks.py`, write these tests and watch them fail, because `GET /api/bookmarks` is a 404.
   - **`test_bookmarks_list_newest_first_with_digest`.**
     - Seed two digests with `seed_digest`: No. 1, with `language="zh-Hans"`, and No. 2.
     - With `utc_now` monkeypatched to 09:00 and then 10:00, bookmark No. 1's item A, then No. 2's item A.
@@ -232,12 +232,12 @@ Implementer notes:
     - Like A and rate it: still `[]`.
     - Bookmark A and B, then remove B's bookmark: only A is listed.
   - **`test_bookmarks_list_filters_images_like_the_digest`.** Item A has `images` `[{"url": "http://192.168.1.2/a.png", "alt": "Local"}, {"url": "https://cdn.example/b.png", "alt": "Chart"}]`. Once A is bookmarked, its entry's `images` is only the second image.
-- [ ] 3.2 Implement D5. Run `uv run --offline pytest`; it passes.
-- [ ] 3.3 Run these mutations one at a time, and record which tests fail:
+- [x] 3.2 Implement D5. Run `uv run --offline pytest`; it passes.
+- [x] 3.3 Run these mutations one at a time, and record which tests fail:
   - **B1:** order by `bookmarked_at` ascending. Expect `test_bookmarks_list_newest_first_with_digest` to fail.
   - **B2:** filter on `liked_at` instead of `bookmarked_at`. Expect `test_bookmarks_list_holds_only_bookmarked_items` to fail.
   - **B3:** the entry built without `item_answer`'s image filter. Expect `test_bookmarks_list_filters_images_like_the_digest` to fail.
-- [ ] 3.4 Write these frontend tests and watch them fail, because there is no Bookmarks page, route, or link.
+- [x] 3.4 Write these frontend tests and watch them fail, because there is no Bookmarks page, route, or link.
 
   **In a new file, `frontend/src/pages/Bookmarks.test.tsx`.** Render `<MemoryRouter initialEntries={['/bookmarks']}><Routes><Route path="/bookmarks" element={<Bookmarks/>}/></Routes></MemoryRouter>`. `fetchMock` answers:
   - `/api/bookmarks` with two entries: id 21, from digest No. 5 (`language: null`), and id 22, from digest No. 3 (`language: 'zh-Hans'`);
@@ -269,7 +269,7 @@ Implementer notes:
     - `.masthead-line time` is present. jsdom applies no CSS, so this checks presence only.
 
   Make the allowed edit to the title table.
-- [ ] 3.5 Implement D7 and D8:
+- [x] 3.5 Implement D7 and D8:
   - `ItemContent`, shared by `DigestArticle` and `Bookmarks.tsx`. It also takes `headingLevel` (`2 | 3`, default `3`) for the item title: `DigestArticle` keeps `h3` under its topic `h2`s, and `Bookmarks.tsx` passes `2`, because the Bookmarks screen has no `h2` between its `h1` and the item titles (axe `heading-order` fails otherwise). The title keeps its `item-title` class, so it looks the same; a Bookmarks test that names a heading level uses 2;
   - `Bookmarks.tsx`;
   - the route in `App.tsx`;
@@ -278,7 +278,7 @@ Implementer notes:
   - the `.bookmark-list` CSS.
 
   Run `npm test -- --run` and `npm run build`. Both pass.
-- [ ] 3.6 Run these mutations one at a time, and record which tests fail:
+- [x] 3.6 Run these mutations one at a time, and record which tests fail:
   - **B4:** on the Bookmarks screen, removing a bookmark drops the entry. Expect `keeps an entry after its bookmark is removed` to fail.
   - **B5:** `AppShell` maps `/bookmarks` to `latest`. Expect `marks History current on the Bookmarks screen` to fail.
   - **B6:** the summary rendered without its digest's `lang`. Expect `lists bookmarked items with their digest link` to fail.

@@ -256,3 +256,58 @@ def test_marks_are_not_sent_to_the_model(environment, monkeypatch):
     assert model.calls
     assert all("NOTE-MARKER-41" not in message["content"]
                for messages, _tokens in model.calls for message in messages)
+
+
+def bookmarks(client):
+    response = client.get("/api/bookmarks")
+    assert response.status_code == 200
+    return response.json()
+
+
+def test_bookmarks_list_newest_first_with_digest(client, monkeypatch):
+    first = seed_digest(client, language="zh-Hans")
+    second = seed_digest(client)
+    times = iter(datetime(2026, 11, 25, hour, tzinfo=timezone.utc) for hour in (9, 10))
+    monkeypatch.setattr(marks, "utc_now", lambda: next(times))
+    assert client.put(path(first, "bookmark")).status_code == 200
+    assert client.put(path(second, "bookmark")).status_code == 200
+    entries = bookmarks(client)
+    assert [entry["id"] for entry in entries] == [second["A"], first["A"]]
+    detail = client.get(f"/api/digests/{first['digest']}").json()
+    assert entries[1] == {
+        **detail["topics"][0]["items"][0], "bookmarked": True,
+        "bookmarked_at": "2026-11-25T09:00:00Z",
+        "digest": {"id": 1, "created_at": detail["created_at"], "language": "zh-Hans"},
+    }
+
+
+def test_bookmarks_list_breaks_ties_by_higher_id(client, monkeypatch):
+    ids = seed_digest(client)
+    monkeypatch.setattr(marks, "utc_now", lambda: datetime(2026, 11, 25, 9, tzinfo=timezone.utc))
+    assert client.put(path(ids, "bookmark")).status_code == 200
+    assert client.put(path(ids, "bookmark", "B")).status_code == 200
+    assert [entry["id"] for entry in bookmarks(client)] == [ids["B"], ids["A"]]
+
+
+def test_bookmarks_list_holds_only_bookmarked_items(client):
+    ids = seed_digest(client)
+    assert bookmarks(client) == []
+    assert client.put(path(ids, "like")).status_code == 200
+    assert client.put(path(ids, "feedback"), json={"rating": "good"}).status_code == 200
+    assert bookmarks(client) == []
+    assert client.put(path(ids, "bookmark")).status_code == 200
+    assert client.put(path(ids, "bookmark", "B")).status_code == 200
+    assert client.delete(path(ids, "bookmark", "B")).status_code == 200
+    assert [entry["id"] for entry in bookmarks(client)] == [ids["A"]]
+
+
+def test_bookmarks_list_filters_images_like_the_digest(client):
+    ids = seed_digest(client)
+    with client.app.state.session_factory() as session:
+        session.get(DigestItem, ids["A"]).images = [
+            {"url": "http://192.168.1.2/a.png", "alt": "Local"},
+            {"url": "https://cdn.example/b.png", "alt": "Chart"},
+        ]
+        session.commit()
+    assert client.put(path(ids, "bookmark")).status_code == 200
+    assert bookmarks(client)[0]["images"] == [{"url": "https://cdn.example/b.png", "alt": "Chart"}]

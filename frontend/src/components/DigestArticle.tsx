@@ -8,7 +8,7 @@ import { Button, PageHead, SectionRow, SummaryText, KindIcon, ReasonLabel,
   reasons, type Reason, type SourceKind } from './ui'
 import { useJump } from './useJump'
 
-type DigestItem = {
+export type DigestItem = {
   id: number; bookmarked: boolean; liked: boolean; rating: 'good' | 'poor' | null; note: string | null
   title: string; link: string; source_name: string; source_kind?: SourceKind | null
   published_at: string | null; summary: string | null; summary_unavailable: boolean
@@ -173,6 +173,32 @@ function ItemImages({ images, lang }: { images: { url: string; alt: string }[]; 
   </div>
 }
 
+export function ItemContent({ item, lang, showImages, imageKey, headingLevel = 3 }: {
+  item: DigestItem; lang?: string; showImages: boolean; imageKey: string; headingLevel?: 2 | 3
+}) {
+  const Heading = headingLevel === 2 ? 'h2' : 'h3'
+  return <>
+    <p className="item-meta"><KindIcon kind={item.source_kind}/><span>{item.source_name}</span>
+      <SourceTime value={item.published_at}/></p>
+    <Heading className="item-title"><a href={item.link} target="_blank" rel="noopener noreferrer">
+      {item.title}<Icon name="external" className="icon icon-xs"/>
+      <span className="sr-only"> (opens the original)</span>
+    </a></Heading>
+    {item.summary_unavailable
+      ? <p className="summary-unavailable">Summary unavailable</p>
+      : item.summary && <div className="item-body">
+        <SummaryText text={item.summary} lang={lang}/>
+        {showImages && !!item.images?.length && <ItemImages key={imageKey} images={item.images} lang={lang}/>}
+        {!!item.also_read?.length && <p className="also-read">Also read: {' '}
+          {item.also_read.map((part, index) => <span key={`${part.url}-${index}`}>
+            {index > 0 && ' · '}
+            <a href={part.url} target="_blank" rel="noopener noreferrer">{part.title}</a>
+          </span>)}
+        </p>}
+      </div>}
+  </>
+}
+
 export function DigestArticle({ digest, className = '', before, headEnd, showImages = true }: {
   digest: Digest; className?: string; before?: ReactNode; headEnd?: ReactNode; showImages?: boolean
 }) {
@@ -207,25 +233,7 @@ export function DigestArticle({ digest, className = '', before, headEnd, showIma
           <SectionRow key={index} id={`t${index}`} title={topic.title} overview={topic.overview} lang={lang}>
             <div className="items">{topic.items.map((item, position) =>
               <article key={position} className="item">
-                <p className="item-meta"><KindIcon kind={item.source_kind}/><span>{item.source_name}</span>
-                  <SourceTime value={item.published_at}/></p>
-                <h3 className="item-title"><a href={item.link} target="_blank" rel="noopener noreferrer">
-                  {item.title}<Icon name="external" className="icon icon-xs"/>
-                  <span className="sr-only"> (opens the original)</span>
-                </a></h3>
-                {item.summary_unavailable
-                  ? <p className="summary-unavailable">Summary unavailable</p>
-                  : item.summary && <div className="item-body">
-                    <SummaryText text={item.summary} lang={lang}/>
-                    {showImages && !!item.images?.length && <ItemImages
-                      key={`${digest.id}-${index}-${position}`} images={item.images} lang={lang}/>}
-                    {!!item.also_read?.length && <p className="also-read">Also read: {' '}
-                      {item.also_read.map((part, index) => <span key={`${part.url}-${index}`}>
-                        {index > 0 && ' · '}
-                        <a href={part.url} target="_blank" rel="noopener noreferrer">{part.title}</a>
-                      </span>)}
-                    </p>}
-                  </div>}
+                <ItemContent item={item} lang={lang} showImages={showImages} imageKey={`${digest.id}-${index}-${position}`}/>
                 <ItemActions key={`${digest.id}-${item.id}`} item={item} title={item.title} announce={announce}/>
               </article>
             )}</div>

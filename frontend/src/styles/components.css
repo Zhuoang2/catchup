@@ -121,6 +121,9 @@
 .feedback-panel fieldset label + label { margin-left: .75rem; }
 .feedback-panel textarea { width: 100%; min-width: 0; resize: vertical; }
 .item-error { color: var(--error); overflow-wrap: anywhere; }
+.bookmark-list { list-style: none; padding: 0; display: grid; gap: 1.25rem; }
+.bookmark-list > li + li { border-top: 1px solid var(--border); padding-top: 1rem; }
+.bookmark-from { color: var(--muted); font-size: .88em; }
 .item-meta { display: flex; align-items: center; gap: .4rem; color: var(--muted); font-size: .84em; flex-wrap: wrap; font-style: italic; }
 .item-title { font: 600 1.25em/1.4 var(--font-heading); }
 .item-title a, .creator-item > a { color: var(--fg); text-decoration: none; }

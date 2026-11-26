@@ -2,14 +2,36 @@
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.orm import Session
 
 from catchup.db import get_session
+from catchup.api.digests import item_answer
 from catchup.errors import AppError
-from catchup.models import DigestItem, DigestItemMark, DigestTopic, utc_now
+from catchup.models import Digest, DigestItem, DigestItemMark, DigestTopic, utc_now
 
 router = APIRouter(prefix="/api")
+
+
+@router.get("/bookmarks")
+def list_bookmarks(session: Session = Depends(get_session)) -> list[dict]:
+    rows = session.execute(
+        select(DigestItem, DigestItemMark, Digest)
+        .join(DigestItemMark, DigestItemMark.digest_item_id == DigestItem.id)
+        .join(Digest, Digest.id == DigestItem.digest_id)
+        .join(DigestTopic, DigestTopic.id == DigestItem.topic_id)
+        .where(DigestItemMark.bookmarked_at.is_not(None), DigestTopic.kind == "topic")
+        .order_by(DigestItemMark.bookmarked_at.desc(), DigestItem.id.desc())
+    )
+    return [
+        {
+            **item_answer(item, mark),
+            "bookmarked_at": mark.bookmarked_at,
+            "digest": {"id": digest.id, "created_at": digest.created_at, "language": digest.language},
+        }
+        for item, mark, digest in rows
+    ]
 
 
 def markable_item(session: Session, item_id: int) -> DigestItem:

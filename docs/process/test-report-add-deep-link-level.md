@@ -168,3 +168,38 @@ Not performed, explicitly reserved for Claude Code review:
 
 No Docker command, container operation, port-8800 access, push, merge, tag,
 or PR action was performed. No implementation task is blocked.
+
+## Review by Claude Code
+
+Reviewed in worktree `review54d` on the branch. Droid's run started at the plan commit `54825d3` and ended at `a2a41a7`.
+
+### Checks
+
+| Check | Result |
+| --- | --- |
+| Backend `uv run --offline pytest` | 1377 passed on `a2a41a7`, and after Claude's review commit |
+| Frontend `npm test -- --run`, `npm run build` | 355 passed; build passed |
+| Extension `npm test -- --run`, `npm run build` | 169 passed; build passed |
+| `DO_NOT_TRACK=1 openspec validate --all --strict` | 12 passed |
+| `git diff --check 54825d3..HEAD` | clean |
+| `scripts/docker-smoke.sh catchup:fix54d-local` (built from `a2a41a7`) | 12 of 12 |
+
+### Live check
+
+A scratch container from `catchup:fix54d-local` ran on its own volume and port 8856.
+
+- **Settings, 1280 px:** "Linked pages" offers "Off — no linked pages or author replies", "Shallow — up to 3 pages per item", "Normal — up to 8 pages per item", and "Deep — up to 16 pages per item"; its `aria-describedby` names the note "Each page read adds time to a run, and up to 3,000 characters to that item's summary request (6,000 at Deep, and up to 4,000 for author replies), which uses more tokens. A run makes at most 60 page requests (120 at Deep), robots.txt files included." The preferences answer had `"deep": 16` and `deep_context_fetches_per_run: 120`.
+- **Save Deep:** on a fresh volume, Save answered "Settings were not saved. Check the Model field.", because Save also saves the model settings and none were saved (today's behavior, not this change). After a test model configuration was saved, choosing Deep and Save announced "Settings saved.", the preferences answer had `link_depth: "deep"`, and the select read Deep after a reload.
+- **375 px:** no horizontal scroll (scroll width 375); the select spans 16–359 px.
+- **Not run live:** a run at Deep. `safe_fetch` reads only public addresses, so a local stand-in site cannot serve linked pages to the container; the link, page-cut, item-cap, and run-limit numbers are covered by the respx tests above.
+
+The container and its volume were removed afterwards.
+
+### Findings
+
+- **`/code-review` (high) on `54825d3..a2a41a7`:** two nits, not changed, because the spec fixes the note's exact text: the note writes 3,000 and 6,000 as literals while `depth.py` now names them, and the Deep run limit is a bare number ("120 at Deep").
+- **Spec sub-agent** (independent, detached worktree): no defect and no plan error; all 18 named mutations failed their tests, the red phases were rebuilt from the commits and matched `tasks.md`, and the numbers in this report matched its re-runs. Claude checked its findings against the code:
+  - **Fixed by Claude (test only, D-023 class c):** the page-cut test used a page of one repeated letter and checked only the length, so code that kept the end of a page instead of its start passed (99 context tests). The page is now 6,000 "a" and 4,000 "b", and the test compares the kept text; under the "keep the end" mutation `test_page_cut_follows_the_level` fails in all three cases.
+  - **Fixed by Claude (docs):** the README's environment lines (`CATCHUP_LINKS_PER_ITEM`, `CATCHUP_CONTEXT_FETCHES_PER_RUN`) now say "twice that at Deep"; the AI usage log's Droid heading has the log's dash and a session line.
+  - **Recorded, not fixed (equivalent or literal):** the API writing Deep's run limit as `2 * context_fetches_per_run`; the Settings label and note computing Deep from Normal's numbers (the test data keep Deep at twice Normal); the README sentence "Shallow and Normal keep the per-run limit." and Deep's 6,000 and 32,000 in the README, which the phrase test does not pin.
+  - **Recorded:** at Deep an item's context can reach 32,000 characters plus 4,000 of author replies, and only the item's own text is shortened to fit the summary request, so a model with a small context window can fail at Deep where Normal fits; design.md lists this risk and the README advises Normal or Shallow for small models.

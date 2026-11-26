@@ -702,9 +702,9 @@ For website items, CatchUp reads related links and author replies from public pa
 only. Context fetches honor each site's robots.txt, including the sites that
 links redirect to.
 When a site's robots.txt cannot be read because of a server error or a network failure, CatchUp skips that site's linked pages and author replies for that run.
-`CATCHUP_LINKS_PER_ITEM` (default 8) limits linked pages per item.
+`CATCHUP_LINKS_PER_ITEM` (default 8) limits linked pages per item (twice that at Deep).
 `CATCHUP_CONTEXT_FETCHES_PER_RUN` (default 60) limits requests per run
-(including robots.txt).
+(including robots.txt; twice that at Deep).
 CatchUp reads linked pages for up to 4 items at the same time, and keeps
 requests to one host at least 1 second apart. While it reads them, the run
 shows how many pages it has read, out of the pages it can still read within

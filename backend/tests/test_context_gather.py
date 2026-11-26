@@ -73,13 +73,13 @@ def test_page_cut_follows_the_level(environment, monkeypatch, public_dns, level,
     stub_collection(monkeypatch)
     with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
         router.get("https://docs.example/robots.txt").respond(404)
-        router.get("https://docs.example/long").respond(200, text=html("Long", "x" * 10000))
+        router.get("https://docs.example/long").respond(200, text=html("Long", "a" * 6000 + "b" * 4000))
         result = execute(environment)
     assert result["status"] == "succeeded"
     with environment.app.state.session_factory() as session:
         rows = session.scalars(select(ItemContext)).all()
         assert len(rows) == 1
-        assert len(rows[0].text) == expected
+        assert rows[0].text == ("a" * 6000 + "b" * 4000)[:expected]
 
 
 def test_deep_caps_an_items_linked_context(environment, monkeypatch, public_dns):

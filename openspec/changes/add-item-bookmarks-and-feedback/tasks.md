@@ -270,7 +270,7 @@ Implementer notes:
 
   Make the allowed edit to the title table.
 - [ ] 3.5 Implement D7 and D8:
-  - `ItemContent`, shared by `DigestArticle` and `Bookmarks.tsx`;
+  - `ItemContent`, shared by `DigestArticle` and `Bookmarks.tsx`. It also takes `headingLevel` (`2 | 3`, default `3`) for the item title: `DigestArticle` keeps `h3` under its topic `h2`s, and `Bookmarks.tsx` passes `2`, because the Bookmarks screen has no `h2` between its `h1` and the item titles (axe `heading-order` fails otherwise). The title keeps its `item-title` class, so it looks the same; a Bookmarks test that names a heading level uses 2;
   - `Bookmarks.tsx`;
   - the route in `App.tsx`;
   - the screen mapping in `AppShell.tsx`;

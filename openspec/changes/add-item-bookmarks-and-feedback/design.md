@@ -150,7 +150,7 @@ See `proposal.md` for why. The requirements are in the spec deltas: `digest-hist
 **CSS:**
 - `components.css`:
   - `.item-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .5rem; min-width: 0; }`;
-  - `.item-actions .btn[aria-pressed="true"] { color: var(--fg) !important; border-color: var(--border-strong); }`. `.btn` already has a 1 px transparent border (`components.css:15`), and both tokens exist in `tokens.css`;
+  - `.item-actions .btn[aria-pressed="true"] { border-color: var(--border-strong); }` and `.item-actions .btn[aria-pressed="true"]:not([aria-disabled="true"]) { color: var(--fg) !important; }`. A busy pressed toggle so takes the muted text of `.btn[aria-disabled="true"]` and keeps its check mark and strong border. `.btn` already has a 1 px transparent border (`components.css:15`), and both tokens exist in `tokens.css`;
   - a `.feedback-panel` with a full-width textarea;
   - `.feedback-state` and `.item-error`, in the muted and error colors.
 - `layout.css`, inside the existing `@container (width > 1100px)` block only: `.items > .item > .item-actions { grid-column: 1 / span 3; grid-row: 3; align-self: start; }`. Outside it, the actions follow the summary in DOM order (spec "Digest reading layout").

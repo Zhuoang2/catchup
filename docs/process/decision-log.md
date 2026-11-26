@@ -795,3 +795,27 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Whether the model follows the limit is known only from the user's own runs (design D7). The tests show that the instructions and limits reach the model, and that any answer is saved as before.
   - Topics may become broad, such as one "AI" topic for model, chip, and policy news.
   - The input of the combining call stays unbounded on small context windows, as before. The item counts add about 12 characters per batch topic.
+
+## D-045 Bookmark, like, and rate the summary of digest items, recorded only — accepted (2026-11-25)
+
+- **Decision** (recommended options of U1–U7 in the design; awaiting the user's choice).
+  - **What is marked.** An item as it appears in one saved digest, in a topic, also when its summary is unavailable. Creator updates get no marks. An item is delivered in one digest only, so its marks are never split.
+  - **Marks.** Bookmark and Like, two independent toggles with no negative counterpart; and feedback on the summary: Good or Poor, with an optional note of up to 500 characters, saved from a small panel.
+  - **Where.** A Bookmarks screen at `/bookmarks`, linked from History, newest bookmark first. The navigation keeps its four items. Removing a bookmark there keeps the entry until the screen is opened again.
+  - **Record only.** Marks change nothing in later runs and are never sent to the model provider. #10 decides how ratings and notes are exported.
+  - **Storage.** A table `digest_item_marks` (migration `0012_digest_item_marks`), one row per marked digest item, removed by the database together with its digest item: by "Delete all X data", and when a digest is left empty. Deleting a source keeps them, like the digest itself.
+
+  Planned as the lean OpenSpec change `add-item-bookmarks-and-feedback` (issue #8), in parallel with D-044 (#54's Deep level), whose entry goes before this one.
+- **Why.** The proposal promised bookmarks, likes, and feedback after the core flow (`docs/proposal.md:42`, handoff §3). Summary feedback is also the first real-user signal on summary quality for #10.
+- **Alternatives:**
+  - **Mark the stored item instead of its digest appearance** (U1 B). Rejected as the recommendation: marks would be lost when the source is deleted, and the rated summary could differ from the saved one.
+  - **Bookmark on Creator updates entries** (U1 C). Offered to the user.
+  - **Bookmark only, or Like and Dislike** (U2 B, C). Offered to the user. One mixes interest with summary quality; the other adds a signal nothing uses yet.
+  - **Inline Good and Poor buttons, or fixed reasons for Poor** (U3 B, C). Offered to the user.
+  - **A fifth navigation item, or a History filter** (U4 B, C). Offered to the user. A fifth item probably does not fit one row at 320 px.
+  - **A feedback export now, or marks that reorder later digests** (U5 B, C). Offered to the user. The second overlaps #9.
+  - **Columns on `digest_items`.** Rejected: the snapshot table would then hold more than the run saved.
+- **Consequences:**
+  - Every topic item gets three small controls, and the reading layout places them under the title in wide windows.
+  - Notes are personal text in the local database and its backups. They are deleted with their item, and never logged.
+  - A downgrade below `0012_digest_item_marks` drops every mark.

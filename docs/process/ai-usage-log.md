@@ -3113,7 +3113,7 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 
 ## 2026-11-26 — `add-item-bookmarks-and-feedback` (#8): review (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
 
-- **Prompts** (translated from Chinese): the plan approval ("Approve all three plans as recommended") covered Droid's runs, this review, and the fix round.
+- **Prompts** (translated from Chinese): the plan approval ("Approve all three plans as recommended") covered Droid's runs, this review, and the fix round. Claude's merge-ready reports for #54 and #8 ended in one question. The user replied: "Approve merging #54 and #8 and finish up." Neither change had a decision.
 - **Outcome:**
   - **Droid stopped twice during its first run, both times rightly,** on gaps in Claude Code's plan: React `useId` ids differed between the main screen and the saved digest page, and the Bookmarks screen's `h3` titles sat directly under its `h1`. Claude Code amended the task each time under the plan approval (`d39e9da`, `71ce9a2`) and resumed the same Droid session.
   - **Checks:** backend 1410, frontend 381, extension 169, both builds, strict validation, `git diff --check`, and `scripts/docker-smoke.sh` 12 of 12 on images built before and after the fix round.

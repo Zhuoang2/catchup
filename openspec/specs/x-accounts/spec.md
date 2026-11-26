@@ -192,7 +192,7 @@ After a run delivers an X post in a digest, the system SHALL remove the post's s
 Settings SHALL offer "Delete all X data", which asks for confirmation in place. Confirming SHALL remove, in one step:
 - the saved X token;
 - every followed X account, and every post stored for it;
-- every item from an X account in saved digests, with its title, summary, link, images, and "Also read" links;
+- every item from an X account in saved digests, with its title, summary, link, images, and "Also read" links, and the user's bookmark, like, rating, and note on it;
 - every account preview not yet confirmed;
 - the overview of every saved topic that held such an item, because it was written from those items; such a topic's title SHALL become "Other" ("其他" in a Chinese digest). A topic left with no items, and a digest left with no items, SHALL be removed. A digest's item and source counts SHALL be lowered to match.
 
@@ -211,3 +211,7 @@ Other sources, their items, and digest items from other sources MUST remain. Del
 #### Scenario: During a run
 - **WHEN** a digest run is active, and the user confirms "Delete all X data"
 - **THEN** it is refused with a message to try again after the run, and nothing is deleted
+
+#### Scenario: Marks on X items
+- **WHEN** a saved X item is bookmarked and rated with a note, a website item in the same digest is bookmarked, and the user deletes all X data
+- **THEN** the X item's marks and note are removed with it, and the website item stays bookmarked

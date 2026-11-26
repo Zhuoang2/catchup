@@ -1,13 +1,15 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { request } from '../api/client'
 import { longDate, plural, shortDateTime, shortTime, tokenTotals } from './format'
 import { Icon } from './Icon'
 import { digestLang } from './lang'
-import { PageHead, SectionRow, SummaryText, KindIcon, ReasonLabel,
+import { Button, PageHead, SectionRow, SummaryText, KindIcon, ReasonLabel,
   reasons, type Reason, type SourceKind } from './ui'
 import { useJump } from './useJump'
 
 type DigestItem = {
+  id: number; bookmarked: boolean; liked: boolean; rating: 'good' | 'poor' | null; note: string | null
   title: string; link: string; source_name: string; source_kind?: SourceKind | null
   published_at: string | null; summary: string | null; summary_unavailable: boolean
   also_read?: { title: string; url: string; kind: string }[]
@@ -24,6 +26,52 @@ export type Digest = {
   item_count: number; source_count: number
   creator_updates?: CreatorUpdate[]; transcript_wait_days?: number
   prompt_tokens?: number | null; completion_tokens?: number | null
+}
+
+export type Marks = {
+  id: number; bookmarked: boolean; liked: boolean; rating: 'good' | 'poor' | null; note: string | null
+}
+
+export function ItemActions({ item, title, announce, onChange }: {
+  item: DigestItem; title: string; announce: (message: string) => void; onChange?: (marks: Marks) => void
+}) {
+  const [marks, setMarks] = useState<Marks>(item)
+  const [busy, setBusy] = useState({ bookmark: false, like: false })
+  const [error, setError] = useState('')
+  async function toggle(kind: 'bookmark' | 'like') {
+    if (busy[kind]) return
+    const pressed = kind === 'bookmark' ? marks.bookmarked : marks.liked
+    setBusy(previous => ({ ...previous, [kind]: true }))
+    setError('')
+    announce('')
+    try {
+      const saved = await request<Marks>(`/digest-items/${item.id}/${kind}`, { method: pressed ? 'DELETE' : 'PUT' })
+      setMarks(saved)
+      onChange?.(saved)
+      announce(kind === 'bookmark'
+        ? pressed ? 'Bookmark removed.' : 'Bookmarked.'
+        : pressed ? 'Like removed.' : 'Liked.')
+    } catch (error) {
+      setError((error as Error).message)
+    } finally {
+      setBusy(previous => ({ ...previous, [kind]: false }))
+    }
+  }
+  return <div className="item-actions">
+    <Button variant="ghost" size="sm" aria-pressed={!!marks.bookmarked}
+      aria-disabled={busy.bookmark || undefined} onClick={() => void toggle('bookmark')}>
+      {marks.bookmarked && <Icon name="check" className="icon icon-xs"/>}Bookmark<span className="sr-only"> {title}</span>
+    </Button>
+    <Button variant="ghost" size="sm" aria-pressed={!!marks.liked}
+      aria-disabled={busy.like || undefined} onClick={() => void toggle('like')}>
+      {marks.liked && <Icon name="check" className="icon icon-xs"/>}Like<span className="sr-only"> {title}</span>
+    </Button>
+    {!!item.summary && !item.summary_unavailable && <>
+      <Button variant="ghost" size="sm" aria-expanded={false}>Feedback<span className="sr-only"> on {title}</span></Button>
+      {marks.rating && <span className="feedback-state">Rated {marks.rating}</span>}
+    </>}
+    {error && <p role="alert" className="item-error">{error}</p>}
+  </div>
 }
 
 function IndexLink({ id, title, lang }: { id: string; title: string; lang?: string | null }) {
@@ -52,11 +100,13 @@ function ItemImages({ images, lang }: { images: { url: string; alt: string }[]; 
 export function DigestArticle({ digest, className = '', before, headEnd, showImages = true }: {
   digest: Digest; className?: string; before?: ReactNode; headEnd?: ReactNode; showImages?: boolean
 }) {
+  const [message, announce] = useState('')
   const lang = digestLang(digest.language)
   const groups = digest.creator_updates ?? []
   const sectionCount = digest.topics.length + (groups.length ? 1 : 0)
   return <section className={`page page-digest${className ? ` ${className}` : ''}`}>
     {before}
+    <p className="sr-only" role="status">{message}</p>
     <PageHead className="digest-head" eyebrow={`Digest · No. ${digest.id}`} title={<>{longDate(digest.created_at)}
       <span className="title-time"> · {shortTime(digest.created_at)}</span></>}>
       <p className="digest-meta">{plural(digest.item_count, 'item')} · {plural(digest.source_count, 'source')}
@@ -100,6 +150,7 @@ export function DigestArticle({ digest, className = '', before, headEnd, showIma
                       </span>)}
                     </p>}
                   </div>}
+                <ItemActions key={`${digest.id}-${item.id}`} item={item} title={item.title} announce={announce}/>
               </article>
             )}</div>
           </SectionRow>)}

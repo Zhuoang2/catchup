@@ -7,6 +7,7 @@ import DigestView from './DigestView'
 
 const fetchMock = vi.fn()
 const respond = (value: unknown, status = 200) => ({ ok: status < 400, status, json: async () => value })
+const runStatus = () => document.getElementById('run-status') as HTMLElement
 function watchPollTimer() {
   const pollTimer = vi.spyOn(window, 'setInterval')
   return async function advancePoll(ms = 1000) {
@@ -274,7 +275,7 @@ it('keeps the article beneath named run progress and source checks', async () =>
   expect(bar).toHaveTextContent('News')
   expect(screen.getByRole('heading', { name: 'Technology' })).toBeInTheDocument()
   expect(bar.querySelector('h1,h2,h3')).toBeNull()
-  expect(screen.getByRole('status')).toHaveTextContent('Checking sources, 2 of 3')
+  expect(runStatus()).toHaveTextContent('Checking sources, 2 of 3')
   await expectAccessible(container)
 })
 
@@ -285,7 +286,7 @@ it('shows linked-page progress after every source is checked without changing st
   const progress = await screen.findByRole('progressbar', { name: 'Linked pages read: 7 of 20' })
   expect(progress).toHaveAttribute('value', '7')
   expect(progress).toHaveAttribute('max', '20')
-  expect(screen.getByRole('status')).toHaveTextContent('Checking sources, 3 of 3')
+  expect(runStatus()).toHaveTextContent('Checking sources, 3 of 3')
   await expectAccessible(container)
 })
 
@@ -293,7 +294,7 @@ it('shows linked-page progress after a source is deleted during the checks', asy
   const { container } = mockPage({ run: { ...run, context_total: 20, context_done: 7 } })
   expect(await screen.findByRole('progressbar', { name: 'Linked pages read: 7 of 20' }))
     .toBeInTheDocument()
-  expect(screen.getByRole('status')).toHaveTextContent('Checking sources, 2 of 3')
+  expect(runStatus()).toHaveTextContent('Checking sources, 2 of 3')
   await expectAccessible(container)
 })
 
@@ -426,7 +427,7 @@ it('shows a saved result, held notes and checks without a new primary action', a
   expect(bar.querySelectorAll('.btn-primary')).toHaveLength(0)
   expect(screen.queryByRole('link', { name: 'View digest' })).toBeNull()
   expect(screen.getByRole('button', { name: 'Generate digest' })).toHaveClass('btn-secondary')
-  expect(screen.getByRole('status')).toHaveTextContent('Digest ready: 2 items (1 summarized, 1 in Creator updates)')
+  expect(runStatus()).toHaveTextContent('Digest ready: 2 items (1 summarized, 1 in Creator updates)')
   expect(screen.getByRole('heading', { name: 'Technology' })).toBeInTheDocument()
   await expectAccessible(container)
 })
@@ -438,7 +439,7 @@ it('keeps the digest after a run finds nothing new', async () => {
   expect(bar).toHaveTextContent('News')
   expect(bar.querySelectorAll('.btn-primary')).toHaveLength(0)
   expect(screen.getByRole('heading', { name: 'Technology' })).toBeInTheDocument()
-  expect(screen.getByRole('status')).toHaveTextContent('No new content')
+  expect(runStatus()).toHaveTextContent('No new content')
   await expectAccessible(container)
 })
 
@@ -457,7 +458,7 @@ it.each([
   if (error_kind === 'auth_failed') expect(screen.getByRole('button', { name: 'Try again' })).toHaveClass('btn-secondary')
   expect(screen.queryByRole('alert')).toBeNull()
   expect(screen.getByRole('heading', { name: 'Technology' })).toBeInTheDocument()
-  expect(screen.getByRole('status')).toHaveTextContent('Digest generation failed: Run failed.')
+  expect(runStatus()).toHaveTextContent('Digest generation failed: Run failed.')
   await expectAccessible(container)
 })
 
@@ -482,7 +483,7 @@ it.each([
   const focus = vi.spyOn(HTMLElement.prototype, 'focus')
   render(<MemoryRouter><Home/></MemoryRouter>)
   await screen.findByRole('progressbar')
-  const status = screen.getByRole('status')
+  const status = runStatus()
   if (latest) {
     const link = screen.getByRole('link', { name: 'Manage sources' })
     link.focus()
@@ -494,7 +495,7 @@ it.each([
   await waitFor(() => expect(document.title).toBe('Latest · No. 9 · CatchUp'))
   expect(fetchMock).toHaveBeenCalledWith('/api/digests/9', undefined)
   expect(fetchMock.mock.calls.some(([path]) => path === '/api/digests')).toBe(false)
-  expect(screen.getByRole('status')).toBe(status)
+  expect(runStatus()).toBe(status)
   expect(status.textContent).toBe('Digest ready: 2 items (1 summarized, 1 in Creator updates)')
   if (latest) expect(document.activeElement).toBe(screen.getByRole('link', { name: 'Manage sources' }))
   expect(focus).not.toHaveBeenCalled()
@@ -741,7 +742,7 @@ it.each([
   await advanceSecondPoll()
   if (secondStatus === 'succeeded') {
     expect(await screen.findByRole('heading', { name: 'Newer edition' })).toBeInTheDocument()
-  } else expect(screen.getByRole('status')).toHaveTextContent('No new content')
+  } else expect(runStatus()).toHaveTextContent('No new content')
   await act(async () => { release(respond({ ...digest, id: 8,
     topics: [{ ...digest.topics[0], title: 'Fetched edition' }] })); await pending })
   if (shownId === 9) {
@@ -1016,7 +1017,7 @@ it.each(['collecting', 'summarizing'])('shows %s progress and named source outco
   expect(screen.getByText('Possible gap')).toHaveClass('chip-warn')
   expect(screen.getByRole('heading', { name: 'Your sources' }).closest('section'))
     .toHaveTextContent('1 podcast · 1 YouTube · 1 website')
-  if (status === 'collecting') expect(screen.getByRole('status')).toHaveTextContent('Checking sources, 2 of 3')
+  if (status === 'collecting') expect(runStatus()).toHaveTextContent('Checking sources, 2 of 3')
   expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
   expect(screen.getByRole('button', { name: 'Generating…' })).toHaveAttribute('aria-disabled', 'true')
   expect(screen.getByRole('button', { name: 'Generating…' })).toHaveClass('btn-primary')
@@ -1028,15 +1029,15 @@ it('shows the saved digest with no primary action after success', async () => {
     ...run, status: 'succeeded', items_total: 12, items_done: 12, digest_id: 8,
     waiting_count: 2, deferred_count: 5, prompt_tokens: 12, completion_tokens: 4,
   }, detail: { ...digest, id: 8 } })
-  const statusRegion = screen.getByRole('status')
+  const statusRegion = runStatus()
   expect(await screen.findByRole('heading', { name: 'Technology' })).toBeInTheDocument()
-  expect(screen.getByRole('status')).toBe(statusRegion)
+  expect(runStatus()).toBe(statusRegion)
   expect(screen.queryByRole('link', { name: 'View digest' })).toBeNull()
   expect(container.querySelectorAll('.btn-primary')).toHaveLength(0)
   expect(screen.getByRole('button', { name: 'Generate digest' })).toHaveClass('btn-secondary')
   expect(screen.getByText('2 items waiting for transcripts or captions')).toBeInTheDocument()
   expect(screen.getByText('5 videos deferred to the next run')).toBeInTheDocument()
-  expect(screen.getByRole('status')).toHaveTextContent('Digest ready: 12 items')
+  expect(runStatus()).toHaveTextContent('Digest ready: 12 items')
   expect(screen.getByRole('region', { name: 'Digest run' })).toHaveTextContent('Tokens: 12 in / 4 out')
   await expectAccessible(container)
 })
@@ -1051,7 +1052,7 @@ it('shows no primary action after a no-new-content run, with rate limit and held
   expect(container.querySelector('.result-none .result-meta')).toHaveTextContent('Nothing new')
   expect(container.querySelectorAll('.btn-primary')).toHaveLength(0)
   expect(screen.getByText('Rate limited · try later')).toBeInTheDocument()
-  expect(screen.getByRole('status')).toHaveTextContent('No new content')
+  expect(runStatus()).toHaveTextContent('No new content')
   await expectAccessible(container)
 })
 
@@ -1065,7 +1066,7 @@ it.each([
   } })
   expect(await screen.findByText('The provider rejected the API key. Check the model settings.')).toBeInTheDocument()
   expect(screen.queryByRole('alert')).toBeNull()
-  expect(screen.getByRole('status')).toHaveTextContent('Digest generation failed: The provider rejected the API key.')
+  expect(runStatus()).toHaveTextContent('Digest generation failed: The provider rejected the API key.')
   expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
   expect(container.querySelector('.btn-primary')).toHaveTextContent(primary)
   expect(screen.getByText(/No digest was saved/)).toHaveTextContent('summaries are reused next time')
@@ -1095,12 +1096,12 @@ it('polls from summarizing to success with a persistent status region using fake
   })
   render(<MemoryRouter><Home/></MemoryRouter>)
   expect(await screen.findByRole('status')).toHaveTextContent('Summarizing, 5 of 12')
-  const statusRegion = screen.getByRole('status')
+  const statusRegion = runStatus()
   await advancePoll()
-  expect(statusRegion).toBe(screen.getByRole('status'))
+  expect(statusRegion).toBe(runStatus())
   expect(statusRegion).toHaveTextContent('Digest ready: 12 items')
   expect(await screen.findByRole('heading', { name: 'Technology' })).toBeInTheDocument()
-  expect(screen.getByRole('status')).toBe(statusRegion)
+  expect(runStatus()).toBe(statusRegion)
   await waitFor(() => expect(document.title).toBe('Latest · No. 8 · CatchUp'))
 })
 
@@ -1121,7 +1122,7 @@ it('announces a polled run failure only through the persistent status region', a
   await advancePoll()
   expect(screen.getByText('Provider is unavailable.')).toBeInTheDocument()
   expect(screen.queryByRole('alert')).toBeNull()
-  expect(screen.getByRole('status')).toHaveTextContent('Digest generation failed: Provider is unavailable.')
+  expect(runStatus()).toHaveTextContent('Digest generation failed: Provider is unavailable.')
 })
 
 it.each([
@@ -1145,11 +1146,11 @@ it.each([
   })
   const { container } = render(<MemoryRouter><Home/></MemoryRouter>)
   await screen.findByRole('progressbar')
-  const statusRegion = screen.getByRole('status')
+  const statusRegion = runStatus()
   await advancePoll()
-  expect(screen.getByRole('status').textContent).toBe(`Digest ready: ${text}`)
+  expect(runStatus().textContent).toBe(`Digest ready: ${text}`)
   expect(await screen.findByRole('heading', { name: 'Technology' })).toBeInTheDocument()
-  expect(screen.getByRole('status')).toBe(statusRegion)
+  expect(runStatus()).toBe(statusRegion)
   expect(container.querySelector('.run-bar .result-meta')?.textContent)
     .toContain(`${text} · 3 sources`)
 })

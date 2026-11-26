@@ -246,7 +246,7 @@ function hasTargetClass(compound: string, classes: string[]): boolean {
 function targetsItemChild(selector: string): boolean {
   return splitSelectors(selector).some(part => {
     const compound = rightmostCompound(part)
-    return hasTargetClass(compound, ['item-meta', 'item-title', 'item-body', 'summary', 'summary-unavailable'])
+    return hasTargetClass(compound, ['item-meta', 'item-title', 'item-body', 'summary', 'summary-unavailable', 'item-actions'])
       || (compound === '*' && /\.items\s*>\s*\.item\s*>\s*\*$/.test(part))
   })
 }
@@ -288,6 +288,8 @@ it('places digest headings beside summaries only above 1100px', () => {
     expect(wideRule(selector)).toMatch(/grid-column:\s*4\s*\/\s*-1/)
     expect(wideRule(selector)).toMatch(/grid-row:\s*1\s*\/\s*-1/)
   }
+  expect(wideRule('.items > .item > .item-actions')).toMatch(/grid-column:\s*1\s*\/\s*span\s+3/)
+  expect(wideRule('.items > .item > .item-actions')).toMatch(/grid-row:\s*3\s*;/)
 
   const outsideItems = outside.filter(rule => rule.selector.startsWith('.items > .item'))
   expect(outsideItems.map(rule => rule.selector)).toEqual([

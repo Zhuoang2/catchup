@@ -53,7 +53,7 @@ Implementer notes:
 
 ## 1. Bookmark and Like, end to end (D1–D4, D6 toggles; digest-history "Bookmark, like, and rate digest items"; user-interface "Bookmark, like, and give feedback on digest items", "Digest reading layout")
 
-- [ ] 1.1 Write these backend tests and watch them fail. They fail because the table, the model, and `catchup.api.marks` do not exist, and because the digest answer has no `id`.
+- [x] 1.1 Write these backend tests and watch them fail. They fail because the table, the model, and `catchup.api.marks` do not exist, and because the digest answer has no `id`.
 
   **In `backend/tests/test_db.py`:**
   - **`test_item_marks_migration_creates_empty_table_and_downgrades`.** Upgrade to `0011_model_reasoning`. Insert, with SQL, one digest run, one digest, one topic, and one digest item, giving every NOT NULL column that has no server default. Read all `digest_items` rows as dicts. Then upgrade to `head`, and check:
@@ -96,7 +96,7 @@ Implementer notes:
   - **`test_digest_answer_loads_marks_in_one_query`.** Bookmark A and like B. Record the statements of `GET /api/digests/{id}` with `event.listen(engine, "before_cursor_execute", …)`, as `backend/tests/test_digest_history.py:255-283` does. Exactly one recorded statement contains `FROM digest_item_marks`.
 
   **In `backend/tests/test_digest_history.py`,** make the allowed edit.
-- [ ] 1.2 Implement design D1–D4 for bookmarks and likes:
+- [x] 1.2 Implement design D1–D4 for bookmarks and likes:
   - `DigestItemMark` in `models.py`;
   - the migration `0012_digest_item_marks.py` (D2), with its docstring;
   - `item_answer` and the marks query in `api/digests.py`;
@@ -104,7 +104,7 @@ Implementer notes:
   - the router included in `main.py`.
 
   Run `uv run --offline pytest` in `backend/`. Everything passes.
-- [ ] 1.3 Run these backend mutations one at a time, and record which tests fail:
+- [x] 1.3 Run these backend mutations one at a time, and record which tests fail:
   - **M1:** the migration's foreign key without `ondelete="CASCADE"`. Expect `test_item_marks_migration_creates_empty_table_and_downgrades` to fail.
   - **M2:** `downgrade()` does nothing. Expect the same test to fail.
   - **A1:** `PUT …/bookmark` always sets `bookmarked_at = utc_now()`. Expect `test_repeated_bookmark_keeps_its_first_time` to fail.
@@ -113,7 +113,7 @@ Implementer notes:
   - **A4:** the marks loaded with one query per item. Expect `test_digest_answer_loads_marks_in_one_query` to fail.
   - **A5:** `DELETE …/like` deletes the row when no mark is left. Expect `test_removing_marks_keeps_an_empty_row` to fail.
   - **A6:** `_extension_operation` also accepts `PUT` on paths starting with `/api/digest-items/`. Expect `test_cross_site_and_extension_token_cannot_mark` to fail.
-- [ ] 1.4 In `frontend/src/components/DigestArticle.test.tsx`, make the allowed fixture edit. Then write these tests and watch them fail, because there are no controls.
+- [x] 1.4 In `frontend/src/components/DigestArticle.test.tsx`, make the allowed fixture edit. Then write these tests and watch them fail, because there are no controls.
 
   The tests use a `fetchMock` stubbed with `vi.stubGlobal('fetch', …)`, and a digest whose topic holds item 11 ("Article", with a summary) and item 12 ("Missing", `summary: null`, `summary_unavailable: true`), and whose Creator updates hold one entry.
   - **`shows Bookmark and Like on topic items and Feedback only with a summary`.**
@@ -142,14 +142,14 @@ Implementer notes:
     - the status region is empty.
 
   Make the allowed edits to `frontend/src/pages/DigestView.test.tsx` and `frontend/src/styles/tokens.test.ts`, and watch them fail.
-- [ ] 1.5 Implement design D6 for Bookmark and Like:
+- [x] 1.5 Implement design D6 for Bookmark and Like:
   - the `DigestItem` and `Marks` types;
   - `ItemActions`, keyed by `` `${digest.id}-${item.id}` ``;
   - the status region, the busy rule, and the error;
   - the CSS in `components.css`, and the one new rule inside `@container (width > 1100px)` in `layout.css`.
 
   Render the Feedback button with `aria-expanded="false"`; its panel comes in group 2. In `frontend/`, run `npm test -- --run` and `npm run build`. Both pass.
-- [ ] 1.6 Run these frontend mutations one at a time, and record which tests fail:
+- [x] 1.6 Run these frontend mutations one at a time, and record which tests fail:
   - **U1:** set `bookmarked` from the click before the answer. Expect `bookmarks an item once the server saves it` to fail.
   - **U2:** no busy guard. Expect the same test to fail on the second request.
   - **U3:** announce "Saved." instead of "Bookmarked.". Expect the same test to fail.

@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { expect, it } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { expectAccessible } from '../test/accessibility'
 import { DigestArticle } from './DigestArticle'
 import { digestLang } from './lang'
@@ -9,6 +9,7 @@ const digest = {
   id: 7, created_at: '2026-10-03T10:00:00Z', model_id: 'test',
   item_count: 1, source_count: 1,
   topics: [{ title: 'Technology', overview: 'Overview', items: [{
+    id: 11, bookmarked: false, liked: false, rating: null, note: null,
     title: 'Article', link: 'https://example.test/article', source_name: 'Blog',
     published_at: null, summary: 'Summary', summary_unavailable: false,
   }] }],
@@ -219,4 +220,123 @@ it('shows no caption when images are turned off', () => {
   shown.unmount()
   const { container } = render(<MemoryRouter><DigestArticle digest={withImages} showImages={false}/></MemoryRouter>)
   expect(container.querySelector('figcaption')).toBeNull()
+})
+
+const fetchMock = vi.fn()
+const respond = (value: unknown, status = 200) => ({ ok: status < 400, status, json: async () => value })
+const unmarked = { id: 11, bookmarked: false, liked: false, rating: null, note: null }
+beforeEach(() => vi.stubGlobal('fetch', fetchMock))
+afterEach(() => { vi.unstubAllGlobals(); fetchMock.mockReset() })
+
+function actionDigest(marks = {}) {
+  return { ...digest, topics: [{ ...digest.topics[0], items: [
+    { ...digest.topics[0].items[0], ...marks },
+    { ...digest.topics[0].items[0], id: 12, title: 'Missing', summary: null, summary_unavailable: true },
+  ] }], creator_updates: [{ source_name: 'Podcast', items: [{
+    title: 'Episode', link: 'https://example.test/episode', published_at: null, reason: 'no_transcript',
+  }] }] }
+}
+function actionPage(marks = {}) {
+  return render(<MemoryRouter><DigestArticle digest={actionDigest(marks)}/></MemoryRouter>)
+}
+
+it('shows Bookmark and Like on topic items and Feedback only with a summary', async () => {
+  const { container } = actionPage()
+  const article = screen.getByRole('link', { name: 'Article (opens the original)' }).closest('article')!
+  expect(article.lastElementChild).toHaveClass('item-actions')
+  expect(within(article.lastElementChild as HTMLElement).getAllByRole('button').map(button => button.textContent))
+    .toEqual(['Bookmark Article', 'Like Article', 'Feedback on Article'])
+  for (const name of ['Bookmark Article', 'Like Article']) {
+    const button = screen.getByRole('button', { name })
+    expect(button).toHaveAttribute('aria-pressed', 'false')
+    expect(button.querySelector('svg')).toBeNull()
+  }
+  expect(screen.getByRole('button', { name: 'Feedback on Article' })).toHaveAttribute('aria-expanded', 'false')
+  expect(screen.getByRole('button', { name: 'Bookmark Missing' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Like Missing' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Feedback on Missing' })).toBeNull()
+  expect(within(container.querySelector('.creator') as HTMLElement).queryByRole('button')).toBeNull()
+  await expectAccessible(container)
+})
+
+it('starts from the saved marks', () => {
+  actionPage({ bookmarked: true, liked: true, rating: 'good' as const })
+  for (const name of ['Bookmark Article', 'Like Article']) {
+    const button = screen.getByRole('button', { name })
+    expect(button).toHaveAttribute('aria-pressed', 'true')
+    expect(button.querySelector('svg')).toBeInTheDocument()
+  }
+  expect(screen.getByRole('button', { name: 'Feedback on Article' }).nextElementSibling)
+    .toHaveTextContent('Rated good')
+})
+
+it("does not carry an item's marks into the next digest", () => {
+  const page = render(<MemoryRouter><DigestArticle digest={digest}/></MemoryRouter>)
+  const next = { ...digest, id: 8, topics: [{ ...digest.topics[0], items: [{
+    ...digest.topics[0].items[0], id: 81, bookmarked: true,
+  }] }] }
+  page.rerender(<MemoryRouter><DigestArticle digest={next}/></MemoryRouter>)
+  expect(screen.getByRole('button', { name: 'Bookmark Article' })).toHaveAttribute('aria-pressed', 'true')
+})
+
+it('keeps an empty status region on the page', () => {
+  const { container } = actionPage()
+  expect(container.querySelectorAll('section.page-digest [role="status"]')).toHaveLength(1)
+  expect(screen.getByRole('status')).toBeEmptyDOMElement()
+})
+
+it('bookmarks an item once the server saves it', async () => {
+  let resolve!: (value: ReturnType<typeof respond>) => void
+  fetchMock.mockImplementationOnce(() => new Promise(done => { resolve = done }))
+    .mockResolvedValueOnce(respond(unmarked))
+  actionPage()
+  const button = screen.getByRole('button', { name: 'Bookmark Article' })
+  button.focus()
+  fireEvent.click(button)
+  expect(button).toHaveAttribute('aria-disabled', 'true')
+  expect(button).toHaveAttribute('aria-pressed', 'false')
+  expect(button).toHaveFocus()
+  fireEvent.click(button)
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+  expect(fetchMock).toHaveBeenCalledWith('/api/digest-items/11/bookmark', { method: 'PUT' })
+  await act(async () => resolve(respond({ ...unmarked, bookmarked: true })))
+  expect(button).toHaveAttribute('aria-pressed', 'true')
+  expect(button).not.toHaveAttribute('aria-disabled', 'true')
+  expect(screen.getByRole('status')).toHaveTextContent('Bookmarked.')
+  fireEvent.click(button)
+  await waitFor(() => expect(button).toHaveAttribute('aria-pressed', 'false'))
+  expect(fetchMock).toHaveBeenLastCalledWith('/api/digest-items/11/bookmark', { method: 'DELETE' })
+  expect(screen.getByRole('status')).toHaveTextContent('Bookmark removed.')
+})
+
+it('likes and unlikes an item', async () => {
+  fetchMock.mockResolvedValueOnce(respond({ ...unmarked, liked: true }))
+    .mockResolvedValueOnce(respond(unmarked))
+  actionPage()
+  const button = screen.getByRole('button', { name: 'Like Article' })
+  fireEvent.click(button)
+  await waitFor(() => expect(button).toHaveAttribute('aria-pressed', 'true'))
+  expect(fetchMock).toHaveBeenLastCalledWith('/api/digest-items/11/like', { method: 'PUT' })
+  expect(screen.getByRole('status')).toHaveTextContent('Liked.')
+  fireEvent.click(button)
+  await waitFor(() => expect(button).toHaveAttribute('aria-pressed', 'false'))
+  expect(fetchMock).toHaveBeenLastCalledWith('/api/digest-items/11/like', { method: 'DELETE' })
+  expect(screen.getByRole('status')).toHaveTextContent('Like removed.')
+  let resolve!: (value: ReturnType<typeof respond>) => void
+  fetchMock.mockImplementationOnce(() => new Promise(done => { resolve = done }))
+  fireEvent.click(button)
+  expect(screen.getByRole('status')).toBeEmptyDOMElement()
+  await act(async () => resolve(respond({ ...unmarked, liked: true })))
+  expect(screen.getByRole('status')).toHaveTextContent('Liked.')
+})
+
+it("shows the server's message and keeps the state when a change fails", async () => {
+  fetchMock.mockResolvedValue(respond({ error: { code: 'not_found', message: 'Digest item not found.' } }, 404))
+  actionPage()
+  const button = screen.getByRole('button', { name: 'Bookmark Article' })
+  fireEvent.click(button)
+  expect(await within(button.closest('.item-actions') as HTMLElement).findByRole('alert'))
+    .toHaveTextContent('Digest item not found.')
+  expect(button).toHaveAttribute('aria-pressed', 'false')
+  expect(screen.getByRole('status')).toBeEmptyDOMElement()
 })

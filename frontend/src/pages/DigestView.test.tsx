@@ -74,7 +74,7 @@ it('keeps the images inside the summary cell and before Also read', async () => 
   await screen.findByText('Growth chart', { selector: 'figcaption' })
   const article = container.querySelector('article.item')!
   expect(Array.from(article.children).map(child => child.className)).toEqual([
-    'item-meta', 'item-title', 'item-body',
+    'item-meta', 'item-title', 'item-body', 'item-actions',
   ])
   expect(Array.from(article.querySelector('.item-body')!.children).map(child => child.className))
     .toEqual(['summary', 'item-images', 'also-read'])
@@ -342,6 +342,7 @@ it('keeps every item in one markup order regardless of summary length or availab
       `${child.tagName.toLowerCase()}.${child.className}`)).toEqual([
       'p.item-meta', 'h3.item-title',
       index === 3 ? 'p.summary-unavailable' : 'div.item-body',
+      'div.item-actions',
     ])
   }
   expect(articles[2].querySelector('.item-body')).toHaveTextContent('Also read: Notes')

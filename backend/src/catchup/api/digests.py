@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from catchup.db import get_session
 from catchup.errors import AppError
-from catchup.models import Digest, DigestItem, DigestRun, DigestTopic
+from catchup.models import Digest, DigestItem, DigestItemMark, DigestRun, DigestTopic
 from catchup.net.public_hosts import is_public_url
 from catchup.sources.feeds import is_formula_image
 
@@ -56,6 +56,27 @@ def get_digest(digest_id: int, session: Session = Depends(get_session)) -> dict:
     return _serialize_digest(digest, session)
 
 
+def item_answer(item: DigestItem, mark: DigestItemMark | None) -> dict:
+    return {
+        "id": item.id,
+        "bookmarked": mark is not None and mark.bookmarked_at is not None,
+        "liked": mark is not None and mark.liked_at is not None,
+        "rating": mark.rating if mark else None,
+        "note": mark.note if mark else None,
+        "title": item.title, "link": item.link, "source_name": item.source_name,
+        "source_kind": item.source_kind,
+        "published_at": item.published_at, "summary": item.summary,
+        "summary_unavailable": item.summary_unavailable,
+        "also_read": item.context_links or [],
+        "images": [
+            image for image in (item.images or [])
+            if isinstance(image, dict) and isinstance(image.get("url"), str)
+            and is_public_url(image["url"])
+            and not is_formula_image(image["url"])
+        ],
+    }
+
+
 def _serialize_digest(digest: Digest, session: Session) -> dict:
     digest_id = digest.id
     topics = session.scalars(
@@ -66,21 +87,14 @@ def _serialize_digest(digest: Digest, session: Session) -> dict:
         select(DigestItem).where(DigestItem.digest_id == digest_id)
         .order_by(DigestItem.topic_id, DigestItem.position, DigestItem.id)
     ).all()
+    marks = {
+        mark.digest_item_id: mark for mark in session.scalars(
+            select(DigestItemMark).where(DigestItemMark.digest_item_id.in_([item.id for item in items]))
+        )
+    }
     by_topic: dict[int, list[dict]] = {topic.id: [] for topic in topics}
     for item in items:
-        by_topic[item.topic_id].append({
-            "title": item.title, "link": item.link, "source_name": item.source_name,
-            "source_kind": item.source_kind,
-            "published_at": item.published_at, "summary": item.summary,
-            "summary_unavailable": item.summary_unavailable,
-            "also_read": item.context_links or [],
-            "images": [
-                image for image in (item.images or [])
-                if isinstance(image, dict) and isinstance(image.get("url"), str)
-                and is_public_url(image["url"])
-                and not is_formula_image(image["url"])
-            ],
-        })
+        by_topic[item.topic_id].append(item_answer(item, marks.get(item.id)))
     creator_groups: dict[tuple[str, str | None], list[dict]] = {}
     for topic in topics:
         if topic.kind != "creator_updates":

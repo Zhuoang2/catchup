@@ -1,6 +1,7 @@
 """Local marks on saved digest items, independent of their snapshots."""
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.orm import Session
 
@@ -63,3 +64,42 @@ def like(item_id: int, session: Session = Depends(get_session)) -> dict:
 @router.delete("/digest-items/{item_id}/like")
 def remove_like(item_id: int, session: Session = Depends(get_session)) -> dict:
     return change_toggle(session, item_id, "liked_at", False)
+
+
+class FeedbackInput(BaseModel):
+    rating: str
+    note: str | None = None
+
+
+def change_feedback(session: Session, item_id: int, feedback: FeedbackInput | None) -> dict:
+    item = markable_item(session, item_id)
+    note = None
+    if feedback is not None:
+        if item.summary_unavailable or not item.summary:
+            raise AppError("no_summary", "This item has no summary to rate.", 422)
+        if feedback.rating not in {"good", "poor"}:
+            raise AppError("invalid_feedback", "Choose Good or Poor for the summary.", 422)
+        note = feedback.note.strip() if feedback.note is not None else None
+        if note is not None and len(note) > 500:
+            raise AppError("invalid_feedback", "Keep the note to 500 characters or fewer.", 422)
+    now = utc_now()
+    session.execute(insert(DigestItemMark).values(
+        digest_item_id=item_id, updated_at=now,
+    ).on_conflict_do_nothing(index_elements=["digest_item_id"]))
+    mark = session.get(DigestItemMark, item_id)
+    mark.rating = feedback.rating if feedback else None
+    mark.note = note or None
+    mark.rated_at = now if feedback else None
+    mark.updated_at = now
+    session.commit()
+    return marks_answer(mark)
+
+
+@router.put("/digest-items/{item_id}/feedback")
+def feedback(item_id: int, body: FeedbackInput, session: Session = Depends(get_session)) -> dict:
+    return change_feedback(session, item_id, body)
+
+
+@router.delete("/digest-items/{item_id}/feedback")
+def remove_feedback(item_id: int, session: Session = Depends(get_session)) -> dict:
+    return change_feedback(session, item_id, None)

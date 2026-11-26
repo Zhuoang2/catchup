@@ -163,7 +163,7 @@ Implementer notes:
 
 ## 2. Feedback, end to end (D3 feedback, D6 panel; digest-history "Bookmark, like, and rate digest items"; user-interface "Bookmark, like, and give feedback on digest items")
 
-- [ ] 2.1 In `backend/tests/test_item_marks.py`, write these tests and watch them fail, because there is no feedback endpoint (405 or 404).
+- [x] 2.1 In `backend/tests/test_item_marks.py`, write these tests and watch them fail, because there is no feedback endpoint (405 or 404).
   - **`test_feedback_is_saved_stripped_and_replaced`.** Bookmark A. Then:
     - `PUT …/{A}/feedback` with `{"rating": "poor", "note": "  Misses the price  "}` answers `rating` "poor" and `note` "Misses the price";
     - `PUT` with `{"rating": "good"}` answers `rating` "good" and `note` None;
@@ -188,14 +188,14 @@ Implementer notes:
     - The run's status is `succeeded`. No message content in `model.calls` contains "NOTE-MARKER-41".
 
     This test passes once the feedback endpoint exists; mutation A10 shows that it can fail.
-- [ ] 2.2 Implement the feedback endpoints of D3, with `FeedbackInput`. Run `uv run --offline pytest`; it passes.
-- [ ] 2.3 Run these mutations one at a time, and record which tests fail:
+- [x] 2.2 Implement the feedback endpoints of D3, with `FeedbackInput`. Run `uv run --offline pytest`; it passes.
+- [x] 2.3 Run these mutations one at a time, and record which tests fail:
   - **A7:** the note stored without `strip()`. Expect `test_feedback_is_saved_stripped_and_replaced` to fail.
   - **A8:** the length checked before `strip()`. Expect `test_note_of_500_characters_after_trimming_is_kept` to fail.
   - **A9:** the `no_summary` check removed. Expect `test_feedback_needs_a_markable_item_with_a_summary` to fail.
   - **A10:** in `backend/src/catchup/digest/runner.py`, where the run builds each item's summary input, append the text of every `DigestItemMark.note` to the item's content. This is a temporary edit for the mutation only, the one allowed exception to "Out of scope"; restore it exactly. Expect `test_marks_are_not_sent_to_the_model` to fail.
   - **A11:** `PUT …/feedback` without a note keeps the old note. Expect `test_feedback_is_saved_stripped_and_replaced` to fail.
-- [ ] 2.4 In `frontend/src/components/DigestArticle.test.tsx`, write these tests and watch them fail, because Feedback opens nothing.
+- [x] 2.4 In `frontend/src/components/DigestArticle.test.tsx`, write these tests and watch them fail, because Feedback opens nothing.
   - **`opens the feedback panel with the saved rating and note`.** Item 11 has `rating: 'poor', note: 'Earlier note'`. Click "Feedback on Article". Then:
     - the button has `aria-expanded="true"`, and keeps focus;
     - a group named "Feedback on Article" holds `getByRole('group', { name: 'How was this summary?' })` (the fieldset), whose radios are "Poor", checked, and "Good", not checked;
@@ -212,8 +212,8 @@ Implementer notes:
   - **`removes feedback`.** Item 11 is rated "good". Open the panel, and click "Remove feedback". The request is `DELETE` on `/api/digest-items/11/feedback`, answered with `rating: null, note: null`. Then the panel is gone, Feedback has focus, no "Rated" text is shown, and the status region reads "Feedback removed.".
   - **`cancel closes the panel without a request`.** Item 11 is rated "poor". Open the panel, choose "Good", and click "Cancel". `fetchMock` was not called, and Feedback has focus. Reopen the panel: "Poor" is checked.
   - **`keeps the panel open with the error when saving fails`.** `PUT …/feedback` answers 422 with message "This item has no summary to rate.". The panel stays open, an alert in item 11's `.item-actions` shows that message, and no "Rated" text is added.
-- [ ] 2.5 Implement the panel of D6. The panel's `panelId` is `` `feedback-${item.id}` `` (the digest item id), not React's `useId`: `Home.test.tsx` "shows the same digest reading markup on Home and the saved digest page" compares the two pages' `outerHTML`, and `useId` values differ between the two renders. The ids built from `panelId` stay as they are. Run `npm test -- --run` and `npm run build` in `frontend/`; they pass.
-- [ ] 2.6 Run these mutations one at a time, and record which tests fail:
+- [x] 2.5 Implement the panel of D6. The panel's `panelId` is `` `feedback-${item.id}` `` (the digest item id), not React's `useId`: `Home.test.tsx` "shows the same digest reading markup on Home and the saved digest page" compares the two pages' `outerHTML`, and `useId` values differ between the two renders. The ids built from `panelId` stay as they are. Run `npm test -- --run` and `npm run build` in `frontend/`; they pass.
+- [x] 2.6 Run these mutations one at a time, and record which tests fail:
   - **U8:** focus not moved back to Feedback after a save. Expect `saves rating and note together and returns focus to Feedback` to fail.
   - **U9:** Save feedback without a rating sends the request. Expect `asks for a rating before saving` to fail.
   - **U10:** Remove feedback shown also without a saved rating. Expect `saves rating and note together and returns focus to Feedback` to fail.

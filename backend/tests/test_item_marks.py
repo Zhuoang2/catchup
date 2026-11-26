@@ -7,6 +7,7 @@ from sqlalchemy import event, select
 from catchup.main import create_app
 from catchup.models import Digest, DigestItem, DigestItemMark, DigestRun, DigestTopic, Item, Source
 import catchup.api.marks as marks
+from test_digest_runner import environment, seed, stub_collection, execute, FakeModel
 
 
 @pytest.fixture
@@ -177,3 +178,81 @@ def test_digest_answer_loads_marks_in_one_query(client):
     finally:
         event.remove(engine, "before_cursor_execute", record)
     assert sum("FROM digest_item_marks" in statement for statement in statements) == 1
+
+
+def test_feedback_is_saved_stripped_and_replaced(client):
+    ids = seed_digest(client)
+    client.put(path(ids, "bookmark"))
+    response = client.put(path(ids, "feedback"), json={"rating": "poor", "note": "  Misses the price  "})
+    assert response.status_code == 200
+    assert response.json() == answer(ids["A"], bookmarked=True, rating="poor", note="Misses the price")
+    assert client.put(path(ids, "feedback"), json={"rating": "good"}).json() == answer(
+        ids["A"], bookmarked=True, rating="good",
+    )
+    assert client.put(path(ids, "feedback"), json={"rating": "good", "note": "   "}).json()["note"] is None
+    response = client.delete(path(ids, "feedback"))
+    assert response.status_code == 200
+    assert response.json() == answer(ids["A"], bookmarked=True)
+    with client.app.state.session_factory() as session:
+        assert session.get(DigestItemMark, ids["A"]).rated_at is None
+
+
+def test_note_of_500_characters_after_trimming_is_kept(client):
+    ids = seed_digest(client)
+    response = client.put(path(ids, "feedback"), json={"rating": "good", "note": " " + "x" * 500 + " "})
+    assert response.status_code == 200
+    assert response.json()["note"] == "x" * 500
+
+
+@pytest.mark.parametrize("body,code,message", [
+    ({"rating": "excellent"}, "invalid_feedback", "Choose Good or Poor for the summary."),
+    ({"rating": "good", "note": "x" * 501}, "invalid_feedback", "Keep the note to 500 characters or fewer."),
+    ({"rating": 1}, "invalid_request", None),
+    ({"note": "x"}, "invalid_request", None),
+])
+def test_invalid_feedback_changes_nothing(client, body, code, message):
+    ids = seed_digest(client)
+    assert client.put(path(ids, "feedback"), json={"rating": "poor", "note": "Earlier"}).status_code == 200
+    response = client.put(path(ids, "feedback"), json=body)
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == code
+    if message:
+        assert response.json()["error"]["message"] == message
+    item = client.get(f"/api/digests/{ids['digest']}").json()["topics"][0]["items"][0]
+    assert (item["rating"], item["note"]) == ("poor", "Earlier")
+
+
+def test_feedback_needs_a_markable_item_with_a_summary(client):
+    ids = seed_digest(client)
+    for item_id, status, code in [(ids["B"], 422, "no_summary"), (ids["C"], 422, "not_markable"),
+                                  (999, 404, "not_found")]:
+        response = client.put(f"/api/digest-items/{item_id}/feedback", json={"rating": "good"})
+        assert response.status_code == status
+        assert response.json()["error"]["code"] == code
+        if code == "no_summary":
+            assert response.json()["error"]["message"] == "This item has no summary to rate."
+
+
+def test_marks_are_not_sent_to_the_model(environment, monkeypatch):
+    seed(environment, count=2)
+    stub_collection(monkeypatch)
+    first = execute(environment)
+    assert first["status"] == "succeeded"
+    with environment.app.state.session_factory() as session:
+        item_id = session.scalar(select(DigestItem.id).order_by(DigestItem.id))
+        source_id = session.scalar(select(Source.id).order_by(Source.id))
+    base = f"/api/digest-items/{item_id}"
+    assert environment.put(base + "/feedback", json={"rating": "poor", "note": "NOTE-MARKER-41"}).status_code == 200
+    assert environment.put(base + "/bookmark").status_code == 200
+    assert environment.put(base + "/like").status_code == 200
+    with environment.app.state.session_factory() as session:
+        session.add(Item(source_id=source_id, identity_key="new", title="New",
+                         link="https://s0.example/new", content_text="New content",
+                         content_origin="feed", state="pending"))
+        session.commit()
+    model = FakeModel()
+    environment.app.state.model_client_factory = lambda *_: model
+    assert execute(environment)["status"] == "succeeded"
+    assert model.calls
+    assert all("NOTE-MARKER-41" not in message["content"]
+               for messages, _tokens in model.calls for message in messages)

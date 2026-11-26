@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { request } from '../api/client'
 import { longDate, plural, shortDateTime, shortTime, tokenTotals } from './format'
@@ -38,6 +38,57 @@ export function ItemActions({ item, title, announce, onChange }: {
   const [marks, setMarks] = useState<Marks>(item)
   const [busy, setBusy] = useState({ bookmark: false, like: false })
   const [error, setError] = useState('')
+  const [open, setOpen] = useState(false)
+  const [rating, setRating] = useState<Marks['rating']>(null)
+  const [note, setNote] = useState('')
+  const [ratingError, setRatingError] = useState(false)
+  const [feedbackBusy, setFeedbackBusy] = useState(false)
+  const feedbackButton = useRef<HTMLButtonElement>(null)
+  const returnFocus = useRef(false)
+  const panelId = `feedback-${item.id}`
+  useLayoutEffect(() => {
+    if (!open && returnFocus.current) {
+      feedbackButton.current?.focus()
+      returnFocus.current = false
+    }
+  }, [open])
+  function closePanel() {
+    returnFocus.current = true
+    setOpen(false)
+  }
+  function togglePanel() {
+    if (open) {
+      closePanel()
+    } else {
+      setRating(marks.rating)
+      setNote(marks.note ?? '')
+      setRatingError(false)
+      setOpen(true)
+    }
+  }
+  async function saveFeedback(remove = false) {
+    if (feedbackBusy) return
+    if (!remove && !rating) {
+      setRatingError(true)
+      return
+    }
+    setFeedbackBusy(true)
+    setError('')
+    announce('')
+    try {
+      const saved = await request<Marks>(`/digest-items/${item.id}/feedback`, remove
+        ? { method: 'DELETE' }
+        : { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rating, note }) })
+      setMarks(saved)
+      onChange?.(saved)
+      closePanel()
+      announce(remove ? 'Feedback removed.' : 'Feedback saved.')
+    } catch (error) {
+      setError((error as Error).message)
+    } finally {
+      setFeedbackBusy(false)
+    }
+  }
   async function toggle(kind: 'bookmark' | 'like') {
     if (busy[kind]) return
     const pressed = kind === 'bookmark' ? marks.bookmarked : marks.liked
@@ -67,10 +118,35 @@ export function ItemActions({ item, title, announce, onChange }: {
       {marks.liked && <Icon name="check" className="icon icon-xs"/>}Like<span className="sr-only"> {title}</span>
     </Button>
     {!!item.summary && !item.summary_unavailable && <>
-      <Button variant="ghost" size="sm" aria-expanded={false}>Feedback<span className="sr-only"> on {title}</span></Button>
+      <Button ref={feedbackButton} variant="ghost" size="sm" aria-expanded={open}
+        aria-controls={panelId} onClick={togglePanel}>Feedback<span className="sr-only"> on {title}</span></Button>
       {marks.rating && <span className="feedback-state">Rated {marks.rating}</span>}
     </>}
     {error && <p role="alert" className="item-error">{error}</p>}
+    {open && <div id={panelId} className="feedback-panel" role="group" aria-label={`Feedback on ${title}`}>
+      <fieldset>
+        <legend>How was this summary?</legend>
+        {(['good', 'poor'] as const).map(value => <label key={value}>
+          <input type="radio" name={`rating-${panelId}`} value={value} checked={rating === value}
+            onChange={() => { setRating(value); setRatingError(false) }}
+            aria-invalid={ratingError || undefined}
+            aria-describedby={ratingError ? `rating-error-${panelId}` : undefined}/>
+          {value === 'good' ? 'Good' : 'Poor'}
+        </label>)}
+      </fieldset>
+      <label htmlFor={`note-${panelId}`}>Note (optional)</label>
+      <textarea id={`note-${panelId}`} className="input" maxLength={500} value={note}
+        onChange={event => setNote(event.target.value)} aria-describedby={`note-hint-${panelId}`}/>
+      <p id={`note-hint-${panelId}`} className="field-hint">Only kept in CatchUp. Up to 500 characters.</p>
+      {ratingError && <p id={`rating-error-${panelId}`} className="field-error" role="alert">Choose Good or Poor.</p>}
+      <div className="actions">
+        <Button variant="primary" size="sm" aria-disabled={feedbackBusy || undefined}
+          onClick={() => void saveFeedback()}>Save feedback</Button>
+        {marks.rating && <Button variant="ghost" size="sm" aria-disabled={feedbackBusy || undefined}
+          onClick={() => void saveFeedback(true)}>Remove feedback</Button>}
+        <Button variant="ghost" size="sm" onClick={closePanel}>Cancel</Button>
+      </div>
+    </div>}
   </div>
 }
 

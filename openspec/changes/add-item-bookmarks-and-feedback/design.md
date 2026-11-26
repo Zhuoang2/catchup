@@ -169,7 +169,7 @@ See `proposal.md` for why. The requirements are in the spec deltas: `digest-hist
   - source line;
   - title;
   - body;
-  - `<p className="bookmark-from">From <Link to={`/digests/${digest.id}`}>No. {digest.id} · {shortDate(digest.created_at)}</Link></p>`;
+  - `<p className="bookmark-from"><Link to={`/digests/${digest.id}`}>From No. {digest.id} · {shortDate(digest.created_at)}</Link></p>` (the whole "From No. … · date" is the link, as the spec says);
   - controls.
 - The summary uses `lang={digestLang(entry.digest.language)}`.
 - **A shared renderer.** The source line, title, and body markup move out of `DigestArticle` into an exported `ItemContent({ item, lang, showImages, imageKey })`, so both screens render items the same way.

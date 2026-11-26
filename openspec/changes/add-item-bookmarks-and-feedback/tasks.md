@@ -337,3 +337,33 @@ Implementer notes:
   - what failed and how it was handled.
 
   Leave the session line (session id, turns, minutes) to Claude Code.
+
+## 6. Fix round 1 (review findings; design D6, D7; user-interface "Bookmark, like, and give feedback on digest items", "Bookmarks screen", "Keyboard and screen-reader support"; digest-history "Bookmark, like, and rate digest items")
+
+Claude Code's review found one visual defect, one design line that contradicted the spec, and spec scenarios that the tests cover only in part. The behavior of everything else stays as it is. Change existing tests only where this group says so.
+
+- [ ] 6.1 Write these tests first. Where a test already passes on today's code, its mutation in 6.3 shows that it can fail.
+  - `frontend/src/styles/tokens.test.ts`, new test `does not let the pressed style override a busy control`. Read `components.css` as the other tests in this file do. It has a rule whose selector is exactly `.item-actions .btn[aria-pressed="true"]:not([aria-disabled="true"])` and whose block sets `color: var(--fg) !important`; it has a rule whose selector is exactly `.item-actions .btn[aria-pressed="true"]` and whose block sets `border-color: var(--border-strong)` and no `color`. Fails today: the one pressed rule also sets `color`.
+  - `frontend/src/pages/Bookmarks.test.tsx`, `lists bookmarked items with their digest link` (allowed change): the link's name becomes `'From No. 5 · 3 Oct 2026'` instead of `'No. 5 · 3 Oct 2026'`, with the same `href`. Fails today.
+  - `frontend/src/components/DigestArticle.test.tsx`, new test `ignores a second Like while the change is saved`, built like `bookmarks an item once the server saves it`: hold the Like `PUT`; while it waits, "Like Article" has `aria-disabled="true"` and `aria-pressed="false"` and keeps focus, and a second click sends no request; after the answer, `aria-pressed="true"`.
+  - `DigestArticle.test.tsx`, new test `ignores Save feedback while the feedback is saved`: an item with `rating: 'good'`; open Feedback, choose Poor, click Save feedback, and hold the `PUT`; while it waits, Save feedback and Remove feedback both have `aria-disabled="true"`, and a second click on Save feedback sends no second request.
+  - `DigestArticle.test.tsx`, new test `shows the saved rating's own word`: an unrated item; save a Poor rating; "Rated poor" follows Feedback.
+  - `frontend/src/pages/Home.test.tsx`, new test `keeps focus on an item's title link when a new digest replaces the shown one`, built like `moves focus to run-bar Generate when a new digest replaces the shown one while an item control has focus`, but with focus on the shown item's title link before the next digest arrives; afterwards focus is not on the run bar's Generate button.
+  - `backend/tests/test_item_marks.py`, `test_cross_site_and_extension_token_cannot_mark`: parametrize it over the six writes (`PUT` and `DELETE` of `bookmark`, `like`, and `feedback`; the feedback `PUT` sends `{"rating": "good"}`). Each is refused with 403 `cross_site_request` for `{"Origin": "http://localhost:3000"}`, for `{"Sec-Fetch-Site": "cross-site"}`, and for an extension token; afterwards the item's marks are unchanged (all False or None).
+  - `test_item_marks.py`, `test_marks_survive_source_deletion_and_restart`: before the source is deleted, also `PUT …/{A}/feedback` with `{"rating": "poor", "note": "Kept"}`; after the restart, A's `rating` is `"poor"` and its `note` is `"Kept"`.
+  - `backend/tests/test_x_settings_api.py`, new test `test_delete_all_x_data_removes_marks_with_an_emptied_digest`, seeded like `test_delete_all_removes_orphaned_x_digest_items_and_x_only_digests`: a digest that holds only X items; bookmark one of them and rate it Good. Delete all X data answers 200; that digest is gone; the `digest_item_marks` table has no rows; `GET /api/bookmarks` answers `[]`.
+- [ ] 6.2 Implement:
+  - in `frontend/src/styles/components.css`, replace the rule `.item-actions .btn[aria-pressed="true"] { color: var(--fg) !important; border-color: var(--border-strong); }` with the two rules `.item-actions .btn[aria-pressed="true"] { border-color: var(--border-strong); }` and `.item-actions .btn[aria-pressed="true"]:not([aria-disabled="true"]) { color: var(--fg) !important; }`, so a busy pressed control looks like every other disabled button;
+  - in `frontend/src/pages/Bookmarks.tsx`, make the whole "From No. … · date" the link, as design D7 now says.
+
+  Verify: the tests from 6.1 pass; `uv run --offline pytest` passes in `backend/`; `npm test -- --run` and `npm run build` pass in `frontend/`.
+- [ ] 6.3 Run these mutations one at a time, and record which tests fail:
+  - **R1:** the single pressed rule of today is restored. Expect `does not let the pressed style override a busy control` to fail.
+  - **R2:** "From" outside the link again. Expect `lists bookmarked items with their digest link` to fail.
+  - **R3:** Like without `aria-disabled` while busy. Expect `ignores a second Like while the change is saved` to fail.
+  - **R4:** the `if (feedbackBusy) return` guard removed. Expect `ignores Save feedback while the feedback is saved` to fail.
+  - **R5:** Remove feedback without `aria-disabled` while busy. Expect `ignores Save feedback while the feedback is saved` to fail.
+  - **R6:** the rating word always "good". Expect `shows the saved rating's own word` to fail.
+  - **R7:** `Home.tsx` checks `.item` instead of `.item-actions` before moving focus. Expect `keeps focus on an item's title link when a new digest replaces the shown one` to fail.
+  - **R8:** `_extension_operation` in `backend/src/catchup/main.py` also allows `DELETE` on paths that start with `/api/digest-items/`. Expect the extension-token cases of `test_cross_site_and_extension_token_cannot_mark` for the three `DELETE`s to fail.
+- [ ] 6.4 Run every check from 5.1 again (backend, frontend, extension, `DO_NOT_TRACK=1 openspec validate add-item-bookmarks-and-feedback --strict`, `git diff --check`). Add a "Fix round 1" section to `docs/process/test-report-add-item-bookmarks-and-feedback.md` with the red results, the mutation results, and the counts, and add a Droid entry for this round to the end of `docs/process/ai-usage-log.md`. Commit.

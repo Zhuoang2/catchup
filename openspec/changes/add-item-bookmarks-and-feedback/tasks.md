@@ -212,7 +212,7 @@ Implementer notes:
   - **`removes feedback`.** Item 11 is rated "good". Open the panel, and click "Remove feedback". The request is `DELETE` on `/api/digest-items/11/feedback`, answered with `rating: null, note: null`. Then the panel is gone, Feedback has focus, no "Rated" text is shown, and the status region reads "Feedback removed.".
   - **`cancel closes the panel without a request`.** Item 11 is rated "poor". Open the panel, choose "Good", and click "Cancel". `fetchMock` was not called, and Feedback has focus. Reopen the panel: "Poor" is checked.
   - **`keeps the panel open with the error when saving fails`.** `PUT …/feedback` answers 422 with message "This item has no summary to rate.". The panel stays open, an alert in item 11's `.item-actions` shows that message, and no "Rated" text is added.
-- [ ] 2.5 Implement the panel of D6. Run `npm test -- --run` and `npm run build` in `frontend/`; they pass.
+- [ ] 2.5 Implement the panel of D6. The panel's `panelId` is `` `feedback-${item.id}` `` (the digest item id), not React's `useId`: `Home.test.tsx` "shows the same digest reading markup on Home and the saved digest page" compares the two pages' `outerHTML`, and `useId` values differ between the two renders. The ids built from `panelId` stay as they are. Run `npm test -- --run` and `npm run build` in `frontend/`; they pass.
 - [ ] 2.6 Run these mutations one at a time, and record which tests fail:
   - **U8:** focus not moved back to Feedback after a save. Expect `saves rating and note together and returns focus to Feedback` to fail.
   - **U9:** Save feedback without a rating sends the request. Expect `asks for a rating before saving` to fail.

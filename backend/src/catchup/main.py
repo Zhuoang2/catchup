@@ -18,6 +18,7 @@ from catchup.api.settings import router as settings_router
 from catchup.api.sources import router as sources_router
 from catchup.api.runs import router as runs_router
 from catchup.api.digests import router as digests_router
+from catchup.api.marks import router as marks_router
 from catchup.api.extension import router as extension_router
 from catchup.config import Settings, validate_user_agent_contact
 from catchup.db import make_engine, migrate
@@ -116,6 +117,7 @@ def create_app(settings: Settings | None = None, dist_dir: Path | None = None) -
     app.include_router(sources_router)
     app.include_router(runs_router)
     app.include_router(digests_router)
+    app.include_router(marks_router)
     app.include_router(extension_router)
 
     # Starlette runs the last registered middleware first; host validation must run before this check.

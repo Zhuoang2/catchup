@@ -5,7 +5,9 @@ OpenAI-compatible model (DeepSeek is tested) or Anthropic, then add the sites an
 follow. The main screen, Latest, shows your newest saved digest and a Generate
 digest button. CatchUp collects what is new since each source's last successful
 check and writes a topic-grouped digest with links to the originals. Older
-digests stay available in History.
+digests stay available in History. Bookmark or like the items in a digest's
+topics, or rate their summaries; bookmarked items are listed under Bookmarks,
+linked from History.
 
 The project is under active development. Requirements live in
 `openspec/specs/`; completed changes are in `openspec/changes/archive/`.
@@ -198,6 +200,9 @@ CatchUp does not log in to X on your behalf.
 
 Collected content is sent to the configured model provider. Self-hosting
 does not keep that content local if you choose a cloud provider.
+
+Bookmarks, likes, ratings, and notes stay in CatchUp's local database.
+They are never sent to the model provider, and they do not change later digests.
 
 Chosen digest images load directly from their source sites when a digest is
 shown, including the latest digest on the home page. This contacts those

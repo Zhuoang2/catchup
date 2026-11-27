@@ -7,11 +7,13 @@ import Home from './pages/Home'
 import Sources from './pages/Sources'
 import Settings from './pages/Settings'
 import History from './pages/History'
+import Bookmarks from './pages/Bookmarks'
 
 it.each([
   ['/', 'Latest · CatchUp', <Home/>],
   ['/sources', 'Sources · CatchUp', <Sources/>],
   ['/digests', 'History · CatchUp', <History/>],
+  ['/bookmarks', 'Bookmarks · CatchUp', <Bookmarks/>],
   ['/settings', 'Settings · CatchUp', <Settings/>],
 ])('titles the %s screen', (path, title, page) => {
   vi.stubGlobal('fetch', vi.fn(async (path: string) => ({
@@ -29,6 +31,14 @@ function shell(path = '/') {
 afterEach(() => vi.useRealTimers())
 
 describe('navigation', () => {
+  it('marks History current on the Bookmarks screen', () => {
+    const { container } = shell('/bookmarks')
+    expect([...screen.getByRole('navigation', { name: 'Main' }).querySelectorAll('a')]
+      .map(link => link.textContent)).toEqual(['Latest', 'Sources', 'History', 'Settings'])
+    expect(screen.getByRole('link', { name: 'History' })).toHaveAttribute('aria-current', 'page')
+    expect(container.querySelector('.app')).toHaveAttribute('data-screen', 'bookmarks')
+    expect(container.querySelector('.masthead-line time')).toBeInTheDocument()
+  })
   it('uses the browser local calendar date in the masthead', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-10-06T23:30:00-07:00'))

@@ -35,7 +35,9 @@ export default function History() {
   }, [])
 
   return <section className="page page-history">
-    <PageHead title="History" lede="Every digest you have generated, newest first."/>
+    <PageHead title="History" lede="Every digest you have generated, newest first.">
+      <p className="history-links"><Link to="/bookmarks">Bookmarks</Link></p>
+    </PageHead>
     {loading && <p>Loading digests…</p>}
     {error && <p role="alert">{error}</p>}
     {!loading && !error && !digests.length &&

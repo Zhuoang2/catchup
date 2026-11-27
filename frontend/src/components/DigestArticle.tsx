@@ -1,13 +1,15 @@
-import { useState, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { request } from '../api/client'
 import { longDate, plural, shortDateTime, shortTime, tokenTotals } from './format'
 import { Icon } from './Icon'
 import { digestLang } from './lang'
-import { PageHead, SectionRow, SummaryText, KindIcon, ReasonLabel,
+import { Button, PageHead, SectionRow, SummaryText, KindIcon, ReasonLabel,
   reasons, type Reason, type SourceKind } from './ui'
 import { useJump } from './useJump'
 
-type DigestItem = {
+export type DigestItem = {
+  id: number; bookmarked: boolean; liked: boolean; rating: 'good' | 'poor' | null; note: string | null
   title: string; link: string; source_name: string; source_kind?: SourceKind | null
   published_at: string | null; summary: string | null; summary_unavailable: boolean
   also_read?: { title: string; url: string; kind: string }[]
@@ -24,6 +26,128 @@ export type Digest = {
   item_count: number; source_count: number
   creator_updates?: CreatorUpdate[]; transcript_wait_days?: number
   prompt_tokens?: number | null; completion_tokens?: number | null
+}
+
+export type Marks = {
+  id: number; bookmarked: boolean; liked: boolean; rating: 'good' | 'poor' | null; note: string | null
+}
+
+export function ItemActions({ item, title, announce, onChange }: {
+  item: DigestItem; title: string; announce: (message: string) => void; onChange?: (marks: Marks) => void
+}) {
+  const [marks, setMarks] = useState<Marks>(item)
+  const [busy, setBusy] = useState({ bookmark: false, like: false })
+  const [error, setError] = useState('')
+  const [open, setOpen] = useState(false)
+  const [rating, setRating] = useState<Marks['rating']>(null)
+  const [note, setNote] = useState('')
+  const [ratingError, setRatingError] = useState(false)
+  const [feedbackBusy, setFeedbackBusy] = useState(false)
+  const feedbackButton = useRef<HTMLButtonElement>(null)
+  const returnFocus = useRef(false)
+  const panelId = `feedback-${item.id}`
+  useLayoutEffect(() => {
+    if (!open && returnFocus.current) {
+      feedbackButton.current?.focus()
+      returnFocus.current = false
+    }
+  }, [open])
+  function closePanel() {
+    returnFocus.current = true
+    setOpen(false)
+  }
+  function togglePanel() {
+    if (open) {
+      closePanel()
+    } else {
+      setRating(marks.rating)
+      setNote(marks.note ?? '')
+      setRatingError(false)
+      setOpen(true)
+    }
+  }
+  async function saveFeedback(remove = false) {
+    if (feedbackBusy) return
+    if (!remove && !rating) {
+      setRatingError(true)
+      return
+    }
+    setFeedbackBusy(true)
+    setError('')
+    announce('')
+    try {
+      const saved = await request<Marks>(`/digest-items/${item.id}/feedback`, remove
+        ? { method: 'DELETE' }
+        : { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rating, note }) })
+      setMarks(saved)
+      onChange?.(saved)
+      closePanel()
+      announce(remove ? 'Feedback removed.' : 'Feedback saved.')
+    } catch (error) {
+      setError((error as Error).message)
+    } finally {
+      setFeedbackBusy(false)
+    }
+  }
+  async function toggle(kind: 'bookmark' | 'like') {
+    if (busy[kind]) return
+    const pressed = kind === 'bookmark' ? marks.bookmarked : marks.liked
+    setBusy(previous => ({ ...previous, [kind]: true }))
+    setError('')
+    announce('')
+    try {
+      const saved = await request<Marks>(`/digest-items/${item.id}/${kind}`, { method: pressed ? 'DELETE' : 'PUT' })
+      setMarks(saved)
+      onChange?.(saved)
+      announce(kind === 'bookmark'
+        ? pressed ? 'Bookmark removed.' : 'Bookmarked.'
+        : pressed ? 'Like removed.' : 'Liked.')
+    } catch (error) {
+      setError((error as Error).message)
+    } finally {
+      setBusy(previous => ({ ...previous, [kind]: false }))
+    }
+  }
+  return <div className="item-actions">
+    <Button variant="ghost" size="sm" aria-pressed={!!marks.bookmarked}
+      aria-disabled={busy.bookmark || undefined} onClick={() => void toggle('bookmark')}>
+      {marks.bookmarked && <Icon name="check" className="icon icon-xs"/>}Bookmark<span className="sr-only"> {title}</span>
+    </Button>
+    <Button variant="ghost" size="sm" aria-pressed={!!marks.liked}
+      aria-disabled={busy.like || undefined} onClick={() => void toggle('like')}>
+      {marks.liked && <Icon name="check" className="icon icon-xs"/>}Like<span className="sr-only"> {title}</span>
+    </Button>
+    {!!item.summary && !item.summary_unavailable && <>
+      <Button ref={feedbackButton} variant="ghost" size="sm" aria-expanded={open}
+        aria-controls={panelId} onClick={togglePanel}>Feedback<span className="sr-only"> on {title}</span></Button>
+      {marks.rating && <span className="feedback-state">Rated {marks.rating}</span>}
+    </>}
+    {error && <p role="alert" className="item-error">{error}</p>}
+    {open && <div id={panelId} className="feedback-panel" role="group" aria-label={`Feedback on ${title}`}>
+      <fieldset>
+        <legend>How was this summary?</legend>
+        {(['good', 'poor'] as const).map(value => <label key={value}>
+          <input type="radio" name={`rating-${panelId}`} value={value} checked={rating === value}
+            onChange={() => { setRating(value); setRatingError(false) }}
+            aria-invalid={ratingError || undefined}
+            aria-describedby={ratingError ? `rating-error-${panelId}` : undefined}/>
+          {value === 'good' ? 'Good' : 'Poor'}
+        </label>)}
+      </fieldset>
+      <label htmlFor={`note-${panelId}`}>Note (optional)</label>
+      <textarea id={`note-${panelId}`} className="input" maxLength={500} value={note}
+        onChange={event => setNote(event.target.value)} aria-describedby={`note-hint-${panelId}`}/>
+      <p id={`note-hint-${panelId}`} className="field-hint">Only kept in CatchUp. Up to 500 characters.</p>
+      {ratingError && <p id={`rating-error-${panelId}`} className="field-error" role="alert">Choose Good or Poor.</p>}
+      <div className="actions">
+        <Button variant="primary" size="sm" aria-disabled={feedbackBusy || undefined}
+          onClick={() => void saveFeedback()}>Save feedback</Button>
+        {marks.rating && <Button variant="ghost" size="sm" aria-disabled={feedbackBusy || undefined}
+          onClick={() => void saveFeedback(true)}>Remove feedback</Button>}
+        <Button variant="ghost" size="sm" onClick={closePanel}>Cancel</Button>
+      </div>
+    </div>}
+  </div>
 }
 
 function IndexLink({ id, title, lang }: { id: string; title: string; lang?: string | null }) {
@@ -49,14 +173,42 @@ function ItemImages({ images, lang }: { images: { url: string; alt: string }[]; 
   </div>
 }
 
+export function ItemContent({ item, lang, showImages, imageKey, headingLevel = 3 }: {
+  item: DigestItem; lang?: string; showImages: boolean; imageKey: string; headingLevel?: 2 | 3
+}) {
+  const Heading = headingLevel === 2 ? 'h2' : 'h3'
+  return <>
+    <p className="item-meta"><KindIcon kind={item.source_kind}/><span>{item.source_name}</span>
+      <SourceTime value={item.published_at}/></p>
+    <Heading className="item-title"><a href={item.link} target="_blank" rel="noopener noreferrer">
+      {item.title}<Icon name="external" className="icon icon-xs"/>
+      <span className="sr-only"> (opens the original)</span>
+    </a></Heading>
+    {item.summary_unavailable
+      ? <p className="summary-unavailable">Summary unavailable</p>
+      : item.summary && <div className="item-body">
+        <SummaryText text={item.summary} lang={lang}/>
+        {showImages && !!item.images?.length && <ItemImages key={imageKey} images={item.images} lang={lang}/>}
+        {!!item.also_read?.length && <p className="also-read">Also read: {' '}
+          {item.also_read.map((part, index) => <span key={`${part.url}-${index}`}>
+            {index > 0 && ' · '}
+            <a href={part.url} target="_blank" rel="noopener noreferrer">{part.title}</a>
+          </span>)}
+        </p>}
+      </div>}
+  </>
+}
+
 export function DigestArticle({ digest, className = '', before, headEnd, showImages = true }: {
   digest: Digest; className?: string; before?: ReactNode; headEnd?: ReactNode; showImages?: boolean
 }) {
+  const [message, announce] = useState('')
   const lang = digestLang(digest.language)
   const groups = digest.creator_updates ?? []
   const sectionCount = digest.topics.length + (groups.length ? 1 : 0)
   return <section className={`page page-digest${className ? ` ${className}` : ''}`}>
     {before}
+    <p className="sr-only" role="status">{message}</p>
     <PageHead className="digest-head" eyebrow={`Digest · No. ${digest.id}`} title={<>{longDate(digest.created_at)}
       <span className="title-time"> · {shortTime(digest.created_at)}</span></>}>
       <p className="digest-meta">{plural(digest.item_count, 'item')} · {plural(digest.source_count, 'source')}
@@ -81,25 +233,8 @@ export function DigestArticle({ digest, className = '', before, headEnd, showIma
           <SectionRow key={index} id={`t${index}`} title={topic.title} overview={topic.overview} lang={lang}>
             <div className="items">{topic.items.map((item, position) =>
               <article key={position} className="item">
-                <p className="item-meta"><KindIcon kind={item.source_kind}/><span>{item.source_name}</span>
-                  <SourceTime value={item.published_at}/></p>
-                <h3 className="item-title"><a href={item.link} target="_blank" rel="noopener noreferrer">
-                  {item.title}<Icon name="external" className="icon icon-xs"/>
-                  <span className="sr-only"> (opens the original)</span>
-                </a></h3>
-                {item.summary_unavailable
-                  ? <p className="summary-unavailable">Summary unavailable</p>
-                  : item.summary && <div className="item-body">
-                    <SummaryText text={item.summary} lang={lang}/>
-                    {showImages && !!item.images?.length && <ItemImages
-                      key={`${digest.id}-${index}-${position}`} images={item.images} lang={lang}/>}
-                    {!!item.also_read?.length && <p className="also-read">Also read: {' '}
-                      {item.also_read.map((part, index) => <span key={`${part.url}-${index}`}>
-                        {index > 0 && ' · '}
-                        <a href={part.url} target="_blank" rel="noopener noreferrer">{part.title}</a>
-                      </span>)}
-                    </p>}
-                  </div>}
+                <ItemContent item={item} lang={lang} showImages={showImages} imageKey={`${digest.id}-${index}-${position}`}/>
+                <ItemActions key={`${digest.id}-${item.id}`} item={item} title={item.title} announce={announce}/>
               </article>
             )}</div>
           </SectionRow>)}

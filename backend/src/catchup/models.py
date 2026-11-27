@@ -233,3 +233,17 @@ class DigestItem(Base):
     update_reason: Mapped[str | None] = mapped_column(String(16))
     context_links: Mapped[list[dict] | None] = mapped_column(JSON)
     images: Mapped[list[dict] | None] = mapped_column(JSON)
+
+
+class DigestItemMark(Base):
+    __tablename__ = "digest_item_marks"
+
+    digest_item_id: Mapped[int] = mapped_column(
+        ForeignKey("digest_items.id", ondelete="CASCADE"), primary_key=True,
+    )
+    bookmarked_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    liked_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    rating: Mapped[str | None] = mapped_column(String(8))
+    note: Mapped[str | None] = mapped_column(Text)
+    rated_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)

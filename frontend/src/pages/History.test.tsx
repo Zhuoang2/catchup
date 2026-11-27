@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import History from './History'
@@ -25,7 +25,8 @@ it('shows saved digests with time, item and source counts and detail links', asy
       language: 'en', topics: [], creator_updates_only: true },
   ]))
   const { container } = render(<MemoryRouter><History /></MemoryRouter>)
-  const links = await screen.findAllByRole('link')
+  await screen.findByRole('heading', { name: 'Archive' })
+  const links = Array.from(container.querySelectorAll<HTMLAnchorElement>('.history-list a'))
   expect(links.map((link) => link.getAttribute('href'))).toEqual(['/digests/3', '/digests/1'])
   expect(links[0].querySelector('time')).toHaveAttribute('dateTime', '2026-10-03T10:00:00Z')
   expect(links[0].querySelector('.edition')?.textContent).toBe('No. 3 · ')
@@ -48,4 +49,16 @@ it('shows empty history and request errors', async () => {
   fetchMock.mockResolvedValueOnce(respond({ error: { code: 'request_failed', message: 'Unavailable' } }, 503))
   render(<MemoryRouter><History /></MemoryRouter>)
   expect(await screen.findByRole('alert')).toHaveTextContent('Unavailable')
+})
+
+it.each([true, false])('links to Bookmarks (saved digests: %s)', async saved => {
+  fetchMock.mockResolvedValue(respond(saved ? [
+    { id: 3, created_at: '2026-10-03T10:00:00Z', item_count: 1, source_count: 1,
+      language: 'en', topics: ['News'], creator_updates_only: false },
+  ] : []))
+  const { container } = render(<MemoryRouter><History/></MemoryRouter>)
+  if (saved) await screen.findByRole('heading', { name: 'Archive' })
+  else await screen.findByRole('heading', { name: 'No saved digests yet' })
+  expect(within(container.querySelector('.page-head') as HTMLElement).getByRole('link', { name: 'Bookmarks' }))
+    .toHaveAttribute('href', '/bookmarks')
 })

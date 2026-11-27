@@ -354,7 +354,10 @@ def test_digest_detail_uses_snapshot_positions_and_survives_source_deletion(test
             "Saved first", "Saved second",
         ]
         assert before["topics"][0]["overview"] == "Earlier"
+        with client.app.state.session_factory() as session:
+            saved_id = session.scalar(select(DigestItem.id).where(DigestItem.title == "Saved first"))
         assert before["topics"][0]["items"][0] == {
+            "id": saved_id, "bookmarked": False, "liked": False, "rating": None, "note": None,
             "title": "Saved first", "link": "https://example.test/first",
             "source_name": "Saved source", "source_kind": None, "published_at": before["created_at"],
             "summary": "Saved summary", "summary_unavailable": False, "also_read": [],

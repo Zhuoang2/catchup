@@ -5,6 +5,7 @@ import Sources from './pages/Sources'
 import Settings from './pages/Settings'
 import History from './pages/History'
 import DigestView from './pages/DigestView'
+import Bookmarks from './pages/Bookmarks'
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
           <Route path="/sources" element={<Sources />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/digests" element={<History />} />
+          <Route path="/bookmarks" element={<Bookmarks />} />
           <Route path="/digests/:id" element={<DigestView />} />
         </Routes>
       </AppShell>

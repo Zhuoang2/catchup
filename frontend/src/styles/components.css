@@ -113,6 +113,18 @@
 .topic-overview { color: var(--fg); }
 .items { gap: 1.4rem; }
 .item { display: grid; gap: .45rem; }
+.item-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .5rem; min-width: 0; }
+.item-actions .btn[aria-pressed="true"] { border-color: var(--border-strong); }
+.item-actions .btn[aria-pressed="true"]:not([aria-disabled="true"]) { color: var(--fg) !important; }
+.feedback-state { color: var(--muted); font-size: .85em; }
+.feedback-panel { flex-basis: 100%; display: grid; gap: .5rem; min-width: 0; max-width: 100%; }
+.feedback-panel fieldset { min-width: 0; border: 0; padding: 0; }
+.feedback-panel fieldset label + label { margin-left: .75rem; }
+.feedback-panel textarea { width: 100%; min-width: 0; resize: vertical; }
+.item-error { color: var(--error); overflow-wrap: anywhere; }
+.bookmark-list { list-style: none; padding: 0; display: grid; gap: 1.25rem; }
+.bookmark-list > li + li { border-top: 1px solid var(--border); padding-top: 1rem; }
+.bookmark-from { color: var(--muted); font-size: .88em; }
 .item-meta { display: flex; align-items: center; gap: .4rem; color: var(--muted); font-size: .84em; flex-wrap: wrap; font-style: italic; }
 .item-title { font: 600 1.25em/1.4 var(--font-heading); }
 .item-title a, .creator-item > a { color: var(--fg); text-decoration: none; }

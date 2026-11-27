@@ -177,6 +177,16 @@ it('spans and separates the Home run bar with one-row ready controls at all widt
 
 type LayoutRule = { selector: string; body: string; container: string | null }
 
+it('does not let the pressed style override a busy control', () => {
+  const rules = layoutRules(readFileSync('src/styles/components.css', 'utf8'))
+  const pressed = rules.find(rule => rule.selector === '.item-actions .btn[aria-pressed="true"]')?.body ?? ''
+  const active = rules.find(rule =>
+    rule.selector === '.item-actions .btn[aria-pressed="true"]:not([aria-disabled="true"])')?.body ?? ''
+  expect(active).toMatch(/(?:^|;)\s*color:\s*var\(--fg\)\s*!important\s*;/)
+  expect(pressed).toMatch(/border-color:\s*var\(--border-strong\)/)
+  expect(properties(pressed)).not.toContain('color')
+})
+
 function layoutRules(text: string, container: string | null = null): LayoutRule[] {
   const css = text.replace(/\/\*[\s\S]*?\*\//g, '')
   const rules: LayoutRule[] = []
@@ -246,7 +256,7 @@ function hasTargetClass(compound: string, classes: string[]): boolean {
 function targetsItemChild(selector: string): boolean {
   return splitSelectors(selector).some(part => {
     const compound = rightmostCompound(part)
-    return hasTargetClass(compound, ['item-meta', 'item-title', 'item-body', 'summary', 'summary-unavailable'])
+    return hasTargetClass(compound, ['item-meta', 'item-title', 'item-body', 'summary', 'summary-unavailable', 'item-actions'])
       || (compound === '*' && /\.items\s*>\s*\.item\s*>\s*\*$/.test(part))
   })
 }
@@ -288,6 +298,8 @@ it('places digest headings beside summaries only above 1100px', () => {
     expect(wideRule(selector)).toMatch(/grid-column:\s*4\s*\/\s*-1/)
     expect(wideRule(selector)).toMatch(/grid-row:\s*1\s*\/\s*-1/)
   }
+  expect(wideRule('.items > .item > .item-actions')).toMatch(/grid-column:\s*1\s*\/\s*span\s+3/)
+  expect(wideRule('.items > .item > .item-actions')).toMatch(/grid-row:\s*3\s*;/)
 
   const outsideItems = outside.filter(rule => rule.selector.startsWith('.items > .item'))
   expect(outsideItems.map(rule => rule.selector)).toEqual([

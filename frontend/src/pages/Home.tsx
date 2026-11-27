@@ -204,6 +204,7 @@ export default function Home() {
     request<Digest>(`/digests/${id}`)
       .then(result => { if (pageMounted.current) {
         if (!digest && generateScreenRef.current === document.activeElement) focusNext.current = 'generate'
+        if (digest && document.activeElement?.closest('.item-actions')) focusNext.current = 'generate'
         setDigest(previous => !previous || result.id > previous.id ? result : previous)
         setNewDigestError(previous => previous?.id === id ? null : previous)
       } })

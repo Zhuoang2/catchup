@@ -16,7 +16,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const jump = useJump('main')
   const screen = /^\/digests\/[^/]+$/.test(pathname) ? 'digest' :
     pathname === '/digests' ? 'history' : pathname === '/sources' ? 'sources' :
-      pathname === '/settings' ? 'settings' : 'latest'
+      pathname === '/settings' ? 'settings' : pathname === '/bookmarks' ? 'bookmarks' : 'latest'
   const today = new Date()
   return <div className="app" data-screen={screen}>
     <a className="skip-link" href="#main" onClick={jump}>Skip to content</a>
@@ -26,7 +26,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <nav className="app-nav" aria-label="Main">
         {navigation.map(({ to, label, icon }) =>
           <Link key={to} to={to} className="nav-link"
-            aria-current={pathname === to || (screen === 'digest' && to === '/digests') ? 'page' : undefined}>
+            aria-current={pathname === to || ((screen === 'digest' || screen === 'bookmarks') && to === '/digests') ? 'page' : undefined}>
             <Icon name={icon}/><span>{label}</span>
           </Link>)}
       </nav>

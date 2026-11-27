@@ -796,6 +796,28 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Topics may become broad, such as one "AI" topic for model, chip, and policy news.
   - The input of the combining call stays unbounded on small context windows, as before. The item counts add about 12 characters per batch topic.
 
+## D-044 Add a Deep level to Linked pages: twice Normal's links, caps, and per-run limit — accepted (2026-11-25)
+
+- **Decision** (recommended in the design's U1–U4; awaiting the user's plan approval).
+  - **Deep**, a fourth level of the "Linked pages" choice (D-042), reads up to twice `CATCHUP_LINKS_PER_ITEM` related links per item (16 by default), keeps up to 6,000 characters of each page and 32,000 per item, and allows twice `CATCHUP_CONTEXT_FETCHES_PER_RUN` context requests per run (120 by default). Author replies are read as at Normal. It is deterministic and gathered before the summaries; no model call is added.
+  - Off, Shallow, and Normal do not change; Normal stays the default, and the environment settings still set Normal.
+  - No migration: the stored level is a string. The preferences API adds `"deep"` to `link_depth_pages` and a read-only `deep_context_fetches_per_run`.
+  - Settings shows "Deep — up to 16 pages per item", and one note for every level names Deep's 6,000 characters and 120 requests.
+
+  Planned as the lean OpenSpec change `add-deep-link-level` (issue #54; the PR closes it).
+- **Why.** The user asked for a choice between deep and shallow reading on 2026-10-19 (#54). D-042 shipped Off, Shallow, and Normal and left Deep for its own change. Normal's 16,000-character cap already stops at 6 full pages, so only larger caps let a level read more.
+- **Alternatives:**
+  - **Model-picked links** (#48's Proposal 2, the sketch in the issue; design U1 B). Rejected for this change: an extra model call per item with links and a nondeterministic choice (D-020's reasons); it needs its own research.
+  - **Following links found on linked pages** (U1 C). Rejected: the pass stores no links of linked pages, and whole pages need new link rules.
+  - **More pages with the same 3,000-character cut and a 48,000 cap** (U2 B), or **twice the links only** (U2 C). The first makes larger requests without reading more of any page; the second reads no more than Normal, because of the 16,000 cap.
+  - **The same per-run limit as Normal** (U3 B). Rejected: a large run would spend the limit on its first items.
+  - **A note that follows the selected level** (U4 B), or **Deep's per-page number in its label** (U4 C). Rejected: the user should see Deep's cost before choosing it, and the other labels name only pages.
+  - **New environment settings for Deep.** Rejected: more knobs, and Deep could read less than a raised Normal.
+- **Consequences:**
+  - A summary request at Deep can carry up to 16,000 more characters of context, so long items are summarized in more parts; the README advises Normal or Shallow on a small model.
+  - A run's context pass can take about twice as long at Deep.
+  - An older image cannot save Settings while Deep is stored, until the user chooses another level.
+
 ## D-045 Bookmark, like, and rate the summary of digest items, recorded only — accepted (2026-11-25)
 
 - **Decision** (recommended options of U1–U7 in the design; awaiting the user's choice).

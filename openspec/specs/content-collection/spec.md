@@ -158,10 +158,10 @@ For each entry of a website feed, the system SHALL keep the entry's links in bod
 
   A link counts as same-site when its host equals the site's host, ignoring a leading `www.`. The same rules apply to a page's final URL after redirects.
 
-  Each linked page's extracted text MUST be cut to 3,000 characters, and an item's linked context MUST stay within 16,000 characters.
+  Each linked page's extracted text MUST be cut to 3,000 characters (6,000 at Deep), and an item's linked context MUST stay within 16,000 characters (32,000 at Deep).
 - **Author replies.** At every level except Off, when the feed reports comments on the post, the author's own replies are read from the post page, each with the comment it answers, including when the theme lists replies after the comment they answer rather than inside it. At most 10 replies and 4,000 characters are kept. When the page shows none, the post's comment feed is used.
 
-Every context fetch MUST go through the safe fetcher with the run's host spacing. It MUST honor the site's robots.txt for CatchUp's User-Agent, and MUST count against a per-run limit (default 60). robots.txt is read once per run for each origin. Two URLs have the same origin when their scheme, host, and port are the same: the host ignores letter case, and a URL without a port has its scheme's default port (80 for HTTP, 443 for HTTPS). When robots.txt cannot be read because of a server error (HTTP 5xx), a network error, or any other failure that returns no 4xx status, the system MUST NOT request any URL on that origin in a context fetch for the rest of the run. A 401 or 403 answer also refuses every such request. Any other 4xx answer means that the origin has no robots.txt, and every page is allowed. Before a context fetch follows a redirect, the system MUST check the target against the robots.txt of the target's origin in the same way. A refused target is not requested, and the fetch counts as refused. A context fetch that fails, is refused, or exceeds the limit MUST be skipped without failing the source check or the run. Gathered context SHALL be stored with the item and reused by later runs. When the per-run limit stops an item's fetches before they are done, the item keeps the context gathered so far, and this run's summary uses it. Podcast episodes and YouTube videos MUST NOT get linked or comment context.
+Every context fetch MUST go through the safe fetcher with the run's host spacing. It MUST honor the site's robots.txt for CatchUp's User-Agent, and MUST count against the run's per-run limit (`CATCHUP_CONTEXT_FETCHES_PER_RUN`, default 60; twice that at Deep). robots.txt is read once per run for each origin. Two URLs have the same origin when their scheme, host, and port are the same: the host ignores letter case, and a URL without a port has its scheme's default port (80 for HTTP, 443 for HTTPS). When robots.txt cannot be read because of a server error (HTTP 5xx), a network error, or any other failure that returns no 4xx status, the system MUST NOT request any URL on that origin in a context fetch for the rest of the run. A 401 or 403 answer also refuses every such request. Any other 4xx answer means that the origin has no robots.txt, and every page is allowed. Before a context fetch follows a redirect, the system MUST check the target against the robots.txt of the target's origin in the same way. A refused target is not requested, and the fetch counts as refused. A context fetch that fails, is refused, or exceeds the limit MUST be skipped without failing the source check or the run. Gathered context SHALL be stored with the item and reused by later runs. When the per-run limit stops an item's fetches before they are done, the item keeps the context gathered so far, and this run's summary uses it. Podcast episodes and YouTube videos MUST NOT get linked or comment context.
 
 #### Scenario: Short post with linked pages
 - **WHEN** a pending website item links to its GitHub release, a project page, a changelog, and two of the site's tag pages
@@ -338,12 +338,13 @@ When the per-run limit runs out, which items got their context can depend on how
 - **THEN** the run makes at most 10 context requests, including robots.txt, and the run succeeds
 
 ### Requirement: Choose how many linked pages a run reads
-The system SHALL let the user choose a linked-page level, stored with the Digest settings: Off, Shallow, or Normal. Normal MUST be the level when none was saved, including on instances upgraded from a version without the choice. A run MUST read the level once, when it starts: a change saved during the run applies to the next run.
+The system SHALL let the user choose a linked-page level, stored with the Digest settings: Off, Shallow, Normal, or Deep. Normal MUST be the level when none was saved, including on instances upgraded from a version without the choice. A run MUST read the level once, when it starts: a change saved during the run applies to the next run.
 - **Normal** reads up to `CATCHUP_LINKS_PER_ITEM` related links per item (default 8), and author replies, as "Gather related context for website items" describes.
 - **Shallow** reads up to 3 related links per item, or `CATCHUP_LINKS_PER_ITEM` links when that setting is lower, and author replies.
+- **Deep** reads up to twice `CATCHUP_LINKS_PER_ITEM` related links per item (16 by default), and author replies. Each linked page's text MUST be cut to 6,000 characters, an item's linked context MUST stay within 32,000 characters, and the per-run limit MUST be twice `CATCHUP_CONTEXT_FETCHES_PER_RUN` (120 by default).
 - **Off** MUST NOT make any context request: no linked page, post page, comment feed, or robots.txt. Replies saved with a page from the browser, and replies kept from a followed X account's thread, need no request: they MUST still be kept as the item's author replies. Every other pending item MUST stay not gathered, so that a later run that still finds it pending gathers its context at the level that run uses.
 
-At Shallow and Normal, the per-run limit (`CATCHUP_CONTEXT_FETCHES_PER_RUN`, default 60), the cut of each page's text to 3,000 characters, the 16,000-character cap per item, robots.txt, and the `CATCHUP_AUTHOR_REPLIES` switch apply unchanged. The level applies in the same way to website items, podcast text posts, pages saved from the browser, and posts from followed X accounts. An item whose context was gathered in an earlier run keeps that context when the level changes.
+At Shallow and Normal, the per-run limit (`CATCHUP_CONTEXT_FETCHES_PER_RUN`, default 60), the cut of each page's text to 3,000 characters, the 16,000-character cap per item, robots.txt, and the `CATCHUP_AUTHOR_REPLIES` switch apply unchanged. At Deep, robots.txt, the `CATCHUP_AUTHOR_REPLIES` switch, and the limits on author replies apply unchanged. The level applies in the same way to website items, podcast text posts, pages saved from the browser, and posts from followed X accounts. An item whose context was gathered in an earlier run keeps that context when the level changes.
 
 #### Scenario: Shallow reads three links
 - **WHEN** the level is Shallow, and a pending item links to five related pages, each on a site of its own whose robots.txt allows them
@@ -376,3 +377,23 @@ At Shallow and Normal, the per-run limit (`CATCHUP_CONTEXT_FETCHES_PER_RUN`, def
 #### Scenario: No level saved
 - **WHEN** an instance upgraded from a version without the choice starts a run
 - **THEN** the run reads linked pages and author replies exactly as at Normal
+
+#### Scenario: Deep reads twice Normal's links
+- **WHEN** the level is Deep, the server uses its default numbers, and a pending item links to seventeen related pages with short text, each on a site of its own whose robots.txt allows them
+- **THEN** the run requests the first sixteen pages in body order, with their sites' robots.txt, and never requests the seventeenth
+
+#### Scenario: Deep keeps more of each page
+- **WHEN** an item's only related link is a page whose extracted text has 10,000 characters
+- **THEN** the item's linked context keeps the first 6,000 characters of that page at Deep, and the first 3,000 at Shallow and Normal
+
+#### Scenario: Deep caps an item's linked context
+- **WHEN** the level is Deep, and a pending item links to eight pages on one site, each with 7,000 characters of text
+- **THEN** the item keeps 32,000 characters of linked context from the first six pages, and the last two pages are not requested
+
+#### Scenario: Deep doubles the per-run limit
+- **WHEN** `CATCHUP_CONTEXT_FETCHES_PER_RUN` is 5, and a pending item links to eight pages on one site whose robots.txt allows them
+- **THEN** a run at Deep reads all eight pages, and a run at Normal reads the first four
+
+#### Scenario: Deep reads author replies
+- **WHEN** the level is Deep, and the feed reports comments on a post whose page marks a reply as written by the post's author
+- **THEN** that reply is kept as the item's context, as at Normal

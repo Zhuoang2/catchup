@@ -3074,6 +3074,38 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 - **Problems / adjustment:**
   - **Claude's design D6 and spec delta disagreed** about which Reasoning value the connection test's save sends. The fresh-eyes check of the plan tested each sentence against the code, not the plan's sentences against each other; the spec sub-agent found it by trying the user's sequence of actions.
 
+## 2026-11-25 — `add-deep-link-level` (#54): plan (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
+
+- **Prompts** (translated from Chinese):
+  - After #4 merged, the user chose three issues to plan at the same time: "Start #54, #8, and #18 in parallel."
+  - After reviewing the three plans, the user decided: "Approve all three plans as recommended."
+- **Outcome:**
+  - **Checked on `main` `d75b75b`.** `app_settings.link_depth` is `String(16)` with no constraint; only the API's `LINK_DEPTHS` refuses `"deep"`, so no migration is needed. Normal's 8 links of up to 3,000 characters exceed the 16,000-character cap per item, so Normal already stops after about 6 full pages; more links alone would not read more.
+  - **Plan.** Deep reads twice `CATCHUP_LINKS_PER_ITEM` links per item (16 by default), keeps up to 6,000 characters of each page and 32,000 per item, and allows twice `CATCHUP_CONTEXT_FETCHES_PER_RUN` requests per run (120); author replies are read as at Normal, and no model call is added. The preferences API reports `deep` in `link_depth_pages` and a new `deep_context_fetches_per_run`; Settings shows "Deep — up to 16 pages per item" and one note for every level. Four task groups with mutations E1–E8, G1–G3, A1–A2, F1–F4, and R1. D-044. The user chose the recommendation for U1–U4.
+  - **D-023 fresh-eyes check.** A sub-agent that saw only the change folder and the code prototyped all groups (1,377 backend and 355 frontend tests passed) and ran all 23 named mutations; each failed its named test. Claude checked its seven findings against the code and applied all seven: the depth test file fails at collection rather than per case, so the gather tests run in a separate command; the README sentence "Every level keeps the per-run limit." would contradict Deep; real pytest ids, the `ids=` list, a missing import, an escaped pattern for the note, and frontend mutation names that clashed with the decision points U1–U4.
+- **Problems / adjustment:**
+  - **A collection error stops the whole pytest command,** so a combined run of the two test files would have shown no gather results at all, and Droid could have stopped or reported the wrong failure. The plan now runs them separately.
+
+## 2026-11-25 — `add-deep-link-level` (#54): implementation (Factory Droid, GPT-6.1 Sol)
+
+- **Prompt excerpt:** "Implement the OpenSpec change `add-deep-link-level` (issue #54) in this worktree, on branch `add-deep-link-level`." "Work through task groups 1 to 4 of tasks.md in order, using the `openspec-apply-change` skill, and complete each task test-first with the `tdd` skill: write the task's named tests, run them and see them fail for the reason the task states, then implement until they pass." "Run each named mutation as tasks.md says: edit the code, run the named tests and see them fail, then edit the code back and confirm with `git diff` that the file is restored. Commit after each task group with a clear message." The prompt also required offline checks, Node 22.17.1, no dependencies or planning-artifact edits, and no Docker commands, port 8800, push, merge, tag, or PR.
+- **Outcome:** Completed groups 1–4. Deep uses twice the server's link and request limits with 6,000 characters per page and 32,000 per item; other levels and author-reply limits remain unchanged. The API accepts and reports Deep, Settings displays server-derived numbers with its accessible cost note and preserves saved Deep, and the README and smoke expectations were updated. No migration or model call was added. Group commits: `3b50c94`, `209c5e5`, `6ec4cb3`, followed by the report/usage-log commit.
+- **Test-first evidence:** Group 1 depth tests produced the exact planned collection error, and the new run scenarios were 4 failed / 4 passed; group 2 changed tests were 17 failed; group 3 Settings tests were 4 failed / 79 passed. After implementation, the respective targeted suites passed (99, 62, and 83 tests). All 18 named mutations E1–E8, G1–G3, A1–A2, F1–F4, and R1 failed every required selected test; every mutation was restored exactly and verified by comparing `git diff` with its pre-mutation result.
+- **Final checks:** Backend 1,377 passed (2 existing Pydantic warnings); frontend 355 passed in 14 files and production build passed; extension 169 passed in 7 files and production/build-integrity checks passed; strict OpenSpec validation and `git diff --check` passed. Offline npm installs succeeded for both applications under Node 22.17.1. `bash -n scripts/docker-smoke.sh` passed, without executing the script. Full commands, test/scenario coverage, mutation outcomes, and review-only checks are in `docs/process/test-report-add-deep-link-level.md`.
+- **Problems / adjustment:** No unplanned failure or plan adjustment was needed. The planned collection error was kept separate from the gather-test run. Existing malformed-usage Pydantic warnings and a locked npm package deprecation were recorded, not changed. Docker smoke and live checks remain for Claude Code review; the real-model token comparison remains the user's after-merge check. No running container or port 8800 was touched.
+- **Session:** `4c86c4ae-4a85-4063-b7e6-1c5969a5f081`, 232 turns, about 11.0 minutes. Claude Code added this line at review, and the heading's dash.
+
+## 2026-11-26 — `add-deep-link-level` (#54): review (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
+
+- **Prompts** (translated from Chinese): the plan approval ("Approve all three plans as recommended") covered Droid's run and this review. Claude's merge-ready reports for #54 and #8 ended in one question. The user replied: "Approve merging #54 and #8 and finish up." Neither change had a decision.
+- **Outcome:**
+  - **Checks:** backend 1377, frontend 355, extension 169, both builds, strict validation of all specs and changes, `git diff --check`, and `scripts/docker-smoke.sh` 12 of 12 on an image built from Droid's head.
+  - **Live check** on port 8856 with a fresh volume: Settings offered Deep with the server's numbers and the planned note; choosing Deep and Save persisted after a reload; no horizontal scroll at 375 px. A run at Deep was not run live, because `safe_fetch` refuses local addresses, so a local stand-in site cannot serve linked pages.
+  - **`/code-review` (high):** two nits, not changed (the spec fixes the note's text).
+  - **Spec sub-agent:** no defect and no plan error; all 18 named mutations failed their tests. Claude checked its findings: the page-cut test could not tell the start of a page from its end, so Claude changed the page to two letters and compared the kept text, and showed that the "keep the end" mutation then fails; the README's environment lines gained "twice that at Deep". Five equivalent or literal mutation survivors were recorded, not fixed.
+- **Problems / adjustment:**
+  - **A fresh instance cannot save Digest settings before a model is saved,** because Save saves both groups. The live check needed a test model configuration first; this is today's behavior, recorded here so the next live check of a Digest setting starts with one.
+
 ## 2026-11-25 — `add-item-bookmarks-and-feedback` (#8): plan (Claude Code, Opus 5.5, with Claude Opus 5.5 sub-agents)
 
 - **Prompts** (translated from Chinese):

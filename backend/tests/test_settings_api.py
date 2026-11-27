@@ -377,14 +377,19 @@ def test_link_depth_save_and_read(api):
     assert client.get("/api/settings/preferences").json() == response.json()
     assert client.put("/api/settings/preferences", json={"link_depth": "shallow"}).json()["link_depth"] == "shallow"
     assert client.put("/api/settings/preferences", json={"digest_language": "zh-Hans"}).json()["link_depth"] == "shallow"
+    response = client.put("/api/settings/preferences", json={"link_depth": "deep"})
+    assert response.status_code == 200
+    assert response.json()["link_depth"] == "deep"
+    assert client.get("/api/settings/preferences").json()["link_depth"] == "deep"
 
 
-@pytest.mark.parametrize("value", ["deep", "", "OFF", "none"])
+@pytest.mark.parametrize("value", ["maximum", "", "OFF", "Deep", "none"])
 def test_invalid_link_depth(api, value):
     client, _ = api
     response = client.put("/api/settings/preferences", json={"link_depth": value, "digest_language": "fr"})
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "invalid_link_depth"
+    assert response.json()["error"]["message"] == "Choose Off, Shallow, Normal, or Deep for linked pages."
     saved = client.get("/api/settings/preferences").json()
     assert saved["digest_language"] == "en"
     assert saved["link_depth"] == "normal"
@@ -394,21 +399,24 @@ def test_preferences_report_the_server_numbers(api):
     client, _ = api
     client.app.state.settings = replace(client.app.state.settings, links_per_item=5, context_fetches_per_run=40)
     saved = client.get("/api/settings/preferences").json()
-    assert saved["link_depth_pages"] == {"off": 0, "shallow": 3, "normal": 5}
+    assert saved["link_depth_pages"] == {"off": 0, "shallow": 3, "normal": 5, "deep": 10}
     assert saved["context_fetches_per_run"] == 40
+    assert saved["deep_context_fetches_per_run"] == 80
     client.app.state.settings = replace(client.app.state.settings, links_per_item=2)
-    assert client.get("/api/settings/preferences").json()["link_depth_pages"] == {"off": 0, "shallow": 2, "normal": 2}
+    assert client.get("/api/settings/preferences").json()["link_depth_pages"] == {"off": 0, "shallow": 2, "normal": 2, "deep": 4}
 
 
 def test_preference_numbers_cannot_be_written(api):
     client, _ = api
     response = client.put("/api/settings/preferences", json={
         "link_depth_pages": {"normal": 99}, "context_fetches_per_run": 1,
+        "deep_context_fetches_per_run": 1,
     })
     assert response.status_code == 200
     saved = client.get("/api/settings/preferences").json()
-    assert saved["link_depth_pages"] == {"off": 0, "shallow": 3, "normal": 8}
+    assert saved["link_depth_pages"] == {"off": 0, "shallow": 3, "normal": 8, "deep": 16}
     assert saved["context_fetches_per_run"] == 60
+    assert saved["deep_context_fetches_per_run"] == 120
 
 
 def test_preference_save_and_read(api):
@@ -416,21 +424,21 @@ def test_preference_save_and_read(api):
     assert client.get("/api/settings/preferences").json() == {
         "digest_language": "en", "youtube_captions": False, "youtube_skip_shorts": True,
         "show_images": True,
-        "link_depth": "normal", "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8},
-        "context_fetches_per_run": 60,
+        "link_depth": "normal", "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8, "deep": 16},
+        "context_fetches_per_run": 60, "deep_context_fetches_per_run": 120,
     }
     for language in ("zh-Hans", "original", "Français"):
         assert client.put("/api/settings/preferences", json={"digest_language": language}).json() == {
             "digest_language": language, "youtube_captions": False, "youtube_skip_shorts": True,
             "show_images": True,
-            "link_depth": "normal", "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8},
-            "context_fetches_per_run": 60,
+            "link_depth": "normal", "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8, "deep": 16},
+            "context_fetches_per_run": 60, "deep_context_fetches_per_run": 120,
         }
         assert client.get("/api/settings/preferences").json() == {
             "digest_language": language, "youtube_captions": False, "youtube_skip_shorts": True,
             "show_images": True,
-            "link_depth": "normal", "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8},
-            "context_fetches_per_run": 60,
+            "link_depth": "normal", "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8, "deep": 16},
+            "context_fetches_per_run": 60, "deep_context_fetches_per_run": 120,
         }
 
 
@@ -440,19 +448,19 @@ def test_partial_preference_updates_keep_other_values(api):
         "youtube_captions": True, "youtube_skip_shorts": False,
     }).json() == {"digest_language": "en", "youtube_captions": True, "youtube_skip_shorts": False,
                   "show_images": True, "link_depth": "normal",
-                  "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8},
-                  "context_fetches_per_run": 60}
+                  "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8, "deep": 16},
+                  "context_fetches_per_run": 60, "deep_context_fetches_per_run": 120}
     assert client.put("/api/settings/preferences", json={"digest_language": "zh-Hans"}).json() == {
         "digest_language": "zh-Hans", "youtube_captions": True, "youtube_skip_shorts": False,
         "show_images": True,
-        "link_depth": "normal", "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8},
-        "context_fetches_per_run": 60,
+        "link_depth": "normal", "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8, "deep": 16},
+        "context_fetches_per_run": 60, "deep_context_fetches_per_run": 120,
     }
     assert client.put("/api/settings/preferences", json={"youtube_skip_shorts": True}).json() == {
         "digest_language": "zh-Hans", "youtube_captions": True, "youtube_skip_shorts": True,
         "show_images": True,
-        "link_depth": "normal", "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8},
-        "context_fetches_per_run": 60,
+        "link_depth": "normal", "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8, "deep": 16},
+        "context_fetches_per_run": 60, "deep_context_fetches_per_run": 120,
     }
 
 
@@ -464,8 +472,8 @@ def test_image_preference_can_be_saved_without_changing_others(api):
     assert saved.json() == {
         "digest_language": "zh-Hans", "youtube_captions": True,
         "youtube_skip_shorts": True, "show_images": False,
-        "link_depth": "normal", "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8},
-        "context_fetches_per_run": 60,
+        "link_depth": "normal", "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8, "deep": 16},
+        "context_fetches_per_run": 60, "deep_context_fetches_per_run": 120,
     }
     assert client.get("/api/settings/preferences").json() == saved.json()
     assert client.put("/api/settings/preferences", json={"show_images": True}).json()["show_images"] is True

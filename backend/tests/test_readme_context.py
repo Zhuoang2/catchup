@@ -14,6 +14,8 @@ def test_readme_documents_public_context_limits_and_robots():
         "can still read within",
         "**Linked pages** chooses how much of this a run reads",
         "**Shallow** reads up to 3 links per item",
+        "**Deep** reads up to twice",
+        "with a small model, prefer Normal or Shallow",
         "**Off** sends no context request at all",
         "A run uses the level saved when it starts",
         "at the **Linked pages** level chosen in Settings",

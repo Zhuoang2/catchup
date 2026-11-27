@@ -11,7 +11,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from catchup.crypto import decrypt_key, encrypt_key
-from catchup.context.depth import LINK_DEPTHS, link_depth_pages
+from catchup.context.depth import LINK_DEPTHS, context_limits, link_depth_pages
 from catchup.db import get_session
 from catchup.errors import AppError
 from catchup.llm.client import (
@@ -309,6 +309,7 @@ def read_preferences(request: Request, session: Session = Depends(get_session)) 
         "link_depth": row.link_depth if row else "normal",
         "link_depth_pages": link_depth_pages(request.app.state.settings),
         "context_fetches_per_run": request.app.state.settings.context_fetches_per_run,
+        "deep_context_fetches_per_run": context_limits("deep", request.app.state.settings).fetches_per_run,
     }
 
 
@@ -318,7 +319,7 @@ def save_preferences(data: PreferenceInput, request: Request, session: Session =
     if language is not None and (not language or len(language) > 40):
         raise AppError("invalid_language", "Choose a digest language of at most 40 characters.", 422)
     if data.link_depth is not None and data.link_depth not in LINK_DEPTHS:
-        raise AppError("invalid_link_depth", "Choose Off, Shallow, or Normal for linked pages.", 422)
+        raise AppError("invalid_link_depth", "Choose Off, Shallow, Normal, or Deep for linked pages.", 422)
     row = session.get(AppSettings, 1)
     if row is None:
         row = AppSettings(id=1)

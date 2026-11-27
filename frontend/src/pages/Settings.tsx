@@ -10,8 +10,9 @@ type Reasoning = 'default' | 'low' | 'off'
 type ModelSettings = { provider?: Provider; reasoning?: Reasoning; base_url: string; model_id: string; key_set: boolean; api_key_last4: string | null }
 type ModelSave = { provider: Provider; reasoning: Reasoning; base_url: string; model_id: string; api_key: string }
 type Preferences = { digest_language: string; youtube_captions: boolean; youtube_skip_shorts: boolean;
-  show_images: boolean; link_depth: 'off' | 'shallow' | 'normal';
-  link_depth_pages: { off: number; shallow: number; normal: number }; context_fetches_per_run: number }
+  show_images: boolean; link_depth: 'off' | 'shallow' | 'normal' | 'deep';
+  link_depth_pages: { off: number; shallow: number; normal: number; deep: number };
+  context_fetches_per_run: number; deep_context_fetches_per_run: number }
 type TestResult = { ok: true; models: string[] }
 type Browser = { id: number; name: string; created_at: string; last_used_at: string | null }
 type ConnectedBrowser = Omit<Browser, 'last_used_at'> & { token: string }
@@ -65,8 +66,9 @@ export default function Settings() {
   const [skipShorts, setSkipShorts] = useState(true)
   const [showImages, setShowImages] = useState(true)
   const [linkDepth, setLinkDepth] = useState<Preferences['link_depth']>('normal')
-  const [linkDepthPages, setLinkDepthPages] = useState<Preferences['link_depth_pages']>({ off: 0, shallow: 0, normal: 0 })
+  const [linkDepthPages, setLinkDepthPages] = useState<Preferences['link_depth_pages']>({ off: 0, shallow: 0, normal: 0, deep: 0 })
   const [contextFetchesPerRun, setContextFetchesPerRun] = useState(0)
+  const [deepContextFetchesPerRun, setDeepContextFetchesPerRun] = useState(0)
   const [error, setError] = useState('')
   const [errorField, setErrorField] = useState<'key' | 'base' | 'model' | 'other' | null>(null)
   const [saveError, setSaveError] = useState('')
@@ -136,6 +138,7 @@ export default function Settings() {
       setLinkDepth(preferences.link_depth)
       setLinkDepthPages(preferences.link_depth_pages)
       setContextFetchesPerRun(preferences.context_fetches_per_run)
+      setDeepContextFetchesPerRun(preferences.deep_context_fetches_per_run)
     }).catch((err: unknown) => { if (mounted) setLoadError(errorMessage(err)) })
       .finally(() => { if (mounted) setLoading(false) })
     return () => { mounted = false }
@@ -483,10 +486,11 @@ export default function Settings() {
             <option value="off">Off — no linked pages or author replies</option>
             <option value="shallow">Shallow — up to {plural(linkDepthPages.shallow, 'page')} per item</option>
             <option value="normal">Normal — up to {plural(linkDepthPages.normal, 'page')} per item</option>
+            <option value="deep">Deep — up to {plural(linkDepthPages.deep, 'page')} per item</option>
           </select>
           <p className="field-hint" id="link-depth-note">
-            Each page read adds time to a run, and up to 3,000 characters to that item's summary request (up to 4,000 for author replies), which uses more tokens.
-            {' '}A run makes at most {plural(contextFetchesPerRun, 'page request')}, robots.txt files included.
+            Each page read adds time to a run, and up to 3,000 characters to that item's summary request (6,000 at Deep, and up to 4,000 for author replies), which uses more tokens.
+            {' '}A run makes at most {plural(contextFetchesPerRun, 'page request')} ({deepContextFetchesPerRun} at Deep), robots.txt files included.
           </p>
         </div>
         <Switch label="Show images from source sites" checked={showImages}

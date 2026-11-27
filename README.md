@@ -702,9 +702,9 @@ For website items, CatchUp reads related links and author replies from public pa
 only. Context fetches honor each site's robots.txt, including the sites that
 links redirect to.
 When a site's robots.txt cannot be read because of a server error or a network failure, CatchUp skips that site's linked pages and author replies for that run.
-`CATCHUP_LINKS_PER_ITEM` (default 8) limits linked pages per item.
+`CATCHUP_LINKS_PER_ITEM` (default 8) limits linked pages per item (twice that at Deep).
 `CATCHUP_CONTEXT_FETCHES_PER_RUN` (default 60) limits requests per run
-(including robots.txt).
+(including robots.txt; twice that at Deep).
 CatchUp reads linked pages for up to 4 items at the same time, and keeps
 requests to one host at least 1 second apart. While it reads them, the run
 shows how many pages it has read, out of the pages it can still read within
@@ -713,7 +713,7 @@ Set `CATCHUP_AUTHOR_REPLIES` (default on) to `0`, `false`, or `no` to turn off
 author-reply fetching. Pages that cannot be read are skipped without failing
 the digest.
 
-Settings → Digest → **Linked pages** chooses how much of this a run reads. **Normal**, the default, reads up to `CATCHUP_LINKS_PER_ITEM` links per item, and author replies. **Shallow** reads up to 3 links per item, or fewer when `CATCHUP_LINKS_PER_ITEM` is lower, and author replies. **Off** sends no context request at all, so no linked pages or author replies are read; replies saved with a page from the browser, or kept from a followed X account's thread, are still used. Every level keeps the per-run limit. A run uses the level saved when it starts.
+Settings → Digest → **Linked pages** chooses how much of this a run reads. **Normal**, the default, reads up to `CATCHUP_LINKS_PER_ITEM` links per item, and author replies. **Shallow** reads up to 3 links per item, or fewer when `CATCHUP_LINKS_PER_ITEM` is lower, and author replies. **Deep** reads up to twice `CATCHUP_LINKS_PER_ITEM` links per item, keeps up to 6,000 characters of each page and 32,000 per item, and allows twice `CATCHUP_CONTEXT_FETCHES_PER_RUN` requests per run; author replies are read as at Normal. **Off** sends no context request at all, so no linked pages or author replies are read; replies saved with a page from the browser, or kept from a followed X account's thread, are still used. Shallow and Normal keep the per-run limit. A run uses the level saved when it starts. Deep's larger context leaves less of each summary request for the item's own text, so long items are summarized in more parts; with a small model, prefer Normal or Shallow.
 
 Feed documents may be up to `CATCHUP_MAX_FEED_BYTES` (default 33554432,
 32 MiB). Articles and transcripts remain limited to 5 MiB. Text longer

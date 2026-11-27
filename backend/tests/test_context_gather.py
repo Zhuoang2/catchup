@@ -48,6 +48,95 @@ def set_level(client, level):
         session.commit()
 
 
+def test_deep_reads_twice_normals_links(environment, monkeypatch, public_dns):
+    setup(environment, [(f"https://h{i}.example/p", str(i)) for i in range(17)])
+    set_level(environment, "deep")
+    stub_collection(monkeypatch)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        robots = [router.get(f"https://h{i}.example/robots.txt").respond(404) for i in range(17)]
+        pages = [router.get(f"https://h{i}.example/p").respond(
+            200, text=html(str(i), "Linked text " * 40),
+        ) for i in range(17)]
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert [page.call_count for page in pages] == [1] * 16 + [0]
+    assert [route.call_count for route in robots] == [1] * 16 + [0]
+    assert (result["context_total"], result["context_done"]) == (16, 16)
+
+
+@pytest.mark.parametrize("level,expected", [
+    ("shallow", 3000), ("normal", 3000), ("deep", 6000),
+], ids=["shallow", "normal", "deep"])
+def test_page_cut_follows_the_level(environment, monkeypatch, public_dns, level, expected):
+    setup(environment, [("https://docs.example/long", "Long")])
+    set_level(environment, level)
+    stub_collection(monkeypatch)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").respond(404)
+        router.get("https://docs.example/long").respond(200, text=html("Long", "a" * 6000 + "b" * 4000))
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    with environment.app.state.session_factory() as session:
+        rows = session.scalars(select(ItemContext)).all()
+        assert len(rows) == 1
+        assert rows[0].text == ("a" * 6000 + "b" * 4000)[:expected]
+
+
+def test_deep_caps_an_items_linked_context(environment, monkeypatch, public_dns):
+    setup(environment, [(f"https://docs.example/{i}", str(i)) for i in range(8)])
+    set_level(environment, "deep")
+    stub_collection(monkeypatch)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").respond(404)
+        pages = [router.get(f"https://docs.example/{i}").respond(
+            200, text=html(str(i), "x" * 7000),
+        ) for i in range(8)]
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    with environment.app.state.session_factory() as session:
+        rows = session.scalars(select(ItemContext).order_by(ItemContext.position)).all()
+        assert [len(row.text) for row in rows] == [6000, 6000, 6000, 6000, 6000, 2000]
+    assert [page.call_count for page in pages] == [1, 1, 1, 1, 1, 1, 0, 0]
+
+
+@pytest.mark.parametrize("level,calls", [
+    ("normal", [1, 1, 1, 1, 0, 0, 0, 0]), ("deep", [1] * 8),
+], ids=["normal", "deep"])
+def test_deep_doubles_the_run_limit(environment, monkeypatch, public_dns, level, calls):
+    setup(environment, [(f"https://docs.example/{i}", str(i)) for i in range(8)])
+    set_level(environment, level)
+    environment.app.state.settings = replace(
+        environment.app.state.settings, context_fetches_per_run=5,
+    )
+    stub_collection(monkeypatch)
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://docs.example/robots.txt").respond(404)
+        pages = [router.get(f"https://docs.example/{i}").respond(
+            200, text=html(str(i), "Linked text " * 40),
+        ) for i in range(8)]
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    assert [page.call_count for page in pages] == calls
+
+
+def test_deep_reads_author_replies(environment, monkeypatch, public_dns):
+    setup(environment, [], comments=2)
+    set_level(environment, "deep")
+    stub_collection(monkeypatch)
+    body = ("<li class='comment'><div class='comment-content'>Reader asks why.</div>"
+            "<ol><li class='comment bypostauthor'><div class='comment-content'>"
+            "Because of the update.</div></li></ol></li>")
+    with respx.mock(assert_all_mocked=True, assert_all_called=False) as router:
+        router.get("https://s0.example/robots.txt").respond(404)
+        router.get("https://s0.example/0").respond(200, text=body)
+        result = execute(environment)
+    assert result["status"] == "succeeded"
+    with environment.app.state.session_factory() as session:
+        rows = session.scalars(select(ItemContext)).all()
+        assert [(row.ref, row.kind) for row in rows] == [("A1", "author_replies")]
+        assert "Because of the update." in rows[0].text
+
+
 def test_shallow_reads_the_first_three_links(environment, monkeypatch, public_dns):
     setup(environment, [(f"https://h{i}.example/p", str(i)) for i in range(5)])
     set_level(environment, "shallow")

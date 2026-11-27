@@ -57,8 +57,8 @@ function mockLinkedPages(preferences: Record<string, unknown>) {
   fetchMock.mockImplementation(async (url: string, options?: RequestInit) => {
     if (url === '/api/settings/preferences' && !options?.method) return respond({
       digest_language: 'en', youtube_captions: false, youtube_skip_shorts: true, show_images: true,
-      link_depth: 'normal', link_depth_pages: { off: 0, shallow: 3, normal: 8 },
-      context_fetches_per_run: 60, ...preferences,
+      link_depth: 'normal', link_depth_pages: { off: 0, shallow: 3, normal: 8, deep: 16 },
+      context_fetches_per_run: 60, deep_context_fetches_per_run: 120, ...preferences,
     })
     return original(url, options)
   })
@@ -79,7 +79,8 @@ beforeEach(() => {
     })
     if (url === '/api/settings/preferences') return respond({
       digest_language: 'en', youtube_captions: false, youtube_skip_shorts: true,
-      link_depth: 'normal', link_depth_pages: { off: 0, shallow: 3, normal: 8 }, context_fetches_per_run: 60,
+      link_depth: 'normal', link_depth_pages: { off: 0, shallow: 3, normal: 8, deep: 16 },
+      context_fetches_per_run: 60, deep_context_fetches_per_run: 120,
     })
     if (url === '/api/settings/extension-tokens') return respond([])
     if (url === '/api/settings/x') return respond({ token_set: false, token_last4: null })
@@ -101,24 +102,53 @@ describe('linked pages', () => {
       'Off — no linked pages or author replies',
       'Shallow — up to 3 pages per item',
       'Normal — up to 8 pages per item',
+      'Deep — up to 16 pages per item',
     ])
-    expect(select).toHaveAccessibleDescription("Each page read adds time to a run, and up to 3,000 characters to that item's summary request (up to 4,000 for author replies), which uses more tokens. A run makes at most 60 page requests, robots.txt files included.")
+    expect(select).toHaveAccessibleDescription("Each page read adds time to a run, and up to 3,000 characters to that item's summary request (6,000 at Deep, and up to 4,000 for author replies), which uses more tokens. A run makes at most 60 page requests (120 at Deep), robots.txt files included.")
     await expectAccessible(container)
   })
 
   it("names the server's own numbers", async () => {
-    mockLinkedPages({ link_depth_pages: { off: 0, shallow: 3, normal: 5 }, context_fetches_per_run: 40 })
+    mockLinkedPages({ link_depth_pages: { off: 0, shallow: 3, normal: 5, deep: 10 },
+      context_fetches_per_run: 40, deep_context_fetches_per_run: 80 })
     const first = render(<Settings/>)
     const select = await screen.findByRole('combobox', { name: 'Linked pages' })
     expect(within(select).getByRole('option', { name: 'Shallow — up to 3 pages per item' })).toBeInTheDocument()
     expect(within(select).getByRole('option', { name: 'Normal — up to 5 pages per item' })).toBeInTheDocument()
-    expect(select).toHaveAccessibleDescription(/A run makes at most 40 page requests, robots\.txt files included\.$/)
+    expect(within(select).getByRole('option', { name: 'Deep — up to 10 pages per item' })).toBeInTheDocument()
+    expect(select).toHaveAccessibleDescription(/A run makes at most 40 page requests \(80 at Deep\), robots\.txt files included\.$/)
     first.unmount()
-    mockLinkedPages({ link_depth_pages: { off: 0, shallow: 1, normal: 1 } })
+    mockLinkedPages({ link_depth_pages: { off: 0, shallow: 1, normal: 1, deep: 2 } })
     render(<Settings/>)
     const single = await screen.findByRole('combobox', { name: 'Linked pages' })
     expect(within(single).getByRole('option', { name: 'Shallow — up to 1 page per item' })).toBeInTheDocument()
     expect(within(single).getByRole('option', { name: 'Normal — up to 1 page per item' })).toBeInTheDocument()
+    expect(within(single).getByRole('option', { name: 'Deep — up to 2 pages per item' })).toBeInTheDocument()
+  })
+
+  it('saves Deep with the other digest preferences', async () => {
+    render(<Settings/>)
+    const select = await screen.findByRole('combobox', { name: 'Linked pages' })
+    fireEvent.change(select, { target: { value: 'deep' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await screen.findByText('Settings saved.')
+    expect(preferencePuts()).toHaveLength(1)
+    expect(preferencePuts()[0]).toMatchObject({
+      link_depth: 'deep', digest_language: 'en', show_images: true,
+      youtube_captions: false, youtube_skip_shorts: true,
+    })
+  })
+
+  it('loads a saved Deep and keeps it when saving without changing it', async () => {
+    mockLinkedPages({ link_depth: 'deep' })
+    render(<Settings/>)
+    const select = await screen.findByRole('combobox', { name: 'Linked pages' })
+    expect(select).toHaveValue('deep')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await screen.findByText('Settings saved.')
+    expect(select).toHaveValue('deep')
+    expect(preferencePuts()).toHaveLength(1)
+    expect(preferencePuts()[0]).toMatchObject({ link_depth: 'deep' })
   })
 
   it('saves Off with the other digest preferences', async () => {
@@ -454,7 +484,8 @@ describe('model settings', () => {
       if (url === '/api/settings/preferences' && !options?.method) return respond({
         digest_language: 'en', youtube_captions: false, youtube_skip_shorts: true,
         show_images: false,
-        link_depth: 'normal', link_depth_pages: { off: 0, shallow: 3, normal: 8 }, context_fetches_per_run: 60,
+        link_depth: 'normal', link_depth_pages: { off: 0, shallow: 3, normal: 8, deep: 16 },
+        context_fetches_per_run: 60, deep_context_fetches_per_run: 120,
       })
       if (url === '/api/settings/preferences' && options?.method === 'PUT') {
         saved = JSON.parse(options.body as string) as Record<string, unknown>
@@ -532,7 +563,8 @@ describe('model settings', () => {
         key_set: true, api_key_last4: '1234',
       })
       return respond({ digest_language: 'en', youtube_captions: false, youtube_skip_shorts: true,
-        link_depth: 'normal', link_depth_pages: { off: 0, shallow: 3, normal: 8 }, context_fetches_per_run: 60 })
+        link_depth: 'normal', link_depth_pages: { off: 0, shallow: 3, normal: 8, deep: 16 },
+        context_fetches_per_run: 60, deep_context_fetches_per_run: 120 })
     })
     const { container } = render(<Settings />)
     await screen.findByLabelText('API key')
@@ -622,7 +654,8 @@ describe('model settings', () => {
         base_url: 'https://api.deepseek.com', model_id: '', key_set: false, api_key_last4: null,
       })
       return respond({ digest_language: 'en', youtube_captions: false, youtube_skip_shorts: true,
-        link_depth: 'normal', link_depth_pages: { off: 0, shallow: 3, normal: 8 }, context_fetches_per_run: 60 })
+        link_depth: 'normal', link_depth_pages: { off: 0, shallow: 3, normal: 8, deep: 16 },
+        context_fetches_per_run: 60, deep_context_fetches_per_run: 120 })
     })
     const { container } = render(<Settings />)
     const key = await screen.findByLabelText('API key')

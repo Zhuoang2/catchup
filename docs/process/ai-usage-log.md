@@ -3181,7 +3181,7 @@ Real usage records for the technical spec, alpha reflection, and final report. E
 
 ## 2026-11-27 — `add-top-items-limit` (#9): review (Claude Code, Opus 5.5, with a Claude Opus 5.5 sub-agent)
 
-- **Prompts:** none from the user during the review; it ran under the plan approval ("Approve U1–U7 as recommended", translated from Chinese) and AGENTS.md's Shipping section. The spec sub-agent's prompt, excerpt: "Re-run every named mutation in `tasks.md` … Also try a few mutations of your own on changed lines that you think the tests might miss, and report any that survive."
+- **Prompts:** none from the user during the review; it ran under the plan approval ("Approve U1–U7 as recommended", translated from Chinese) and AGENTS.md's Shipping section. After the merge-ready report, asked "Approve the merge and wrap up following this list?", the user chose "Approve the merge and the wrap-up" (translated from Chinese). The spec sub-agent's prompt, excerpt: "Re-run every named mutation in `tasks.md` … Also try a few mutations of your own on changed lines that you think the tests might miss, and report any that survive."
 - **Outcome:**
   - **Checks on `bf30ba5`:** backend 1456, frontend 399, extension 169, OpenSpec 12, Docker smoke 12 of 12.
   - **`/code-review` (high):** three nits, not changed (the example rating of 3 in the prompt, an old rating kept when a summary is cleared, and strict parsing of ratings).

@@ -23,10 +23,10 @@ The system SHALL let the user open a saved digest and see:
 - for each summarized item: its summary, title, source name and source kind, publish date when known, a link to the original, and the "Also read" links of the context its summary used
 - its Creator updates section when it has one, with each item's title, publish date when known, link, and reason, grouped by source with the source kind
 
-The content shown MUST be the content that was saved, and MUST NOT be regenerated. The digest MUST record the language its summaries were written in, each item's source kind, and each item's "Also read" links, at the time it was saved. Later changes to the digest language setting or to a source MUST NOT change how a saved digest is presented. Digests saved before these were recorded are shown without a language mark, source kind, or "Also read" links.
+The content shown MUST be the content that was saved, and MUST NOT be regenerated. The digest MUST record the language its summaries were written in, each item's source kind, and each item's "Also read" links, at the time it was saved. Later changes to the digest language setting or to a source MUST NOT change how a saved digest is presented. Digests saved before these were recorded are shown without a language mark, source kind, or "Also read" links. When "Items to show" limits a digest, it first shows only its most important topic items, and "Show all" shows the rest (see "Show only the most important items" in `user-interface`).
 
 #### Scenario: Open an older digest
-- **WHEN** the user opens a digest from the history
+- **WHEN** the user opens a digest from the history, with "Items to show" at All items
 - **THEN** the same topics, summaries, and links that were generated are shown, and the links open the original items
 
 #### Scenario: Open a digest with Creator updates
@@ -146,3 +146,14 @@ The system SHALL list bookmarked items from a single request, newest bookmark fi
 #### Scenario: Nothing bookmarked
 - **WHEN** no item is bookmarked, including when some are liked or rated
 - **THEN** the list is empty
+
+### Requirement: Saved digests keep each item's importance
+A saved digest SHALL record, for each item in its topics, the importance rating its summary had when the digest was saved (see "Rate each item's importance" in `digest-generation`), or no rating. Reopening the digest and the latest-digest request MUST give each topic item its saved rating, as a whole number from 1 to 5, or empty when the item is unrated. They MUST NOT rate items again. Digests saved before ratings existed give every item an empty rating. Later ratings of the same stored item MUST NOT change a saved digest.
+
+#### Scenario: Reopen a rated digest
+- **WHEN** a saved digest's item was rated 4, and its source is later deleted
+- **THEN** reopening the digest, and the latest-digest request while it is the newest, give that item the rating 4
+
+#### Scenario: Digest saved before ratings
+- **WHEN** the user opens a digest saved before ratings existed
+- **THEN** every topic item has an empty rating

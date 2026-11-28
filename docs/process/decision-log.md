@@ -820,7 +820,7 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
 
 ## D-045 Bookmark, like, and rate the summary of digest items, recorded only — accepted (2026-11-25)
 
-- **Decision** (recommended options of U1–U7 in the design; awaiting the user's choice).
+- **Decision** (the user chose the recommendation for U1–U7 of the design at plan approval).
   - **What is marked.** An item as it appears in one saved digest, in a topic, also when its summary is unavailable. Creator updates get no marks. An item is delivered in one digest only, so its marks are never split.
   - **Marks.** Bookmark and Like, two independent toggles with no negative counterpart; and feedback on the summary: Good or Poor, with an optional note of up to 500 characters, saved from a small panel.
   - **Where.** A Bookmarks screen at `/bookmarks`, linked from History, newest bookmark first. The navigation keeps its four items. Removing a bookmark there keeps the entry until the screen is opened again.
@@ -841,3 +841,25 @@ Status values: **proposed** (recommended, awaiting user confirmation), **accepte
   - Every topic item gets three small controls, and the reading layout places them under the title in wide windows.
   - Notes are personal text in the local database and its backups. They are deleted with their item, and never logged.
   - A downgrade below `0012_digest_item_marks` drops every mark.
+
+## D-046 Rate each item's importance in its summary call, and show only the N most important items when reading — accepted (2026-11-27)
+
+- **Decision** (the user chose the recommendation for U1–U7 of the design at plan approval).
+  - **Rating.** The call that writes an item's summary also returns `importance`, a whole number from 1 to 5 on a fixed scale in the prompt. No call is added. A missing or invalid rating leaves the item unrated and keeps the summary. The rating is cached with the summary, and each saved digest records it for its topic items (migration `0013_item_importance`).
+  - **Choice.** Settings → Digest → "Items to show": All items (the default), or the 5, 10, 20, or 30 most important, saved with the other Digest settings.
+  - **Reading, not generation.** Runs, delivery, and grouping do not change. The main screen and History's digest view show the N highest-ranked topic items in their topics, with a line and a "Show all" button; an unrated item with a summary ranks as 3, an unavailable one last, and ties keep reading order. Creator updates are always shown. Digests without ratings, the Bookmarks screen, and digests whose choice cannot be read are shown in full.
+  - **Not shown.** The rating number is not shown to the reader.
+
+  Planned as the lean OpenSpec change `add-top-items-limit` (issue #9), in parallel with #18's final report, which edits only documents.
+- **Why.** The user asked on 2026-10-02 to choose to see only the N most important items (requirements change of that date). After a long gap a digest holds 100 or more summaries, and nothing ranks them.
+- **Alternatives:**
+  - **The grouping call orders items** (U1 B). Rejected as the recommendation: long runs are grouped in batches and merged by topic titles only, the "Other" fallback has no order, and the order could not be cached.
+  - **A separate ranking call** (U1 C). Offered to the user. Comparable ratings, but one more call and run stage, and batching again for long runs.
+  - **Limit at generation** (U2 B, C). Offered to the user. Hiding the rest for good, or leaving it pending, changes "Include every pending item" and "Summarize items once and group them by topic".
+  - **A number field, Creator updates counted, a ranked list on top, re-rating old summaries, a visible rating** (U3 B, U4 B, U5 B and C, U6 B and C, U7 B). Offered to the user.
+  - **Likes or ratings from #8 as the ranking.** Rejected: D-045 records marks only, and most items are never marked.
+- **Consequences:**
+  - Each summary answer has one more field; the prompts pinned by tests change.
+  - Changing the choice changes how every digest saved after this change reads; older digests have no ratings and are shown in full.
+  - A hidden item is still delivered, and is reached through "Show all".
+  - A downgrade below `0013_item_importance` drops every rating and the choice.

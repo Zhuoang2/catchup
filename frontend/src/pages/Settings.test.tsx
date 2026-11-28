@@ -102,6 +102,8 @@ describe('items to show', () => {
       'All items', 'The 5 most important', 'The 10 most important',
       'The 20 most important', 'The 30 most important',
     ])
+    expect(within(select).getAllByRole('option').map(option => (option as HTMLOptionElement).value))
+      .toEqual(['0', '5', '10', '20', '30'])
     expect(select).toHaveAccessibleDescription('Each summary also rates how important its item is, from 1 to 5. A digest with more items in its topics than this shows only the most important ones, with a button that shows the rest. Creator updates are always shown, and digests saved before ratings show every item.')
     expect(screen.getByRole('combobox', { name: 'Linked pages' }).compareDocumentPosition(select)
       & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)

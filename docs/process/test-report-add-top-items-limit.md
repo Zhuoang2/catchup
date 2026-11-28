@@ -301,3 +301,50 @@ No output, exit 0. Staged diffs were also checked before each group commit.
   not performed or claimed by Droid.
 - No Docker command, port 8800 operation, push, merge, tag, archive, or PR
   was performed. Claude Code's independent code/spec review remains pending.
+
+## Review by Claude Code
+
+Reviewed in worktree `review9` on the branch. Droid's run started at the plan commit `4ba109d` and ended at `bf30ba5`.
+
+### Checks
+
+| Check | Result |
+| --- | --- |
+| Backend `uv run --offline pytest` | 1456 passed on `bf30ba5`, and after Claude's review commit |
+| Frontend `npm test -- --run`, `npm run build` | 399 passed on `bf30ba5`; 400 after Claude's review commit (one new test, and two more assertions in an existing one); build passed |
+| Extension `npm test -- --run`, `npm run build` | 169 passed; build passed |
+| `DO_NOT_TRACK=1 openspec validate --all --strict` | 12 passed |
+| `git diff --check 4ba109d..HEAD` | clean |
+| `scripts/docker-smoke.sh catchup:fix9-local` (built from `bf30ba5`) | 12 of 12 |
+
+### Live check
+
+A scratch container from `catchup:fix9-local` ran on its own volume and port 8869, with a local stub model in place of a provider. The stub answered each summary call with a fixed rating per title: 5, 3, 2, and no rating for four "Tools" items; 4, 4, 3, and an invalid 9 for four "Research" items; 1, 2, and 2 for three "Notes" items. It grouped the items into those three topics. Eleven pages were saved through the extension's API, because a run reads sources only from public addresses.
+
+- **The run:** the stub received 11 summary calls, each with the rating rule, and one grouping call; no other call. The saved digest answered `importance` 5, 3, 2, `null` / 4, 4, 3, `null` / 1, 2, 2: the missing and the invalid rating were saved as unrated.
+- **Items to show at 5, main screen:** five items were shown: in Tools, "Major editor release" (5), "Plugin update" (3), and "New CLI flags" (unrated, ranked as 3, before the later 3s in reading order); in Research, "Benchmark results" and "Survey paper" (4 and 4). Notes, with no shown item, was left out, and the index read "Tools 3" and "Research 2". The line read "Showing the 5 most important of the 11 items in topics." and the button "Show all 11", described by the line.
+- **Show all and back:** Show all showed 11 items (index "Tools 4", "Research 4", "Notes 3"), kept focus on the same button, now "Show the 5 most important", and announced "Showing all 11 items in topics."; pressing it again showed the five items and announced the limited line.
+- **History:** `/digests/1` ("No. 1 · 27 Nov 2026 · CatchUp") showed the same five items and line.
+- **Layout:** at 1440 px the page did not scroll sideways; at 375 px the scroll width stayed 375, the line spanned 16–359 px, and the button sat on its own row at 16–116 px.
+- **Settings:** "Items to show" sat in Step 2: Digest with its five options and its note as the accessible description. Choosing All items and Save announced "Settings saved.", the preferences answer had `top_items: 0`, and the main screen showed all 11 items with no line.
+- **Refusals:** `PUT /api/settings/preferences` with `top_items` 7 answered 422; with `true`, 422 `invalid_request`.
+
+The container, its volume, its key file, the stub model, and the browser tab were removed afterwards.
+
+### Findings
+
+- **`/code-review` (high) on `4ba109d..bf30ba5`:** three nits, not changed:
+  - the example output in the prompt shows `"importance": 3`, which a model could copy; design D1 chose it, and the user's rollout check will show whether real ratings spread;
+  - clearing an item's summary to force a new one keeps its old rating; nothing reads the rating without a summary, and a new summary replaces it;
+  - a rating of `4.0` or `"4"` is unrated, as design D2 decided.
+- **Spec sub-agent** (independent, detached worktree): no defect and no plan error. All 37 named mutations failed their tests with the counts this report gives, and both equivalent R3 variants passed. Of its own 12 mutations, 9 failed their tests. Claude checked its findings against the code:
+  - **Fixed by Claude (tests only, D-023 class c):**
+    - the main screen showing a digest in full when the preferences cannot be read (spec "Show only the most important items", scenario "Choice cannot be read") was tested only on the saved digest page; the new test `shows the latest digest in full when the preferences cannot be read` in `Home.test.tsx` fails under the mutation that falls back to 5 on the main screen (1 failed, 105 passed);
+    - the Settings test checked the options' text but not all their values; it now checks `['0', '5', '10', '20', '30']` and fails when the value of "The 30 most important" is 3 (1 failed, 85 passed).
+
+    Both mutations ran in a `git archive` export of the branch.
+  - **Fixed by Claude (docs):** Droid's entry in the AI usage log gave a paraphrase of its prompt; it now quotes the prompt as run, with a session line.
+  - **Recorded, not fixed:**
+    - an item's `key` and `imageKey` using its position after filtering instead of its original position survives the tests (34 passed); it would only remount images when Show all is pressed;
+    - `top_items: null` is accepted and keeps the saved choice, as `null` does for every preference (design: "`None` means "keep""), although the spec says the server refuses any value other than the five;
+    - the README's new sentence is one long line in a wrapped paragraph; it renders the same.

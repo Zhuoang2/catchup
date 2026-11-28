@@ -910,6 +910,13 @@ it('limits the latest digest to the saved number of items', async () => {
   expect(container.querySelectorAll('article.item')).toHaveLength(5)
 })
 
+it('shows the latest digest in full when the preferences cannot be read', async () => {
+  const { container } = mockPage({ latest: limitedDigest })
+  await screen.findByRole('heading', { name: 'Alpha' })
+  expect(container.querySelectorAll('article.item')).toHaveLength(8)
+  expect(screen.queryByRole('button', { name: 'Show all 8' })).toBeNull()
+})
+
 it('moves focus to run-bar Generate when a new digest replaces the shown one while Show all has focus', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
   const advancePoll = watchPollTimer()

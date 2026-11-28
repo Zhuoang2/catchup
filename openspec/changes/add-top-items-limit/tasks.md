@@ -22,7 +22,7 @@ Implementer notes:
 
 ## 1. The rating in the summary call (digest-generation; design D1, D2)
 
-- [ ] 1.1 Write failing tests in `backend/tests/test_digest_stages.py`, using its `FakeModel` (`:16-31`) and `summarize_items`:
+- [x] 1.1 Write failing tests in `backend/tests/test_digest_stages.py`, using its `FakeModel` (`:16-31`) and `summarize_items`:
   - change `test_no_context_system_prompt_matches_original_main_bytes` (`:219-230`): `original` becomes the summary prompt of design D1, written out literally: the existing text up to and including "say so in one short sentence. ", then "Rate how important the item is to someone following its field, as importance, a whole number from 1 to 5: 5 a major release, finding, decision, or event; 4 a significant development; 3 a useful update; 2 a minor or routine update; 1 little or no substance, such as a bare link or a promotion. ", then "Write the summary in English. Return only json. ", then `'Example output: {"summary": "A short factual summary.", "importance": 3}'`. Keep both assertions;
   - change `test_no_image_long_transcript_prompt_matches_original_main_bytes` (`:233-242`) the same way: the existing text up to and including "Do not describe visuals: no visual content was seen. ", then the same rating sentence, then "Write the summary in English. Return only json. ", then `'Example output: {"summary": "Overview.\\n- Key point one\\n- Key point two", "importance": 3}'`.
 
@@ -35,7 +35,7 @@ Implementer notes:
   - `test_unavailable_summary_is_unrated` (new; "Summary unavailable"): `FakeModel([ProviderError("failed")])`; the result is `unavailable` and its `importance is None`.
 
   Verify: the two changed tests and `test_summary_prompts_ask_for_an_importance_rating` fail (the prompts have no rating); the other new tests fail with `TypeError` or `AttributeError` (`SummaryInput` takes no `importance`, `SummaryResult` has none).
-- [ ] 1.2 Implement design D1 and D2:
+- [x] 1.2 Implement design D1 and D2:
   - in `backend/src/catchup/llm/prompts.py`: `IMPORTANCE_RULE` exactly as D1 shows, placed in `summary_messages` and `long_transcript_messages` as D1 says, and the two example outputs with `"importance": 3` after `"summary"`. Do not change `part_messages`, `combine_messages`, or the grouping prompts;
   - in `backend/src/catchup/digest/summarize.py`: `importance` as the last field of `SummaryInput` and of `SummaryResult` (default `None`), `_importance` as D2 shows, the rating in `_summarize`'s result, and `importance=item.importance` in the cached result.
 

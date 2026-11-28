@@ -91,7 +91,7 @@ Implementer notes:
 
 ## 3. "Items to show" in Settings (user-interface; design D5, D9 Settings, D10)
 
-- [ ] 3.1 Write failing tests:
+- [x] 3.1 Write failing tests:
   - in `backend/tests/test_settings_api.py`:
     - in `test_preference_save_and_read`, `test_partial_preference_updates_keep_other_values`, and `test_image_preference_can_be_saved_without_changing_others`, every expected answer gains `"top_items": 0`. These are the only existing tests in this file that change;
     - `test_top_items_save_and_read` (new; "Save a number"): `PUT {"top_items": n}` for `n` in 5, 10, 20, 30, and 0, in that order, each answers 200 with `top_items == n` and `link_depth == "normal"`, and `GET` answers `top_items == n`;
@@ -105,7 +105,7 @@ Implementer notes:
     - `loads a saved number and keeps it when saving without changing it` (new): `mockLinkedPages({ top_items: 20 })`; the combobox has the value `'20'`; after Save, the `PUT` body has `top_items: 20`.
 
   Verify: the changed backend tests, the two new backend tests, the README test, and the three new frontend tests fail; the other existing tests still pass.
-- [ ] 3.2 Implement design D5, the Settings part of D9, and D10:
+- [x] 3.2 Implement design D5, the Settings part of D9, and D10:
   - in `backend/src/catchup/api/settings.py`: `TOP_ITEMS`, the `StrictInt` field, the check and the save, and `top_items` in the answer, as D5 shows;
   - in `frontend/src/pages/Settings.tsx`: the `Preferences` field, the state, the load, the save body, and the field, as D9 shows;
   - in `README.md`: the sentence of D10, appended to the intro paragraph;

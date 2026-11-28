@@ -57,6 +57,7 @@ function mockLinkedPages(preferences: Record<string, unknown>) {
   fetchMock.mockImplementation(async (url: string, options?: RequestInit) => {
     if (url === '/api/settings/preferences' && !options?.method) return respond({
       digest_language: 'en', youtube_captions: false, youtube_skip_shorts: true, show_images: true,
+      top_items: 0,
       link_depth: 'normal', link_depth_pages: { off: 0, shallow: 3, normal: 8, deep: 16 },
       context_fetches_per_run: 60, deep_context_fetches_per_run: 120, ...preferences,
     })
@@ -90,6 +91,45 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals()
   fetchMock.mockReset()
+})
+
+describe('items to show', () => {
+  it('shows the items-to-show choice with its note', async () => {
+    render(<Settings/>)
+    const select = await screen.findByRole('combobox', { name: 'Items to show' })
+    expect(select).toHaveValue('0')
+    expect(within(select).getAllByRole('option').map(option => option.textContent)).toEqual([
+      'All items', 'The 5 most important', 'The 10 most important',
+      'The 20 most important', 'The 30 most important',
+    ])
+    expect(select).toHaveAccessibleDescription('Each summary also rates how important its item is, from 1 to 5. A digest with more items in its topics than this shows only the most important ones, with a button that shows the rest. Creator updates are always shown, and digests saved before ratings show every item.')
+    expect(screen.getByRole('combobox', { name: 'Linked pages' }).compareDocumentPosition(select)
+      & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    expect(select.compareDocumentPosition(screen.getByRole('switch', { name: 'Show images from source sites' }))
+      & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+  })
+
+  it('saves Items to show with the other digest preferences', async () => {
+    render(<Settings/>)
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Items to show' }), { target: { value: '10' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await screen.findByText('Settings saved.')
+    expect(preferencePuts()).toHaveLength(1)
+    expect(preferencePuts()[0]).toMatchObject({
+      top_items: 10, link_depth: 'normal', digest_language: 'en', show_images: true,
+      youtube_captions: false, youtube_skip_shorts: true,
+    })
+  })
+
+  it('loads a saved number and keeps it when saving without changing it', async () => {
+    mockLinkedPages({ top_items: 20 })
+    render(<Settings/>)
+    expect(await screen.findByRole('combobox', { name: 'Items to show' })).toHaveValue('20')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await screen.findByText('Settings saved.')
+    expect(preferencePuts()).toHaveLength(1)
+    expect(preferencePuts()[0]).toMatchObject({ top_items: 20 })
+  })
 })
 
 describe('linked pages', () => {

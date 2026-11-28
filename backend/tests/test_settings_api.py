@@ -423,20 +423,20 @@ def test_preference_save_and_read(api):
     client, _ = api
     assert client.get("/api/settings/preferences").json() == {
         "digest_language": "en", "youtube_captions": False, "youtube_skip_shorts": True,
-        "show_images": True,
+        "show_images": True, "top_items": 0,
         "link_depth": "normal", "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8, "deep": 16},
         "context_fetches_per_run": 60, "deep_context_fetches_per_run": 120,
     }
     for language in ("zh-Hans", "original", "Français"):
         assert client.put("/api/settings/preferences", json={"digest_language": language}).json() == {
             "digest_language": language, "youtube_captions": False, "youtube_skip_shorts": True,
-            "show_images": True,
+            "show_images": True, "top_items": 0,
             "link_depth": "normal", "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8, "deep": 16},
             "context_fetches_per_run": 60, "deep_context_fetches_per_run": 120,
         }
         assert client.get("/api/settings/preferences").json() == {
             "digest_language": language, "youtube_captions": False, "youtube_skip_shorts": True,
-            "show_images": True,
+            "show_images": True, "top_items": 0,
             "link_depth": "normal", "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8, "deep": 16},
             "context_fetches_per_run": 60, "deep_context_fetches_per_run": 120,
         }
@@ -447,18 +447,18 @@ def test_partial_preference_updates_keep_other_values(api):
     assert client.put("/api/settings/preferences", json={
         "youtube_captions": True, "youtube_skip_shorts": False,
     }).json() == {"digest_language": "en", "youtube_captions": True, "youtube_skip_shorts": False,
-                  "show_images": True, "link_depth": "normal",
+                  "show_images": True, "top_items": 0, "link_depth": "normal",
                   "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8, "deep": 16},
                   "context_fetches_per_run": 60, "deep_context_fetches_per_run": 120}
     assert client.put("/api/settings/preferences", json={"digest_language": "zh-Hans"}).json() == {
         "digest_language": "zh-Hans", "youtube_captions": True, "youtube_skip_shorts": False,
-        "show_images": True,
+        "show_images": True, "top_items": 0,
         "link_depth": "normal", "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8, "deep": 16},
         "context_fetches_per_run": 60, "deep_context_fetches_per_run": 120,
     }
     assert client.put("/api/settings/preferences", json={"youtube_skip_shorts": True}).json() == {
         "digest_language": "zh-Hans", "youtube_captions": True, "youtube_skip_shorts": True,
-        "show_images": True,
+        "show_images": True, "top_items": 0,
         "link_depth": "normal", "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8, "deep": 16},
         "context_fetches_per_run": 60, "deep_context_fetches_per_run": 120,
     }
@@ -471,12 +471,39 @@ def test_image_preference_can_be_saved_without_changing_others(api):
     assert saved.status_code == 200
     assert saved.json() == {
         "digest_language": "zh-Hans", "youtube_captions": True,
-        "youtube_skip_shorts": True, "show_images": False,
+        "youtube_skip_shorts": True, "show_images": False, "top_items": 0,
         "link_depth": "normal", "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8, "deep": 16},
         "context_fetches_per_run": 60, "deep_context_fetches_per_run": 120,
     }
     assert client.get("/api/settings/preferences").json() == saved.json()
     assert client.put("/api/settings/preferences", json={"show_images": True}).json()["show_images"] is True
+
+
+def test_top_items_save_and_read(api):
+    client, _ = api
+    for value in (5, 10, 20, 30, 0):
+        saved = client.put("/api/settings/preferences", json={"top_items": value})
+        assert saved.status_code == 200
+        assert saved.json()["top_items"] == value
+        assert saved.json()["link_depth"] == "normal"
+        assert client.get("/api/settings/preferences").json()["top_items"] == value
+
+
+@pytest.mark.parametrize("value, code", [
+    (7, "invalid_top_items"), (-5, "invalid_top_items"),
+    (1, "invalid_top_items"), (100, "invalid_top_items"),
+    (False, "invalid_request"), (True, "invalid_request"),
+    ("10", "invalid_request"), (10.0, "invalid_request"), (10.5, "invalid_request"),
+], ids=["seven", "negative", "one", "hundred", "false", "true", "string", "float", "fraction"])
+def test_invalid_top_items(api, value, code):
+    client, _ = api
+    assert client.put("/api/settings/preferences", json={"top_items": 10}).status_code == 200
+    response = client.put("/api/settings/preferences", json={"top_items": value})
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == code
+    if code == "invalid_top_items":
+        assert response.json()["error"]["message"] == "Choose All, 5, 10, 20, or 30 items to show."
+    assert client.get("/api/settings/preferences").json()["top_items"] == 10
 
 
 @pytest.mark.parametrize("language", ["", "   ", "x" * 41])

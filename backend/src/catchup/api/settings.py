@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 
 from cryptography.fernet import InvalidToken
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, StrictInt
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
@@ -24,6 +24,7 @@ from catchup.models import (AppSettings, Digest, DigestItem, DigestRun, DigestTo
 from catchup.sources.x_api import XApiError, XClient
 
 router = APIRouter(prefix="/api/settings")
+TOP_ITEMS = (0, 5, 10, 20, 30)
 
 
 class ModelInput(BaseModel):
@@ -46,6 +47,7 @@ class PreferenceInput(BaseModel):
     youtube_captions: bool | None = None
     youtube_skip_shorts: bool | None = None
     show_images: bool | None = None
+    top_items: StrictInt | None = None
 
 
 class XTokenInput(BaseModel):
@@ -307,6 +309,7 @@ def read_preferences(request: Request, session: Session = Depends(get_session)) 
         "youtube_skip_shorts": row.youtube_skip_shorts if row else True,
         "show_images": row.show_images if row else True,
         "link_depth": row.link_depth if row else "normal",
+        "top_items": row.top_items if row else 0,
         "link_depth_pages": link_depth_pages(request.app.state.settings),
         "context_fetches_per_run": request.app.state.settings.context_fetches_per_run,
         "deep_context_fetches_per_run": context_limits("deep", request.app.state.settings).fetches_per_run,
@@ -320,6 +323,8 @@ def save_preferences(data: PreferenceInput, request: Request, session: Session =
         raise AppError("invalid_language", "Choose a digest language of at most 40 characters.", 422)
     if data.link_depth is not None and data.link_depth not in LINK_DEPTHS:
         raise AppError("invalid_link_depth", "Choose Off, Shallow, Normal, or Deep for linked pages.", 422)
+    if data.top_items is not None and data.top_items not in TOP_ITEMS:
+        raise AppError("invalid_top_items", "Choose All, 5, 10, 20, or 30 items to show.", 422)
     row = session.get(AppSettings, 1)
     if row is None:
         row = AppSettings(id=1)
@@ -334,6 +339,8 @@ def save_preferences(data: PreferenceInput, request: Request, session: Session =
         row.show_images = data.show_images
     if data.link_depth is not None:
         row.link_depth = data.link_depth
+    if data.top_items is not None:
+        row.top_items = data.top_items
     row.updated_at = utc_now()
     session.commit()
     return read_preferences(request, session)

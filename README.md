@@ -7,7 +7,7 @@ digest button. CatchUp collects what is new since each source's last successful
 check and writes a topic-grouped digest with links to the originals. Older
 digests stay available in History. Bookmark or like the items in a digest's
 topics, or rate their summaries; bookmarked items are listed under Bookmarks,
-linked from History.
+linked from History. In Settings → Digest, **Items to show** can limit each digest to its most important items: each summary rates its item from 1 to 5, and a button shows the rest.
 
 The project is under active development. Requirements live in
 `openspec/specs/`; completed changes are in `openspec/changes/archive/`.

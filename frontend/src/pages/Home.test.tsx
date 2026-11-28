@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { expectAccessible } from '../test/accessibility'
 import Home from './Home'
 import DigestView from './DigestView'
+import { limitedDigest } from '../test/limitedDigest'
 
 const fetchMock = vi.fn()
 const respond = (value: unknown, status = 200) => ({ ok: status < 400, status, json: async () => value })
@@ -887,13 +888,14 @@ it('waits for all four startup requests before showing the no-digest page', asyn
   release()
   expect(await screen.findByRole('button', { name: 'Generate digest' })).toBeInTheDocument()
 })
-function mockPage(options: { ready?: boolean; run?: unknown; sources?: unknown[]; latest?: unknown; detail?: unknown } = {}) {
+function mockPage(options: { ready?: boolean; run?: unknown; sources?: unknown[]; latest?: unknown; detail?: unknown; preferences?: unknown } = {}) {
   fetchMock.mockImplementation(async (path: string) => {
     if (path === '/api/settings/model') return respond({ key_set: options.ready ?? true })
     if (path === '/api/sources') return respond(options.sources ?? sources)
     if (path === '/api/digests/latest') return respond(options.latest ?? null)
     if (path === '/api/digests/8' && options.detail) return respond(options.detail)
     if (path === '/api/digest-runs/active') return respond(options.run ?? null)
+    if (path === '/api/settings/preferences' && options.preferences !== undefined) return respond(options.preferences)
     throw Error(`Unexpected request ${path}`)
   })
   return render(<MemoryRouter><Home/></MemoryRouter>)
@@ -901,6 +903,34 @@ function mockPage(options: { ready?: boolean; run?: unknown; sources?: unknown[]
 
 beforeEach(() => { vi.stubGlobal('fetch', fetchMock) })
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); fetchMock.mockReset() })
+
+it('limits the latest digest to the saved number of items', async () => {
+  const { container } = mockPage({ latest: limitedDigest, preferences: { show_images: true, top_items: 5 } })
+  await screen.findByRole('button', { name: 'Show all 8' })
+  expect(container.querySelectorAll('article.item')).toHaveLength(5)
+})
+
+it('moves focus to run-bar Generate when a new digest replaces the shown one while Show all has focus', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  const advancePoll = watchPollTimer()
+  const { container } = mockPage({
+    latest: limitedDigest, detail: { ...limitedDigest, id: 8 },
+    preferences: { show_images: true, top_items: 5 },
+  })
+  const showAll = await screen.findByRole('button', { name: 'Show all 8' })
+  const generate = screen.getByRole('button', { name: 'Generate digest' })
+  const original = fetchMock.getMockImplementation()!
+  fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+    if (path === '/api/digest-runs' && options?.method === 'POST') return respond(run)
+    if (path === '/api/digest-runs/1') return respond({ ...run, status: 'succeeded', digest_id: 8 })
+    return original(path, options)
+  })
+  showAll.focus()
+  fireEvent.click(generate)
+  await advancePoll()
+  await waitFor(() => expect(container.querySelector('.digest-head')).toHaveTextContent('No. 8'))
+  expect(screen.getByRole('button', { name: 'Generate digest' })).toHaveFocus()
+})
 
 it.each(['Generate screen', 'run bar'])('keeps busy Generate focusable in the %s and ignores a second activation', async layout => {
   const { container } = mockPage({ latest: layout === 'run bar' ? digest : null })

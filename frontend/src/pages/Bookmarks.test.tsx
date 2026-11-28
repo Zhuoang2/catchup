@@ -47,6 +47,23 @@ afterEach(() => {
   fetchMock.mockReset()
 })
 
+it('lists every bookmark whatever Items to show says', async () => {
+  const saved = Array.from({ length: 8 }, (_, index) => ({
+    ...entries[0], id: 31 + index, title: `Saved ${index + 1}`, importance: index % 5 + 1,
+  }))
+  fetchMock.mockImplementation(async (url: string) => {
+    if (url === '/api/bookmarks') return respond(saved)
+    if (url === '/api/settings/preferences') return respond({ show_images: true, top_items: 5 })
+    throw Error(url)
+  })
+  page()
+  await screen.findByRole('link', { name: 'Saved 1 (opens the original)' })
+  for (let index = 1; index <= 8; index++) {
+    expect(screen.getByRole('link', { name: `Saved ${index} (opens the original)` })).toBeInTheDocument()
+  }
+  expect(screen.getAllByRole('article')).toHaveLength(8)
+})
+
 it('lists bookmarked items with their digest link', async () => {
   const { container } = page()
   expect(await screen.findByRole('link', { name: 'Saved article (opens the original)' }))

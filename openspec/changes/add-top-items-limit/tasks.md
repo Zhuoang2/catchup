@@ -125,7 +125,7 @@ Implementer notes:
 
 ## 4. The limited digest (user-interface; design D7, D8, D9 Home and DigestView)
 
-- [ ] 4.1 Write failing tests:
+- [x] 4.1 Write failing tests:
   - `frontend/src/test/limitedDigest.ts` (new), typed with `Digest` from `../components/DigestArticle`:
     - `limitedDigest`: `id: 7`, `created_at: '2026-11-20T10:00:00Z'`, `model_id: 'test'`, `language: 'en'`, `item_count: 10`, `source_count: 3`, `transcript_wait_days: 7`, and three topics, with overviews `'Alpha overview'`, `'Beta overview'`, and `'Gamma overview'`:
       - Alpha: items 1 "A1" rated 2, and 2 "A2" rated 5;
@@ -154,7 +154,7 @@ Implementer notes:
   - in `frontend/src/pages/Bookmarks.test.tsx`: `lists every bookmark whatever Items to show says` ("Bookmarks"): 8 entries built from the first entry of `entries` (ids 31–38, titles "Saved 1" to "Saved 8", with `importance` 1 to 5 in turn: ids 31–35 get 1–5, ids 36–38 get 1–3), and the preferences answer `{ show_images: true, top_items: 5 }`; all 8 titles are shown. This test passes before and after the change; it guards the spec scenario.
 
   Verify: the new tests fail (there is no `topItems.ts`, no `topItems` prop, and no line), except three tests that check a digest shown in full and pass before and after the change: `shows short and unrated digests in full` in `DigestArticle.test.tsx`, `shows every item when the preferences cannot be read` in `DigestView.test.tsx`, and the Bookmarks test. The existing tests still pass.
-- [ ] 4.2 Implement design D7, D8, and the Home and DigestView parts of D9:
+- [x] 4.2 Implement design D7, D8, and the Home and DigestView parts of D9:
   - `frontend/src/components/topItems.ts` as D7 shows, and `importance?: number | null` on `DigestItem`;
   - in `frontend/src/components/DigestArticle.tsx`: the prop, the state, the visible topics (dropping a topic with no shown item only while the digest is limited), the index, and the line with its button, as D8 shows;
   - in `frontend/src/styles/components.css`: the two `.digest-limit` rules of D8;

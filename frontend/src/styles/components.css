@@ -3,6 +3,8 @@
 .page-title { font: 600 var(--title-size)/1.2 var(--font-heading); letter-spacing: var(--title-tracking); }
 .lede, .digest-meta, .hero-meta, .result-meta { color: var(--muted); }
 .digest-meta { font-size: .92em; }
+.digest-limit { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem .75rem; margin-top: .5rem; }
+.digest-limit p { margin: 0; color: var(--muted); font-size: .92em; }
 .title-time { color: var(--muted); font-weight: 400; }
 .eyebrow, .section-label, .chip, .badge, .toc-title { font-variant-caps: all-small-caps; letter-spacing: .08em; }
 .eyebrow { color: var(--accent); font-size: .8em; font-weight: 600; }

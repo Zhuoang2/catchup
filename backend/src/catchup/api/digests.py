@@ -67,6 +67,7 @@ def item_answer(item: DigestItem, mark: DigestItemMark | None) -> dict:
         "source_kind": item.source_kind,
         "published_at": item.published_at, "summary": item.summary,
         "summary_unavailable": item.summary_unavailable,
+        "importance": item.importance,
         "also_read": item.context_links or [],
         "images": [
             image for image in (item.images or [])

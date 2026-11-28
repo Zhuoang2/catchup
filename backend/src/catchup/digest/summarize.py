@@ -23,6 +23,7 @@ class SummaryInput:
     context: list[dict] = field(default_factory=list)
     images: list[dict] = field(default_factory=list)
     source_name: str = ""
+    importance: int | None = None
 
 
 @dataclass(frozen=True)
@@ -33,6 +34,11 @@ class SummaryResult:
     used: tuple[str, ...] = ()
     cached: bool = False
     images: tuple[dict, ...] = ()
+    importance: int | None = None
+
+
+def _importance(value: object) -> int | None:
+    return value if type(value) is int and 1 <= value <= 5 else None
 
 
 def split_parts(text: str, max_chars: int) -> list[str]:
@@ -124,7 +130,8 @@ def _summarize(client: ModelClient, item: SummaryInput, language: str,
             seen.add(ref)
             if len(choices) == 3:
                 break
-        return SummaryResult(item.id, summary.strip(), used=used, images=tuple(choices))
+        return SummaryResult(item.id, summary.strip(), used=used, images=tuple(choices),
+                             importance=_importance(response.get("importance")))
     except (AuthFailed, InsufficientBalance, ReasoningRejected):
         raise
     except (ModelError, ValueError):
@@ -144,7 +151,7 @@ def summarize_items(
     uncached = []
     for item in items:
         if item.summary and item.summary_language == language:
-            on_result(SummaryResult(item.id, item.summary, cached=True))
+            on_result(SummaryResult(item.id, item.summary, cached=True, importance=item.importance))
         else:
             uncached.append(item)
     pool = ThreadPoolExecutor(max_workers=4)

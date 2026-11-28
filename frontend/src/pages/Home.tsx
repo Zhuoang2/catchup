@@ -134,6 +134,7 @@ export default function Home() {
   const [sources, setSources] = useState<Source[] | null>(null)
   const [digest, setDigest] = useState<Digest | null>(null)
   const [showImages, setShowImages] = useState(true)
+  const [topItems, setTopItems] = useState(0)
   const [loading, setLoading] = useState(true)
   const [latestLoadError, setLatestLoadError] = useState<string | null>(null)
   const [pageDetailsError, setPageDetailsError] = useState<string | null>(null)
@@ -165,7 +166,7 @@ export default function Home() {
       request<Source[]>('/sources'),
       request<Digest | null>('/digests/latest'),
       request<Run | null>('/digest-runs/active'),
-      request<{ show_images: boolean }>('/settings/preferences'),
+      request<{ show_images: boolean; top_items?: number }>('/settings/preferences'),
     ] as const).then(([settings, savedSources, history, current, preferences]) => {
       if (!mounted) return
       setModelReady(settings.status === 'fulfilled' ? settings.value.key_set : true)
@@ -173,6 +174,7 @@ export default function Home() {
       if (history.status === 'fulfilled') setDigest(history.value)
       if (current.status === 'fulfilled') setRun(current.value)
       setShowImages(preferences.status === 'fulfilled' ? preferences.value.show_images !== false : true)
+      setTopItems(preferences.status === 'fulfilled' ? preferences.value.top_items ?? 0 : 0)
       if (history.status === 'rejected') setLatestLoadError((history.reason as Error).message)
       const detailsFailure = [settings, savedSources, current].find(result => result.status === 'rejected')
       if (detailsFailure?.status === 'rejected') setPageDetailsError((detailsFailure.reason as Error).message)
@@ -204,7 +206,7 @@ export default function Home() {
     request<Digest>(`/digests/${id}`)
       .then(result => { if (pageMounted.current) {
         if (!digest && generateScreenRef.current === document.activeElement) focusNext.current = 'generate'
-        if (digest && document.activeElement?.closest('.item-actions')) focusNext.current = 'generate'
+        if (digest && document.activeElement?.closest('.item-actions, .digest-limit')) focusNext.current = 'generate'
         setDigest(previous => !previous || result.id > previous.id ? result : previous)
         setNewDigestError(previous => previous?.id === id ? null : previous)
       } })
@@ -251,7 +253,7 @@ export default function Home() {
 
   return <>
   {loading ? <section className="page page-generate"><PageHead title="Loading…"/></section>
-    : digest ? <DigestArticle digest={digest} showImages={showImages} className="page-home" before={
+    : digest ? <DigestArticle digest={digest} showImages={showImages} topItems={topItems} className="page-home" before={
       <section className="run-bar" aria-label="Digest run">
         <div className="run-bar-actions">
           {firstRun ? <>

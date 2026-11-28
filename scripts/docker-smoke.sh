@@ -85,7 +85,7 @@ for path, content_type in (
     print(f"PASS: GET {path} (200 with expected type)")
 assert json.loads(request("/api/settings/preferences", "PUT", {"digest_language": "zh-Hans"})) == {
     "digest_language": "zh-Hans", "youtube_captions": False, "youtube_skip_shorts": True,
-    "show_images": True, "link_depth": "normal",
+    "show_images": True, "link_depth": "normal", "top_items": 0,
     "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8, "deep": 16}, "context_fetches_per_run": 60,
     "deep_context_fetches_per_run": 120,
 }
@@ -122,7 +122,7 @@ with urlopen(request, timeout=5) as response:
     assert response.status == 200
     assert json.load(response) == {
         "digest_language": "zh-Hans", "youtube_captions": False, "youtube_skip_shorts": True,
-        "show_images": True, "link_depth": "normal",
+        "show_images": True, "link_depth": "normal", "top_items": 0,
         "link_depth_pages": {"off": 0, "shallow": 3, "normal": 8, "deep": 16}, "context_fetches_per_run": 60,
         "deep_context_fetches_per_run": 120,
     }

@@ -42,6 +42,13 @@ IMAGE_RULES = (
     "saying what the image shows and why it matters. "
 )
 
+IMPORTANCE_RULE = (
+    "Rate how important the item is to someone following its field, as importance, "
+    "a whole number from 1 to 5: 5 a major release, finding, decision, or event; "
+    "4 a significant development; 3 a useful update; 2 a minor or routine update; "
+    "1 little or no substance, such as a bare link or a promotion. "
+)
+
 
 def _image_text(value: object) -> str:
     return json.dumps(" ".join(str(value or "").split())[:200], ensure_ascii=False)
@@ -84,8 +91,9 @@ def summary_messages(title: str, text: str, language: str,
             "(such as DIDs), user handles, post or submission metadata, and timestamps unless "
             f"essential to the meaning. {empty_rule}"
             "say so in one short sentence. "
+            f"{IMPORTANCE_RULE}"
             f"{language_instruction(language)} Return only json. "
-            'Example output: {"summary": "A short factual summary."'
+            'Example output: {"summary": "A short factual summary.", "importance": 3'
             + (', "used": ["L1"]' if context else '')
             + (', "images": [{"ref": "I1", "alt": "What the image shows and why it matters"}]' if images else '')
             + '}'
@@ -102,8 +110,9 @@ def long_transcript_messages(title: str, text: str, language: str,
             "Write a 2–3 sentence overview followed by 3–6 key points, each on a '- ' line. "
             "Do not describe visuals: no visual content was seen. "
             f"{IMAGE_RULES if images else ''}"
+            f"{IMPORTANCE_RULE}"
             f"{language_instruction(language)} Return only json. "
-            'Example output: {"summary": "Overview.\\n- Key point one\\n- Key point two"'
+            'Example output: {"summary": "Overview.\\n- Key point one\\n- Key point two", "importance": 3'
             + (', "images": [{"ref": "I1", "alt": "What the image shows and why it matters"}]' if images else '') + '}'
         )},
         {"role": "user", "content": f"Title: {title}\nTranscript:\n{text}{_image_block(images)}"},

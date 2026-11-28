@@ -10,7 +10,7 @@ type Reasoning = 'default' | 'low' | 'off'
 type ModelSettings = { provider?: Provider; reasoning?: Reasoning; base_url: string; model_id: string; key_set: boolean; api_key_last4: string | null }
 type ModelSave = { provider: Provider; reasoning: Reasoning; base_url: string; model_id: string; api_key: string }
 type Preferences = { digest_language: string; youtube_captions: boolean; youtube_skip_shorts: boolean;
-  show_images: boolean; link_depth: 'off' | 'shallow' | 'normal' | 'deep';
+  show_images: boolean; top_items: number; link_depth: 'off' | 'shallow' | 'normal' | 'deep';
   link_depth_pages: { off: number; shallow: number; normal: number; deep: number };
   context_fetches_per_run: number; deep_context_fetches_per_run: number }
 type TestResult = { ok: true; models: string[] }
@@ -65,6 +65,7 @@ export default function Settings() {
   const [youtubeCaptions, setYoutubeCaptions] = useState(false)
   const [skipShorts, setSkipShorts] = useState(true)
   const [showImages, setShowImages] = useState(true)
+  const [topItems, setTopItems] = useState(0)
   const [linkDepth, setLinkDepth] = useState<Preferences['link_depth']>('normal')
   const [linkDepthPages, setLinkDepthPages] = useState<Preferences['link_depth_pages']>({ off: 0, shallow: 0, normal: 0, deep: 0 })
   const [contextFetchesPerRun, setContextFetchesPerRun] = useState(0)
@@ -135,6 +136,7 @@ export default function Settings() {
       setYoutubeCaptions(preferences.youtube_captions)
       setSkipShorts(preferences.youtube_skip_shorts)
       setShowImages(preferences.show_images !== false)
+      setTopItems(preferences.top_items ?? 0)
       setLinkDepth(preferences.link_depth)
       setLinkDepthPages(preferences.link_depth_pages)
       setContextFetchesPerRun(preferences.context_fetches_per_run)
@@ -384,6 +386,7 @@ export default function Settings() {
           digest_language: language === 'other' ? otherLanguage : language,
           youtube_captions: youtubeCaptions, youtube_skip_shorts: skipShorts,
           show_images: showImages,
+          top_items: topItems,
           link_depth: linkDepth,
         }),
       })
@@ -491,6 +494,19 @@ export default function Settings() {
           <p className="field-hint" id="link-depth-note">
             Each page read adds time to a run, and up to 3,000 characters to that item's summary request (6,000 at Deep, and up to 4,000 for author replies), which uses more tokens.
             {' '}A run makes at most {plural(contextFetchesPerRun, 'page request')} ({deepContextFetchesPerRun} at Deep), robots.txt files included.
+          </p>
+        </div>
+        <div className="field"><label className="field-label" htmlFor="top-items">Items to show</label>
+          <select className="input select" id="top-items" aria-describedby="top-items-note" value={String(topItems)}
+            onChange={event => setTopItems(Number(event.target.value))}>
+            <option value="0">All items</option>
+            <option value="5">The 5 most important</option>
+            <option value="10">The 10 most important</option>
+            <option value="20">The 20 most important</option>
+            <option value="30">The 30 most important</option>
+          </select>
+          <p className="field-hint" id="top-items-note">
+            Each summary also rates how important its item is, from 1 to 5. A digest with more items in its topics than this shows only the most important ones, with a button that shows the rest. Creator updates are always shown, and digests saved before ratings show every item.
           </p>
         </div>
         <Switch label="Show images from source sites" checked={showImages}

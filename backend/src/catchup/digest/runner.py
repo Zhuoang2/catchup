@@ -370,7 +370,7 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                                  {"ref": part.ref, "kind": part.kind, "title": part.title,
                                   "host": urlsplit(part.url).hostname or "", "text": part.text}
                                  for part in sorted(item.contexts, key=lambda row: row.position)
-                             ], stored_image_candidates(item.image_candidates), name)
+                             ], stored_image_candidates(item.image_candidates), name, importance=item.importance)
                 for item, name in ready
             ]
             names = {item.id: name for item, name in ready}
@@ -428,6 +428,7 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                         item.summary_language = language
                         if not result.cached:
                             item.summary_images = list(result.images)
+                            item.importance = result.importance
                             for part in item.contexts:
                                 part.used = part.ref in result.used
                 run = session.get(DigestRun, run_id)
@@ -507,6 +508,7 @@ def run_digest(app: FastAPI, run_id: int) -> None:
                         source_kind=source_kind,
                         published_at=item.published_at, summary=summary.summary,
                         summary_unavailable=summary.unavailable,
+                        importance=summary.importance if summary.summary and not summary.unavailable else None,
                         context_links=[
                             {"title": part.title, "url": part.url, "kind": part.kind}
                             for part in sorted(item.contexts, key=lambda row: row.position) if part.used

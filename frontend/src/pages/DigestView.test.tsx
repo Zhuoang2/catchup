@@ -3,6 +3,7 @@ import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import DigestView from './DigestView'
 import { expectAccessible } from '../test/accessibility'
+import { limitedDigest } from '../test/limitedDigest'
 
 const fetchMock = vi.fn()
 const respond = (value: unknown, status = 200) => ({
@@ -20,6 +21,29 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals()
   fetchMock.mockReset()
+})
+
+it('limits a saved digest to the saved number of items', async () => {
+  fetchMock.mockImplementation(async (url: string) => {
+    if (url === '/api/digests/7') return respond(limitedDigest)
+    if (url === '/api/settings/preferences') return respond({ show_images: true, top_items: 5 })
+    throw Error(url)
+  })
+  const { container } = page()
+  await screen.findByRole('button', { name: 'Show all 8' })
+  expect(container.querySelectorAll('article.item')).toHaveLength(5)
+})
+
+it('shows every item when the preferences cannot be read', async () => {
+  fetchMock.mockImplementation(async (url: string) => {
+    if (url === '/api/digests/7') return respond(limitedDigest)
+    if (url === '/api/settings/preferences') return respond({ error: { code: 'offline', message: 'Offline' } }, 500)
+    throw Error(url)
+  })
+  const { container } = page()
+  await screen.findByRole('heading', { name: 'Alpha' })
+  expect(container.querySelectorAll('article.item')).toHaveLength(8)
+  expect(screen.queryByRole('button', { name: 'Show all 8' })).toBeNull()
 })
 
 it('renders saved topics, text summaries, dates and safe original links', async () => {

@@ -7,11 +7,13 @@ import { digestLang } from './lang'
 import { Button, PageHead, SectionRow, SummaryText, KindIcon, ReasonLabel,
   reasons, type Reason, type SourceKind } from './ui'
 import { useJump } from './useJump'
+import { shownItemIds } from './topItems'
 
 export type DigestItem = {
   id: number; bookmarked: boolean; liked: boolean; rating: 'good' | 'poor' | null; note: string | null
   title: string; link: string; source_name: string; source_kind?: SourceKind | null
   published_at: string | null; summary: string | null; summary_unavailable: boolean
+  importance?: number | null
   also_read?: { title: string; url: string; kind: string }[]
   images?: { url: string; alt: string }[]
 }
@@ -199,13 +201,25 @@ export function ItemContent({ item, lang, showImages, imageKey, headingLevel = 3
   </>
 }
 
-export function DigestArticle({ digest, className = '', before, headEnd, showImages = true }: {
-  digest: Digest; className?: string; before?: ReactNode; headEnd?: ReactNode; showImages?: boolean
+export function DigestArticle({ digest, className = '', before, headEnd, showImages = true, topItems = 0 }: {
+  digest: Digest; className?: string; before?: ReactNode; headEnd?: ReactNode; showImages?: boolean; topItems?: number
 }) {
   const [message, announce] = useState('')
+  const [allShownFor, setAllShownFor] = useState<number | null>(null)
+  const limited = shownItemIds(digest.topics, topItems)
+  const showAll = allShownFor === digest.id
+  const shown = limited && !showAll ? limited : null
+  const topics = digest.topics.map((topic, index) => ({
+    topic, index,
+    items: topic.items.map((item, position) => ({ item, position }))
+      .filter(({ item }) => !shown || shown.has(item.id)),
+  })).filter(({ items }) => !shown || items.length > 0)
+  const total = digest.topics.reduce((count, topic) => count + topic.items.length, 0)
+  const limitedNote = `Showing the ${topItems} most important of the ${total} items in topics.`
+  const allNote = `Showing all ${total} items in topics.`
   const lang = digestLang(digest.language)
   const groups = digest.creator_updates ?? []
-  const sectionCount = digest.topics.length + (groups.length ? 1 : 0)
+  const sectionCount = topics.length + (groups.length ? 1 : 0)
   return <section className={`page page-digest${className ? ` ${className}` : ''}`}>
     {before}
     <p className="sr-only" role="status">{message}</p>
@@ -216,22 +230,29 @@ export function DigestArticle({ digest, className = '', before, headEnd, showIma
       {!digest.topics.length && groups.length > 0 && <p className="digest-note">
         Nothing could be summarized this time. Here is what your sources published.
       </p>}
+      {limited && <div className="digest-limit">
+        <p id="digest-limit-note">{showAll ? allNote : limitedNote}</p>
+        <Button variant="ghost" size="sm" type="button" aria-describedby="digest-limit-note" onClick={() => {
+          setAllShownFor(showAll ? null : digest.id)
+          announce(showAll ? limitedNote : allNote)
+        }}>{showAll ? `Show the ${topItems} most important` : `Show all ${total}`}</Button>
+      </div>}
       {headEnd}
     </PageHead>
     <div className="digest-layout">
       {sectionCount > 1 && <nav className="toc" aria-label="In this digest">
         <p className="toc-title">In this digest</p><ol>
-          {digest.topics.map((topic, index) =>
+          {topics.map(({ topic, index, items }) =>
             <li key={index}><IndexLink id={`t${index}`} title={topic.title} lang={lang}/>
-              {' '}<span className="toc-count">{topic.items.length}</span></li>)}
+              {' '}<span className="toc-count">{items.length}</span></li>)}
           {groups.length > 0 && <li className="toc-creator"><IndexLink id="creator" title="Creator updates"/>
             {' '}<span className="toc-count">{groups.reduce((count, group) => count + group.items.length, 0)}</span></li>}
         </ol>
       </nav>}
       <div className="digest-body">
-        {digest.topics.map((topic, index) =>
+        {topics.map(({ topic, index, items }) =>
           <SectionRow key={index} id={`t${index}`} title={topic.title} overview={topic.overview} lang={lang}>
-            <div className="items">{topic.items.map((item, position) =>
+            <div className="items">{items.map(({ item, position }) =>
               <article key={position} className="item">
                 <ItemContent item={item} lang={lang} showImages={showImages} imageKey={`${digest.id}-${index}-${position}`}/>
                 <ItemActions key={`${digest.id}-${item.id}`} item={item} title={item.title} announce={announce}/>

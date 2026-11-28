@@ -10,6 +10,7 @@ export default function DigestView() {
   const { id } = useParams()
   const [digest, setDigest] = useState<Digest | null>(null)
   const [showImages, setShowImages] = useState(true)
+  const [topItems, setTopItems] = useState(0)
   const [error, setError] = useState('')
   useDocumentTitle(!error && digest?.id === Number(id)
     ? `No. ${digest.id} · ${shortDate(digest.created_at)}` : 'Digest')
@@ -19,10 +20,12 @@ export default function DigestView() {
     setError('')
     Promise.all([
       request<Digest>(`/digests/${id}`),
-      request<{ show_images: boolean }>('/settings/preferences').catch(() => ({ show_images: true })),
+      request<{ show_images: boolean; top_items?: number }>('/settings/preferences')
+        .catch(() => ({ show_images: true, top_items: 0 })),
     ])
       .then(([result, preferences]) => { if (mounted) {
         setShowImages(preferences.show_images !== false)
+        setTopItems(preferences.top_items ?? 0)
         setDigest(result)
       } })
       .catch((reason: Error) => { if (mounted) setError(reason.message) })
@@ -33,6 +36,6 @@ export default function DigestView() {
     <p role="alert">{error}</p><p className="back-link"><Link to="/digests">← All digests</Link></p>
   </section>
   if (!digest) return <section className="page page-digest"><PageHead title="Loading digest…"/></section>
-  return <DigestArticle digest={digest} showImages={showImages}
+  return <DigestArticle digest={digest} showImages={showImages} topItems={topItems}
     headEnd={<p className="back-link"><Link to="/digests">← All digests</Link></p>}/>
 }

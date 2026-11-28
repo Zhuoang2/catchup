@@ -4,6 +4,58 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { expectAccessible } from '../test/accessibility'
 import { DigestArticle } from './DigestArticle'
 import { digestLang } from './lang'
+import { limitedDigest, unrated } from '../test/limitedDigest'
+
+it('shows only the most important items in their topics', async () => {
+  const { container } = render(<MemoryRouter><DigestArticle digest={limitedDigest} topItems={5}/></MemoryRouter>)
+  expect(Array.from(container.querySelectorAll('article.item .item-title a')).map(link =>
+    link.textContent!.replace(' (opens the original)', ''))).toEqual(['A1', 'A2', 'C1', 'C2', 'C4'])
+  expect(screen.queryByRole('heading', { name: 'Beta' })).toBeNull()
+  expect(Array.from(screen.getByRole('navigation', { name: 'In this digest' }).querySelectorAll('li'))
+    .map(li => li.textContent)).toEqual(['Alpha 2', 'Gamma 3', 'Creator updates 2'])
+  expect(screen.getByRole('link', { name: 'Video one (opens the original)' })).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'Video two (opens the original)' })).toBeInTheDocument()
+  expect(container.querySelector('.digest-meta')).toHaveTextContent('10 items')
+  expect(screen.getByText('Showing the 5 most important of the 8 items in topics.')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Show all 8' }))
+    .toHaveAccessibleDescription('Showing the 5 most important of the 8 items in topics.')
+  await expectAccessible(container)
+})
+
+it('shows every item and limits again', () => {
+  const { container } = render(<MemoryRouter><DigestArticle digest={limitedDigest} topItems={5}/></MemoryRouter>)
+  const button = screen.getByRole('button', { name: 'Show all 8' })
+  button.focus()
+  fireEvent.click(button)
+  expect(container.querySelectorAll('article.item')).toHaveLength(8)
+  expect(screen.getByRole('heading', { name: 'Beta' })).toBeInTheDocument()
+  expect(container.querySelector('#digest-limit-note')).toHaveTextContent('Showing all 8 items in topics.')
+  expect(screen.getByRole('button', { name: 'Show the 5 most important' })).toBe(button)
+  expect(button).toHaveFocus()
+  expect(screen.getByRole('status')).toHaveTextContent('Showing all 8 items in topics.')
+  fireEvent.click(button)
+  expect(container.querySelectorAll('article.item')).toHaveLength(5)
+  expect(screen.getByRole('status')).toHaveTextContent('Showing the 5 most important of the 8 items in topics.')
+})
+
+it('starts limited again for the next digest', () => {
+  const { container, rerender } = render(
+    <MemoryRouter><DigestArticle digest={limitedDigest} topItems={5}/></MemoryRouter>)
+  fireEvent.click(screen.getByRole('button', { name: 'Show all 8' }))
+  rerender(<MemoryRouter><DigestArticle digest={{ ...limitedDigest, id: 8 }} topItems={5}/></MemoryRouter>)
+  expect(container.querySelectorAll('article.item')).toHaveLength(5)
+  expect(screen.getByText('Showing the 5 most important of the 8 items in topics.')).toBeInTheDocument()
+})
+
+it('shows short and unrated digests in full', () => {
+  const short = render(<MemoryRouter><DigestArticle digest={limitedDigest} topItems={10}/></MemoryRouter>)
+  expect(short.container.querySelectorAll('article.item')).toHaveLength(8)
+  expect(short.container.querySelector('.digest-limit')).toBeNull()
+  short.unmount()
+  const old = render(<MemoryRouter><DigestArticle digest={unrated(limitedDigest)} topItems={5}/></MemoryRouter>)
+  expect(old.container.querySelectorAll('article.item')).toHaveLength(8)
+  expect(old.container.querySelector('.digest-limit')).toBeNull()
+})
 
 const digest = {
   id: 7, created_at: '2026-10-03T10:00:00Z', model_id: 'test',

@@ -44,20 +44,20 @@ def test_compose_separates_published_image_and_source_build():
 
 def test_release_version_agrees_across_packages_and_locks():
     project = tomllib.loads(read_file("backend/pyproject.toml"))["project"]
-    assert project["version"] == "0.2.0"
+    assert project["version"] == "1.0.0"
     for path in (
         "frontend/package.json",
         "extension/package.json",
         "extension/public/manifest.json",
     ):
-        assert json.loads(read_file(path))["version"] == "0.2.0", path
+        assert json.loads(read_file(path))["version"] == "1.0.0", path
     for path in ("frontend/package-lock.json", "extension/package-lock.json"):
         lock = json.loads(read_file(path))
-        assert lock["version"] == "0.2.0", path
-        assert lock["packages"][""]["version"] == "0.2.0", path
+        assert lock["version"] == "1.0.0", path
+        assert lock["packages"][""]["version"] == "1.0.0", path
     lock = tomllib.loads(read_file("backend/uv.lock"))
     catchup = next(package for package in lock["package"] if package["name"] == "catchup")
-    assert catchup["version"] == "0.2.0"
+    assert catchup["version"] == "1.0.0"
 
 
 def readme_section(heading):

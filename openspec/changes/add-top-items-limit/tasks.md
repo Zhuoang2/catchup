@@ -51,7 +51,7 @@ Implementer notes:
 
 ## 2. Stored and saved ratings (digest-generation, digest-history; design D3, D4, D6)
 
-- [ ] 2.1 Write failing tests:
+- [x] 2.1 Write failing tests:
   - in `backend/tests/test_db.py`:
     - the head assertions at `:205`, `:374`, `:414`, and `:555` become `"0013_item_importance"`;
     - in `test_item_marks_migration_creates_empty_table_and_downgrades`, `command.upgrade(config, "head")` at `:587` becomes `command.upgrade(config, "0012_digest_item_marks")`; its assertion at `:589` stays `"0012_digest_item_marks"` (design "Context": it compares whole `digest_items` rows);
@@ -71,7 +71,7 @@ Implementer notes:
     - `test_digest_answers_give_each_items_saved_rating` (new; "Reopen a rated digest", "Digest saved before ratings"): `seed_history(client)`; then add a newer digest (`created_at` 2026-10-03, its own `DigestRun`) with one topic and one `DigestItem` titled "Rated" with `item_id` of the stored item and `importance=4`. `GET /api/digests/latest` and `GET /api/digests/<its id>` give "Rated" `importance == 4`; every topic item of `GET /api/digests/1` has `importance is None`. After `DELETE /api/sources/<source id>`, both still give 4.
 
   Verify: the changed `test_db.py` assertions and the new migration test fail (there is no `0013_item_importance`); the new runner tests fail (`Item` and `DigestItem` have no `importance`); both `test_digest_history.py` tests fail (the answers have no `importance`).
-- [ ] 2.2 Implement design D3, D4, and D6:
+- [x] 2.2 Implement design D3, D4, and D6:
   - in `backend/src/catchup/models.py`: `Item.importance`, `DigestItem.importance`, and `AppSettings.top_items` as D3 shows;
   - the migration `backend/src/catchup/migrations/versions/0013_item_importance.py` as D4 shows;
   - in `backend/src/catchup/digest/runner.py`: `importance=item.importance` in each `SummaryInput`, `item.importance = result.importance` in `record` for a new summary, and the snapshot rating as D3 shows. Creator update rows set none;

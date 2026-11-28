@@ -122,6 +122,99 @@ def execute(client):
     return client.get(f"/api/digest-runs/{run.id}").json()
 
 
+class RatingModel(FakeModel):
+    def __init__(self, ratings):
+        super().__init__()
+        self.ratings = ratings
+
+    def chat_json(self, messages, max_tokens):
+        if '"summary"' in messages[0]["content"]:
+            self.calls.append((messages, max_tokens))
+            title = messages[1]["content"].splitlines()[0].removeprefix("Title: ")
+            return {"summary": f"Summary of {title}", **self.ratings.get(title, {})}
+        return super().chat_json(messages, max_tokens)
+
+
+def test_digest_records_each_items_rating(environment, monkeypatch):
+    seed(environment, count=3)
+    stub_collection(monkeypatch)
+    model = RatingModel({"Item 0": {"importance": 5}, "Item 1": {"importance": "4"}})
+    environment.app.state.model_client_factory = lambda *_: model
+    result = execute(environment)
+    assert result["status"] == "succeeded"
+    expected = {"Item 0": 5, "Item 1": None, "Item 2": None}
+    assert {row.title: row.importance for row in all_rows(environment, DigestItem)} == expected
+    assert {row.title: row.importance for row in all_rows(environment, Item)} == expected
+    saved = environment.get(f"/api/digests/{result['digest_id']}").json()
+    assert {item["title"]: item["importance"] for topic in saved["topics"]
+            for item in topic["items"]} == expected
+
+
+def test_rating_survives_a_failed_grouping(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    first = FakeModel([{"summary": "Cached", "importance": 5}, AuthFailed("group failed")])
+    environment.app.state.model_client_factory = lambda *_: first
+    failed = execute(environment)
+    assert failed["status"] == "failed" and failed["error_kind"] == "auth_failed"
+    assert all_rows(environment, Item)[0].importance == 5
+    assert all_rows(environment, Item)[0].state == "pending"
+    retry = FakeModel([{"topics": [{"title": "Topic", "overview": "Overview", "item_refs": ["i1"]}]}])
+    environment.app.state.model_client_factory = lambda *_: retry
+    assert execute(environment)["status"] == "succeeded"
+    assert len(retry.calls) == 1
+    assert all_rows(environment, DigestItem)[0].importance == 5
+
+
+def test_unavailable_summary_is_saved_unrated(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        session.scalar(select(Item)).importance = 5
+        session.commit()
+    model = FakeModel([ProviderError("failed"), {
+        "topics": [{"title": "Topic", "overview": "Overview", "item_refs": ["i1"]}],
+    }])
+    environment.app.state.model_client_factory = lambda *_: model
+    assert execute(environment)["status"] == "succeeded"
+    saved = all_rows(environment, DigestItem)[0]
+    assert saved.summary_unavailable is True
+    assert saved.importance is None
+
+
+def test_summary_written_before_ratings_is_reused_unrated(environment, monkeypatch):
+    seed(environment)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        item = session.scalar(select(Item))
+        item.summary = "Old summary"
+        item.summary_language = "en"
+        session.commit()
+    model = FakeModel([{"topics": [{"title": "Topic", "overview": "Overview", "item_refs": ["i1"]}]}])
+    environment.app.state.model_client_factory = lambda *_: model
+    assert execute(environment)["status"] == "succeeded"
+    assert len(model.calls) == 1
+    saved = all_rows(environment, DigestItem)[0]
+    assert saved.summary == "Old summary"
+    assert saved.importance is None
+
+
+def test_creator_updates_are_unrated(environment, monkeypatch):
+    seed(environment, count=2, sources=2)
+    stub_collection(monkeypatch)
+    with environment.app.state.session_factory() as session:
+        item = session.scalar(select(Item).where(Item.source_id == 2))
+        item.transcript_status = "no_transcript"
+        item.importance = 4
+        session.commit()
+    assert execute(environment)["status"] == "succeeded"
+    topics = {topic.id: topic for topic in all_rows(environment, DigestTopic)}
+    updates = [row for row in all_rows(environment, DigestItem)
+               if topics[row.topic_id].kind == "creator_updates"]
+    assert len(updates) == 1
+    assert updates[0].importance is None
+
+
 def test_run_passes_the_saved_provider_to_every_client(environment, monkeypatch):
     seed(environment)
     with environment.app.state.session_factory() as session:

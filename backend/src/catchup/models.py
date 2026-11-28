@@ -66,6 +66,7 @@ class AppSettings(Base):
     youtube_captions: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     youtube_skip_shorts: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
     show_images: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    top_items: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
 
 
@@ -123,6 +124,7 @@ class Item(Base):
     content_origin: Mapped[str] = mapped_column(String(16))
     summary: Mapped[str | None] = mapped_column(Text)
     summary_language: Mapped[str | None] = mapped_column(String(40))
+    importance: Mapped[int | None] = mapped_column(Integer)
     state: Mapped[str] = mapped_column(String(16))
     transcript_status: Mapped[str | None] = mapped_column(String(16))
     entry_links: Mapped[list[dict] | None] = mapped_column(JSON)
@@ -230,6 +232,7 @@ class DigestItem(Base):
     published_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     summary: Mapped[str | None] = mapped_column(Text)
     summary_unavailable: Mapped[bool] = mapped_column(Boolean, default=False)
+    importance: Mapped[int | None] = mapped_column(Integer)
     update_reason: Mapped[str | None] = mapped_column(String(16))
     context_links: Mapped[list[dict] | None] = mapped_column(JSON)
     images: Mapped[list[dict] | None] = mapped_column(JSON)

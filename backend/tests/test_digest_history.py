@@ -54,6 +54,38 @@ def seed_history(client):
         return source.id
 
 
+def test_digest_answers_give_each_items_saved_rating(test_settings):
+    with TestClient(create_app(test_settings)) as client:
+        source_id = seed_history(client)
+        with client.app.state.session_factory() as session:
+            item = session.scalar(select(Item))
+            run = DigestRun(status="succeeded")
+            session.add(run)
+            session.flush()
+            digest = Digest(run_id=run.id, created_at=datetime(2026, 10, 3, tzinfo=timezone.utc),
+                            model_id="test", item_count=1, source_count=1)
+            session.add(digest)
+            session.flush()
+            digest_id = digest.id
+            topic = DigestTopic(digest_id=digest_id, position=0, title="Topic", overview="Overview")
+            session.add(topic)
+            session.flush()
+            session.add(DigestItem(digest_id=digest_id, topic_id=topic.id, position=0,
+                                   item_id=item.id, title="Rated", link="https://example.test/rated",
+                                   source_name="Saved source", summary="Summary", importance=4))
+            session.commit()
+        for path in ("/api/digests/latest", f"/api/digests/{digest_id}"):
+            response = client.get(path)
+            assert response.status_code == 200
+            saved = response.json()["topics"][0]["items"][0]
+            assert saved["title"] == "Rated" and saved["importance"] == 4
+        assert all(item["importance"] is None for topic in client.get("/api/digests/1").json()["topics"]
+                   for item in topic["items"])
+        assert client.delete(f"/api/sources/{source_id}").status_code == 204
+        for path in ("/api/digests/latest", f"/api/digests/{digest_id}"):
+            assert client.get(path).json()["topics"][0]["items"][0]["importance"] == 4
+
+
 def test_saved_digest_never_returns_local_images(test_settings):
     with TestClient(create_app(test_settings)) as client:
         images = [
@@ -360,7 +392,7 @@ def test_digest_detail_uses_snapshot_positions_and_survives_source_deletion(test
             "id": saved_id, "bookmarked": False, "liked": False, "rating": None, "note": None,
             "title": "Saved first", "link": "https://example.test/first",
             "source_name": "Saved source", "source_kind": None, "published_at": before["created_at"],
-            "summary": "Saved summary", "summary_unavailable": False, "also_read": [],
+            "summary": "Saved summary", "summary_unavailable": False, "importance": None, "also_read": [],
             "images": [],
         }
         assert before["topics"][0]["items"][1]["summary_unavailable"] is True

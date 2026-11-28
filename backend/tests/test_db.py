@@ -185,6 +185,7 @@ def test_migrations_live_inside_package() -> None:
     assert (migrations / "versions" / "0010_link_depth.py").is_file()
     assert (migrations / "versions" / "0011_model_reasoning.py").is_file()
     assert (migrations / "versions" / "0012_digest_item_marks.py").is_file()
+    assert (migrations / "versions" / "0013_item_importance.py").is_file()
 
 
 def test_existing_database_at_old_revision_is_unchanged(tmp_path) -> None:
@@ -202,7 +203,7 @@ def test_existing_database_at_old_revision_is_unchanged(tmp_path) -> None:
             ).scalars().all()
         migrate(engine)
         with engine.connect() as connection:
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0012_digest_item_marks"
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0013_item_importance"
             assert connection.execute(text("SELECT digest_language FROM app_settings WHERE id=1")).scalar_one() == "zh-Hans"
             assert connection.execute(
                 text("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -371,7 +372,7 @@ def test_image_migration_from_0004_preserves_rows_and_downgrades(tmp_path) -> No
             ))
         command.upgrade(config, "head")
         with engine.connect() as connection:
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0012_digest_item_marks"
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0013_item_importance"
             assert connection.execute(text(
                 "SELECT image_candidates, summary_images FROM items WHERE id=1"
             )).one() == (None, None)
@@ -411,7 +412,7 @@ def test_capture_migration_preserves_rows_and_removes_capture_sources_on_downgra
             ))
         command.upgrade(config, "head")
         with engine.connect() as connection:
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0012_digest_item_marks"
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0013_item_importance"
             assert connection.execute(text("SELECT title, site_name, captured_replies FROM items WHERE id=1")).one() == (
                 "Post", None, None,
             )
@@ -552,7 +553,7 @@ def test_migrate_copy_of_0006_database(tmp_path) -> None:
     try:
         migrate(copied)
         with copied.connect() as connection:
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0012_digest_item_marks"
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0013_item_importance"
         assert {"x_accounts", "x_credentials"} <= set(inspect(copied).get_table_names())
     finally:
         copied.dispose()
@@ -584,7 +585,7 @@ def test_item_marks_migration_creates_empty_table_and_downgrades(tmp_path):
                 "(1, 1, 1, 0, 'Article', 'https://example.test/a', 'Blog', 0)"
             ))
             before = [dict(row) for row in connection.execute(text("SELECT * FROM digest_items")).mappings()]
-        command.upgrade(config, "head")
+        command.upgrade(config, "0012_digest_item_marks")
         with engine.connect() as connection:
             assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0012_digest_item_marks"
             assert connection.execute(text("SELECT * FROM digest_item_marks")).all() == []
@@ -602,5 +603,72 @@ def test_item_marks_migration_creates_empty_table_and_downgrades(tmp_path):
         assert "digest_item_marks" not in inspect(engine).get_table_names()
         with engine.connect() as connection:
             assert [dict(row) for row in connection.execute(text("SELECT * FROM digest_items")).mappings()] == before
+    finally:
+        engine.dispose()
+
+
+def test_item_importance_migration_adds_columns_and_downgrades(tmp_path):
+    engine = make_engine(tmp_path)
+    config = Config()
+    config.set_main_option("script_location", str(Path(catchup.__file__).resolve().parent / "migrations"))
+    config.attributes["connection"] = engine
+    try:
+        command.upgrade(config, "0012_digest_item_marks")
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO app_settings (id, digest_language, updated_at) "
+                "VALUES (1, 'en', '2026-10-04')"
+            ))
+            connection.execute(text(
+                "INSERT INTO sources (id, title, site_url, feed_url, input_url, created_at) "
+                "VALUES (1, 'Show', 'https://example.com', 'https://example.com/feed', "
+                "'https://example.com/feed', '2026-10-04')"
+            ))
+            connection.execute(text(
+                "INSERT INTO items (id, source_id, identity_key, link, title, discovered_at, "
+                "content_text, content_origin, state) VALUES "
+                "(1, 1, 'one', 'https://example.com/one', 'Episode', '2026-10-04', "
+                "'text', 'feed', 'delivered')"
+            ))
+            connection.execute(text(
+                "INSERT INTO digest_runs (id, status, items_total, items_done, started_at) "
+                "VALUES (1, 'succeeded', 1, 1, '2026-10-04')"
+            ))
+            connection.execute(text(
+                "INSERT INTO digests (id, run_id, created_at, model_id, item_count, source_count) "
+                "VALUES (1, 1, '2026-10-04', 'model', 1, 1)"
+            ))
+            connection.execute(text(
+                "INSERT INTO digest_topics (id, digest_id, position, title, overview) "
+                "VALUES (1, 1, 0, 'Topic', 'Overview')"
+            ))
+            connection.execute(text(
+                "INSERT INTO digest_items (id, digest_id, topic_id, position, item_id, title, "
+                "link, source_name, summary_unavailable) VALUES "
+                "(1, 1, 1, 0, 1, 'Episode', 'https://example.com/one', 'Show', 0)"
+            ))
+            before = {
+                table: dict(connection.execute(text(f"SELECT * FROM {table}")).mappings().one())
+                for table in ("items", "digest_items", "app_settings")
+            }
+        command.upgrade(config, "0013_item_importance")
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0013_item_importance"
+            for table, extra in (
+                ("items", {"importance": None}),
+                ("digest_items", {"importance": None}),
+                ("app_settings", {"top_items": 0}),
+            ):
+                assert dict(connection.execute(text(f"SELECT * FROM {table}")).mappings().one()) == {
+                    **before[table], **extra,
+                }
+        assert next(col for col in inspect(engine).get_columns("app_settings")
+                    if col["name"] == "top_items")["nullable"] is False
+        command.downgrade(config, "0012_digest_item_marks")
+        with engine.connect() as connection:
+            for table, column in (("items", "importance"), ("digest_items", "importance"),
+                                  ("app_settings", "top_items")):
+                assert column not in {col["name"] for col in inspect(engine).get_columns(table)}
+                assert dict(connection.execute(text(f"SELECT * FROM {table}")).mappings().one()) == before[table]
     finally:
         engine.dispose()
